@@ -1,12 +1,12 @@
 # 最近交接：Phase 1 正式阅读 Shell
 
-日期：2026-11-04。分支：codex/reader-shell。当前任务 reader-shell 代码与检查完成，正在提交归档。
+日期：2026-11-04。分支：codex/reader-shell。任务 reader-shell 已完成并归档到 .trellis/tasks/archive/2026-11/11-04-reader-shell；当前无激活实现任务。
 
 ## 本阶段交付
 
 正式阅读空间已替换诊断首页，诊断保留于设置／关于。真实虚拟 List 与 Masonry 共用 Query；三栏／紧凑 Reader、玻璃侧栏、主题／布局设置、命令面板、键盘、可拖动及键盘分隔条、ID 锚点与 Reader 位置恢复均已实现。设置与命令按需加载，生产不注入假文章。
 
-偏好通过 SettingsService.Get／Update、SQLite app_settings、goose／sqlc、revision CAS 持久化；保存失败明确显示，队列合并连续更改。首份工作提交 5a6d949 为持久化部分。
+偏好通过 SettingsService.Get／Update、SQLite app_settings、goose／sqlc、revision CAS 持久化；保存失败明确显示，队列合并连续更改。工作提交 5a6d949 为持久化部分，d942a7c 为正式 Shell 与双视图。
 
 ## 真实证据与限制
 

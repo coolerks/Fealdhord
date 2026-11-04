@@ -5,7 +5,7 @@
 - [x] Tailwind／shadcn／Lucide／Query／Zustand／Virtual／motion 及正式 Shell、主题与偏好恢复。
 - [x] 真实虚拟双视图、Reader 占位／抽屉、锚点、语义动效、设置／Palette 与键盘。
 - [x] 必要组件／单元测试、类型／lint／原生构建；不运行非必要 E2E。
-- [x] 更新中文契约、CURRENT／Handoff；质量检查完成，代码直接提交后执行归档。
+- [x] 更新中文契约、CURRENT／Handoff；质量检查完成，代码提交为 d942a7c，已归档。
 
 变更边界：main.go 装配设置服务，internal/database／settings、migrations／sqlc 配置，frontend/src 拆分 Shell 并保留 Phase 0 诊断、组件与必要依赖，相关文档。不存在未知业务代码的重构。
 
