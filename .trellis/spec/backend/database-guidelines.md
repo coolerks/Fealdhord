@@ -12,7 +12,7 @@
 
 ## 3. 契约
 
-database/sql + modernc 候选，goose 迁移，sqlc 常规查询；时间 UTC 毫秒，API RFC3339。写事务不调用网络；每连接 foreign_keys，WAL 和有界 busy_timeout；原始 DDL 待 Phase 2 编写。
+database/sql + modernc v1.61.1，goose 迁移，sqlc 常规查询；时间 UTC 毫秒，API RFC3339。写事务不调用网络；每连接 foreign_keys，WAL 和有界 busy_timeout；核心 DDL 已在 00002／00003 实现，AI 扩展表待对应阶段。
 
 ## 4. 校验与错误矩阵
 
@@ -35,3 +35,7 @@ database/sql + modernc 候选，goose 迁移，sqlc 常规查询；时间 UTC �
 ## Phase 1 真实依据
 
 最小 app_settings 已提前实现：migrations/00001_ui_preferences.sql，goose v3.28.0／modernc SQLite v1.61.1，sqlc v1.30.0 生成 internal/database/sqlc。SavePreferences(value,revision,updatedAt) 使用 WHERE revision CAS，返回 RowsAffected 是否为 1。驱动 foreign_keys／WAL／busy_timeout=5000 通过 DSN 每连接设置，单连接；禁止手改生成查询。其余身份／文章／分类／FTS DDL 仍在 Phase 2。完整签名与错误矩阵见[偏好契约](../../../docs/04-specs/preferences.md)。
+
+## Phase 2 真实依据
+
+Open 持有进程文件锁，有待升级时先一致快照；禁止覆盖现有备份／恢复目标，禁止失败后返回可写 Store。UpsertArticle 通过同一事务解析全部别名，冲突拒绝，不更新稳定 sort_at 或独立状态。effective_article_categories 统一 manual 优先与 AI 阈值，不能各查询重写一套优先级。FTS 特殊 SQL 仅放 database/search.go，查询参数绑定且有候选上限，触发器增改删同事务；00003 不传给 sqlc。实际签名／错误／测试详见[数据契约](../../../docs/04-specs/data-foundation.md)。

@@ -266,3 +266,5 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 
 .nav-selected-surface { position:absolute;inset:0;background:var(--sidebar-accent);border-radius:8px;pointer-events:none;z-index:-1; }
 .nav-item { isolation:isolate; }
+
+.library-limit {padding:8px 36px;margin:0;color:var(--muted-foreground);font-size:11px;}

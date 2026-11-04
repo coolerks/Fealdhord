@@ -2,11 +2,11 @@
 
 ## 1. 范围与触发条件
 
-Phase 1 的正式阅读空间、双视图、外观、键盘和偏好恢复。RSS、分类与文章持久化在后续阶段接入；生产 loadArticles 返回空集合，不注入测试文章。
+Phase 1 的正式阅读空间、双视图、外观、键盘和偏好恢复。Phase 2 已接真实领域库及状态持久化，RSS 抓取与完整管理界面在后续阶段接入；不注入测试文章。
 
 ## 2. 签名
 
-App → PreferencesGate → Shell；lib/preferences 适配生成的 SettingsService.Get／Update。lib/library 的 articleQueryKey=['library','articles'] 当前代表全部本地空集合，filterArticles 派生系统 scope／搜索／排序；接入分页后查询键必须包含实际影响后端结果的参数，不能包含 list／masonry。
+App → PreferencesGate → Shell；lib/preferences 适配生成的 SettingsService.Get／Update。articleQueryKey=['library','articles'] 现在保存有界 Page={items,hasMore}，filterArticles 在已加载范围派生系统 scope／搜索／排序；接入分页后查询键必须包含实际影响后端结果的参数，不能包含 list／masonry。
 
 ArticleCollection 消费同一 Article[]、selectedID 和操作回调；TanStack Virtual 的 lanes 随容器计算，条目按稳定 ID 定位。Reader 的 onAnchor 与文章浏览共享有界保存入口。
 
@@ -23,7 +23,7 @@ ArticleCollection 消费同一 Article[]、selectedID 和操作回调；TanStack
 
 偏好读失败→安全错误页和重试，不冒充已恢复；写失败→保留本地编辑并显示未保存，可重试或显式重新载入；revision 冲突→提示重新载入，不覆盖其他窗口。非法持久值由 Go 逐字段恢复默认，未来 schema 拒绝读写。
 
-生产无文章→真实空态。订阅、AI 和刷新尚未交付→清楚说明，不展示假成功。当前 fixture 收藏／已读仅验证 Query 缓存共享，不构成领域持久化承诺。
+生产无文章→真实空态。订阅、AI 和刷新尚未交付→清楚说明，不展示假成功。Phase 2 收藏／已读已接 Go 串行持久化与失败回滚；完整分页及全库筛选仍在 Phase 4。
 
 ## 5. 良好、基础和异常案例
 

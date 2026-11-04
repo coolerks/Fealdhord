@@ -35,3 +35,7 @@ SQLite 是事实源；TanStack Query 管领域缓存；Zustand 管 UI 并用 sel
 ## Phase 1 真实依据
 
 workspace.initialize 仅在首次偏好恢复／显式重载时调用；patch 用 PreferenceWriter 串行保存，并合并等待中的最新版本，SQLite revision 只在成功后推进。saveStatus 区分 saving／saved／error，不把乐观界面当落盘成功。冲突不能自动覆盖，允许显式重载。scroll_anchors 共用最多 32 项，Reader 键为 reader|article_id；布局锚点必须以 ID＋offset 恢复，恢复期间不捕获顶部，退出时冲刷防抖值。
+
+## Phase 2 真实依据
+
+library Query 现在保存 Page={items,hasMore}，生产从 Go 读取，不再是固定空数组；Reader 正文按 article_id 独立缓存，列表不得加载全部正文。文章状态由 article-state 串行落盘，失败只把最新意图回滚到最后保存值，不能回滚到另一个失败请求的乐观值。RFC3339 不同小数精度不能直接字符串排序，比较真实时间。hasMore 必须提示加载范围，不能把当前有界页冒充全库。

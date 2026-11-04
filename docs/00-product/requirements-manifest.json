@@ -577,7 +577,7 @@
       "spec": "03-architecture/database.md",
       "acceptance": "DB-01",
       "phase": "Phase 2",
-      "status": "已形成规格，未实现"
+      "status": "Phase 2 核心迁移、真实驱动 FTS、约束、实例锁与一致快照恢复测试通过；AI 扩展表待对应阶段"
     },
     {
       "id": "REQ-060",

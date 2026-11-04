@@ -38,4 +38,6 @@
 
 ## Phase 1 真实依据
 
-目前 library 只提供全部空集合，Query 键为 library/articles；scope／search／sort 是同一集合的纯派生，不能误当分页接口已经交付。接入真实 API 时把所有服务端查询参数纳入键。useVirtualizer 可变实例不得被 Compiler 自动缓存，保留 use no memo 与 lint 的兼容提示，不能靠压制规则宣称 Compiler 已兼容。
+Phase 1 当时 library 只提供全部空集合，Query 键为 library/articles；scope／search／sort 是同一集合的纯派生，不能误当分页接口已经交付。接入真实 API 时把所有服务端查询参数纳入键。useVirtualizer 可变实例不得被 Compiler 自动缓存，保留 use no memo 与 lint 的兼容提示，不能靠压制规则宣称 Compiler 已兼容。
+
+Phase 2 已改为真实 LibraryService 的有界 Page 与按需正文 Query；当前静态键对应固定 500 条元数据请求，hasMore 显式提示范围。后续全库筛选／分页必须把服务端参数纳入键，不能拿局部筛选充数。

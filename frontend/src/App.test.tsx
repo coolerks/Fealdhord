@@ -5,12 +5,15 @@ import { QueryClient } from '@tanstack/react-query'
 import { articleFixtures, preferencesFixture } from '@/test/fixtures'
 import { installGeometry } from '@/test/geometry'
 import { useWorkspace } from '@/stores/workspace'
+import type { LibraryPage } from '@/lib/library'
 import { articleQueryKey } from '@/lib/library'
 
 const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),onCommand:vi.fn(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(),minimize:vi.fn(),maximize:vi.fn(),fullscreen:vi.fn(),quit:vi.fn()}))
 vi.mock('@/lib/native',()=>({native:host}))
 const api = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn() }))
 vi.mock('@/lib/preferences', () => ({ preferencesAPI: api }))
+const library=vi.hoisted(()=>({list:vi.fn(async()=>({items:[],hasMore:false})),text:vi.fn(async()=>''),setRead:vi.fn(async()=>{}),setFavorite:vi.fn(async()=>{})}))
+vi.mock('@/lib/library-api',()=>({libraryAPI:library}))
 vi.mock('@/lib/api', () => ({ desktopAPI: { info: vi.fn(), subscribe: vi.fn(() => () => {}), start: vi.fn(), cancel: vi.fn(), snapshot: vi.fn() } }))
 import App from './App'
 
@@ -27,7 +30,7 @@ afterEach(() => { geometry.cleanup(); vi.restoreAllMocks() })
 
 function setup(withArticles = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  client.setQueryData(articleQueryKey, withArticles ? articleFixtures(20) : [])
+  client.setQueryData(articleQueryKey, {items:withArticles ? articleFixtures(20) : [],hasMore:false})
   return { client, ...render(<App client={client} />) }
 }
 
@@ -50,7 +53,7 @@ describe('Phase 1 阅读 Shell', () => {
     await userEvent.click(screen.getByRole('button', { name: '打开文章：测试文章 0' }))
     expect(screen.getByRole('heading', { name: '测试文章 0' })).toBeInTheDocument()
     fireEvent.keyDown(window, { key: 'f' })
-    expect(client.getQueryData<{ id: string; isFavorite: boolean }[]>(articleQueryKey)?.[0].isFavorite).toBe(false)
+    expect(client.getQueryData<LibraryPage>(articleQueryKey)?.items[0].isFavorite).toBe(false)
     await userEvent.click(screen.getByRole('radio', { name: '瀑布流视图' }))
     await act(async () => { geometry.resize() })
     expect(useWorkspace.getState().preferences?.selected_article_id).toBe('a-0')
@@ -60,7 +63,7 @@ describe('Phase 1 阅读 Shell', () => {
     await userEvent.type(search, '不存在')
     expect(screen.getByText('没有找到匹配文章')).toBeInTheDocument()
     fireEvent.keyDown(search, { key: 'm' })
-    expect(client.getQueryData<{ isRead: boolean }[]>(articleQueryKey)?.[0].isRead).toBe(true)
+    expect(client.getQueryData<LibraryPage>(articleQueryKey)?.items[0].isRead).toBe(true)
   })
 
   it('主题和动画即时生效，设置关闭后恢复触发点焦点', async () => {
@@ -158,6 +161,21 @@ describe('Phase 1 阅读 Shell', () => {
     await userEvent.click(await screen.findByRole('menuitem',{name:'粘贴'}))
     await act(async()=>{pasted('粘贴文本');await new Promise(resolve=>setTimeout(resolve,0))})
     await waitFor(()=>expect(useWorkspace.getState().search).toBe('a粘贴文本def'))
+  })
+
+  it('真实数据读取失败提供重试，正文按选择单独读取',async()=>{
+    library.list.mockRejectedValueOnce(new Error('数据库不可读'))
+    const client=new QueryClient({defaultOptions:{queries:{retry:false}}})
+    render(<App client={client}/>)
+    expect(await screen.findByText('暂时无法读取文章')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button',{name:'重新读取文章'}))
+    expect(await screen.findByText('你的阅读，从这里开始')).toBeInTheDocument()
+    const articles=articleFixtures(1).map(article=>({...article,contentText:''}))
+    act(()=>client.setQueryData(articleQueryKey,{items:articles,hasMore:false}))
+    library.text.mockResolvedValueOnce('按需读取的完整正文')
+    await userEvent.click(await screen.findByRole('button',{name:'打开文章：测试文章 0'}))
+    expect(await screen.findByText('按需读取的完整正文')).toBeInTheDocument()
+    expect(library.text).toHaveBeenCalledWith('a-0')
   })
 
   it('设置载入失败显示重试，不能冒充已恢复成功', async () => {

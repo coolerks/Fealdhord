@@ -52,5 +52,7 @@ describe('偏好与共享数据规则', () => {
     expect(filterArticles(articles, 'all', '文章 4', 'newest')[0].id).toBe('a-4')
     expect(filterArticles(articles, 'featured', '', 'newest')).toEqual([])
     expect(articles[0].id).toBe('a-0')
+    const precision=articleFixtures(2).map((article,index)=>({...article,publishedAt:index?'2026-11-04T00:00:00.001Z':'2026-11-04T00:00:00Z'}))
+    expect(filterArticles(precision,'all','','newest')[0].id).toBe('a-1')
   })
 })

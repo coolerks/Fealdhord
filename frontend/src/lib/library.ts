@@ -11,8 +11,7 @@ export type Article = {
   cover?: { url: string; width?: number; height?: number; alt?: string }
 }
 export const articleQueryKey = ['library', 'articles'] as const
-// Phase 1 仅提供真实空库入口；RSS 采集和持久化由后续阶段替换此边界。
-export async function loadArticles(): Promise<Article[]> { return [] }
+export type LibraryPage={items:Article[];hasMore:boolean}
 
 export function filterArticles(articles: Article[], scope: string, search: string, sort: 'newest' | 'oldest') {
   const term = search.trim().toLocaleLowerCase()
@@ -22,7 +21,8 @@ export function filterArticles(articles: Article[], scope: string, search: strin
     if (scope === 'favorites' && !article.isFavorite) return false
     return !term || `${article.title}\n${article.feedTitle}\n${article.summary}`.toLocaleLowerCase().includes(term)
   }).sort((a, b) => {
-    const order = a.publishedAt.localeCompare(b.publishedAt) || a.id.localeCompare(b.id)
+    const left=Date.parse(a.publishedAt),right=Date.parse(b.publishedAt)
+    const order = (Number.isFinite(left)&&Number.isFinite(right)?left-right:0) || a.id.localeCompare(b.id)
     return sort === 'newest' ? -order : order
   })
 }

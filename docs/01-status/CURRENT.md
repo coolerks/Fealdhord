@@ -2,12 +2,13 @@
 
 最后更新：2026-11-04（Asia/Singapore）。
 
-- 当前阶段：原生阅读体验修订已提交归档（942ec94）；Phase 2 数据基础开发中。
-- 已交付：默认双栏／Reader 聚焦与可选三栏、真实 macOS 材质侧栏及跨平台菜单／全局右键、真实虚拟 List／Masonry、主题、分隔条、语义反馈与 Reduced Motion、设置／Command Palette／键盘及浏览位置恢复。
-- 持久化：Go SettingsService＋真实 SQLite 最小 app_settings，goose 迁移／sqlc 查询、revision CAS 和串行合并保存；Phase 2 已加入核心表／FTS 迁移、实例锁和升级前一致快照，仓储与真实数据入口正在接入。
-- 质量证据：前端 22 项测试、真实 SQLite 设置 5 项及 race、Go 全包 test／vet、typecheck、lint（0 error／1 Compiler 兼容提示）和 macOS 原生 build 通过。保留首包体积提示，详见阶段验收。
-- 生产数据：文章入口真实空集合，fixture 仅测试使用。RSS、文章／分类／媒体持久化、首图提取、AI／Agent／Skills／MCP 尚未实现；其他平台与完整性能门禁未测。
-- 下一阶段：Phase 2 数据基础，补完整领域 schema、身份／分类／状态约束、FTS5、迁移故障与恢复实验；不重复创建设置表。
-- [最新验收证据](../09-research/phase1-validation.md) · [交接](../08-handoffs/LATEST.md)。
+- 当前阶段：原生阅读体验修订与 Phase 2 数据基础实现完成，正在最终提交归档。
+- 原生体验：macOS 系统菜单／透明标题栏／窗口模糊材质，Windows／Linux 自行实现的菜单栏，全局右键，中性灰白／深色、默认双栏和 Reader 聚焦、可选并排阅读，内部路径图标动画与动态优先级。
+- 数据基础：00001 设置、00002 核心领域、00003 FTS；实例锁、升级前一致快照、新目标恢复；稳定身份、分类多来源优先级、状态独立持久化和 FTS 同步／重建。
+- 数据接线：LibraryService 真实有界元数据、按需正文、已读／收藏持久化；失败重试／回滚。前端当前最多 500 篇并提示 hasMore，完整分页与全库筛选／搜索 UI 属于 Phase 4。
+- 质量：database 7 项、LibraryService 2 项、settings 5 项及 race 通过；前端 26 项与最终 Go／类型／lint／原生 build 结果见验收记录。保留 Virtualizer Compiler 兼容与首包体积提示，未声称全平台或十万条性能通过。
+- 生产库：不注入 fixture；RSS 抓取、首图网络提取和 AI／Agent／Skills／MCP 尚未实现。其他平台未实机验证。
+- 下一阶段：Phase 3 RSS 纵向路径（安全网络、发现／解析、去重、条件请求／调度与首图），继续使用已建立的领域仓储。
+- [数据验收](../09-research/phase2-validation.md) · [原生体验契约与证据](../04-specs/native-experience.md) · [交接](../08-handoffs/LATEST.md)。
 
-本地已有偏好服务提交 5a6d949，正式 Shell 提交 d942a7c；不自动推送。文档中文、主会话独立完成、功能优先、非必要不做 E2E、按完成部分直接提交的授权持续生效。
+功能提交：942ec94（原生体验修订）、8253005（迁移／快照恢复），数据仓储与接线同阶段提交。文档中文、禁止子代理、非必要不做 E2E、按完成部分直接本地提交；未自动推送。

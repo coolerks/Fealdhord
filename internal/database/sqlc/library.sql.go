@@ -24,6 +24,23 @@ func (q *Queries) AddFavorite(ctx context.Context, arg AddFavoriteParams) error 
 	return err
 }
 
+const applyFeedCategories = `-- name: ApplyFeedCategories :exec
+INSERT INTO article_categories(article_id,category_id,source,state,created_at,updated_at)
+SELECT a.id,fc.category_id,'feed','included',?,? FROM articles a JOIN feed_categories fc ON fc.feed_id=a.feed_id WHERE a.feed_id=?
+ON CONFLICT(article_id,category_id,source) DO UPDATE SET state='included',updated_at=excluded.updated_at
+`
+
+type ApplyFeedCategoriesParams struct {
+	CreatedAt int64  `json:"created_at"`
+	UpdatedAt int64  `json:"updated_at"`
+	FeedID    string `json:"feed_id"`
+}
+
+func (q *Queries) ApplyFeedCategories(ctx context.Context, arg ApplyFeedCategoriesParams) error {
+	_, err := q.db.ExecContext(ctx, applyFeedCategories, arg.CreatedAt, arg.UpdatedAt, arg.FeedID)
+	return err
+}
+
 const archiveFeed = `-- name: ArchiveFeed :execrows
 UPDATE feeds SET archived_at=?,updated_at=?,revision=revision+1 WHERE id=? AND revision=?
 `
@@ -271,6 +288,37 @@ func (q *Queries) GetCategory(ctx context.Context, id string) (Category, error) 
 	return i, err
 }
 
+const getFeed = `-- name: GetFeed :one
+SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision FROM feeds WHERE id=?
+`
+
+func (q *Queries) GetFeed(ctx context.Context, id string) (Feed, error) {
+	row := q.db.QueryRowContext(ctx, getFeed, id)
+	var i Feed
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Url,
+		&i.NormalizedUrl,
+		&i.SiteUrl,
+		&i.Description,
+		&i.IconUrl,
+		&i.Etag,
+		&i.LastModified,
+		&i.LastCheckedAt,
+		&i.LastSuccessAt,
+		&i.NextCheckAt,
+		&i.ErrorCount,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ArchivedAt,
+		&i.SortPosition,
+		&i.Revision,
+	)
+	return i, err
+}
+
 const getFeedByURL = `-- name: GetFeedByURL :one
 SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision FROM feeds WHERE normalized_url=?
 `
@@ -347,7 +395,7 @@ func (q *Queries) InsertIdentity(ctx context.Context, arg InsertIdentityParams) 
 }
 
 const listArticles = `-- name: ListArticles :many
-SELECT a.id,a.title,a.url,a.author,a.summary,a.content_text,a.sort_at,a.feed_id,f.title AS feed_title,
+SELECT a.id,a.title,a.url,a.author,substr(a.summary,1,500) AS summary,a.sort_at,a.feed_id,f.title AS feed_title,
  COALESCE(r.is_read,0) AS is_read,CASE WHEN fav.article_id IS NULL THEN 0 ELSE 1 END AS is_favorite,
  m.url AS cover_url,m.width AS cover_width,m.height AS cover_height,m.alt AS cover_alt
 FROM articles a JOIN feeds f ON f.id=a.feed_id
@@ -362,7 +410,6 @@ type ListArticlesRow struct {
 	Url         string         `json:"url"`
 	Author      string         `json:"author"`
 	Summary     string         `json:"summary"`
-	ContentText string         `json:"content_text"`
 	SortAt      int64          `json:"sort_at"`
 	FeedID      string         `json:"feed_id"`
 	FeedTitle   string         `json:"feed_title"`
@@ -389,7 +436,6 @@ func (q *Queries) ListArticles(ctx context.Context, limit int64) ([]ListArticles
 			&i.Url,
 			&i.Author,
 			&i.Summary,
-			&i.ContentText,
 			&i.SortAt,
 			&i.FeedID,
 			&i.FeedTitle,
@@ -505,6 +551,24 @@ DELETE FROM favorites WHERE article_id=?
 
 func (q *Queries) RemoveFavorite(ctx context.Context, articleID string) error {
 	_, err := q.db.ExecContext(ctx, removeFavorite, articleID)
+	return err
+}
+
+const removeFeedCategories = `-- name: RemoveFeedCategories :exec
+DELETE FROM feed_categories WHERE feed_id=?
+`
+
+func (q *Queries) RemoveFeedCategories(ctx context.Context, feedID string) error {
+	_, err := q.db.ExecContext(ctx, removeFeedCategories, feedID)
+	return err
+}
+
+const removeInheritedMemberships = `-- name: RemoveInheritedMemberships :exec
+DELETE FROM article_categories WHERE source='feed' AND article_id IN (SELECT id FROM articles WHERE feed_id=?)
+`
+
+func (q *Queries) RemoveInheritedMemberships(ctx context.Context, feedID string) error {
+	_, err := q.db.ExecContext(ctx, removeInheritedMemberships, feedID)
 	return err
 }
 

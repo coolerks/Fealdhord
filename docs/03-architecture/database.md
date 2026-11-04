@@ -1,12 +1,12 @@
 # 数据库模型与迁移
 
-状态：设计契约；下述表尚未创建。SQLite + database/sql，modernc 驱动候选；goose 版本化迁移，sqlc 静态参数化查询。
+状态：Phase 2 核心表已落地，AI 与扩展表仍待后续阶段。SQLite + database/sql、modernc v1.61.1、goose v3.28.0、sqlc v1.30.0；00001 设置、00002 核心领域、00003 FTS。实际边界见 data-foundation.md。
 
 ## 通用约定
 
 领域 ID 是 Go 生成的不透明字符串，排序不依赖 ID 代表时间；文章另有内部 INTEGER rowid 供 FTS 关联。时间持久化 UTC Unix 毫秒，API 输出 RFC3339；原始发布日期可为空。布尔用 INTEGER CHECK IN (0,1)，概率 REAL CHECK 0..1，JSON 写前校验。用户可见名不作主键。
 
-每条连接启用 foreign_keys；WAL、busy_timeout=5000ms，单写连接与有界读池。设置必须逐连接生效。事务内不进行网络或模型调用；取消前已提交的事务不自动回滚。
+每条连接启用 foreign_keys；WAL、busy_timeout=5000ms，当前单连接串行写入与有界读取，未来按实际并发证据扩展读池。设置必须逐连接生效。事务内不进行网络或模型调用；取消前已提交的事务不自动回滚。
 
 ## 核心表
 
@@ -52,8 +52,12 @@
 
 ## 迁移与恢复
 
-启动获取单实例锁后，使用 SQLite 在线备份接口或已验证的一致性方法创建备份，不能只复制活跃 WAL 数据库主文件。检查 schema 版本后运行嵌入 goose；失败禁止写入并保留原库／备份。发布后回退采用恢复兼容备份或前向修复；不依赖破坏性 Down。备份不包含 OS keyring 明文；导入后失效 credential_ref 要求重新配置。
+启动获取 gofrs/flock 进程锁后，待升级旧库使用 VACUUM INTO 一致快照创建备份，不能只复制活跃 WAL 数据库主文件。检查 schema 版本后运行嵌入 goose；失败禁止写入并保留原库／备份。发布后回退采用恢复兼容备份或前向修复；不依赖破坏性 Down。备份不包含 OS keyring 明文；导入后失效 credential_ref 要求重新配置。
 
 Phase 2 必须验证：空库、旧版升级、迁移故障、外键、唯一约束、FTS 同步、并发刷新、备份恢复；schema 正文、迁移和 sqlc 输出保持一致。
 
 验收 DB-01：真实 Go 驱动支持 FTS5，迁移／外键／唯一／事务／身份别名／来源优先级与一致备份恢复均有测试；未建 schema 前不得标通过。
+
+## Phase 2 实际交付
+
+[实现契约](../04-specs/data-foundation.md)记录真实方法、错误和有界读取；[验证记录](../09-research/phase2-validation.md)区分已验证的数据行为与仍未交付的完整分页／搜索 UI、RSS 和其他平台。Core 表、sqlc 与 FTS 特殊固定 SQL 均已存在。

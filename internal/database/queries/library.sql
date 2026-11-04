@@ -22,7 +22,7 @@ SELECT * FROM articles WHERE id=?;
 -- name: DeleteArticle :execrows
 DELETE FROM articles WHERE id=?;
 -- name: ListArticles :many
-SELECT a.id,a.title,a.url,a.author,a.summary,a.content_text,a.sort_at,a.feed_id,f.title AS feed_title,
+SELECT a.id,a.title,a.url,a.author,substr(a.summary,1,500) AS summary,a.sort_at,a.feed_id,f.title AS feed_title,
  COALESCE(r.is_read,0) AS is_read,CASE WHEN fav.article_id IS NULL THEN 0 ELSE 1 END AS is_favorite,
  m.url AS cover_url,m.width AS cover_width,m.height AS cover_height,m.alt AS cover_alt
 FROM articles a JOIN feeds f ON f.id=a.feed_id
@@ -59,3 +59,13 @@ UPDATE categories SET parent_id=?,updated_at=?,revision=revision+1 WHERE parent_
 DELETE FROM categories WHERE id=?;
 -- name: SetFeedCategory :exec
 INSERT INTO feed_categories(feed_id,category_id,created_at) VALUES(?,?,?) ON CONFLICT(feed_id,category_id) DO NOTHING;
+-- name: GetFeed :one
+SELECT * FROM feeds WHERE id=?;
+-- name: RemoveFeedCategories :exec
+DELETE FROM feed_categories WHERE feed_id=?;
+-- name: RemoveInheritedMemberships :exec
+DELETE FROM article_categories WHERE source='feed' AND article_id IN (SELECT id FROM articles WHERE feed_id=?);
+-- name: ApplyFeedCategories :exec
+INSERT INTO article_categories(article_id,category_id,source,state,created_at,updated_at)
+SELECT a.id,fc.category_id,'feed','included',?,? FROM articles a JOIN feed_categories fc ON fc.feed_id=a.feed_id WHERE a.feed_id=?
+ON CONFLICT(article_id,category_id,source) DO UPDATE SET state='included',updated_at=excluded.updated_at;

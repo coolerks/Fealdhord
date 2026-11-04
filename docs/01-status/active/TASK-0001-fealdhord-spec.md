@@ -20,4 +20,4 @@ Wails v3 稳定版／Go 1.26+、统一 Adapter／Tool 权限、分类来源分�
 
 ## 剩余与交接
 
-用户已在最终摘要后授权实施，Phase 0 子任务已完成代码与本机验收，已提交并归档。参见 [Phase 0 记录](../../08-handoffs/history/2026-11-04-desktop-bootstrap-task.md)；原规格任务保持规划记录，不作为当前实现目标。
+用户已在最终摘要后授权实施，Phase 0–1、原生体验修订及 Phase 2 数据基础子任务已完成代码与相应检查；具体当前状态见 CURRENT.md。参见 [Phase 0 记录](../../08-handoffs/history/2026-11-04-desktop-bootstrap-task.md)；原规格任务保持规划记录，不作为当前实现目标。

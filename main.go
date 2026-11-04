@@ -10,6 +10,7 @@ import (
 
 	"github.com/coolerks/Fealdhord/internal/database"
 	desktopintegration "github.com/coolerks/Fealdhord/internal/desktop"
+	"github.com/coolerks/Fealdhord/internal/library"
 	"github.com/coolerks/Fealdhord/internal/settings"
 
 	fealdhord "github.com/coolerks/Fealdhord/internal/app"
@@ -30,6 +31,7 @@ func main() {
 		desktop.Event.Emit(fealdhord.EventName, event)
 	})
 	var settingsRepository settings.Repository
+	var libraryRepository library.Repository
 	dataDir, pathErr := os.UserConfigDir()
 	if pathErr == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -39,6 +41,7 @@ func main() {
 			slog.Error("本地设置初始化失败", "error", err)
 		} else {
 			settingsRepository = store
+			libraryRepository = store
 			defer func() {
 				if err := store.Close(); err != nil {
 					slog.Error("关闭设置数据库失败", "error", err)
@@ -51,7 +54,7 @@ func main() {
 	settingsService := settings.NewService(settingsRepository)
 	desktop = application.New(application.Options{
 		Name: "Fealdhord", Description: "折栈，本地优先的 RSS 阅读器",
-		Services: []application.Service{application.NewService(service), application.NewService(settingsService)},
+		Services: []application.Service{application.NewService(service), application.NewService(settingsService), application.NewService(library.NewService(libraryRepository))},
 		Assets:   application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
 		Mac:      application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
 	})

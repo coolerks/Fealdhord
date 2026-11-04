@@ -21,3 +21,7 @@ Zustand 只存选择、布局、锚点、主题与偏好；禁止复制文章全
 App 只组合 Query／Tooltip 与偏好恢复门；app/Shell、Sidebar、Toolbar 和按需 CommandPalette 负责阅读空间。features/articles／reader／settings 承载已实现界面，components/ui 为官方 shadcn Radix 组件，semantic-button／splitter 是项目交互封装，style.css 统一主题与动效 token。
 
 lib/api 保留基础绑定，lib/preferences 包装设置绑定并复用 unwrap；stores/workspace 是 UI 状态及串行偏好保存协调器，lib/preference-writer 不持有领域文章。测试 fixture 与几何测量只在 src/test 内，生产 lib/library 当前为空数据入口。详细行为与失败边界见[Shell 契约](../04-specs/reader-shell.md)及[偏好契约](../04-specs/preferences.md)。
+
+## Phase 2 数据接线
+
+library Query 从 libraryAPI／LibraryService 读取 Page={items,hasMore}，不是固定空集合；列表不载入完整正文，Reader 按 ID Query 获取文本。article-state 按文章＋字段串行保存并维护最后成功值，旧失败不会回滚新意图。metadata 数组不进 Zustand；全库分页／后端筛选与完整搜索界面仍属 Phase 4。

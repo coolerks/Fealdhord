@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { articleQueryKey, filterArticles } from './library'
-import type { Article } from './library'
+import type { LibraryPage } from './library'
+import { toggleArticleState } from './article-state'
 import { useWorkspace } from '@/stores/workspace'
 import { native } from './native'
 
@@ -29,7 +30,7 @@ export function runCommand(id: CommandID, client: QueryClient, articleID?: strin
  case 'theme-light':patch({theme:'light'});break
  case 'theme-dark':patch({theme:'dark'});break
  case 'next':case 'previous': {
-  const all=client.getQueryData<Article[]>(articleQueryKey)??[]
+  const all=client.getQueryData<LibraryPage>(articleQueryKey)?.items??[]
   const articles=filterArticles(all,prefs.selected_scope,state.search,state.sort)
   const current=articles.findIndex(article=>article.id===prefs.selected_article_id)
   const article=articles[Math.max(0,Math.min(articles.length-1,current<0?0:current+(id==='next'?1:-1)))]
@@ -38,7 +39,7 @@ export function runCommand(id: CommandID, client: QueryClient, articleID?: strin
  }
  case 'favorite':case 'read': {
   const target=articleID??prefs.selected_article_id
-  client.setQueryData<Article[]>(articleQueryKey,current=>current?.map(article=>article.id===target?{...article,...(id==='favorite'?{isFavorite:!article.isFavorite}:{isRead:!article.isRead})}:article))
+  toggleArticleState(client,target,id==='favorite'?'favorite':'read')
   break
  }
  case 'close':case 'minimize':case 'maximize':case 'fullscreen':case 'quit':
