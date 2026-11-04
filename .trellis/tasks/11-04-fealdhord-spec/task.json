@@ -29,6 +29,6 @@
     "docs/05-api/model-contract.md",
     "docs/09-research/validation.md"
   ],
-  "notes": "规格已交付且用户已在最终摘要后授权实施。Phase 0 子任务 desktop-bootstrap 已完成代码与本机验收，按用户持续授权提交收尾；本父任务保留原规格规划记录，应用实际状态以 CURRENT 和子任务为准。",
+  "notes": "规格已交付且用户已在最终摘要后授权实施。Phase 0 子任务已完成、提交为 0b654c3 并归档；本父任务保留规划记录，后续依路线图推进。用户已长期授权按完成部分直接提交，非必要不做 E2E。",
   "meta": {}
 }

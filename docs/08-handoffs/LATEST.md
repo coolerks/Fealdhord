@@ -1,6 +1,6 @@
 # 最近交接：Phase 0 桌面工程
 
-日期：2026-11-04。分支：codex/desktop-bootstrap。当前任务：desktop-bootstrap，in_progress，代码与本机验收通过，已获持续授权，按完成部分直接提交。
+日期：2026-11-04。分支：codex/desktop-bootstrap。Phase 0 任务已提交并归档；当前无激活实现任务。
 
 ## 本阶段交付
 
@@ -25,3 +25,7 @@ Phase 1 依已有规划建立三栏、玻璃 Sidebar、真实双视图、主题�
 ## 工作区与提交
 
 保留已有 .agents／.claude／.codex／.pi 与 Trellis 框架文件，禁止子代理，inline 不变。AGENTS.md 已记录持续提交授权，覆盖工作流逐次确认要求。只提交本会话代码／文档／规范／两个任务记录，不静默包含其他既有配置；随后归档与记日志。功能优先，非必要不做 E2E，按风险选择单元与必要检查。
+
+## 本次收尾
+
+1611640：开发规则；0b654c3：Phase 0 与规格基线。任务已移至 .trellis/tasks/archive/2026-11/11-04-desktop-bootstrap。已知无 dist 首次构建问题修复并用 wails3 build 验证；本轮未新增 E2E。下次直接依 AGENTS 的持续授权按完成部分提交，不再请求逐次确认。

@@ -1,6 +1,6 @@
 # Phase 0 实施与验证记录
 
-日期：2026-11-04。分支：codex/desktop-bootstrap。任务：.trellis/tasks/11-04-desktop-bootstrap。
+日期：2026-11-04。分支：codex/desktop-bootstrap。任务：.trellis/tasks/archive/2026-11/11-04-desktop-bootstrap。
 
 ## 环境结论
 
