@@ -2,7 +2,7 @@ import type { Preferences } from '@/lib/preferences'
 import type { Article } from '@/lib/library'
 
 export function preferencesFixture(patch: Partial<Preferences> = {}): Preferences {
-  return { theme: 'system', article_view_mode: 'list', list_density: 'compact', list_thumbnail: 'none', masonry_image_mode: 'original_ratio', animation: 'full', follow_system_reduce_motion: true, sidebar_collapsed: false, sidebar_width: 248, list_width: 360, reader_open: true, selected_scope: 'all', selected_article_id: '', scroll_anchors: {}, reader_font_size: 17, reader_line_height: 1.7, reader_width: 720, ...patch }
+  return { theme: 'system', article_view_mode: 'list', list_density: 'compact', list_thumbnail: 'none', masonry_image_mode: 'original_ratio', animation: 'full', follow_system_reduce_motion: true, sidebar_collapsed: false, sidebar_width: 248, list_width: 360, reader_pinned: true, reader_open: true, selected_scope: 'all', selected_article_id: '', scroll_anchors: {}, reader_font_size: 17, reader_line_height: 1.7, reader_width: 720, ...patch }
 }
 // 只供测试使用，生产模块不得导入。
 export function articleFixtures(count: number): Article[] {

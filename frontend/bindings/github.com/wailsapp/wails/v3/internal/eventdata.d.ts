@@ -8,10 +8,14 @@ import type { Events } from "@wailsio/runtime";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import type * as app$0 from "../../../../coolerks/Fealdhord/internal/app/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import type * as desktop$0 from "../../../../coolerks/Fealdhord/internal/desktop/models.js";
 
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
+            "fealdhord:command": desktop$0.CommandEvent;
             "fealdhord:event": app$0.OperationEvent;
         }
     }

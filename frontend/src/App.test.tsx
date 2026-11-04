@@ -7,6 +7,8 @@ import { installGeometry } from '@/test/geometry'
 import { useWorkspace } from '@/stores/workspace'
 import { articleQueryKey } from '@/lib/library'
 
+const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),onCommand:vi.fn(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(),minimize:vi.fn(),maximize:vi.fn(),fullscreen:vi.fn(),quit:vi.fn()}))
+vi.mock('@/lib/native',()=>({native:host}))
 const api = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn() }))
 vi.mock('@/lib/preferences', () => ({ preferencesAPI: api }))
 vi.mock('@/lib/api', () => ({ desktopAPI: { info: vi.fn(), subscribe: vi.fn(() => () => {}), start: vi.fn(), cancel: vi.fn(), snapshot: vi.fn() } }))
@@ -15,8 +17,9 @@ import App from './App'
 let geometry: ReturnType<typeof installGeometry>
 beforeEach(() => {
   vi.clearAllMocks()
+  host.isMac.mockReturnValue(false)
   geometry = installGeometry()
-  useWorkspace.setState({ preferences: null, revision: 0, version: 0, savedVersion: 0, saveError: null, saveStatus: 'saved', search: '', sort: 'newest', settingsOpen: false, settingsTab: 'appearance', paletteOpen: false, searchOpen: false, aiOpen: false })
+  useWorkspace.setState({ preferences: null, revision: 0, version: 0, savedVersion: 0, saveError: null, saveStatus: 'saved', search: '', sort: 'newest', settingsOpen: false, settingsTab: 'appearance', paletteOpen: false, searchOpen: false, aiOpen: false, helpOpen:false,commandError:null })
   api.get.mockResolvedValue({ preferences: preferencesFixture(), revision: 0 })
   api.update.mockImplementation(async (preferences, revision) => ({ preferences, revision: revision + 1 }))
 })
@@ -33,7 +36,7 @@ describe('Phase 1 阅读 Shell', () => {
     setup()
     expect(await screen.findByRole('heading', { name: '全部文章' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: '阅读视图' })).toBeInTheDocument()
-    expect(screen.getByText('留一处，慢慢读')).toBeInTheDocument()
+    expect(screen.queryByRole('complementary',{name:'阅读面板'})).not.toBeInTheDocument()
     expect(screen.getByText('还没有订阅')).toBeInTheDocument()
     expect(screen.queryByText('测试文章 0')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('radio', { name: '瀑布流视图' }))
@@ -103,6 +106,58 @@ describe('Phase 1 阅读 Shell', () => {
     fireEvent.keyDown(window, { key: '/' })
     await waitFor(() => expect(screen.getByRole('textbox', { name: '搜索当前文章' })).toHaveFocus())
     expect(useWorkspace.getState().preferences?.reader_open).toBe(false)
+  })
+
+  it('Windows 菜单与全局右键菜单执行同一视图命令并阻止浏览器菜单', async()=>{
+    setup()
+    await screen.findByRole('heading',{name:'全部文章'})
+    const menu=screen.getByRole('menubar',{name:'应用菜单栏'})
+    await userEvent.click(within(menu).getByRole('menuitem',{name:'显示'}))
+    await userEvent.click(await screen.findByRole('menuitem',{name:'瀑布流视图'}))
+    expect(useWorkspace.getState().preferences?.article_view_mode).toBe('masonry')
+    const event=new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:200,clientY:200})
+    act(()=>screen.getByRole('heading',{name:'全部文章'}).dispatchEvent(event))
+    expect(event.defaultPrevented).toBe(true)
+    await userEvent.click(await screen.findByRole('menuitem',{name:'列表视图'}))
+    expect(useWorkspace.getState().preferences?.article_view_mode).toBe('list')
+  })
+
+  it('macOS 使用主机菜单事件，默认 Reader 为聚焦面板；图标只在完整动态交互时启动', async()=>{
+    host.isMac.mockReturnValue(true)
+    api.get.mockResolvedValue({preferences:preferencesFixture({reader_pinned:false}),revision:0})
+    const {container}=setup(true)
+    const trigger=await screen.findByRole('button',{name:'打开文章：测试文章 0'})
+    expect(screen.queryByRole('menubar')).not.toBeInTheDocument()
+    await userEvent.click(trigger)
+    expect(container.querySelector('.reader-drawer')).toBeInTheDocument()
+    const settings=screen.getByRole('button',{name:'打开设置'})
+    await userEvent.hover(settings)
+    expect(settings.querySelector('[data-animating=true]')).toBeInTheDocument()
+    act(()=>useWorkspace.getState().patch({animation:'off'}))
+    expect(settings.querySelector('[data-animating=true]')).not.toBeInTheDocument()
+    host.isMac.mockReturnValue(false)
+  })
+
+  it('输入框右键保留剪切与粘贴，受控搜索状态随编辑更新', async()=>{
+    setup()
+    await userEvent.click(await screen.findByRole('button',{name:'搜索文章'}))
+    const field=screen.getByRole('textbox',{name:'搜索当前文章'}) as HTMLInputElement
+    await userEvent.type(field,'abcdef')
+    field.setSelectionRange(1,3)
+    await act(async()=>{fireEvent.contextMenu(field);await new Promise(resolve=>setTimeout(resolve,0))})
+    let copied:()=>void=()=>{}
+    host.copy.mockImplementationOnce(()=>new Promise<void>(resolve=>{copied=resolve}))
+    await userEvent.click(await screen.findByRole('menuitem',{name:'剪切'}))
+    await act(async()=>{copied();await new Promise(resolve=>setTimeout(resolve,0))})
+    expect(host.copy).toHaveBeenCalledWith('bc')
+    await waitFor(()=>expect(useWorkspace.getState().search).toBe('adef'))
+    field.setSelectionRange(1,1)
+    await act(async()=>{fireEvent.contextMenu(field);await new Promise(resolve=>setTimeout(resolve,0))})
+    let pasted:(text:string)=>void=()=>{}
+    host.paste.mockImplementationOnce(()=>new Promise<string>(resolve=>{pasted=resolve}))
+    await userEvent.click(await screen.findByRole('menuitem',{name:'粘贴'}))
+    await act(async()=>{pasted('粘贴文本');await new Promise(resolve=>setTimeout(resolve,0))})
+    await waitFor(()=>expect(useWorkspace.getState().search).toBe('a粘贴文本def'))
   })
 
   it('设置载入失败显示重试，不能冒充已恢复成功', async () => {

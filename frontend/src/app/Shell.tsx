@@ -4,6 +4,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { CircleAlert, Rss, Search, Sparkles } from 'lucide-react'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { ApplicationMenu } from './ApplicationMenu'
+import { native } from '@/lib/native'
+import { isCommand,runCommand } from '@/lib/commands'
+import { IconMotionContext } from '@/components/animated-glyph'
+import { Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Splitter } from '@/components/splitter'
 import { ArticleCollection } from '@/features/articles/ArticleCollection'
@@ -11,7 +16,6 @@ import { Reader } from '@/features/reader/Reader'
 import { useWorkspace } from '@/stores/workspace'
 import { effectiveMotion, useMediaQuery } from '@/lib/environment'
 import { articleQueryKey, filterArticles, loadArticles } from '@/lib/library'
-import type { Article } from '@/lib/library'
 import { Sidebar } from './Sidebar'
 import { Toolbar } from './Toolbar'
 import { cn } from '@/lib/utils'
@@ -25,6 +29,8 @@ export function Shell() {
   const search = useWorkspace(state => state.search)
   const sort = useWorkspace(state => state.sort)
   const showSettings = useWorkspace(state => state.showSettings)
+  const helpOpen=useWorkspace(state=>state.helpOpen)
+  const commandError=useWorkspace(state=>state.commandError)
   const settingsOpen = useWorkspace(state => state.settingsOpen)
   const paletteOpen = useWorkspace(state => state.paletteOpen)
   const saveStatus = useWorkspace(state => state.saveStatus)
@@ -36,8 +42,8 @@ export function Shell() {
   const systemDark = useMediaQuery('(prefers-color-scheme: dark)')
   const systemReduced = useMediaQuery('(prefers-reduced-motion: reduce)')
   const mode = effectiveMotion(preferences, systemReduced)
-  const overlay = compact || preferences.article_view_mode === 'masonry'
-  const readerVisible = preferences.reader_open && (!overlay || Boolean(selected))
+  const overlay = !preferences.reader_pinned || compact || preferences.article_view_mode === 'masonry'
+  const readerVisible = preferences.reader_open && Boolean(selected)
   const [sidebarDraft, setSidebarDraft] = useState<number | null>(null)
   const [listDraft, setListDraft] = useState<number | null>(null)
   const sidebarWidth = preferences.sidebar_collapsed ? 64 : sidebarDraft ?? preferences.sidebar_width
@@ -52,8 +58,8 @@ export function Shell() {
     document.documentElement.dataset.motion = mode
   }, [preferences.theme, systemDark, mode])
 
-  const favorite = useCallback((id: string) => client.setQueryData<Article[]>(articleQueryKey, current => current?.map(article => article.id === id ? { ...article, isFavorite: !article.isFavorite } : article)), [client])
-  const read = useCallback((id: string) => client.setQueryData<Article[]>(articleQueryKey, current => current?.map(article => article.id === id ? { ...article, isRead: !article.isRead } : article)), [client])
+  const favorite = useCallback((id:string)=>runCommand('favorite',client,id),[client])
+  const read = useCallback((id:string)=>runCommand('read',client,id),[client])
   const open = useCallback((id: string) => patch({ selected_article_id: id, reader_open: true }), [patch])
   const saveAnchor = useCallback((key: string, anchor: { article_id: string; offset: number }) => {
     const prefs = useWorkspace.getState().preferences
@@ -75,7 +81,12 @@ export function Shell() {
 
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
-      if (event.isComposing || useWorkspace.getState().settingsOpen) return
+      if (event.isComposing || event.defaultPrevented || useWorkspace.getState().settingsOpen) return
+      if (!native.isMac() && event.key==='F10') {event.preventDefault();document.querySelector<HTMLElement>('[data-slot=menubar-trigger]')?.focus();return}
+      if ((event.metaKey||event.ctrlKey) && !native.isMac()) {
+        const id=event.key===','?'settings':event.key.toLowerCase()==='f'?'search':event.key==='1'?'all':event.key==='2'?'unread':event.key==='3'?'favorites':null
+        if(id){event.preventDefault();runCommand(id,client);return}
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault(); useWorkspace.setState({ paletteOpen: !useWorkspace.getState().paletteOpen }); return
       }
@@ -97,12 +108,14 @@ export function Shell() {
     }
     window.addEventListener('keydown', keyboard)
     return () => window.removeEventListener('keydown', keyboard)
-  }, [articles, preferences.selected_article_id, open, selected, favorite, read, readerVisible, closeReader, overlay, patch])
+  }, [articles, preferences.selected_article_id, open, selected, favorite, read, readerVisible, closeReader, overlay, patch, client])
+
+  useEffect(()=>native.onCommand(id=>{if(isCommand(id))runCommand(id,client)}),[client])
 
   const emptySearch = search.trim() !== ''
   const featured = preferences.selected_scope === 'featured'
-  return <MotionConfig reducedMotion={mode === 'full' ? 'never' : 'always'} transition={{ duration: mode === 'off' ? 0 : mode === 'subtle' ? .1 : .22, ease: [.22, 1, .36, 1] }}>
-    <div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={preferences.sidebar_collapsed}>
+  return <IconMotionContext.Provider value={mode}><MotionConfig reducedMotion={mode === 'full' ? 'never' : 'always'} transition={{ duration: mode === 'off' ? 0 : mode === 'subtle' ? .1 : .22, ease: [.22, 1, .36, 1] }}>
+    <div className="desktop-shell" data-platform={native.isMac()?'mac':'other'}>{!native.isMac()&&<ApplicationMenu/>}<div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={preferences.sidebar_collapsed}>
       <Sidebar articles={data} motionMode={mode} />
       {!preferences.sidebar_collapsed && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={280} onResize={setSidebarDraft} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
       <main className={cn('reading-workspace', !overlay && readerVisible && 'three-column')}>
@@ -111,11 +124,13 @@ export function Shell() {
           <footer className="article-status"><span><span className="status-dot" />{saveStatus === 'error' ? '偏好尚未保存' : saveStatus === 'saving' ? '正在保存偏好' : '本地阅读空间'}</span><span><kbd>J</kbd><kbd>K</kbd> 切换</span></footer>
         </section>
         {!overlay && readerVisible && <><Splitter label="调整文章列表宽度" value={listDraft ?? preferences.list_width} min={300} max={420} onResize={setListDraft} onCommit={value => { patch({ list_width: value }); setListDraft(null) }} /><Reader article={selected} preferences={preferences} overlay={false} onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></>}
-        <AnimatePresence>{overlay && readerVisible && <motion.div className="reader-drawer" transition={mode === 'full' ? { type: 'spring', stiffness: 380, damping: 38 } : { duration: mode === 'off' ? 0 : .1 }} initial={mode === 'full' ? { x: 24, opacity: 0 } : { opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={mode === 'full' ? { x: 16, opacity: 0 } : { opacity: 0 }}><Reader article={selected} preferences={preferences} overlay onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></motion.div>}</AnimatePresence>
+        <AnimatePresence>{overlay && readerVisible && <motion.div className="reader-drawer" transition={mode === 'full' ? { type: 'spring', stiffness: 380, damping: 38 } : { duration: mode === 'off' ? 0 : .1 }} initial={mode === 'full' ? { x: 64, opacity: 0 } : { opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={mode === 'full' ? { x: 16, opacity: 0 } : { opacity: 0 }}><Reader article={selected} preferences={preferences} overlay onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></motion.div>}</AnimatePresence>
       </main>
       <Suspense fallback={null}>{settingsOpen && <SettingsDialog />}{paletteOpen && <CommandPalette />}</Suspense>
       <div className="sr-only" aria-live="polite">{preferences.article_view_mode === 'masonry' ? '已切换到瀑布流视图' : '已切换到列表视图'}</div>
       {saveStatus === 'error' && <div className="save-warning" role="status"><CircleAlert /><span>偏好保存失败</span><Button size="sm" variant="ghost" onClick={() => showSettings()}>查看</Button></div>}
-    </div>
-  </MotionConfig>
+      <Dialog open={helpOpen} onOpenChange={open=>useWorkspace.setState({helpOpen:open})}><DialogContent><DialogHeader><DialogTitle>键盘快捷键</DialogTitle><DialogDescription>让阅读跟上你的节奏。</DialogDescription></DialogHeader><dl className="shortcut-list"><dt>下一篇／上一篇</dt><dd>J ／ K</dd><dt>收藏／切换已读</dt><dd>F ／ M</dd><dt>搜索文章</dt><dd>/</dd><dt>搜索与命令</dt><dd>⌘ ／ Ctrl + K</dd><dt>设置</dt><dd>⌘ ／ Ctrl + ,</dd><dt>返回浏览</dt><dd>Esc</dd><dt>Windows 菜单栏</dt><dd>F10</dd></dl></DialogContent></Dialog>
+      {commandError&&<div role="alert" className="command-error">{commandError}<Button variant="ghost" onClick={()=>useWorkspace.setState({commandError:null})}>关闭</Button></div>}
+    </div></div>
+  </MotionConfig></IconMotionContext.Provider>
 }

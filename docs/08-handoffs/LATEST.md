@@ -1,25 +1,15 @@
-# 最近交接：Phase 1 正式阅读 Shell
+# 最近交接：原生阅读体验修订
 
-日期：2026-11-04。分支：codex/reader-shell。任务 reader-shell 已完成并归档到 .trellis/tasks/archive/2026-11/11-04-reader-shell；当前无激活实现任务。
+日期：2026-11-04，分支 codex/native-reading-experience。用户要求先修复菜单、材质、配色与动效，再自动开始 Phase 2；无需再次询问。
 
-## 本阶段交付
+## 本批交付
 
-正式阅读空间已替换诊断首页，诊断保留于设置／关于。真实虚拟 List 与 Masonry 共用 Query；三栏／紧凑 Reader、玻璃侧栏、主题／布局设置、命令面板、键盘、可拖动及键盘分隔条、ID 锚点与 Reader 位置恢复均已实现。设置与命令按需加载，生产不注入假文章。
+macOS 原生菜单栏与标准编辑／窗口 role；Windows／Linux 应用内 Menubar；全局上下文菜单与剪贴板目标快照；中性灰白／深色、透明标题栏与真实窗口模糊材质、双栏浏览和可选并排 Reader。Motion 图标改为 lucide-animated 按需源码，父按钮 Hover／Focus／Press 触发，保留 MIT，减少动态不挂载内部动画实例。
 
-偏好通过 SettingsService.Get／Update、SQLite app_settings、goose／sqlc、revision CAS 持久化；保存失败明确显示，队列合并连续更改。工作提交 5a6d949 为持久化部分，d942a7c 为正式 Shell 与双视图。
+## 证据与边界
 
-## 真实证据与限制
+原生构建成功，设置 race 通过；本机系统菜单切换 Masonry、全局自定义右键、设置回焦和灰白窗口已实际观察。完整命令和交互边界见[原生体验契约](../04-specs/native-experience.md)。未做 Windows 实机、逐帧／录屏认证。原生材质受 OS 减少透明度与背景影响，不能以一张截图保证所有环境表现。保留既有 Virtualizer Compiler 与首包体积提示。
 
-前端 19 项、真实 SQLite 设置 5 项及 race、Go 全包 test／vet、typecheck、lint 返回成功、macOS arm64 原生构建通过。没有重复 E2E／截图。详见[Phase 1 验收](../09-research/phase1-validation.md)。Virtualizer Compiler 兼容警告与 Vite 首包体积提示保留，未声称跨平台／帧率／十万条验收。
+## 后续
 
-## 实际契约
-
-阅读[Shell](../04-specs/reader-shell.md)与[偏好](../04-specs/preferences.md)。生成绑定不手改。query key 当前为完整空集合；后续分页必须纳入查询参数。领域文章不进 Zustand，SQLite 是偏好唯一持久事实。锚点恢复期间不得记录顶部；防抖退出需冲刷。设置冲突显式重载，不能默默覆盖。
-
-## 下一阶段
-
-Phase 2 数据基础：在已有设置迁移之后补 Feed／Article／Category／State／Media／FTS schema 与 sqlc 查询，验证真实驱动 FTS5、唯一／外键约束、迁移失败、事务回滚和备份恢复。Phase 3 接 RSS 与安全网络／首图，Phase 4 接完整领域操作；当前收藏／已读 fixture 仅验证共享缓存，不代表落盘。
-
-## 工作区与持续授权
-
-主会话独立完成，禁止子代理，inline 不变。已有 .agents／.claude／.codex／.pi 和 Trellis 框架配置保持原样且不静默纳入本阶段提交。功能优先，非必要不做 E2E，完成部分直接本地提交，不重复征询、不自动推送。构建与 Go 检查顺序运行，避免 dist 被重建时的嵌入资源竞争。
+立即由独立任务承接 Phase 2 数据基础，已有设置迁移编号 00001 不重写；补核心领域 schema、FTS5／索引一致性、身份与分类来源约束、迁移失败及备份恢复。RSS 抓取属于 Phase 3，不能注入生产假文章。

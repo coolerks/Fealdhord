@@ -25,7 +25,7 @@ export function Reader({ article, preferences, overlay, onClose, onFavorite, onR
     if (articleID && pending.current !== null) save.current(`reader|${articleID}`, { article_id: articleID, offset: pending.current })
     pending.current = null
   }, [articleID])
-  return <motion.aside className="reader-pane" aria-label="阅读面板" initial={false} animate={{ opacity: 1 }} transition={{ duration: .18 }}>
+  return <motion.aside className="reader-pane" aria-label="阅读面板" data-article-id={articleID} initial={false} animate={{ opacity: 1 }} transition={{ duration: .18 }}>
     <header className="reader-toolbar"><div className="toolbar-start"><SemanticButton icon={ChevronLeft} meaning="collapse" label={overlay ? '返回文章浏览' : '收起阅读面板'} onClick={onClose} /><span>阅读</span></div><div className="toolbar-actions"><SemanticButton icon={Star} meaning="favorite" label={article?.isFavorite ? '取消收藏' : '收藏当前文章'} active={article?.isFavorite} disabled={!article} onClick={() => article && onFavorite(article.id)} /><SemanticButton icon={CheckCheck} meaning="read" label="切换当前文章已读状态" disabled={!article} onClick={() => article && onRead(article.id)} /><SemanticButton icon={Sparkles} meaning="ai" label="文章 AI 助手" onClick={() => showSettings('ai')} /></div></header>
     {article ? <div ref={content} className="reader-content" onScroll={event => {
       if (!articleID) return

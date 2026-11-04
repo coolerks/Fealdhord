@@ -17,6 +17,8 @@ type Workspace = {
   settingsOpen: boolean
   paletteOpen: boolean
   searchOpen: boolean
+  helpOpen: boolean
+  commandError: string | null
   aiOpen: boolean
   patch: (patch: Partial<Preferences>) => void
   initialize: (snapshot: Snapshot) => void
@@ -33,7 +35,7 @@ export function restoreSettingsFocus() {
 
 export const useWorkspace = create<Workspace>((set, get) => ({
   preferences: null, revision: 0, version: 0, savedVersion: 0, saveError: null, saveStatus: 'saved',
-  search: '', sort: 'newest', settingsTab: 'appearance', settingsOpen: false, paletteOpen: false, searchOpen: false, aiOpen: false,
+  search: '', sort: 'newest', settingsTab: 'appearance', settingsOpen: false, paletteOpen: false, searchOpen: false, aiOpen: false, helpOpen: false, commandError: null,
   initialize(snapshot) {
     writer = new PreferenceWriter(snapshot.revision, preferencesAPI.update,
       (saved, version) => set(state => ({ revision: saved.revision, savedVersion: version, saveStatus: state.version > version ? 'saving' : 'saved' })),

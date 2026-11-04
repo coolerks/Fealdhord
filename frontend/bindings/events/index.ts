@@ -9,6 +9,11 @@ import type {} from "../github.com/wailsapp/wails/v3/internal/eventdata.js";
 import "../github.com/wailsapp/wails/v3/internal/eventcreate.js";
 
 /**
+ * Name of the custom event "fealdhord:command".
+ */
+export const FealdhordCommand = "fealdhord:command";
+
+/**
  * Name of the custom event "fealdhord:event".
  */
 export const FealdhordEvent = "fealdhord:event";

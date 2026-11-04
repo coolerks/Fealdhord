@@ -12,12 +12,12 @@ ArticleCollection 消费同一 Article[]、selectedID 和操作回调；TanStack
 
 ## 3. 契约
 
-- 默认三栏，侧栏 220–280px、列表 300–420px；折叠侧栏 64px。窗口≤1080px 或 Masonry 使用 Reader 抽屉；不为切换模式复制文章缓存。
+- 用户后续修订为默认双栏浏览，Reader 聚焦面板；reader_pinned=true 时启用宽窗口三栏。侧栏 220–280px、列表 300–420px；折叠侧栏 64px。窗口≤1080px 或 Masonry 使用 Reader 抽屉；不为切换模式复制文章缓存。
 - List 支持紧凑／舒适、无／小缩略图；Masonry 原比例／裁剪、动态高度、极长图上限 320px。只渲染 /media/ 本地图片，失败回退文字；远程首图由后续安全媒体服务交付。
 - 浏览锚点键为 scope|search|sort|mode，值为 {article_id,offset}；Reader 使用 reader|article_id，offset 为 Reader 内部滚动距离。共用最多 32 项。恢复和尺寸重算期间不把顶部测量覆盖到已保存锚点；180ms 防抖，卸载／切换时冲刷最后值。
 - J／K 切换并同步列表焦点，F 收藏，M 切换已读，/ 搜索，Cmd／Ctrl+K 命令面板，Escape 关闭 Reader；表单、菜单、对话框、输入法合成期间不抢单键。分隔条 Arrow±8px、Shift±20px、Home／End 到边界。
 - Theme=Light／Dark／System 即时生效；Animation=Off 优先，Follow System＋系统减少动态或 Subtle 使用减弱模式。Off 禁用装饰动画但保留虚拟条目的定位 transform；Subtle 去空间运动／弹簧，短淡入≤100ms。Full Reader 使用有界弹簧；静止空态不持续空转。
-- 设置与命令面板按需加载。Dialog 有标题、焦点管理及关闭回焦；诊断移至设置的关于区域。玻璃是 CSS backdrop-filter 与不透明回退，不依赖私有 macOS 材质。
+- 设置与命令面板按需加载。Dialog 有标题、焦点管理及关闭回焦；诊断移至设置的关于区域。原生菜单与真实窗口材质已由[原生体验契约](native-experience.md)补齐，不依赖私有 macOS API。
 
 ## 4. 校验与错误矩阵
 

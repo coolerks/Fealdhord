@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/coolerks/Fealdhord/internal/database"
+	desktopintegration "github.com/coolerks/Fealdhord/internal/desktop"
 	"github.com/coolerks/Fealdhord/internal/settings"
 
 	fealdhord "github.com/coolerks/Fealdhord/internal/app"
@@ -20,6 +21,7 @@ var assets embed.FS
 
 func init() {
 	application.RegisterEvent[fealdhord.OperationEvent](fealdhord.EventName)
+	application.RegisterEvent[desktopintegration.CommandEvent](desktopintegration.CommandEventName)
 }
 
 func main() {
@@ -54,10 +56,8 @@ func main() {
 		Mac:      application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
 	})
 	desktop.OnShutdown(stop)
-	desktop.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title: "折栈 Fealdhord", Width: 1180, Height: 760, MinWidth: 900, MinHeight: 600,
-		BackgroundColour: application.NewRGB(245, 245, 243), URL: "/",
-	})
+	desktopintegration.InstallMenu(desktop)
+	desktop.Window.NewWithOptions(desktopintegration.WindowOptions())
 	if err := desktop.Run(); err != nil {
 		stop()
 		slog.Error("桌面应用启动失败", "error", err)

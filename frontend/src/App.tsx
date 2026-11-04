@@ -7,6 +7,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Button } from '@/components/ui/button'
 import { preferencesAPI } from '@/lib/preferences'
 import { useWorkspace } from '@/stores/workspace'
+import { GlobalContextMenu } from '@/app/GlobalContextMenu'
 import { Shell } from '@/app/Shell'
 
 function PreferencesGate() {
@@ -21,5 +22,5 @@ function PreferencesGate() {
 
 export default function App({ client }: { client?: QueryClient }) {
   const [defaultClient] = useState(() => new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false }, mutations: { retry: false } } }))
-  return <QueryClientProvider client={client ?? defaultClient}><TooltipProvider delayDuration={450}><PreferencesGate /></TooltipProvider></QueryClientProvider>
+  return <QueryClientProvider client={client ?? defaultClient}><TooltipProvider delayDuration={450}><GlobalContextMenu><PreferencesGate /></GlobalContextMenu></TooltipProvider></QueryClientProvider>
 }

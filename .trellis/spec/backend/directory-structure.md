@@ -35,3 +35,7 @@ internal/app 负责装配；feed/article/category/search/reader 负责领域；d
 ## Phase 0 真实依据
 
 [基础契约](../../../docs/04-specs/bootstrap.md)记录实际服务、DTO、事件合并、测试与生成命令。生成绑定不能手改；早到乱序事件使用同一个 sequence 合并器，类型与构建测试必须采用兼容的 Vite／Vitest 版本。
+
+## 原生装配
+
+internal/desktop 负责窗口选项与系统菜单，main 注册 CommandEvent。不能让菜单重复持有文章／偏好事实；业务动作发白名单命令到同一前端执行器。macOS 材质必须让 WebView／HTML 背景透明，内容保持不透明；非 macOS 用不透明回退。

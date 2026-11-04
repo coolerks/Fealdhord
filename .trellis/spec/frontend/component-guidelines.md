@@ -31,3 +31,7 @@ Props 明确类型；article_id 为条目 key；按钮有 type、accessible name
 错误：所有图标统一缩放或 useEffect 为每卡建动画实例。正确：统一语义 primitives，简单状态 CSS，复杂面板 motion。
 
 权威详细设计：[架构](../../../docs/03-architecture/frontend.md)。
+
+## 原生体验修订
+
+默认中性灰白，不再使用绿色主题；默认双栏＋Reader 聚焦，reader_pinned 才三栏。AnimatedGlyph 只在完整动态交互中挂载库实例，fallback 与动画 SVG 形状一致，完整父按钮触发；异步多段动画必须可中断。全局右键不可禁用文本选择；文本菜单使用打开前快照，异步剪贴板返回时核对整段原值。具体签名见[原生体验契约](../../../docs/04-specs/native-experience.md)。

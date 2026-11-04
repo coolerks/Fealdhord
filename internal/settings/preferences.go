@@ -22,6 +22,7 @@ type Preferences struct {
 	SidebarCollapsed         bool                    `json:"sidebar_collapsed"`
 	SidebarWidth             int                     `json:"sidebar_width"`
 	ListWidth                int                     `json:"list_width"`
+	ReaderPinned             bool                    `json:"reader_pinned"`
 	ReaderOpen               bool                    `json:"reader_open"`
 	SelectedScope            string                  `json:"selected_scope"`
 	SelectedArticleID        string                  `json:"selected_article_id"`
@@ -35,7 +36,7 @@ func Defaults() Preferences {
 	return Preferences{
 		Theme: "system", ArticleViewMode: "list", ListDensity: "compact", ListThumbnail: "none",
 		MasonryImageMode: "original_ratio", Animation: "full", FollowSystemReduceMotion: true,
-		SidebarWidth: 248, ListWidth: 360, ReaderOpen: true, SelectedScope: "all",
+		SidebarWidth: 248, ListWidth: 360, ReaderOpen: false, SelectedScope: "all",
 		ScrollAnchors: map[string]ScrollAnchor{}, ReaderFontSize: 17, ReaderLineHeight: 1.7, ReaderWidth: 720,
 	}
 }

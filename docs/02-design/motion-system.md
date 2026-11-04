@@ -41,3 +41,7 @@ Animation=Off → 全部装饰动效禁用；否则 Follow System=true 且 prefe
 MOTION-01：上述矩阵各有演示与交互检查，快速 hover／连点无排队、闪烁或卡遮罩；Focus 与触控功能完整。
 
 MOTION-02：Full／Subtle／Off 和系统优先级生效，滚动不反复播放正文／卡片 Reveal；静止界面无永久空转。静态截图不能证明通过，需交互日志或录屏。
+
+## 用户反馈后的实现修订
+
+用户明确要求内部结构的灵动效果；仅 SVG 整体跳动不符合验收。现引入 lucide-animated／Motion 源码，父按钮完整命中区 Hover／Focus／Press 触发，按 Grid／Read／Book／Search／Settings 等不同语义运动；保留 MIT 许可。动作可中断且空闲卸载实例，Subtle／Off 不挂载图标播放器。实现与本机验证边界见[原生体验](../04-specs/native-experience.md)。

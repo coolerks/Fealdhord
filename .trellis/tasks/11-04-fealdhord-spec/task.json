@@ -20,7 +20,8 @@
   "subtasks": [],
   "children": [
     "11-04-desktop-bootstrap",
-    "11-04-reader-shell"
+    "11-04-reader-shell",
+    "11-04-native-reading-experience"
   ],
   "parent": null,
   "relatedFiles": [
