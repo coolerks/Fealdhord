@@ -76,3 +76,29 @@
 ### Next Steps
 
 - Phase 2：补齐领域 schema、FTS5、约束与迁移／备份恢复；保留 Compiler 兼容及首包体积提示。
+
+
+## Session 3: 原生菜单与灵动阅读体验重做
+<!-- trellis-session: v=2 fp=cc465a393a9ff7cb -->
+
+**Date**: 2026-11-04
+**Task**: 原生菜单与灵动阅读体验重做
+**Branch**: `codex/native-reading-experience`
+
+### Summary
+
+完成 macOS 系统菜单、Windows 应用菜单、全局右键、中性色与真实窗口材质、按需内部图标动画；继续 Phase 2。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `942ec94` | feat: 重做原生菜单与灵动阅读体验 |
+
+### Testing
+
+- [OK] 22 项前端、Go test／vet／设置 race、原生构建及最小本机菜单／右键检查通过。
+
+### Status
+
+[OK] **Completed**
