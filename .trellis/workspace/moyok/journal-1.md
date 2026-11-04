@@ -102,3 +102,38 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 4: Phase 2 领域数据基础与真实阅读接线完成
+<!-- trellis-session: v=2 fp=e92f5a271f1cc083 -->
+
+**Date**: 2026-11-04
+**Task**: Phase 2 领域数据基础与真实阅读接线完成
+**Branch**: `codex/data-foundation`
+
+### Summary
+
+在原生体验修订后自动完成核心领域迁移、稳定身份、分类优先级、FTS、一致快照恢复与真实读取／状态持久化。
+
+### Main Changes
+
+- 原生菜单／视觉／图标动态修订 942ec94 已单独提交归档；本阶段接通真实库，不注入生产示例。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8253005` | feat: 建立领域数据模型与一致快照恢复 |
+| `3cb0bd5` | feat: 接通领域仓储与真实阅读状态持久化 |
+
+### Testing
+
+- [OK] 14 项核心 Go 与 race、26 项前端、Go test／vet、类型／lint、sqlc／绑定、原生构建／本机包签名验证及文档核验通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Phase 3 RSS 安全网络、发现／解析、条件请求调度与首图；完整分页与全库搜索 UI 保持 Phase 4 边界。
