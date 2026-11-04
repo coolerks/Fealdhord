@@ -37,3 +37,7 @@
 [基础契约](../../../docs/04-specs/bootstrap.md)记录实际服务、DTO、事件合并、测试与生成命令。生成绑定不能手改；早到乱序事件使用同一个 sequence 合并器，类型与构建测试必须采用兼容的 Vite／Vitest 版本。
 
 Taskfile 的工作目录放在任务级 dir，不能给单条 cmd 写 dir 并假定生效；frontend:check 是真实复核入口。
+
+## Phase 1 真实依据
+
+按用户约束，非必要不做 E2E；本阶段采用 19 项组件／单元用例、真实设置 SQLite 测试和原生编译，不能把未执行的平台／帧率／触控门禁写成通过。JSDOM 几何必须同时提供 clientHeight 与 scrollHeight，避免虚拟器滚动范围被错误钳制到 0。构建写 dist 时不并行运行读取 go:embed 的 Go 检查；先 build，再 task check。实际提示和证据见[阶段验收](../../../docs/09-research/phase1-validation.md)。

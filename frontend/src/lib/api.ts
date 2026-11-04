@@ -14,7 +14,7 @@ export class APIError extends Error {
   }
 }
 
-function unwrap<T>(result: { ok: boolean; data?: T | null; error?: AppError | null }): T {
+export function unwrap<T>(result: { ok: boolean; data?: T | null; error?: AppError | null }): T {
   if (!result.ok) {
     throw new APIError(result.error ?? { code: 'TransportError', message: '无法连接桌面服务。', retryable: true })
   }

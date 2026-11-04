@@ -2,9 +2,9 @@
 
 本地优先的 AI RSS 阅读器与 Agent 工作空间，目标支持 Windows、macOS 与 Linux。零 AI 配置也应完整阅读。
 
-当前完成 Phase 0：Wails 桌面工程、React／TypeScript 前端、真实生成绑定、事件／快照／取消与本机窗口验收。正式阅读 Shell、RSS、数据库和 AI 能力尚未实现。
+当前完成 Phase 0–1：Wails 桌面工程、正式三栏阅读 Shell、虚拟列表／瀑布流、主题／动效／键盘、SQLite 偏好恢复。生产文章库为空；RSS、文章数据库与 AI 能力尚未实现。
 
-[文档入口](docs/README.md) · [当前状态](docs/01-status/CURRENT.md) · [路线图](docs/01-status/ROADMAP.md) · [Phase 0 验收](docs/09-research/phase0-validation.md)
+[文档入口](docs/README.md) · [当前状态](docs/01-status/CURRENT.md) · [路线图](docs/01-status/ROADMAP.md) · [Phase 1 验收](docs/09-research/phase1-validation.md)
 
 ## 开发环境
 
@@ -28,9 +28,11 @@ wails3 task run
 
 ```sh
 wails3 task check
-go test -race ./internal/app/...
+go test -race ./internal/app/... ./internal/settings/...
 ```
 
-check 顺序执行 Go test／vet 和前端 typecheck／lint／test。生成绑定：`wails3 task bindings`，生成输出不可手改。原生绑定往返、进度、取消和完成另经本机窗口实际验证。
+check 顺序执行 Go test／vet 和前端 typecheck／lint／test。生成绑定：`wails3 task bindings`，生成输出不可手改。Phase 0 原生绑定往返、进度、取消和完成已经本机窗口验证；Phase 1 使用组件／单元测试与原生构建，不重复 E2E。构建与 Go 全包检查应顺序执行，避免 dist 重建和 go:embed 读取竞争。
 
 说明文档中文、主会话独立完成、禁止子代理。开始工作前读取 AGENTS.md；修改契约同步文档，交接入口 docs/08-handoffs/LATEST.md。
+
+界面偏好位于系统 os.UserConfigDir()/Fealdhord/fealdhord.db，通过 goose 迁移与 sqlc 查询管理。修改查询后执行 `sqlc generate`（v1.30.0），修改 Go DTO 后执行 `wails3 task bindings`。不要直接编辑生成文件或活跃 SQLite 主文件。

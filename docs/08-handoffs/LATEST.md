@@ -1,31 +1,25 @@
-# 最近交接：Phase 0 桌面工程
+# 最近交接：Phase 1 正式阅读 Shell
 
-日期：2026-11-04。分支：codex/desktop-bootstrap。Phase 0 任务已提交并归档；当前无激活实现任务。
+日期：2026-11-04。分支：codex/reader-shell。当前任务 reader-shell 代码与检查完成，正在提交归档。
 
 ## 本阶段交付
 
-Wails 3.0.0／React 19.3／TS／Vite 8 工程，internal/app 基础服务，四个绑定方法、七模型、一个注册事件；单活动有界诊断、取消／关闭、快照与早到乱序合并。Taskfile、锁文件、忽略规则、本机应用包和中文运行文档已建立。
+正式阅读空间已替换诊断首页，诊断保留于设置／关于。真实虚拟 List 与 Masonry 共用 Query；三栏／紧凑 Reader、玻璃侧栏、主题／布局设置、命令面板、键盘、可拖动及键盘分隔条、ID 锚点与 Reader 位置恢复均已实现。设置与命令按需加载，生产不注入假文章。
 
-## 真实证据
+偏好通过 SettingsService.Get／Update、SQLite app_settings、goose／sqlc、revision CAS 持久化；保存失败明确显示，队列合并连续更改。首份工作提交 5a6d949 为持久化部分。
 
-Go test／race／vet、前端 typecheck／lint／5 项交互、前端 build、Wails native build、ad-hoc 签名校验通过。真实窗口读取版本和平台，开始后收到进度，取消显示 cancelled，重新运行最终 20/20 succeeded。详见 docs/09-research/phase0-validation.md。
+## 真实证据与限制
 
-## 关键经验
+前端 19 项、真实 SQLite 设置 5 项及 race、Go 全包 test／vet、typecheck、lint 返回成功、macOS arm64 原生构建通过。没有重复 E2E／截图。详见[Phase 1 验收](../09-research/phase1-validation.md)。Virtualizer Compiler 兼容警告与 Vite 首包体积提示保留，未声称跨平台／帧率／十万条验收。
 
-- doctor 沙箱内 sysctl 被拒，沙箱外 ready=true；不需要为可选 iOS 项安装完整 Xcode。
-- 绑定生成器可能警告后以 0 返回且 0 服务；必须检查实际服务／方法数量，不能只看退出码。
-- Vite 8 与旧 Vitest 4 类型不兼容，现固定 Vitest 5.1.0；不能用 any 绕过。
-- macOS 构建目标 13.0；最低版本与其他平台未认证。应用包仅临时签名，不是发布签名。
-- 此前整体规格仍是产品目标，只有 Phase 0 已实现；诊断页不是正式阅读 Shell，诊断内存历史不代表 Agent 持久执行历史。
+## 实际契约
+
+阅读[Shell](../04-specs/reader-shell.md)与[偏好](../04-specs/preferences.md)。生成绑定不手改。query key 当前为完整空集合；后续分页必须纳入查询参数。领域文章不进 Zustand，SQLite 是偏好唯一持久事实。锚点恢复期间不得记录顶部；防抖退出需冲刷。设置冲突显式重载，不能默默覆盖。
 
 ## 下一阶段
 
-Phase 1 依已有规划建立三栏、玻璃 Sidebar、真实双视图、主题、分栏和 Motion／Reduced Motion；同时验证动态 lanes、锚点与键盘顺序。RSS／数据库后续 Phase 2–4，不能用假文章当真实交付。
+Phase 2 数据基础：在已有设置迁移之后补 Feed／Article／Category／State／Media／FTS schema 与 sqlc 查询，验证真实驱动 FTS5、唯一／外键约束、迁移失败、事务回滚和备份恢复。Phase 3 接 RSS 与安全网络／首图，Phase 4 接完整领域操作；当前收藏／已读 fixture 仅验证共享缓存，不代表落盘。
 
-## 工作区与提交
+## 工作区与持续授权
 
-保留已有 .agents／.claude／.codex／.pi 与 Trellis 框架文件，禁止子代理，inline 不变。AGENTS.md 已记录持续提交授权，覆盖工作流逐次确认要求。只提交本会话代码／文档／规范／两个任务记录，不静默包含其他既有配置；随后归档与记日志。功能优先，非必要不做 E2E，按风险选择单元与必要检查。
-
-## 本次收尾
-
-1611640：开发规则；0b654c3：Phase 0 与规格基线。任务已移至 .trellis/tasks/archive/2026-11/11-04-desktop-bootstrap。已知无 dist 首次构建问题修复并用 wails3 build 验证；本轮未新增 E2E。下次直接依 AGENTS 的持续授权按完成部分提交，不再请求逐次确认。
+主会话独立完成，禁止子代理，inline 不变。已有 .agents／.claude／.codex／.pi 和 Trellis 框架配置保持原样且不静默纳入本阶段提交。功能优先，非必要不做 E2E，完成部分直接本地提交，不重复征询、不自动推送。构建与 Go 检查顺序运行，避免 dist 被重建时的嵌入资源竞争。

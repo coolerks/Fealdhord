@@ -35,3 +35,7 @@
 ## Phase 0 真实依据
 
 [基础契约](../../../docs/04-specs/bootstrap.md)记录实际服务、DTO、事件合并、测试与生成命令。生成绑定不能手改；早到乱序事件使用同一个 sequence 合并器，类型与构建测试必须采用兼容的 Vite／Vitest 版本。
+
+## Phase 1 真实依据
+
+目前 library 只提供全部空集合，Query 键为 library/articles；scope／search／sort 是同一集合的纯派生，不能误当分页接口已经交付。接入真实 API 时把所有服务端查询参数纳入键。useVirtualizer 可变实例不得被 Compiler 自动缓存，保留 use no memo 与 lint 的兼容提示，不能靠压制规则宣称 Compiler 已兼容。

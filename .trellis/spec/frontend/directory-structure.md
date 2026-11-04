@@ -35,3 +35,7 @@ app 放组合，features 按领域，components/ui 放基础控件，stores 只�
 ## Phase 0 真实依据
 
 [基础契约](../../../docs/04-specs/bootstrap.md)记录实际服务、DTO、事件合并、测试与生成命令。生成绑定不能手改；早到乱序事件使用同一个 sequence 合并器，类型与构建测试必须采用兼容的 Vite／Vitest 版本。
+
+## Phase 1 真实依据
+
+app 组合 Shell／Sidebar／Toolbar／CommandPalette；features/articles／reader／settings 已存在，诊断移至 settings。lib/preferences 是 Settings 绑定唯一适配，复用 lib/api 的 unwrap；生成 DTO 不手改。components/ui 是官方 shadcn Radix，style.css 统一 token。测试 fixture／几何只准被测试导入。详见[Shell 契约](../../../docs/04-specs/reader-shell.md)。

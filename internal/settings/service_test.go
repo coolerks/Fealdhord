@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"path/filepath"
 	"sync"
@@ -126,5 +127,29 @@ func TestLegacyValuesNormalizeIndividually(t *testing.T) {
 	}
 	if _, exists := envelope["error"]; exists {
 		t.Fatal("成功结果不应带 error")
+	}
+}
+
+func TestFutureSchemaCannotBeReadOrOverwritten(t *testing.T) {
+	ctx := context.Background()
+	filename := filepath.Join(t.TempDir(), "future.db")
+	store := openTestStore(t, filename)
+	db, err := sql.Open("sqlite", filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.ExecContext(ctx, "UPDATE app_settings SET schema_version=2 WHERE key='ui_preferences'"); err != nil {
+		t.Fatal(err)
+	}
+	s := NewService(store)
+	for _, got := range []Result{s.Get(ctx), s.Update(ctx, UpdateRequest{Preferences: Defaults()})} {
+		if got.OK || got.Error.Code != "ConfigurationError" {
+			t.Fatalf("未来版本未保护：%+v", got)
+		}
+	}
+	record, err := store.LoadPreferences(ctx)
+	if err != nil || record.Revision != 0 || record.SchemaVersion != 2 {
+		t.Fatalf("未来版本被改写：%+v %v", record, err)
 	}
 }

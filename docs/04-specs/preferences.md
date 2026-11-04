@@ -12,7 +12,7 @@ Settings Service：Get(context.Context) Result；Update(context.Context, UpdateR
 
 migrations/00001_ui_preferences.sql 通过 goose 创建 app_settings，sqlc v1.30.0 生成读取与 CAS 更新。modernc SQLite v1.61.1、goose v3.28.0。数据文件在 os.UserConfigDir()/Fealdhord/fealdhord.db，单写连接，foreign_keys、WAL、busy_timeout=5000。启动失败不假装偏好已保存，Get 返回中文 DatabaseError。
 
-偏好覆盖 Theme、article_view_mode、list_density、list_thumbnail、masonry_image_mode、animation、follow_system_reduce_motion、sidebar_collapsed／width、list_width、reader_open、selected_scope／article_id、scroll_anchors、Reader 字体／宽度。当前只恢复四个系统 scope，后续 Feed／Category 导航再扩展。
+偏好覆盖 Theme、article_view_mode、list_density、list_thumbnail、masonry_image_mode、animation、follow_system_reduce_motion、sidebar_collapsed／width、list_width、reader_open、selected_scope／article_id、scroll_anchors、Reader 字体／宽度。scroll_anchors 同时保存浏览 ID 锚点和 reader|article_id 的 Reader 垂直偏移，合计最多 32 项。当前只恢复四个系统 scope，后续 Feed／Category 导航再扩展。
 
 ## 4. 错误
 
@@ -24,7 +24,7 @@ migrations/00001_ui_preferences.sql 通过 goose 创建 app_settings，sqlc v1.3
 
 ## 6. 测试
 
-临时真实 SQLite 测试重开、并发 CAS、非法输入与旧字段恢复；使用 -race 检查，不访问用户数据目录，不执行 E2E。前端保存失败、快速连续更改和初次恢复需组件／单元验证。
+临时真实 SQLite 测试重开、并发 CAS、非法输入、旧字段恢复与未来 schema 拒绝读写；使用 -race 检查，不访问用户数据目录，不执行 E2E。前端保存失败、快速连续更改和初次恢复需组件／单元验证。
 
 ## 7. 实现约束
 

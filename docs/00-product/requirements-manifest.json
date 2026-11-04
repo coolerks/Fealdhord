@@ -28,7 +28,7 @@
       "spec": "03-architecture/overview.md",
       "acceptance": "ARCH-01",
       "phase": "Phase 0 起",
-      "status": "Phase 0 基础依赖已固定，其余依赖待对应阶段"
+      "status": "Phase 0–1 依赖已固定，AI／RSS 等按后续阶段接入"
     },
     {
       "id": "REQ-004",
@@ -451,7 +451,7 @@
       "spec": "02-design/app-shell.md",
       "acceptance": "SHELL-01",
       "phase": "Phase 1",
-      "status": "已形成规格，未实现"
+      "status": "Phase 1 Shell／三栏／紧凑 Reader 已实现并经组件测试和原生构建验证"
     },
     {
       "id": "REQ-051",
@@ -460,7 +460,7 @@
       "spec": "02-design/sidebar.md",
       "acceptance": "SIDEBAR-01",
       "phase": "Phase 1／4",
-      "status": "已形成规格，未实现"
+      "status": "Phase 1 CSS 玻璃侧栏与不透明回退已实现；真实订阅／分类在 Phase 4 接入"
     },
     {
       "id": "REQ-052",
@@ -505,7 +505,7 @@
       "spec": "02-design/article-views.md",
       "acceptance": "VIEWS-01",
       "phase": "Phase 1／4",
-      "status": "已形成规格，未实现"
+      "status": "Phase 1 真实虚拟双视图及共享选择已实现；生产 RSS 数据在后续阶段接入"
     },
     {
       "id": "REQ-055-B",
@@ -532,7 +532,7 @@
       "spec": "02-design/motion-system.md",
       "acceptance": "MOTION-01",
       "phase": "Phase 1 起",
-      "status": "已形成规格，未实现"
+      "status": "Phase 1 导航／阅读／设置语义反馈和动态模式已实现；AI／工具等待对应阶段"
     },
     {
       "id": "REQ-055-E",
@@ -541,7 +541,7 @@
       "spec": "07-quality/performance.md",
       "acceptance": "VIEWS-03",
       "phase": "Phase 1／4／12",
-      "status": "已形成规格，未实现"
+      "status": "Phase 1 一万条组件 DOM 有界与锚点测试通过；跨平台／十万条和帧率待后续验证"
     },
     {
       "id": "REQ-056",

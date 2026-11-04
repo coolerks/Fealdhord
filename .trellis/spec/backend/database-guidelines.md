@@ -31,3 +31,7 @@ database/sql + modernc 候选，goose 迁移，sqlc 常规查询；时间 UTC �
 错误：活跃 WAL 只复制主 db，或人工改表。正确：一致备份＋版本化迁移＋恢复演练。
 
 权威详细设计：[架构](../../../docs/03-architecture/database.md)。
+
+## Phase 1 真实依据
+
+最小 app_settings 已提前实现：migrations/00001_ui_preferences.sql，goose v3.28.0／modernc SQLite v1.61.1，sqlc v1.30.0 生成 internal/database/sqlc。SavePreferences(value,revision,updatedAt) 使用 WHERE revision CAS，返回 RowsAffected 是否为 1。驱动 foreign_keys／WAL／busy_timeout=5000 通过 DSN 每连接设置，单连接；禁止手改生成查询。其余身份／文章／分类／FTS DDL 仍在 Phase 2。完整签名与错误矩阵见[偏好契约](../../../docs/04-specs/preferences.md)。
