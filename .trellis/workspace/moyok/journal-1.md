@@ -41,3 +41,38 @@
 ### Next Steps
 
 - 按已批准路线图进入 Phase 1，围绕实际功能编码并按完成部分直接提交
+
+
+## Session 2: Phase 1 正式阅读空间与偏好恢复完成
+<!-- trellis-session: v=2 fp=1b387c5456706cc8 -->
+
+**Date**: 2026-11-04
+**Task**: Phase 1 正式阅读空间与偏好恢复完成
+**Branch**: `codex/reader-shell`
+
+### Summary
+
+完成三栏 Shell、虚拟双视图、主题与动态模式、键盘及 SQLite 偏好恢复，任务已归档。
+
+### Main Changes
+
+- 按部分提交 Go／SQLite 设置服务和正式前端，不注入生产假文章。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5a6d949` | feat: 持久化阅读布局与外观偏好 |
+| `d942a7c` | feat: 完成正式阅读空间与虚拟双视图 |
+
+### Testing
+
+- [OK] 19 项前端与 5 项真实 SQLite 设置测试通过；race、Go test／vet、原生构建通过，文档核验无错误。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Phase 2：补齐领域 schema、FTS5、约束与迁移／备份恢复；保留 Compiler 兼容及首包体积提示。

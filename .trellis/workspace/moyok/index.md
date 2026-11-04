@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 1
+- **Total Sessions**: 2
 - **Last Active**: 2026-11-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~43 | Active |
+| `journal-1.md` | ~78 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 2 | 2026-11-04 | Phase 1 正式阅读空间与偏好恢复完成 | `5a6d949`, `d942a7c` | `codex/reader-shell` |
 | 1 | 2026-11-04 | 功能优先规则与 Phase 0 提交收尾 | `1611640`, `0b654c3` | `codex/desktop-bootstrap` |
 <!-- @@@/auto:session-history -->
 
