@@ -4,10 +4,140 @@
 
 package sqlc
 
+import (
+	"database/sql"
+)
+
 type AppSetting struct {
 	Key           string `json:"key"`
 	ValueJson     string `json:"value_json"`
 	SchemaVersion int64  `json:"schema_version"`
 	Revision      int64  `json:"revision"`
 	UpdatedAt     int64  `json:"updated_at"`
+}
+
+type Article struct {
+	Rowid         int64          `json:"rowid"`
+	ID            string         `json:"id"`
+	FeedID        string         `json:"feed_id"`
+	Guid          sql.NullString `json:"guid"`
+	Title         string         `json:"title"`
+	Url           string         `json:"url"`
+	NormalizedUrl sql.NullString `json:"normalized_url"`
+	Author        string         `json:"author"`
+	Summary       string         `json:"summary"`
+	ContentHtml   string         `json:"content_html"`
+	ContentText   string         `json:"content_text"`
+	CjkTerms      string         `json:"cjk_terms"`
+	PublishedAt   sql.NullInt64  `json:"published_at"`
+	UpdatedAt     sql.NullInt64  `json:"updated_at"`
+	FetchedAt     int64          `json:"fetched_at"`
+	SortAt        int64          `json:"sort_at"`
+	ContentHash   string         `json:"content_hash"`
+	DedupKey      string         `json:"dedup_key"`
+	Revision      int64          `json:"revision"`
+}
+
+type ArticleCategory struct {
+	ArticleID  string          `json:"article_id"`
+	CategoryID string          `json:"category_id"`
+	Source     string          `json:"source"`
+	State      string          `json:"state"`
+	Confidence sql.NullFloat64 `json:"confidence"`
+	Reason     sql.NullString  `json:"reason"`
+	ModelRef   sql.NullString  `json:"model_ref"`
+	CreatedAt  int64           `json:"created_at"`
+	UpdatedAt  int64           `json:"updated_at"`
+}
+
+type ArticleIdentity struct {
+	ArticleID string `json:"article_id"`
+	FeedID    string `json:"feed_id"`
+	Kind      string `json:"kind"`
+	Value     string `json:"value"`
+}
+
+type ArticleMedium struct {
+	ArticleID  string         `json:"article_id"`
+	Url        sql.NullString `json:"url"`
+	Source     sql.NullString `json:"source"`
+	Status     string         `json:"status"`
+	Width      sql.NullInt64  `json:"width"`
+	Height     sql.NullInt64  `json:"height"`
+	Alt        string         `json:"alt"`
+	CheckedAt  sql.NullInt64  `json:"checked_at"`
+	RetryAfter sql.NullInt64  `json:"retry_after"`
+	CacheKey   sql.NullString `json:"cache_key"`
+}
+
+type Category struct {
+	ID             string         `json:"id"`
+	ParentID       sql.NullString `json:"parent_id"`
+	Name           string         `json:"name"`
+	NormalizedName string         `json:"normalized_name"`
+	Icon           string         `json:"icon"`
+	Color          string         `json:"color"`
+	Description    string         `json:"description"`
+	AiEnabled      int64          `json:"ai_enabled"`
+	AiPrompt       string         `json:"ai_prompt"`
+	AiThreshold    float64        `json:"ai_threshold"`
+	CreatedAt      int64          `json:"created_at"`
+	UpdatedAt      int64          `json:"updated_at"`
+	SortPosition   int64          `json:"sort_position"`
+	Revision       int64          `json:"revision"`
+}
+
+type EffectiveArticleCategory struct {
+	ArticleID  string `json:"article_id"`
+	CategoryID string `json:"category_id"`
+}
+
+type Favorite struct {
+	ArticleID string `json:"article_id"`
+	CreatedAt int64  `json:"created_at"`
+}
+
+type Feed struct {
+	ID            string        `json:"id"`
+	Title         string        `json:"title"`
+	Url           string        `json:"url"`
+	NormalizedUrl string        `json:"normalized_url"`
+	SiteUrl       string        `json:"site_url"`
+	Description   string        `json:"description"`
+	IconUrl       string        `json:"icon_url"`
+	Etag          string        `json:"etag"`
+	LastModified  string        `json:"last_modified"`
+	LastCheckedAt sql.NullInt64 `json:"last_checked_at"`
+	LastSuccessAt sql.NullInt64 `json:"last_success_at"`
+	NextCheckAt   sql.NullInt64 `json:"next_check_at"`
+	ErrorCount    int64         `json:"error_count"`
+	LastError     string        `json:"last_error"`
+	CreatedAt     int64         `json:"created_at"`
+	UpdatedAt     int64         `json:"updated_at"`
+	ArchivedAt    sql.NullInt64 `json:"archived_at"`
+	SortPosition  int64         `json:"sort_position"`
+	Revision      int64         `json:"revision"`
+}
+
+type FeedCategory struct {
+	FeedID     string `json:"feed_id"`
+	CategoryID string `json:"category_id"`
+	CreatedAt  int64  `json:"created_at"`
+}
+
+type ReaderContent struct {
+	ArticleID        string `json:"article_id"`
+	SanitizedHtml    string `json:"sanitized_html"`
+	ContentText      string `json:"content_text"`
+	SourceUrl        string `json:"source_url"`
+	FetchedAt        int64  `json:"fetched_at"`
+	ExtractorVersion string `json:"extractor_version"`
+}
+
+type ReadingState struct {
+	ArticleID string        `json:"article_id"`
+	IsRead    int64         `json:"is_read"`
+	ReadAt    sql.NullInt64 `json:"read_at"`
+	UpdatedAt int64         `json:"updated_at"`
+	Revision  int64         `json:"revision"`
 }

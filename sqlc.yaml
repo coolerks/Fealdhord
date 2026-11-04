@@ -1,7 +1,9 @@
 version: '2'
 sql:
   - engine: sqlite
-    schema: migrations
+    schema:
+      - migrations/00001_ui_preferences.sql
+      - migrations/00002_library.sql
     queries: internal/database/queries
     gen:
       go:
