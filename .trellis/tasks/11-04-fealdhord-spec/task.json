@@ -19,7 +19,8 @@
   "pr_url": null,
   "subtasks": [],
   "children": [
-    "11-04-desktop-bootstrap"
+    "11-04-desktop-bootstrap",
+    "11-04-reader-shell"
   ],
   "parent": null,
   "relatedFiles": [

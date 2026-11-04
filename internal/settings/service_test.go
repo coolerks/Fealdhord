@@ -1,0 +1,130 @@
+package settings
+
+import (
+	"context"
+	"encoding/json"
+	"path/filepath"
+	"sync"
+	"testing"
+
+	"github.com/coolerks/Fealdhord/internal/database"
+)
+
+func openTestStore(t *testing.T, filename string) *database.Store {
+	t.Helper()
+	store, err := database.Open(context.Background(), filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	return store
+}
+
+func TestPreferencesPersistAndReopen(t *testing.T) {
+	ctx := context.Background()
+	filename := filepath.Join(t.TempDir(), "偏好目录", "settings.db")
+	store, err := database.Open(ctx, filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(store)
+	got := service.Get(ctx)
+	if !got.OK || got.Data.Revision != 0 || got.Data.Preferences.Theme != "system" {
+		t.Fatalf("初始偏好错误：%+v", got)
+	}
+	prefs := got.Data.Preferences
+	prefs.Theme = "dark"
+	prefs.ArticleViewMode = "masonry"
+	prefs.SidebarWidth = 270
+	prefs.ScrollAnchors["all:masonry"] = ScrollAnchor{ArticleID: "article-7", Offset: 18}
+	saved := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: 0})
+	if !saved.OK || saved.Data.Revision != 1 {
+		t.Fatalf("保存失败：%+v", saved)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened := openTestStore(t, filename)
+	snapshot := NewService(reopened).Get(ctx)
+	if !snapshot.OK || snapshot.Data.Preferences.Theme != "dark" || snapshot.Data.Preferences.ScrollAnchors["all:masonry"].ArticleID != "article-7" {
+		t.Fatalf("重开丢失设置：%+v", snapshot)
+	}
+}
+
+func TestConcurrentUpdatesDoNotOverwrite(t *testing.T) {
+	ctx := context.Background()
+	s := NewService(openTestStore(t, filepath.Join(t.TempDir(), "prefs.db")))
+	var wg sync.WaitGroup
+	results := make(chan Result, 8)
+	for range 8 {
+		wg.Go(func() { results <- s.Update(ctx, UpdateRequest{Preferences: Defaults(), Revision: 0}) })
+	}
+	wg.Wait()
+	close(results)
+	success := 0
+	for result := range results {
+		if result.OK {
+			success++
+		} else if result.Error.Code != "Conflict" {
+			t.Fatalf("非预期错误：%+v", result)
+		}
+	}
+	if success != 1 {
+		t.Fatalf("同 revision 应只成功一次：%d", success)
+	}
+}
+
+func TestInvalidInputsAndUnavailableStoreDoNotWrite(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t, filepath.Join(t.TempDir(), "prefs.db"))
+	s := NewService(store)
+	prefs := Defaults()
+	prefs.Theme = "unknown"
+	if got := s.Update(ctx, UpdateRequest{Preferences: prefs}); got.OK || got.Error.Code != "ValidationError" {
+		t.Fatal("非法选项未拒绝")
+	}
+	prefs = Defaults()
+	prefs.SidebarWidth = 1000
+	if got := s.Update(ctx, UpdateRequest{Preferences: prefs}); got.OK {
+		t.Fatal("超宽布局未拒绝")
+	}
+	prefs = Defaults()
+	prefs.ScrollAnchors["all:list"] = ScrollAnchor{Offset: 1e12}
+	if got := s.Update(ctx, UpdateRequest{Preferences: prefs}); got.OK {
+		t.Fatal("异常锚点未拒绝")
+	}
+	if got := s.Get(ctx); got.Data.Revision != 0 {
+		t.Fatal("非法更新产生写入")
+	}
+	if got := NewService(nil).Get(ctx); got.OK || got.Data != nil || got.Error.Code != "DatabaseError" {
+		t.Fatal("仓储失败应返回安全错误")
+	}
+}
+
+func TestLegacyValuesNormalizeIndividually(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t, filepath.Join(t.TempDir(), "prefs.db"))
+	raw := `{"theme":"dark","article_view_mode":"old-grid","sidebar_width":9999,"reader_font_size":19}`
+	if ok, err := store.SavePreferences(ctx, raw, 0, 0); err != nil || !ok {
+		t.Fatal(err)
+	}
+	got := NewService(store).Get(ctx)
+	if !got.OK || got.Data.Preferences.Theme != "dark" || got.Data.Preferences.ArticleViewMode != "list" || got.Data.Preferences.SidebarWidth != 248 || got.Data.Preferences.ReaderFontSize != 19 {
+		t.Fatalf("旧值恢复错误：%+v", got)
+	}
+	b, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(b, &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := envelope["error"]; exists {
+		t.Fatal("成功结果不应带 error")
+	}
+}

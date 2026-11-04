@@ -2,7 +2,7 @@
 
 最后更新：2026-11-04（Asia/Singapore）。
 
-- 当前阶段：Phase 0 已完成、本地提交并归档；下一实现阶段为 Phase 1。
+- 当前阶段：Phase 1 reader-shell 开发中；最小 SQLite 偏好恢复已实现，正式 Shell 正在接入。
 - 可运行状态：Wails v3.0.0 + React／TypeScript／Vite 工程可构建；本机 macOS arm64 窗口已实际启动并通过信息／事件／取消／完成验收。
 - 本阶段成果：固定依赖和锁文件、main 装配、BootstrapService、生成绑定、最小 React 工程界面、操作快照与有界历史、Go／前端测试、Taskfile 与应用包。
 - 质量证据：Go test／race／vet、前端 typecheck／lint／5 项交互、原生 build 与本机 ad-hoc 签名验证通过；详见 phase0-validation.md。
