@@ -1,0 +1,22 @@
+# 运行依赖与产物
+node_modules/
+frontend/dist/
+bin/
+.cache/
+coverage/
+frontend/coverage/
+*.log
+.DS_Store
+.idea/
+.vscode/
+__pycache__/
+
+# 凭据与本地数据
+.env
+.env.*
+!.env.example
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3

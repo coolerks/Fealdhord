@@ -1,0 +1,15 @@
+{
+  "日期": "2026-11-04",
+  "运行时": "Python sqlite3 内存库",
+  "sqlite_version": "3.54.1",
+  "断言": {
+    "unicode61_双字子串": 0,
+    "trigram_双字子串": 0,
+    "trigram_三字子串": 1,
+    "候选二字token": 1,
+    "候选单字token": 1
+  },
+  "三来源独立保存": true,
+  "manual_excluded_有效成员": false,
+  "限制": "仅语义探针；未测试 Go 驱动、索引体积、全文连续性过滤或 100k 性能"
+}

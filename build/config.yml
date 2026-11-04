@@ -1,0 +1,30 @@
+# 本机开发配置；不包含密钥或绝对开发机路径。
+version: '3'
+info:
+  companyName: Fealdhord
+  productName: Fealdhord
+  productIdentifier: io.fealdhord.desktop
+  description: 本地优先的 RSS 阅读器
+  version: 0.1.0
+
+dev_mode:
+  root_path: .
+  log_level: warn
+  debounce: 1000
+  ignore:
+    dir: [.git, .trellis, .agents, .claude, .codex, .pi, docs, frontend, node_modules, bin]
+    file: ['*_test.go', .DS_Store]
+    watched_extension: ['*.go']
+    git_ignore: true
+  executes:
+    - cmd: wails3 build DEV=true
+      type: blocking
+    - cmd: wails3 task dev:frontend
+      type: background
+      readiness:
+        http: http://127.0.0.1:9245/
+        timeout: 30s
+        interval: 200ms
+    - cmd: wails3 task run
+      type: primary
+      exit_policy: shutdown

@@ -1,0 +1,1024 @@
+{
+  "source": "docs/00-product/source-requirements-v2.md",
+  "sha256": "c5e963a3680321a127eb6e151a93e1fcfd7cb3923c7774d05229ca1d2e298839",
+  "date": "2026-11-04",
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "source_section": "一",
+      "title": "产品原则",
+      "spec": "00-product/product-principles.md",
+      "acceptance": "RSS-01",
+      "phase": "全阶段",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-002",
+      "source_section": "二",
+      "title": "目标平台",
+      "spec": "09-research/wails-v3-notes.md",
+      "acceptance": "ENV-01",
+      "phase": "Phase 0",
+      "status": "Phase 0 本机工具链与 doctor 已验证，其余平台未测"
+    },
+    {
+      "id": "REQ-003",
+      "source_section": "三",
+      "title": "技术栈",
+      "spec": "03-architecture/overview.md",
+      "acceptance": "ARCH-01",
+      "phase": "Phase 0 起",
+      "status": "Phase 0 基础依赖已固定，其余依赖待对应阶段"
+    },
+    {
+      "id": "REQ-004",
+      "source_section": "四",
+      "title": "不要过度依赖 SDK",
+      "spec": "03-architecture/ai-provider.md",
+      "acceptance": "MODEL-01",
+      "phase": "Phase 5",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-005",
+      "source_section": "五",
+      "title": "AI API 协议",
+      "spec": "05-api/model-contract.md",
+      "acceptance": "MODEL-01",
+      "phase": "Phase 5",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-006",
+      "source_section": "六",
+      "title": "明确不支持旧 Completions API",
+      "spec": "05-api/model-contract.md",
+      "acceptance": "MODEL-01",
+      "phase": "Phase 5",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-007",
+      "source_section": "七",
+      "title": "Responses API",
+      "spec": "05-api/model-contract.md",
+      "acceptance": "MODEL-01",
+      "phase": "Phase 5",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-008",
+      "source_section": "八",
+      "title": "Messages API",
+      "spec": "05-api/model-contract.md",
+      "acceptance": "MODEL-01",
+      "phase": "Phase 5",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-009",
+      "source_section": "九",
+      "title": "统一 Model Interface",
+      "spec": "05-api/model-contract.md",
+      "acceptance": "MODEL-01",
+      "phase": "Phase 5",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-010",
+      "source_section": "十",
+      "title": "统一 Streaming Event",
+      "spec": "05-api/model-contract.md",
+      "acceptance": "MODEL-01",
+      "phase": "Phase 5",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-011",
+      "source_section": "十一",
+      "title": "Provider 配置系统",
+      "spec": "04-specs/providers.md",
+      "acceptance": "PROVIDER-01",
+      "phase": "Phase 5",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-012",
+      "source_section": "十二",
+      "title": "兼容第三方 Provider",
+      "spec": "04-specs/providers.md",
+      "acceptance": "PROVIDER-01",
+      "phase": "Phase 5",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-013",
+      "source_section": "十三",
+      "title": "Model 管理",
+      "spec": "04-specs/providers.md",
+      "acceptance": "PROVIDER-01",
+      "phase": "Phase 5",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-014",
+      "source_section": "十四",
+      "title": "任务可以使用不同模型",
+      "spec": "04-specs/providers.md",
+      "acceptance": "PROVIDER-01",
+      "phase": "Phase 5",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-015",
+      "source_section": "十五",
+      "title": "Agent Runtime",
+      "spec": "03-architecture/agent-runtime.md",
+      "acceptance": "AGENT-01",
+      "phase": "Phase 7",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-016",
+      "source_section": "十六",
+      "title": "Agent 最大循环限制",
+      "spec": "03-architecture/agent-runtime.md",
+      "acceptance": "AGENT-01",
+      "phase": "Phase 7",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-017",
+      "source_section": "十七",
+      "title": "Tool 是核心能力抽象",
+      "spec": "04-specs/tools.md",
+      "acceptance": "TOOL-01",
+      "phase": "Phase 7／8",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-018",
+      "source_section": "十八",
+      "title": "Built in Tools",
+      "spec": "04-specs/tools.md",
+      "acceptance": "TOOL-01",
+      "phase": "Phase 7／8",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-019",
+      "source_section": "十九",
+      "title": "Tool 权限系统",
+      "spec": "04-specs/tools.md",
+      "acceptance": "TOOL-02",
+      "phase": "Phase 7／8",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-020",
+      "source_section": "二十",
+      "title": "危险操作确认",
+      "spec": "04-specs/tools.md",
+      "acceptance": "TOOL-02",
+      "phase": "Phase 7／8",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-021",
+      "source_section": "二十一",
+      "title": "Tool Execution History",
+      "spec": "04-specs/tools.md",
+      "acceptance": "TOOL-01",
+      "phase": "Phase 7／8",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-022",
+      "source_section": "二十二",
+      "title": "MCP",
+      "spec": "04-specs/mcp.md",
+      "acceptance": "MCP-01",
+      "phase": "Phase 10／11",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-023",
+      "source_section": "二十三",
+      "title": "MCP Client",
+      "spec": "04-specs/mcp.md",
+      "acceptance": "MCP-01",
+      "phase": "Phase 10／11",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-024",
+      "source_section": "二十四",
+      "title": "MCP Tool Integration",
+      "spec": "04-specs/mcp.md",
+      "acceptance": "MCP-01",
+      "phase": "Phase 10／11",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-025",
+      "source_section": "二十五",
+      "title": "MCP 权限",
+      "spec": "04-specs/mcp.md",
+      "acceptance": "MCP-01",
+      "phase": "Phase 10／11",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-026",
+      "source_section": "二十六",
+      "title": "MCP Server",
+      "spec": "04-specs/mcp.md",
+      "acceptance": "MCP-03",
+      "phase": "Phase 10／11",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-027",
+      "source_section": "二十七",
+      "title": "Skill 系统",
+      "spec": "04-specs/skills.md",
+      "acceptance": "SKILL-01",
+      "phase": "Phase 9",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-028",
+      "source_section": "二十八",
+      "title": "Skill 目录",
+      "spec": "04-specs/skills.md",
+      "acceptance": "SKILL-01",
+      "phase": "Phase 9",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-029",
+      "source_section": "二十九",
+      "title": "Skill 安全",
+      "spec": "04-specs/skills.md",
+      "acceptance": "SKILL-02",
+      "phase": "Phase 9",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-030",
+      "source_section": "三十",
+      "title": "Skill UI",
+      "spec": "04-specs/skills.md",
+      "acceptance": "SKILL-01",
+      "phase": "Phase 9",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-031",
+      "source_section": "三十一",
+      "title": "AI Chat",
+      "spec": "04-specs/chat.md",
+      "acceptance": "CHAT-01",
+      "phase": "Phase 5／7",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-032",
+      "source_section": "三十二",
+      "title": "Reader AI Panel",
+      "spec": "04-specs/chat.md",
+      "acceptance": "CHAT-01",
+      "phase": "Phase 5／7",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-033",
+      "source_section": "三十三",
+      "title": "Context Builder",
+      "spec": "04-specs/chat.md",
+      "acceptance": "CHAT-01",
+      "phase": "Phase 5／7",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-034",
+      "source_section": "三十四",
+      "title": "RSS 数据结构",
+      "spec": "03-architecture/database.md",
+      "acceptance": "DB-01",
+      "phase": "Phase 2／3",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-035",
+      "source_section": "三十五",
+      "title": "Feed",
+      "spec": "03-architecture/database.md",
+      "acceptance": "DB-01",
+      "phase": "Phase 2／3",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-036",
+      "source_section": "三十六",
+      "title": "Article",
+      "spec": "03-architecture/database.md",
+      "acceptance": "DB-01",
+      "phase": "Phase 2／3",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-037",
+      "source_section": "三十七",
+      "title": "RSS 格式",
+      "spec": "04-specs/rss.md",
+      "acceptance": "RSS-02",
+      "phase": "Phase 3",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-038",
+      "source_section": "三十八",
+      "title": "Feed Discovery",
+      "spec": "04-specs/rss.md",
+      "acceptance": "RSS-04",
+      "phase": "Phase 3",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-039",
+      "source_section": "三十九",
+      "title": "Feed 更新机制",
+      "spec": "04-specs/rss.md",
+      "acceptance": "RSS-03",
+      "phase": "Phase 3",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-040",
+      "source_section": "四十",
+      "title": "自动分类",
+      "spec": "04-specs/categories.md",
+      "acceptance": "CAT-01",
+      "phase": "Phase 2／4／6",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-041",
+      "source_section": "四十一",
+      "title": "分类来源",
+      "spec": "04-specs/categories.md",
+      "acceptance": "CAT-01",
+      "phase": "Phase 2／4／6",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-042",
+      "source_section": "四十二",
+      "title": "Manual Override",
+      "spec": "04-specs/categories.md",
+      "acceptance": "CAT-01",
+      "phase": "Phase 2／4／6",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-043",
+      "source_section": "四十三",
+      "title": "AI Classification",
+      "spec": "04-specs/ai-classification.md",
+      "acceptance": "AI-01",
+      "phase": "Phase 6",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-044",
+      "source_section": "四十四",
+      "title": "AI Classification Cache",
+      "spec": "04-specs/ai-classification.md",
+      "acceptance": "AI-01",
+      "phase": "Phase 6",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-045",
+      "source_section": "四十五",
+      "title": "精选",
+      "spec": "04-specs/smart-views.md",
+      "acceptance": "VIEW-01",
+      "phase": "Phase 4／6",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-046",
+      "source_section": "四十六",
+      "title": "Prompt 测试",
+      "spec": "04-specs/ai-classification.md",
+      "acceptance": "AI-03",
+      "phase": "Phase 6",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-047",
+      "source_section": "四十七",
+      "title": "搜索",
+      "spec": "04-specs/search.md",
+      "acceptance": "SEARCH-01",
+      "phase": "Phase 4",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-048",
+      "source_section": "四十八",
+      "title": "Reader",
+      "spec": "04-specs/reader.md",
+      "acceptance": "READER-01",
+      "phase": "Phase 4",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-049",
+      "source_section": "四十九",
+      "title": "阅读体验",
+      "spec": "04-specs/reader.md",
+      "acceptance": "READER-03",
+      "phase": "Phase 4",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-050",
+      "source_section": "五十",
+      "title": "主界面",
+      "spec": "02-design/app-shell.md",
+      "acceptance": "SHELL-01",
+      "phase": "Phase 1",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-051",
+      "source_section": "五十一",
+      "title": "Sidebar 毛玻璃效果",
+      "spec": "02-design/sidebar.md",
+      "acceptance": "SIDEBAR-01",
+      "phase": "Phase 1／4",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-052",
+      "source_section": "五十二",
+      "title": "视觉风格",
+      "spec": "02-design/design-system.md",
+      "acceptance": "DS-01",
+      "phase": "Phase 1",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-053",
+      "source_section": "五十三",
+      "title": "Theme",
+      "spec": "02-design/design-system.md",
+      "acceptance": "DS-01",
+      "phase": "Phase 1",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-054",
+      "source_section": "五十四",
+      "title": "Sidebar 信息架构",
+      "spec": "02-design/sidebar.md",
+      "acceptance": "SIDEBAR-01",
+      "phase": "Phase 1／4",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-055",
+      "source_section": "五十五",
+      "title": "Article List",
+      "spec": "02-design/article-list.md",
+      "acceptance": "LIST-01",
+      "phase": "Phase 1／4",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-055-A",
+      "source_section": "五十五-A",
+      "title": "双阅读视图：列表与瀑布流",
+      "spec": "02-design/article-views.md",
+      "acceptance": "VIEWS-01",
+      "phase": "Phase 1／4",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-055-B",
+      "source_section": "五十五-B",
+      "title": "RSS 首图提取与媒体管理",
+      "spec": "02-design/article-media.md",
+      "acceptance": "MEDIA-01",
+      "phase": "Phase 3／4",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-055-C",
+      "source_section": "五十五-C",
+      "title": "统一 Motion Design System",
+      "spec": "02-design/motion-system.md",
+      "acceptance": "MOTION-01",
+      "phase": "Phase 1 起",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-055-D",
+      "source_section": "五十五-D",
+      "title": "Hover 与图标语义动效矩阵",
+      "spec": "02-design/motion-system.md",
+      "acceptance": "MOTION-01",
+      "phase": "Phase 1 起",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-055-E",
+      "source_section": "五十五-E",
+      "title": "动画、图片与瀑布流的性能和测试",
+      "spec": "07-quality/performance.md",
+      "acceptance": "VIEWS-03",
+      "phase": "Phase 1／4／12",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-056",
+      "source_section": "五十六",
+      "title": "状态管理",
+      "spec": "03-architecture/frontend.md",
+      "acceptance": "VIEWS-01",
+      "phase": "Phase 1／4",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-057",
+      "source_section": "五十七",
+      "title": "Wails Boundary",
+      "spec": "05-api/wails-bindings.md",
+      "acceptance": "API-01",
+      "phase": "Phase 0 起",
+      "status": "基础 Wails 绑定已验证，领域接口待后续"
+    },
+    {
+      "id": "REQ-058",
+      "source_section": "五十八",
+      "title": "Go Backend Modules",
+      "spec": "03-architecture/backend.md",
+      "acceptance": "ARCH-01",
+      "phase": "Phase 0 起",
+      "status": "internal/app 基础服务已实现，其余模块待后续"
+    },
+    {
+      "id": "REQ-059",
+      "source_section": "五十九",
+      "title": "数据库 Migration",
+      "spec": "03-architecture/database.md",
+      "acceptance": "DB-01",
+      "phase": "Phase 2",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-060",
+      "source_section": "六十",
+      "title": "Secret Storage",
+      "spec": "09-research/credential-notes.md",
+      "acceptance": "PROVIDER-02",
+      "phase": "Phase 5",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-061",
+      "source_section": "六十一",
+      "title": "OPML",
+      "spec": "04-specs/opml.md",
+      "acceptance": "OPML-01",
+      "phase": "Phase 4",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-062",
+      "source_section": "六十二",
+      "title": "错误体验",
+      "spec": "05-api/wails-bindings.md",
+      "acceptance": "API-01",
+      "phase": "全阶段",
+      "status": "基础错误结果已实现，领域错误待对应阶段"
+    },
+    {
+      "id": "REQ-063",
+      "source_section": "六十三",
+      "title": "Cancellation",
+      "spec": "03-architecture/data-flow.md",
+      "acceptance": "AGENT-01",
+      "phase": "Phase 3 起",
+      "status": "诊断取消已实测，RSS／AI／MCP 取消待对应阶段"
+    },
+    {
+      "id": "REQ-064",
+      "source_section": "六十四",
+      "title": "Logs",
+      "spec": "07-quality/security-checklist.md",
+      "acceptance": "LOG-01",
+      "phase": "全阶段",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-065",
+      "source_section": "六十五",
+      "title": "多 AI 协作文档体系",
+      "spec": "README.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-066",
+      "source_section": "六十六",
+      "title": "docs/README.md",
+      "spec": "README.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-067",
+      "source_section": "六十七",
+      "title": "00-product",
+      "spec": "00-product/vision.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-068",
+      "source_section": "六十八",
+      "title": "01-status",
+      "spec": "01-status/CURRENT.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-069",
+      "source_section": "六十九",
+      "title": "ROADMAP.md",
+      "spec": "01-status/ROADMAP.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-070",
+      "source_section": "七十",
+      "title": "BACKLOG.md",
+      "spec": "01-status/BACKLOG.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-071",
+      "source_section": "七十一",
+      "title": "RISKS.md",
+      "spec": "01-status/RISKS.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-072",
+      "source_section": "七十二",
+      "title": "active Task 文档",
+      "spec": "01-status/active/TASK-0001-fealdhord-spec.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-073",
+      "source_section": "七十三",
+      "title": "多 AI Soft Ownership",
+      "spec": "README.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-074",
+      "source_section": "七十四",
+      "title": "COMPLETED.md",
+      "spec": "01-status/COMPLETED.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-075",
+      "source_section": "七十五",
+      "title": "02-design",
+      "spec": "02-design/design-system.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-076",
+      "source_section": "七十六",
+      "title": "03-architecture",
+      "spec": "03-architecture/overview.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-077",
+      "source_section": "七十七",
+      "title": "ADR",
+      "spec": "06-decisions/README.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-078",
+      "source_section": "七十八",
+      "title": "08-handoffs",
+      "spec": "08-handoffs/LATEST.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-079",
+      "source_section": "七十九",
+      "title": "09-research",
+      "spec": "09-research/README.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-080",
+      "source_section": "八十",
+      "title": "根目录 AGENTS.md",
+      "spec": "../AGENTS.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-081",
+      "source_section": "八十一",
+      "title": "新 Agent 工作协议",
+      "spec": "README.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-082",
+      "source_section": "八十二",
+      "title": "文档不得脱离代码",
+      "spec": "README.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-083",
+      "source_section": "八十三",
+      "title": "测试",
+      "spec": "07-quality/testing-strategy.md",
+      "acceptance": "DOC-01",
+      "phase": "对应实现阶段",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-084",
+      "source_section": "八十四",
+      "title": "AI Adapter Contract Tests",
+      "spec": "07-quality/testing-strategy.md",
+      "acceptance": "MODEL-01",
+      "phase": "对应实现阶段",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-085",
+      "source_section": "八十五",
+      "title": "RSS Fixture Tests",
+      "spec": "07-quality/testing-strategy.md",
+      "acceptance": "RSS-02",
+      "phase": "对应实现阶段",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-086",
+      "source_section": "八十六",
+      "title": "跨平台检查",
+      "spec": "07-quality/platform-matrix.md",
+      "acceptance": "RELEASE-01",
+      "phase": "Phase 0／12",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-087",
+      "source_section": "八十七",
+      "title": "性能",
+      "spec": "07-quality/performance.md",
+      "acceptance": "VIEWS-03",
+      "phase": "Phase 4／12",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-088",
+      "source_section": "八十八",
+      "title": "Accessibility",
+      "spec": "02-design/interaction.md",
+      "acceptance": "INPUT-01",
+      "phase": "Phase 1 起",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-089",
+      "source_section": "八十九",
+      "title": "键盘操作",
+      "spec": "02-design/interaction.md",
+      "acceptance": "INPUT-01",
+      "phase": "Phase 4",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-090",
+      "source_section": "九十",
+      "title": "Command Palette",
+      "spec": "02-design/interaction.md",
+      "acceptance": "INPUT-01",
+      "phase": "Phase 4",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-091",
+      "source_section": "九十一",
+      "title": "Settings",
+      "spec": "02-design/settings.md",
+      "acceptance": "SETTINGS-01",
+      "phase": "对应功能阶段",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-092",
+      "source_section": "九十二",
+      "title": "项目目录建议",
+      "spec": "03-architecture/backend.md",
+      "acceptance": "ARCH-01",
+      "phase": "Phase 0 起",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-093",
+      "source_section": "九十三",
+      "title": "README",
+      "spec": "../README.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "工程运行与测试入口已实测并文档化"
+    },
+    {
+      "id": "REQ-094",
+      "source_section": "九十四",
+      "title": "Git Hygiene",
+      "spec": "07-quality/repository-hygiene.md",
+      "acceptance": "REPO-01",
+      "phase": "Phase 0 起",
+      "status": "忽略规则已建立，持续检查"
+    },
+    {
+      "id": "REQ-095",
+      "source_section": "九十五",
+      "title": "代码质量",
+      "spec": "07-quality/testing-strategy.md",
+      "acceptance": "REPO-01",
+      "phase": "全阶段",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-096",
+      "source_section": "九十六",
+      "title": "错误处理",
+      "spec": "07-quality/testing-strategy.md",
+      "acceptance": "API-01",
+      "phase": "全阶段",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-097",
+      "source_section": "九十七",
+      "title": "不要提前复杂化",
+      "spec": "00-product/scope.md",
+      "acceptance": "DOC-01",
+      "phase": "全阶段",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-098",
+      "source_section": "九十八",
+      "title": "第一阶段实施顺序",
+      "spec": "01-status/ROADMAP.md",
+      "acceptance": "SHELL-01",
+      "phase": "Phase 0 起",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-099",
+      "source_section": "九十九",
+      "title": "第一次执行必须做什么",
+      "spec": "01-status/ROADMAP.md",
+      "acceptance": "SHELL-01",
+      "phase": "Phase 0 起",
+      "status": "Phase 0 已完成，Phase 1 Shell 待后续"
+    },
+    {
+      "id": "REQ-100",
+      "source_section": "一百",
+      "title": "第一批 ADR",
+      "spec": "06-decisions/README.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段",
+      "status": "文档基线已完成，按实际实现持续更新"
+    },
+    {
+      "id": "REQ-101",
+      "source_section": "一百零一",
+      "title": "UI 第一版验收",
+      "spec": "02-design/app-shell.md",
+      "acceptance": "SHELL-01",
+      "phase": "Phase 1",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-102",
+      "source_section": "一百零二",
+      "title": "代码与文档完成定义",
+      "spec": "07-quality/release-checklist.md",
+      "acceptance": "RELEASE-01",
+      "phase": "每个实现阶段",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-103",
+      "source_section": "一百零三",
+      "title": "设计修改规则",
+      "spec": "06-decisions/README.md",
+      "acceptance": "DOC-01",
+      "phase": "每次重大变更",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-104",
+      "source_section": "一百零四",
+      "title": "外部信息验证规则",
+      "spec": "09-research/README.md",
+      "acceptance": "DOC-01",
+      "phase": "相关阶段实施前",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-105",
+      "source_section": "一百零五",
+      "title": "AI Provider 命名规则",
+      "spec": "04-specs/providers.md",
+      "acceptance": "PROVIDER-03",
+      "phase": "Phase 5",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-106",
+      "source_section": "一百零六",
+      "title": "最终产品体验目标",
+      "spec": "00-product/vision.md",
+      "acceptance": "CHAT-01",
+      "phase": "Phase 4–11",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-107",
+      "source_section": "一百零七",
+      "title": "最终架构目标",
+      "spec": "03-architecture/overview.md",
+      "acceptance": "ARCH-01",
+      "phase": "全阶段",
+      "status": "已形成规格，未实现"
+    },
+    {
+      "id": "REQ-108",
+      "source_section": "一百零八",
+      "title": "开始执行",
+      "spec": "08-handoffs/LATEST.md",
+      "acceptance": "DOC-01",
+      "phase": "规格阶段起",
+      "status": "已形成规格，未实现"
+    }
+  ]
+}

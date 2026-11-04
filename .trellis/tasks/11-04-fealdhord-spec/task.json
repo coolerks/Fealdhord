@@ -1,0 +1,34 @@
+{
+  "id": "fealdhord-spec",
+  "name": "fealdhord-spec",
+  "title": "折栈项目需求与技术规格",
+  "description": "基于 v2.0 总开发指令完成需求追踪、官方技术调研、中文产品与架构规格及阶段验收计划",
+  "status": "planning",
+  "dev_type": "docs",
+  "scope": "需求调研、技术研究与中文规格",
+  "package": null,
+  "priority": "P2",
+  "creator": "moyok",
+  "assignee": "moyok",
+  "createdAt": "2026-11-04",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "11-04-desktop-bootstrap"
+  ],
+  "parent": null,
+  "relatedFiles": [
+    "docs/README.md",
+    "docs/00-product/requirements-traceability.md",
+    "docs/03-architecture/overview.md",
+    "docs/05-api/model-contract.md",
+    "docs/09-research/validation.md"
+  ],
+  "notes": "规格已交付且用户已在最终摘要后授权实施。Phase 0 子任务 desktop-bootstrap 已完成代码与本机验收，按用户持续授权提交收尾；本父任务保留原规格规划记录，应用实际状态以 CURRENT 和子任务为准。",
+  "meta": {}
+}

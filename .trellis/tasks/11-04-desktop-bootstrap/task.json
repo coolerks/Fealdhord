@@ -1,0 +1,32 @@
+{
+  "id": "desktop-bootstrap",
+  "name": "desktop-bootstrap",
+  "title": "Phase 0：桌面工程与基础调用链",
+  "description": "落实已评审的 Phase 0 计划，建立 Wails React TypeScript 工程并验证绑定、事件、取消与本机启动",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "moyok",
+  "assignee": "moyok",
+  "createdAt": "2026-11-04",
+  "completedAt": null,
+  "branch": "codex/desktop-bootstrap",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "11-04-fealdhord-spec",
+  "relatedFiles": [
+    "main.go",
+    "internal/app",
+    "frontend",
+    "Taskfile.yml",
+    "docs/09-research/phase0-validation.md"
+  ],
+  "notes": "用户在最终规划摘要后授权开始实施。Phase 0 代码与本机验收已完成，用户已长期授权按完成部分直接提交，开始提交收尾。",
+  "meta": {}
+}
