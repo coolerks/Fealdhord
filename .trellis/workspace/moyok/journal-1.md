@@ -137,3 +137,30 @@
 ### Next Steps
 
 - Phase 3 RSS 安全网络、发现／解析、条件请求调度与首图；完整分页与全库搜索 UI 保持 Phase 4 边界。
+
+
+## Session 5: 界面减负与三方体验规则落实
+<!-- trellis-session: v=2 fp=c112414c1ac5fd4f -->
+
+**Date**: 2026-11-05
+**Task**: 界面减负与三方体验规则落实
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+加入用户原文两条规则，删除冗余标语、说明和标签，整合工具区并修正命令面板可访问名称，保留数据与现有交互。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `85c50cb` | docs: 加入界面减负与三方体验规则 |
+| `4262340` | refactor: 精简阅读界面并统一操作语义 |
+
+### Testing
+
+- [OK] 28 项前端、类型／lint、原生构建／应用包、文档核验通过；未新增 E2E，保留已有 Compiler 与体积提示。
+
+### Status
+
+[OK] **Completed**
