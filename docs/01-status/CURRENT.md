@@ -17,7 +17,7 @@
 - 数据接线：LibraryService 真实有界元数据、按需正文、已读／收藏持久化；失败重试／回滚。前端当前最多 500 篇并提示 hasMore，完整分页与全库筛选／搜索 UI 属于 Phase 4。
 - 质量：Go 全包 test／vet 与 RSS 相关七包 race 通过；前端 54 项、类型／lint、Wails 绑定／production build、macOS 调试包签名核验通过。保留 Virtualizer Compiler 兼容提示；最大 JS 块 419.83kB、共享块 311.45kB；未执行本轮 E2E、全平台、帧率或十万篇性能验收。
 - 生产库：不注入 fixture；无需 AI 即可发现／添加真实订阅并同步阅读、管理／归档恢复及设置图片策略；本轮检查未访问用户生产库。AI／Agent／Skills／MCP 尚未实现，其他平台未实机验证。
-- 下一阶段：Phase 4 完整基础阅读器，包括全库分页／筛选搜索、分类管理／按源导航、OPML 和阅读增强；当前尚未实现。
+- 当前任务：[Phase 4 完整基础阅读器](active/phase4-reader.md)已完成规划，按本轮授权直接实施：全库查询 → 分类导航 → 安全阅读 → OPML。当前仍以 Phase 3 实际交付为准，不将规划写成现有功能。
 - [数据验收](../09-research/phase2-validation.md) · [原生体验契约与证据](../04-specs/native-experience.md) · [交接](../08-handoffs/LATEST.md)。
 
 功能提交：942ec94（原生体验修订）、8253005（迁移／快照恢复），3cb0bd5（领域仓储与真实数据接线）。文档中文、禁止子代理、非必要不做 E2E、按完成部分直接本地提交；未自动推送。

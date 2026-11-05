@@ -1,0 +1,31 @@
+{
+  "id": "phase4-reader",
+  "name": "phase4-reader",
+  "title": "Phase 4：完整基础阅读器",
+  "description": "实现全库查询、分类导航、安全阅读和 OPML，暂停视觉调整",
+  "status": "in_progress",
+  "dev_type": "fullstack",
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "moyok",
+  "assignee": "moyok",
+  "createdAt": "2026-11-05",
+  "completedAt": null,
+  "branch": "codex/interface-clarity",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "11-05-library-query",
+    "11-05-library-navigation",
+    "11-05-reader-content",
+    "11-05-opml-transfer"
+  ],
+  "parent": "11-04-fealdhord-spec",
+  "relatedFiles": [],
+  "notes": "用户已授权规划后直接实施；本阶段方案已收敛，按依赖顺序 inline 开发。",
+  "meta": {}
+}

@@ -9,7 +9,7 @@
 | Phase 1 | 正式 Shell | Phase 0 | 玻璃、双布局、主题、调整宽度、图文／无图、语义动效、Reduced Motion | 已完成（组件测试／原生构建） |
 | Phase 2 | 数据基础 | Phase 1 | 真实驱动、goose、sqlc、约束、FTS、迁移恢复 | 已完成（数据层／有界接线） |
 | Phase 3 | RSS 纵向路径 | Phase 2 | 三格式、发现、条件请求、调度、去重、首图、分类继承 | 已完成（单元／集成／原生构建） |
-| Phase 4 | 完整基础阅读器 | Phase 3 | 虚拟双视图、Reader、FTS、分类、状态、OPML、快捷键 | 未开始 |
+| Phase 4 | 完整基础阅读器 | Phase 3 | 虚拟双视图、Reader、FTS、分类、状态、OPML、快捷键 | 实施中（全库查询优先） |
 | Phase 5 | AI 服务与基础 Chat | Phase 4 | 三 Adapter 流式／非流式 contracts、模型分配、凭据 | 未开始 |
 | Phase 6 | 自动分类与精选 | Phase 5 | Prompt 测试、缓存、手动覆盖、预算和 Smart View | 未开始 |
 | Phase 7 | Runtime | Phase 5–6 | 有限工具循环、Context、审批、审计、取消与恢复 | 未开始 |
