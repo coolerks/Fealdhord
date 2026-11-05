@@ -37,3 +37,5 @@
 [基础契约](../../../docs/04-specs/bootstrap.md)记录实际服务、DTO、事件合并、测试与生成命令。生成绑定不能手改；早到乱序事件使用同一个 sequence 合并器，类型与构建测试必须采用兼容的 Vite／Vitest 版本。
 
 生成绑定需先保证 go:embed 匹配资源存在；Taskfile bindings 用标准 Node fs 准备忽略的 dist 占位，禁止依赖开发机遗留 dist 才能构建。
+
+macOS调试包更新不能原位cp覆盖已有签名Mach-O。曾出现立即codesign验证失败、随后同文件验证通过的缓存现象；bundle:mac先移除可重建的目标可执行文件，再复制新inode、签名并严格验证。修复后连续两次重打包通过；此行为仅针对bin下构建产物，不清理用户数据，不等于发布签名／公证。

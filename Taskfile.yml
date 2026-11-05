@@ -39,6 +39,8 @@ tasks:
     platforms: [darwin]
     cmds:
       - mkdir -p bin/{{.APP_NAME}}.app/Contents/MacOS
+      # 替换已签名可执行文件时使用新 inode，避免原位覆盖后的签名缓存失效。
+      - rm -f bin/{{.APP_NAME}}.app/Contents/MacOS/{{.APP_NAME}}
       - cp bin/{{.APP_NAME}} bin/{{.APP_NAME}}.app/Contents/MacOS/{{.APP_NAME}}
       - cp build/darwin/Info.plist bin/{{.APP_NAME}}.app/Contents/Info.plist
       - codesign --force --deep --sign - bin/{{.APP_NAME}}.app
