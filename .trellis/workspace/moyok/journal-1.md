@@ -275,3 +275,40 @@
 ### Next Steps
 
 - 后续按产品路线推进，命令面板回归使用真实控件属性。
+
+
+## Session 9: 完成 Phase 3 RSS 订阅与文章同步
+<!-- trellis-session: v=2 fp=195bc3bf1d017469 -->
+
+**Date**: 2026-11-05
+**Task**: 完成 Phase 3 RSS 订阅与文章同步
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+完成安全抓取与三格式解析、订阅事务和刷新调度、受控媒体及既有界面接线；父任务与四个子任务已归档。
+
+### Main Changes
+
+- 订阅发现、显式选择、添加编辑、已有分类关联、归档恢复、刷新取消与图片策略可用；暂停视觉调整。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `24bd2a8` | feat: 实现受控网络抓取与 RSS 三格式解析 |
+| `0f02953` | feat: 实现订阅仓储与原子刷新调度核心 |
+| `9a37105` | feat: 实现受控首图管线与 RSS 桌面服务装配 |
+| `264c3df` | feat: 接通订阅管理刷新与首图设置并完成 RSS 阶段 |
+
+### Testing
+
+- [OK] Go 全包 test／vet、相关七包 race、前端 54 项与类型／lint、Wails production build、macOS 调试签名和文档静态检查通过；未新增 E2E。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Phase 4：完整分页／全库搜索筛选、分类管理与按源导航、OPML、阅读增强。
