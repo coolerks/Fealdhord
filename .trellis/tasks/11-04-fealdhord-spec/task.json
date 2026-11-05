@@ -22,7 +22,8 @@
     "11-04-desktop-bootstrap",
     "11-04-reader-shell",
     "11-04-native-reading-experience",
-    "11-04-data-foundation"
+    "11-04-data-foundation",
+    "11-05-phase3-rss"
   ],
   "parent": null,
   "relatedFiles": [

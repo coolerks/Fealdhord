@@ -1,0 +1,31 @@
+{
+  "id": "phase3-rss",
+  "name": "phase3-rss",
+  "title": "Phase 3：RSS 订阅与文章同步",
+  "description": "实现安全抓取、三格式解析、订阅刷新、首图与最小功能接线，暂停界面风格调整",
+  "status": "planning",
+  "dev_type": "fullstack",
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "moyok",
+  "assignee": "moyok",
+  "createdAt": "2026-11-05",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "11-05-rss-ingestion",
+    "11-05-rss-refresh",
+    "11-05-rss-media",
+    "11-05-rss-workflow"
+  ],
+  "parent": "11-04-fealdhord-spec",
+  "relatedFiles": [],
+  "notes": "规划文档已完成；暂停视觉调整，待 Phase 3 最终方案评审。",
+  "meta": {}
+}

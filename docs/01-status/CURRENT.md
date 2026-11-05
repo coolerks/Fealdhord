@@ -2,6 +2,8 @@
 
 最后更新：2026-11-05（Asia/Singapore）。
 
+- 当前任务：[Phase 3 RSS 订阅与文章同步](active/phase3-rss.md)规划待评审，已拆为四个顺序子任务；暂停 UI 视觉调整，产品代码尚未修改。
+
 - 最新修复：[命令面板图标动画](../08-handoffs/history/2026-11-05-command-icon-motion.md)已修正 cmdk 的 data-disabled=false 误判；真实组件悬停／键盘运动和禁用回归通过，已提交 ad8480d 并归档。
 
 - 前次修复：[图标动画失效修复](../08-handoffs/history/2026-11-05-icon-motion-regression.md)已提交 c047117 并归档；延后启动至 StrictMode 副作用重放之后。上轮测试覆盖缺口已补齐，38 个真实图标有中间帧／归位／重播证据，全部前端 41 项通过。
