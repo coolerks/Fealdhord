@@ -6,6 +6,7 @@
 | --- | --- |
 | [后端目录与依赖边界](directory-structure.md) | 对应行为与验证门禁 |
 | [数据库、迁移与身份](database-guidelines.md) | 对应行为与验证门禁 |
+| [受控网络与 Feed 解析](network-guidelines.md) | SSRF、压缩限额与三格式解析契约 |
 | [错误与取消](error-handling.md) | 对应行为与验证门禁 |
 | [日志与执行审计](logging-guidelines.md) | 对应行为与验证门禁 |
 | [后端质量与验证](quality-guidelines.md) | 对应行为与验证门禁 |
