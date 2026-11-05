@@ -2,9 +2,9 @@
 
 最后更新：2026-11-05（Asia/Singapore）。
 
-- 当前修复：[命令面板图标动画](active/command-icon-motion.md)已修正 cmdk 的 data-disabled=false 误判；真实组件悬停／键盘运动和禁用回归通过，正在归档。
+- 最新修复：[命令面板图标动画](../08-handoffs/history/2026-11-05-command-icon-motion.md)已修正 cmdk 的 data-disabled=false 误判；真实组件悬停／键盘运动和禁用回归通过，已提交 ad8480d 并归档。
 
-- 最新修复：[图标动画失效修复](../08-handoffs/history/2026-11-05-icon-motion-regression.md)已提交 c047117 并归档；延后启动至 StrictMode 副作用重放之后。上轮测试覆盖缺口已补齐，38 个真实图标有中间帧／归位／重播证据，全部前端 41 项通过。
+- 前次修复：[图标动画失效修复](../08-handoffs/history/2026-11-05-icon-motion-regression.md)已提交 c047117 并归档；延后启动至 StrictMode 副作用重放之后。上轮测试覆盖缺口已补齐，38 个真实图标有中间帧／归位／重播证据，全部前端 41 项通过。
 
 - 前次完成：[菜单与图标动效修订](../08-handoffs/history/2026-11-05-menu-icon-motion.md)已提交 38805c8／9d6376d 并归档；右键分组、图标、真实快捷键及全页面原版动效已接入，播放完成自动归位，支持取消／减少动态。
 
