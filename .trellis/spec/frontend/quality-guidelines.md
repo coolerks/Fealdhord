@@ -41,3 +41,10 @@ Taskfile 的工作目录放在任务级 dir，不能给单条 cmd 写 dir 并假
 ## Phase 1 真实依据
 
 按用户约束，非必要不做 E2E；本阶段采用 19 项组件／单元用例、真实设置 SQLite 测试和原生编译，不能把未执行的平台／帧率／触控门禁写成通过。JSDOM 几何必须同时提供 clientHeight 与 scrollHeight，避免虚拟器滚动范围被错误钳制到 0。构建写 dist 时不并行运行读取 go:embed 的 Go 检查；先 build，再 task check。实际提示和证据见[阶段验收](../../../docs/09-research/phase1-validation.md)。
+
+
+## 按需挂载动画的真实组合回归
+
+图标播放 Promise 完成、data-animating=true 或 mock startAnimation 被调用，均不能证明画面运动。AnimatedGlyph 这种交互时新增 Motion 子树的组件，必须用真实图标／Motion，在应用同样的 StrictMode 环境下，从 hover／focus 触发按需挂载，再验证中间帧 SVG transform、路径或透明度确实改变，最终自动归位及再次进入可重播。预先挂载图标后再调用句柄的目录测试，只能检查图标自身，不能替代外层调度回归。
+
+imperative handle 就绪不等于 StrictMode 副作用重放完成。播放不能在新子树尚可能清理时抢先启动；取消必须覆盖未执行调度和已执行播放。保留 StrictMode，不用删除严格模式、固定延时清 busy 或吞错静态回退掩盖根因。手动时钟可验证中间帧及完成，不声称原生帧率达标。
