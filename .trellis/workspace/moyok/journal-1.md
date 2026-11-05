@@ -202,3 +202,41 @@
 ### Next Steps
 
 - 按产品路线继续 Phase 3 RSS；保留既有未跟踪框架文件。
+
+
+## Session 7: 修复 StrictMode 按需挂载图标动画锁死
+<!-- trellis-session: v=2 fp=043f0760d0718a84 -->
+
+**Date**: 2026-11-05
+**Task**: 修复 StrictMode 按需挂载图标动画锁死
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+按 trellis-break-loop 复现并修复首次悬停动画失效，补齐真实运动回归与实际规范。
+
+### Main Changes
+
+- 启动推迟到 passive effect 后可取消微任务，保留 StrictMode、原版动画和已有菜单。
+- 记录跨层生命周期、模拟测试缺口及隐含挂载假设，更新组件／质量规范；仓库没有模板源码目录。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bbdd6fc` | docs: 记录图标动画失效根因与真实组合回归门禁 |
+| `c047117` | fix: 修复严格模式首次悬停动画被取消后锁死 |
+
+### Testing
+
+- [OK] 41 项前端测试、类型、lint（1 项既有提示）、macOS 构建及本地应用包签名通过。
+- [OK] 38 个真实图标 StrictMode 首次 hover 运动／归位回归先失败再通过；启动前取消覆盖。
+- [OK] Chrome 真实时钟观察 Settings 339／338 个不同 SVG 状态、Layers 117 个，自动归位和重播通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 继续产品路线 Phase 3；未测原生帧率与 Windows 实机，不将浏览器探针当作全平台认证。
