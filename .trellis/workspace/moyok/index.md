@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
+- **Total Sessions**: 6
 - **Last Active**: 2026-11-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~166 | Active |
+| `journal-1.md` | ~204 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-11-05 | 菜单分组与全界面单次图标动效 | `38805c8`, `9d6376d` | `codex/interface-clarity` |
 | 5 | 2026-11-05 | 界面减负与三方体验规则落实 | `85c50cb`, `4262340` | `codex/interface-clarity` |
 | 4 | 2026-11-04 | Phase 2 领域数据基础与真实阅读接线完成 | `8253005`, `3cb0bd5` | `codex/data-foundation` |
 | 3 | 2026-11-04 | 原生菜单与灵动阅读体验重做 | `942ec94` | `codex/native-reading-experience` |

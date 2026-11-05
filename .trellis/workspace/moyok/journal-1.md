@@ -164,3 +164,41 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 6: 菜单分组与全界面单次图标动效
+<!-- trellis-session: v=2 fp=bf7d028fe35645b7 -->
+
+**Date**: 2026-11-05
+**Task**: 菜单分组与全界面单次图标动效
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+完成上下文菜单与图标动效一致性任务并归档；保留原有业务功能。
+
+### Main Changes
+
+- 右键与应用菜单分组、官方图标、末尾真实快捷键，统一命令呈现和可访问名称。
+- 38 个官方图标单次播放自动归位、完成通知和取消；覆盖设置、阅读器、空态及结构图标，同源生成静态 SVG。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `38805c8` | fix: 统一图标单次播放与自动归位 |
+| `9d6376d` | feat: 完善菜单分组快捷键与全局图标动效 |
+
+### Testing
+
+- [OK] 前端 38 项、typecheck、lint 通过；保留既有 1 项 Virtualizer Compiler 提示。
+- [OK] 前端生产、macOS 构建及应用包 ad-hoc 签名通过；文档 116 文件／259 本地链接无错误。
+- [OK] 未执行 E2E、原生帧率采样或 Windows 实机；手动时钟播放检查不当作帧率证据。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 按产品路线继续 Phase 3 RSS；保留既有未跟踪框架文件。
