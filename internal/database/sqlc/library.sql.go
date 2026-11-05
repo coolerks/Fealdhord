@@ -24,6 +24,29 @@ func (q *Queries) AddFavorite(ctx context.Context, arg AddFavoriteParams) error 
 	return err
 }
 
+const addMediaCandidate = `-- name: AddMediaCandidate :exec
+INSERT INTO article_media_candidates(article_id,position,url,source,alt) VALUES(?,?,?,?,?)
+`
+
+type AddMediaCandidateParams struct {
+	ArticleID string `json:"article_id"`
+	Position  int64  `json:"position"`
+	Url       string `json:"url"`
+	Source    string `json:"source"`
+	Alt       string `json:"alt"`
+}
+
+func (q *Queries) AddMediaCandidate(ctx context.Context, arg AddMediaCandidateParams) error {
+	_, err := q.db.ExecContext(ctx, addMediaCandidate,
+		arg.ArticleID,
+		arg.Position,
+		arg.Url,
+		arg.Source,
+		arg.Alt,
+	)
+	return err
+}
+
 const applyFeedCategories = `-- name: ApplyFeedCategories :exec
 INSERT INTO article_categories(article_id,category_id,source,state,created_at,updated_at)
 SELECT a.id,fc.category_id,'feed','included',?,? FROM articles a JOIN feed_categories fc ON fc.feed_id=a.feed_id WHERE a.feed_id=?
@@ -63,6 +86,15 @@ func (q *Queries) ArchiveFeed(ctx context.Context, arg ArchiveFeedParams) (int64
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const blockAllMedia = `-- name: BlockAllMedia :exec
+UPDATE article_media SET status='blocked',generation=generation+1
+`
+
+func (q *Queries) BlockAllMedia(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, blockAllMedia)
+	return err
 }
 
 const createArticle = `-- name: CreateArticle :exec
@@ -187,6 +219,15 @@ func (q *Queries) DeleteCategory(ctx context.Context, id string) (int64, error) 
 	return result.RowsAffected()
 }
 
+const deleteMediaCandidates = `-- name: DeleteMediaCandidates :exec
+DELETE FROM article_media_candidates WHERE article_id=?
+`
+
+func (q *Queries) DeleteMediaCandidates(ctx context.Context, articleID string) error {
+	_, err := q.db.ExecContext(ctx, deleteMediaCandidates, articleID)
+	return err
+}
+
 const effectiveMembers = `-- name: EffectiveMembers :many
 SELECT article_id FROM effective_article_categories WHERE category_id=? ORDER BY article_id
 `
@@ -258,6 +299,53 @@ func (q *Queries) GetArticle(ctx context.Context, id string) (Article, error) {
 		&i.ContentHash,
 		&i.DedupKey,
 		&i.Revision,
+	)
+	return i, err
+}
+
+const getArticleMedia = `-- name: GetArticleMedia :one
+SELECT m.article_id, m.url, m.source, m.status, m.width, m.height, m.alt, m.checked_at, m.retry_after, m.cache_key, m.generation, m.remote_url, m.mime,a.feed_id,a.url AS article_url,f.archived_at FROM article_media m JOIN articles a ON a.id=m.article_id JOIN feeds f ON f.id=a.feed_id WHERE m.article_id=?
+`
+
+type GetArticleMediaRow struct {
+	ArticleID  string         `json:"article_id"`
+	Url        sql.NullString `json:"url"`
+	Source     sql.NullString `json:"source"`
+	Status     string         `json:"status"`
+	Width      sql.NullInt64  `json:"width"`
+	Height     sql.NullInt64  `json:"height"`
+	Alt        string         `json:"alt"`
+	CheckedAt  sql.NullInt64  `json:"checked_at"`
+	RetryAfter sql.NullInt64  `json:"retry_after"`
+	CacheKey   sql.NullString `json:"cache_key"`
+	Generation int64          `json:"generation"`
+	RemoteUrl  string         `json:"remote_url"`
+	Mime       string         `json:"mime"`
+	FeedID     string         `json:"feed_id"`
+	ArticleUrl string         `json:"article_url"`
+	ArchivedAt sql.NullInt64  `json:"archived_at"`
+}
+
+func (q *Queries) GetArticleMedia(ctx context.Context, articleID string) (GetArticleMediaRow, error) {
+	row := q.db.QueryRowContext(ctx, getArticleMedia, articleID)
+	var i GetArticleMediaRow
+	err := row.Scan(
+		&i.ArticleID,
+		&i.Url,
+		&i.Source,
+		&i.Status,
+		&i.Width,
+		&i.Height,
+		&i.Alt,
+		&i.CheckedAt,
+		&i.RetryAfter,
+		&i.CacheKey,
+		&i.Generation,
+		&i.RemoteUrl,
+		&i.Mime,
+		&i.FeedID,
+		&i.ArticleUrl,
+		&i.ArchivedAt,
 	)
 	return i, err
 }
@@ -350,6 +438,39 @@ func (q *Queries) GetFeedByURL(ctx context.Context, normalizedUrl string) (Feed,
 		&i.LastErrorCode,
 	)
 	return i, err
+}
+
+const getMediaCandidates = `-- name: GetMediaCandidates :many
+SELECT article_id, position, url, source, alt FROM article_media_candidates WHERE article_id=? ORDER BY position
+`
+
+func (q *Queries) GetMediaCandidates(ctx context.Context, articleID string) ([]ArticleMediaCandidate, error) {
+	rows, err := q.db.QueryContext(ctx, getMediaCandidates, articleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ArticleMediaCandidate
+	for rows.Next() {
+		var i ArticleMediaCandidate
+		if err := rows.Scan(
+			&i.ArticleID,
+			&i.Position,
+			&i.Url,
+			&i.Source,
+			&i.Alt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const inheritFeedCategories = `-- name: InheritFeedCategories :exec
@@ -674,6 +795,33 @@ func (q *Queries) ListFeeds(ctx context.Context) ([]Feed, error) {
 	return items, nil
 }
 
+const listPendingMedia = `-- name: ListPendingMedia :many
+SELECT article_id FROM article_media WHERE status IN ('pending','blocked') OR (status='failed' AND (retry_after IS NULL OR retry_after<=?)) LIMIT 500
+`
+
+func (q *Queries) ListPendingMedia(ctx context.Context, retryAfter sql.NullInt64) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingMedia, retryAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var article_id string
+		if err := rows.Scan(&article_id); err != nil {
+			return nil, err
+		}
+		items = append(items, article_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const moveCategory = `-- name: MoveCategory :execrows
 UPDATE categories SET parent_id=?,updated_at=?,revision=revision+1 WHERE id=? AND revision=?
 `
@@ -710,6 +858,16 @@ type MoveChildrenToParentParams struct {
 
 func (q *Queries) MoveChildrenToParent(ctx context.Context, arg MoveChildrenToParentParams) error {
 	_, err := q.db.ExecContext(ctx, moveChildrenToParent, arg.ParentID, arg.UpdatedAt, arg.ParentID_2)
+	return err
+}
+
+const registerMedia = `-- name: RegisterMedia :exec
+INSERT INTO article_media(article_id,status,generation) VALUES(?,'pending',1)
+ON CONFLICT(article_id) DO UPDATE SET status='pending',generation=article_media.generation+1,url=NULL,width=NULL,height=NULL,cache_key=NULL,remote_url='',mime=''
+`
+
+func (q *Queries) RegisterMedia(ctx context.Context, articleID string) error {
+	_, err := q.db.ExecContext(ctx, registerMedia, articleID)
 	return err
 }
 
@@ -900,6 +1058,48 @@ type SetFeedCategoryParams struct {
 func (q *Queries) SetFeedCategory(ctx context.Context, arg SetFeedCategoryParams) error {
 	_, err := q.db.ExecContext(ctx, setFeedCategory, arg.FeedID, arg.CategoryID, arg.CreatedAt)
 	return err
+}
+
+const setMediaState = `-- name: SetMediaState :execrows
+UPDATE article_media SET status=?,url=?,remote_url=?,source=?,width=?,height=?,alt=?,checked_at=?,retry_after=?,cache_key=?,mime=? WHERE article_id=? AND generation=?
+`
+
+type SetMediaStateParams struct {
+	Status     string         `json:"status"`
+	Url        sql.NullString `json:"url"`
+	RemoteUrl  string         `json:"remote_url"`
+	Source     sql.NullString `json:"source"`
+	Width      sql.NullInt64  `json:"width"`
+	Height     sql.NullInt64  `json:"height"`
+	Alt        string         `json:"alt"`
+	CheckedAt  sql.NullInt64  `json:"checked_at"`
+	RetryAfter sql.NullInt64  `json:"retry_after"`
+	CacheKey   sql.NullString `json:"cache_key"`
+	Mime       string         `json:"mime"`
+	ArticleID  string         `json:"article_id"`
+	Generation int64          `json:"generation"`
+}
+
+func (q *Queries) SetMediaState(ctx context.Context, arg SetMediaStateParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setMediaState,
+		arg.Status,
+		arg.Url,
+		arg.RemoteUrl,
+		arg.Source,
+		arg.Width,
+		arg.Height,
+		arg.Alt,
+		arg.CheckedAt,
+		arg.RetryAfter,
+		arg.CacheKey,
+		arg.Mime,
+		arg.ArticleID,
+		arg.Generation,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const setMembership = `-- name: SetMembership :exec

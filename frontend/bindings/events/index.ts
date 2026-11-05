@@ -18,3 +18,13 @@ export const FealdhordCommand = "fealdhord:command";
  */
 export const FealdhordEvent = "fealdhord:event";
 
+/**
+ * Name of the custom event "fealdhord:library-changed".
+ */
+export const FealdhordLibraryChanged = "fealdhord:library-changed";
+
+/**
+ * Name of the custom event "fealdhord:refresh".
+ */
+export const FealdhordRefresh = "fealdhord:refresh";
+

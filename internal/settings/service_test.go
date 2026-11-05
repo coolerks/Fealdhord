@@ -153,3 +153,28 @@ func TestFutureSchemaCannotBeReadOrOverwritten(t *testing.T) {
 		t.Fatalf("未来版本被改写：%+v %v", record, err)
 	}
 }
+
+func TestLegacyMediaDefaultsAndScopedNotification(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t, filepath.Join(t.TempDir(), "prefs.db"))
+	if _, err := store.SavePreferences(ctx, `{"theme":"system"}`, 0, 100); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	service := NewService(store, func(context.Context, Preferences) { calls++ })
+	got := service.Get(ctx)
+	if !got.OK || got.Data.Preferences.RemoteImages != "subscriptions" || !got.Data.Preferences.MediaCacheEnabled || got.Data.Preferences.WebImageFallback {
+		t.Fatal("旧设置媒体默认值错误")
+	}
+	prefs := got.Data.Preferences
+	prefs.Theme = "dark"
+	saved := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: got.Data.Revision})
+	if !saved.OK || calls != 0 {
+		t.Fatal("界面偏好触发了全媒体重置")
+	}
+	prefs.RemoteImages = "never"
+	saved = service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: saved.Data.Revision})
+	if !saved.OK || calls != 1 {
+		t.Fatal("媒体策略未通知")
+	}
+}

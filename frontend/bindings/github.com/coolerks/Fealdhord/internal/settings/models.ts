@@ -6,6 +6,9 @@
 import * as app$0 from "../app/models.js";
 
 export interface Preferences {
+    "web_image_fallback": boolean;
+    "remote_images": string;
+    "media_cache_enabled": boolean;
     "theme": string;
     "article_view_mode": string;
     "list_density": string;

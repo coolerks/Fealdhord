@@ -31,3 +31,10 @@ MEDIA-01：优先级、相对 URL、srcset、懒加载、JSON Feed 与假像素 
 MEDIA-02：404／403／超时／解码失败／超大文件／私网重定向降级；禁图无探测与下载；favicon 不充当封面。
 
 MEDIA-03：尺寸预留、懒加载、异步解码、缓存上限与清理有效；图片到达锚点偏差符合质量目标，滚回不反复播放入场。
+
+
+## Phase 3 实现依据（2026-11-05）
+
+00005_article_media 增加 blocked、候选表与 generation。媒体完成前复核文章内容和 generation，策略改 Never 会取消在途请求并阻止旧响应回写。磁盘最多 192MiB、短期内存流最多 64MiB，合计不超过 256MiB；磁盘 TTL 为 7 天，访问不续命。私密 URL／private／no-store 响应不进入缓存；禁磁盘缓存用短期有界内存流。JPEG／PNG／WebP 经配置和完整解码校验，拒绝 SVG／动画格式及超过 40MP 的内容。
+
+Wails media.API 挂载 /media/ 服务路由，ServeHTTP 为内部方法，不暴露生命周期或文件路径；前端只能使用已登记文章媒体 ID。首图、隐私、TTL 和取消已通过相关测试，完整界面接线继续执行。

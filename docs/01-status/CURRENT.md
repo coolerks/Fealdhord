@@ -2,7 +2,7 @@
 
 最后更新：2026-11-05（Asia/Singapore）。
 
-- 当前任务：[Phase 3 RSS 订阅与文章同步](active/phase3-rss.md)已获批准并实施中；已实现受控 HTTP、发现、三格式解析与订阅／原子刷新核心，媒体及 Wails／功能接线继续进行；暂停 UI 视觉调整。
+- 当前任务：[Phase 3 RSS 订阅与文章同步](active/phase3-rss.md)已获批准并实施中；已实现受控 HTTP、发现、三格式解析与订阅／原子刷新核心，媒体策略与本地加载、Wails 白名单服务已实现并验证，前端功能接线继续进行；暂停 UI 视觉调整。
 
 - 最新修复：[命令面板图标动画](../08-handoffs/history/2026-11-05-command-icon-motion.md)已修正 cmdk 的 data-disabled=false 误判；真实组件悬停／键盘运动和禁用回归通过，已提交 ad8480d 并归档。
 
@@ -16,7 +16,7 @@
 - 数据基础：00001 设置、00002 核心领域、00003 FTS；实例锁、升级前一致快照、新目标恢复；稳定身份、分类多来源优先级、状态独立持久化和 FTS 同步／重建。
 - 数据接线：LibraryService 真实有界元数据、按需正文、已读／收藏持久化；失败重试／回滚。前端当前最多 500 篇并提示 hasMore，完整分页与全库筛选／搜索 UI 属于 Phase 4。
 - 质量：database 7 项、LibraryService 2 项、settings 5 项及 race 通过；前端现有 43 项（2026-11-05）、类型／lint／原生 build 通过；数据层证据见 Phase 2 验收记录。保留 Virtualizer Compiler 兼容提示；本轮最大 JS 块 417.04kB、共享块 308.42kB，未声称总首屏体积、原生帧率、全平台或十万条性能通过。
-- 生产库：不注入 fixture；RSS 的网络／解析基础已实现，生产订阅接线与首图仍在实施；AI／Agent／Skills／MCP 尚未实现。其他平台未实机验证。
+- 生产库：不注入 fixture；RSS 的网络／解析基础已实现，生产前端订阅接线仍在实施，首图后端管线已实现；AI／Agent／Skills／MCP 尚未实现。其他平台未实机验证。
 - 进行中：Phase 3 RSS 纵向路径（安全网络、发现／解析、去重、条件请求／调度与首图），继续使用已建立的领域仓储。
 - [数据验收](../09-research/phase2-validation.md) · [原生体验契约与证据](../04-specs/native-experience.md) · [交接](../08-handoffs/LATEST.md)。
 

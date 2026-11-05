@@ -89,3 +89,20 @@ UPDATE feeds SET last_checked_at=?,next_check_at=?,error_count=error_count+1,las
 SELECT * FROM categories ORDER BY sort_position,name,id;
 -- name: ListFeedCategories :many
 SELECT category_id FROM feed_categories WHERE feed_id=? ORDER BY category_id;
+-- name: GetArticleMedia :one
+SELECT m.*,a.feed_id,a.url AS article_url,f.archived_at FROM article_media m JOIN articles a ON a.id=m.article_id JOIN feeds f ON f.id=a.feed_id WHERE m.article_id=?;
+-- name: GetMediaCandidates :many
+SELECT * FROM article_media_candidates WHERE article_id=? ORDER BY position;
+-- name: DeleteMediaCandidates :exec
+DELETE FROM article_media_candidates WHERE article_id=?;
+-- name: AddMediaCandidate :exec
+INSERT INTO article_media_candidates(article_id,position,url,source,alt) VALUES(?,?,?,?,?);
+-- name: RegisterMedia :exec
+INSERT INTO article_media(article_id,status,generation) VALUES(?,'pending',1)
+ON CONFLICT(article_id) DO UPDATE SET status='pending',generation=article_media.generation+1,url=NULL,width=NULL,height=NULL,cache_key=NULL,remote_url='',mime='';
+-- name: SetMediaState :execrows
+UPDATE article_media SET status=?,url=?,remote_url=?,source=?,width=?,height=?,alt=?,checked_at=?,retry_after=?,cache_key=?,mime=? WHERE article_id=? AND generation=?;
+-- name: BlockAllMedia :exec
+UPDATE article_media SET status='blocked',generation=generation+1;
+-- name: ListPendingMedia :many
+SELECT article_id FROM article_media WHERE status IN ('pending','blocked') OR (status='failed' AND (retry_after IS NULL OR retry_after<=?)) LIMIT 500;

@@ -75,9 +75,18 @@ type StateResult struct {
 	Error     *app.AppError `json:"error,omitempty"`
 	RequestID string        `json:"request_id"`
 }
-type Service struct{ repository Repository }
+type Service struct {
+	repository   Repository
+	coverAllowed func(context.Context) bool
+}
 
-func NewService(repository Repository) *Service { return &Service{repository: repository} }
+func NewService(repository Repository, allowed ...func(context.Context) bool) *Service {
+	s := &Service{repository: repository}
+	if len(allowed) > 0 {
+		s.coverAllowed = allowed[0]
+	}
+	return s
+}
 func safeError(err error) *app.AppError {
 	code, message, retry := "DatabaseError", "无法读取或更新本地文章，请重试。", true
 	switch {
@@ -117,9 +126,10 @@ func (s *Service) List(ctx context.Context, request ListRequest) ListResult {
 	if page.HasMore {
 		rows = rows[:limit]
 	}
+	covers := s.coverAllowed == nil || s.coverAllowed(ctx)
 	for _, row := range rows {
 		article := Article{ID: row.ID, Title: row.Title, FeedTitle: row.FeedTitle, Summary: row.Summary, SortAt: time.UnixMilli(row.SortAt).UTC().Format(time.RFC3339Nano), IsRead: row.IsRead == 1, IsFavorite: row.IsFavorite == 1}
-		if row.CoverUrl.Valid && strings.HasPrefix(row.CoverUrl.String, "/media/") {
+		if covers && row.CoverUrl.Valid && strings.HasPrefix(row.CoverUrl.String, "/media/") {
 			cover := &Cover{URL: row.CoverUrl.String, Alt: row.CoverAlt.String}
 			if row.CoverWidth.Valid && row.CoverWidth.Int64 > 0 {
 				value := row.CoverWidth.Int64

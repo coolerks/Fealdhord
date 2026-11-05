@@ -76,6 +76,9 @@ func Text(raw string) string {
 	return strings.TrimSpace(doc.Find("body").Text())
 }
 func ResolveURL(raw, base string) string {
+	if strings.TrimSpace(raw) == "" {
+		return ""
+	}
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
 		return ""
@@ -148,7 +151,16 @@ func structuralCheck(data []byte) error {
 	}
 	return nil
 }
-func Parse(ctx context.Context, data []byte, base string) (*Document, error) {
+func Parse(ctx context.Context, data []byte, base string) (document *Document, err error) {
+	defer func() {
+		if recover() != nil {
+			document = nil
+			err = ErrParse
+		}
+	}()
+	return parse(ctx, data, base)
+}
+func parse(ctx context.Context, data []byte, base string) (*Document, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -159,6 +171,9 @@ func Parse(ctx context.Context, data []byte, base string) (*Document, error) {
 	parser := gofeed.NewParser()
 	parser.KeepOriginalFeed = true
 	parsed, err := parser.Parse(bytes.NewReader(data))
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	if err != nil || len(parsed.Items) > 10000 {
 		return nil, ErrParse
 	}
@@ -176,6 +191,7 @@ func Parse(ctx context.Context, data []byte, base string) (*Document, error) {
 			document.Title = u.Hostname()
 		}
 	}
+	bases := xmlSourceBases(data, base)
 	for index, entry := range parsed.Items {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -183,7 +199,18 @@ func Parse(ctx context.Context, data []byte, base string) (*Document, error) {
 		if entry == nil {
 			continue
 		}
-		item := Item{GUID: bounded(entry.GUID, 4096), Title: bounded(Text(entry.Title), 4096), URL: ResolveURL(entry.Link, base), Summary: bounded(Text(entry.Description), 16384)}
+		entryBase := base
+		scope := sourceBase{}
+		if index < len(bases) {
+			scope = bases[index]
+			if scope.base != "" {
+				entryBase = scope.base
+			}
+			if scope.link != "" {
+				entryBase = scope.link
+			}
+		}
+		item := Item{GUID: bounded(entry.GUID, 4096), Title: bounded(Text(entry.Title), 4096), URL: ResolveURL(entry.Link, entryBase), Summary: bounded(Text(entry.Description), 16384)}
 		if len(entry.GUID) > 4096 {
 			return nil, ErrParse
 		}
@@ -221,55 +248,14 @@ func Parse(ctx context.Context, data []byte, base string) (*Document, error) {
 		if item.URL != "" {
 			imageBase = item.URL
 		}
-		add := func(raw, source, alt string) {
-			if len(item.Images) >= 24 {
-				return
-			}
-			resolved := ResolveURL(raw, imageBase)
-			if resolved == "" {
-				return
-			}
-			for _, old := range item.Images {
-				if old.URL == resolved {
-					return
-				}
-			}
-			item.Images = append(item.Images, ImageCandidate{resolved, source, bounded(alt, 1024)})
+		if scope.explicit {
+			imageBase = scope.base
 		}
-		for _, key := range []string{"content", "thumbnail"} {
-			for _, ext := range entry.Extensions["media"][key] {
-				if key == "thumbnail" || strings.HasPrefix(ext.Attrs["type"], "image/") || ext.Attrs["medium"] == "image" {
-					add(ext.Attrs["url"], "media_"+key, "")
-				}
-			}
-		}
-		for _, enclosure := range entry.Enclosures {
-			if enclosure != nil && strings.HasPrefix(enclosure.Type, "image/") {
-				add(enclosure.URL, "enclosure", "")
-			}
-		}
-		if entry.Image != nil && parsed.FeedType == "json" {
-			add(entry.Image.URL, "json_image", entry.Image.Title)
-		}
+		banner := ""
 		if originalJSON != nil && index < len(originalJSON.Items) {
-			add(originalJSON.Items[index].BannerImage, "json_image", "")
+			banner = originalJSON.Items[index].BannerImage
 		}
-		for _, part := range []struct{ raw, source string }{{entry.Content, "content"}, {entry.Description, "summary"}} {
-			doc, err := goquery.NewDocumentFromReader(strings.NewReader(part.raw))
-			if err == nil {
-				doc.Find("img").Each(func(_ int, s *goquery.Selection) {
-					raw, _ := s.Attr("src")
-					if raw == "" {
-						raw, _ = s.Attr("data-src")
-					}
-					if raw == "" {
-						raw, _ = s.Attr("data-original")
-					}
-					alt, _ := s.Attr("alt")
-					add(raw, part.source, alt)
-				})
-			}
-		}
+		item.Images = extractImages(entry, imageBase, scope, originalJSON != nil, banner)
 		document.Items = append(document.Items, item)
 	}
 	return document, nil
@@ -293,9 +279,18 @@ func Discover(ctx context.Context, fetcher netpolicy.Fetcher, raw string) ([]Can
 	if document, err := Parse(ctx, response.Body, response.URL); err == nil {
 		return []Candidate{{URL: response.URL, Title: document.Title, Type: "feed"}}, nil
 	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(response.Body))
 	if err != nil {
 		return nil, ErrNoFeed
+	}
+	discoveryBase := response.URL
+	if href, ok := doc.Find("base[href]").First().Attr("href"); ok {
+		if resolved := ResolveURL(href, response.URL); resolved != "" {
+			discoveryBase = resolved
+		}
 	}
 	candidates := []Candidate{}
 	seen := map[string]bool{}
@@ -316,7 +311,7 @@ func Discover(ctx context.Context, fetcher netpolicy.Fetcher, raw string) ([]Can
 			return
 		}
 		href, _ := s.Attr("href")
-		target := ResolveURL(href, response.URL)
+		target := ResolveURL(href, discoveryBase)
 		if target == "" || seen[target] {
 			return
 		}

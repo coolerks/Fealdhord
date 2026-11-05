@@ -120,6 +120,12 @@ type ArticleInput struct {
 	PublishedAt, UpdatedAt                                *int64
 	FetchedAt                                             int64
 }
+
+func articleHash(input ArticleInput) string {
+	sum := sha256.Sum256([]byte(input.Title + "\n" + input.Author + "\n" + input.Summary + "\n" + input.HTML + "\n" + input.Text))
+	return hex.EncodeToString(sum[:])
+}
+
 type identity struct{ kind, value string }
 
 func (s *Store) UpsertArticle(ctx context.Context, input ArticleInput) (id string, err error) {
@@ -141,8 +147,7 @@ func upsertArticle(ctx context.Context, q *sqlc.Queries, input ArticleInput) (id
 			return "", err
 		}
 	}
-	sum := sha256.Sum256([]byte(input.Title + "\n" + input.Author + "\n" + input.Summary + "\n" + input.HTML + "\n" + input.Text))
-	hash := hex.EncodeToString(sum[:])
+	hash := articleHash(input)
 	aliases := []identity{}
 	if input.GUID != "" {
 		aliases = append(aliases, identity{"guid", input.GUID})

@@ -15,3 +15,12 @@ func (a *API) Get(ctx context.Context, request OperationRequest) Result {
 func (a *API) Cancel(ctx context.Context, request OperationRequest) Result {
 	return a.service.Cancel(ctx, request)
 }
+
+func (a *API) Current(context.Context) Result {
+	a.service.mu.Lock()
+	defer a.service.mu.Unlock()
+	if a.service.active == nil {
+		return success(Snapshot{Generation: a.service.generation, Status: "completed", Results: []FeedResult{}})
+	}
+	return success(snapshot(a.service.active))
+}

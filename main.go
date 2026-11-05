@@ -3,9 +3,14 @@ package main
 import (
 	"context"
 	"embed"
+	"github.com/coolerks/Fealdhord/internal/feed"
+	"github.com/coolerks/Fealdhord/internal/media"
+	"github.com/coolerks/Fealdhord/internal/netpolicy"
+	"github.com/coolerks/Fealdhord/internal/refresh"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/coolerks/Fealdhord/internal/database"
@@ -20,7 +25,13 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+type LibraryChanged struct {
+	Sequence uint64 `json:"sequence"`
+}
+
 func init() {
+	application.RegisterEvent[LibraryChanged]("fealdhord:library-changed")
+	application.RegisterEvent[refresh.Event](refresh.EventName)
 	application.RegisterEvent[fealdhord.OperationEvent](fealdhord.EventName)
 	application.RegisterEvent[desktopintegration.CommandEvent](desktopintegration.CommandEventName)
 }
@@ -32,6 +43,9 @@ func main() {
 	})
 	var settingsRepository settings.Repository
 	var libraryRepository library.Repository
+	var feedRepository feed.Repository
+	var refreshRepository refresh.Repository
+	var mediaRepository media.Repository
 	dataDir, pathErr := os.UserConfigDir()
 	if pathErr == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -42,6 +56,9 @@ func main() {
 		} else {
 			settingsRepository = store
 			libraryRepository = store
+			feedRepository = store
+			refreshRepository = store
+			mediaRepository = store
 			defer func() {
 				if err := store.Close(); err != nil {
 					slog.Error("关闭设置数据库失败", "error", err)
@@ -51,14 +68,75 @@ func main() {
 	} else {
 		slog.Error("无法定位用户数据目录", "error", pathErr)
 	}
-	settingsService := settings.NewService(settingsRepository)
+	var sequence atomic.Uint64
+	changed := func() {
+		if desktop != nil {
+			desktop.Event.Emit("fealdhord:library-changed", LibraryChanged{Sequence: sequence.Add(1)})
+		}
+	}
+	client := netpolicy.New()
+	var mediaService *media.Service
+	settingsService := settings.NewService(settingsRepository, func(ctx context.Context, prefs settings.Preferences) {
+		if mediaService != nil {
+			if err := mediaService.PolicyChanged(ctx, media.Policy{RemoteImages: prefs.RemoteImages, CacheEnabled: prefs.MediaCacheEnabled, WebFallback: prefs.WebImageFallback}); err != nil {
+				slog.Warn("媒体偏好已保存，但缓存状态更新失败")
+			}
+		}
+		changed()
+	})
+	policy := func(ctx context.Context) media.Policy {
+		result := settingsService.Get(ctx)
+		if !result.OK || result.Data == nil {
+			return media.Policy{RemoteImages: "never"}
+		}
+		prefs := result.Data.Preferences
+		return media.Policy{RemoteImages: prefs.RemoteImages, CacheEnabled: prefs.MediaCacheEnabled, WebFallback: prefs.WebImageFallback}
+	}
+	cacheDir := ""
+	if directory, err := os.UserCacheDir(); err == nil {
+		cacheDir = filepath.Join(directory, "Fealdhord", "media")
+	}
+	var mediaErr error
+	mediaService, mediaErr = media.New(context.Background(), mediaRepository, client, cacheDir, policy, changed)
+	if mediaErr != nil {
+		slog.Warn("磁盘媒体缓存不可用，使用有界内存回退")
+		mediaService, _ = media.New(context.Background(), mediaRepository, client, "", policy, changed)
+	}
+	feedService := feed.NewService(feedRepository, client, changed, func(ctx context.Context, id string, document *feed.Document) {
+		if mediaService != nil {
+			mediaService.Ingest(ctx, id, document, nil)
+		}
+	})
+	refreshService := refresh.NewService(context.Background(), refreshRepository, client, func(event refresh.Event) {
+		if desktop != nil {
+			desktop.Event.Emit(refresh.EventName, event)
+		}
+	}, changed)
+	refreshService.SetAfterCommit(func(ctx context.Context, id string, document *feed.Document, ids []string) {
+		if mediaService != nil {
+			mediaService.Ingest(ctx, id, document, ids)
+		}
+	})
 	desktop = application.New(application.Options{
 		Name: "Fealdhord", Description: "折栈，本地优先的 RSS 阅读器",
-		Services: []application.Service{application.NewService(service), application.NewService(settingsService), application.NewService(library.NewService(libraryRepository))},
-		Assets:   application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
-		Mac:      application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
+		Services: []application.Service{
+			application.NewService(service), application.NewService(settingsService),
+			application.NewService(library.NewService(libraryRepository, func(ctx context.Context) bool { return policy(ctx).RemoteImages != "never" })),
+			application.NewService(feedService), application.NewService(refresh.NewAPI(refreshService)),
+			application.NewServiceWithOptions(media.NewAPI(mediaService), application.ServiceOptions{Route: "/media/"}),
+		},
+		Assets: application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
+		Mac:    application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
 	})
-	desktop.OnShutdown(stop)
+	desktop.OnShutdown(func() {
+		stop()
+		refreshService.Close()
+		if mediaService != nil {
+			mediaService.Close()
+		}
+		client.CloseIdleConnections()
+	})
+	refreshService.StartScheduler()
 	desktopintegration.InstallMenu(desktop)
 	desktop.Window.NewWithOptions(desktopintegration.WindowOptions())
 	if err := desktop.Run(); err != nil {

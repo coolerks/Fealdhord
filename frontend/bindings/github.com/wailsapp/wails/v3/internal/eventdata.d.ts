@@ -7,16 +7,24 @@ import type { Events } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import type * as main$0 from "../../../../coolerks/Fealdhord/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import type * as app$0 from "../../../../coolerks/Fealdhord/internal/app/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import type * as desktop$0 from "../../../../coolerks/Fealdhord/internal/desktop/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import type * as refresh$0 from "../../../../coolerks/Fealdhord/internal/refresh/models.js";
 
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
             "fealdhord:command": desktop$0.CommandEvent;
             "fealdhord:event": app$0.OperationEvent;
+            "fealdhord:library-changed": main$0.LibraryChanged;
+            "fealdhord:refresh": refresh$0.Event;
         }
     }
 }

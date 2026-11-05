@@ -64,3 +64,12 @@ Go 服务方法形如 `ListArticles(req ListArticlesRequest) ListArticlesResult`
 错误：组件直接访问 SQLite，或把全量 HTML 列表传入浏览器。正确：窄服务、分页摘要、按需详情、统一错误、后端拥有权限和事务。
 
 验收 API-01：DTO、分页、错误互斥、revision、绑定往返和取消按本节测试，生成器与实际前端保持一致。
+
+
+## Phase 3 实际边界
+
+internal/feed.Service 已实现 List{include_archived}、Get{id}、Discover{url}、Add{url,title,category_ids}、Update{id,revision,url,title,category_ids}、Remove／Restore{id,revision}，生成绑定位于 internal/feed/service。分类列表随 Feed Page 返回；分类 CRUD 仍属后续完整阅读器。
+
+internal/refresh.API 白名单仅 Start{feed_ids}、Current、Get／Cancel{operation_id}，不绑定协调器 Close／StartScheduler／SetAfterCommit。快照包含 operation_id、generation、sequence、status、completed、total、results；generation 单进程按批次递增，先比较代次再比较 sequence，避免旧结果覆盖新刷新。窗口重载可用 Current 恢复本进程状态；不声称刷新操作跨进程持久化。
+
+新增类型事件 fealdhord:refresh 与 fealdhord:library-changed；原有诊断事件不变。media.API 只绑定无路径参数的 ClearCache，ServeHTTP 由 Wails 内部路由挂载，不是可调用的前端绑定。设置增加 remote_images、media_cache_enabled、web_image_fallback；旧 JSON 默认仅订阅、开启磁盘缓存、关闭网页补图。

@@ -40,6 +40,7 @@ type FeedResult struct {
 	Message string `json:"message,omitempty"`
 }
 type Snapshot struct {
+	Generation  int64        `json:"generation"`
 	OperationID string       `json:"operation_id"`
 	Status      string       `json:"status"`
 	Completed   int          `json:"completed"`
@@ -87,6 +88,7 @@ type Service struct {
 	emit              func(Event)
 	changed           func()
 	afterCommit       func(context.Context, string, *feed.Document, []string)
+	generation        int64
 }
 
 func NewService(ctx context.Context, repository Repository, fetcher netpolicy.Fetcher, emit func(Event), changed func()) *Service {
@@ -144,8 +146,9 @@ func (s *Service) Start(ctx context.Context, request StartRequest) Result {
 		return failure(context.Canceled)
 	}
 	if r == nil {
+		s.generation++
 		runCtx, cancel := context.WithCancel(s.ctx)
-		r = &run{snapshot: Snapshot{OperationID: rand.Text(), Status: "running", Results: []FeedResult{}}, ctx: runCtx, cancel: cancel, seen: map[string]bool{}}
+		r = &run{snapshot: Snapshot{Generation: s.generation, OperationID: rand.Text(), Status: "running", Results: []FeedResult{}}, ctx: runCtx, cancel: cancel, seen: map[string]bool{}}
 		s.active = r
 		s.history[r.snapshot.OperationID] = r
 		s.order = append(s.order, r.snapshot.OperationID)

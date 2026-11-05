@@ -57,6 +57,14 @@ type ArticleIdentity struct {
 	Value     string `json:"value"`
 }
 
+type ArticleMediaCandidate struct {
+	ArticleID string `json:"article_id"`
+	Position  int64  `json:"position"`
+	Url       string `json:"url"`
+	Source    string `json:"source"`
+	Alt       string `json:"alt"`
+}
+
 type ArticleMedium struct {
 	ArticleID  string         `json:"article_id"`
 	Url        sql.NullString `json:"url"`
@@ -68,6 +76,9 @@ type ArticleMedium struct {
 	CheckedAt  sql.NullInt64  `json:"checked_at"`
 	RetryAfter sql.NullInt64  `json:"retry_after"`
 	CacheKey   sql.NullString `json:"cache_key"`
+	Generation int64          `json:"generation"`
+	RemoteUrl  string         `json:"remote_url"`
+	Mime       string         `json:"mime"`
 }
 
 type Category struct {

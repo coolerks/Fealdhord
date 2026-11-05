@@ -33,9 +33,18 @@ type Result struct {
 }
 
 // Service 是设置的唯一绑定入口；所有写入由 revision 原子检查保护。
-type Service struct{ repository Repository }
+type Service struct {
+	repository Repository
+	updated    func(context.Context, Preferences)
+}
 
-func NewService(repository Repository) *Service { return &Service{repository: repository} }
+func NewService(repository Repository, updated ...func(context.Context, Preferences)) *Service {
+	s := &Service{repository: repository}
+	if len(updated) > 0 {
+		s.updated = updated[0]
+	}
+	return s
+}
 
 func failure(code, message string, retryable bool) Result {
 	return Result{RequestID: rand.Text(), Error: &app.AppError{Code: code, Message: message, Retryable: retryable}}
@@ -91,6 +100,13 @@ func (s *Service) Update(ctx context.Context, req UpdateRequest) Result {
 	}
 	if !ok {
 		return failure("Conflict", "设置已在其他窗口更新，请重新载入。", true)
+	}
+	if s.updated != nil {
+		previous := Defaults()
+		decodeErr := json.Unmarshal([]byte(record.JSON), &previous)
+		if decodeErr != nil || previous.RemoteImages != req.Preferences.RemoteImages || previous.MediaCacheEnabled != req.Preferences.MediaCacheEnabled || previous.WebImageFallback != req.Preferences.WebImageFallback {
+			s.updated(ctx, req.Preferences)
+		}
 	}
 	return Result{OK: true, Data: &Snapshot{Preferences: req.Preferences, Revision: req.Revision + 1}, RequestID: rand.Text()}
 }

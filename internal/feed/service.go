@@ -22,14 +22,15 @@ type Repository interface {
 	Categories(context.Context) ([]database.CategorySummary, error)
 }
 type Service struct {
-	repository Repository
-	fetcher    netpolicy.Fetcher
-	now        func() time.Time
-	onChange   func()
+	repository  Repository
+	fetcher     netpolicy.Fetcher
+	now         func() time.Time
+	onChange    func()
+	afterCommit func(context.Context, string, *Document)
 }
 
-func NewService(repository Repository, fetcher netpolicy.Fetcher, onChange func()) *Service {
-	return &Service{repository: repository, fetcher: fetcher, now: time.Now, onChange: onChange}
+func NewService(repository Repository, fetcher netpolicy.Fetcher, onChange func(), afterCommit func(context.Context, string, *Document)) *Service {
+	return &Service{repository: repository, fetcher: fetcher, now: time.Now, onChange: onChange, afterCommit: afterCommit}
 }
 
 type Feed struct {
@@ -119,6 +120,14 @@ func SafeError(err error) *app.AppError {
 	}
 	return &app.AppError{Code: code, Message: message, Retryable: retry}
 }
+func DataError(err error) *app.AppError {
+	safe := SafeError(err)
+	if safe.Code == "NetworkError" {
+		safe.Code = "DatabaseError"
+		safe.Message = "无法读取或更新本地订阅，请重试。"
+	}
+	return safe
+}
 func wire(row database.Subscription) Feed {
 	result := Feed{ID: row.ID, Title: row.Title, URL: row.URL, SiteURL: row.SiteURL, Description: row.Description, Revision: row.Revision, Archived: row.Archived, LastError: row.LastError, CategoryIDs: row.CategoryIDs}
 	if row.NextCheckAt != nil {
@@ -138,13 +147,13 @@ func (s *Service) List(ctx context.Context, request ListRequest) ListResult {
 	}
 	rows, err := s.repository.Subscriptions(ctx, request.IncludeArchived)
 	if err != nil {
-		out.Error = SafeError(err)
+		out.Error = DataError(err)
 		return out
 	}
 	page := &Page{Items: []Feed{}}
 	page.Categories, err = s.repository.Categories(ctx)
 	if err != nil {
-		out.Error = SafeError(err)
+		out.Error = DataError(err)
 		return out
 	}
 	if page.Categories == nil {
@@ -165,7 +174,7 @@ func (s *Service) Get(ctx context.Context, request IDRequest) Result {
 	}
 	row, err := s.repository.GetSubscription(ctx, request.ID)
 	if err != nil {
-		out.Error = SafeError(err)
+		out.Error = DataError(err)
 		return out
 	}
 	value := wire(row)
@@ -225,10 +234,13 @@ func (s *Service) Add(ctx context.Context, request AddRequest) Result {
 	now := s.now().UTC().UnixMilli()
 	id, err := s.repository.AddSubscription(ctx, database.SubscriptionInput{URL: canonical, Title: title, SiteURL: document.SiteURL, Description: document.Description, CategoryIDs: request.CategoryIDs}, ArticleInputs(document), database.FeedCheck{At: now, Next: now + int64(30*time.Minute/time.Millisecond), ETag: response.Header.Get("ETag"), LastModified: response.Header.Get("Last-Modified")})
 	if err != nil {
-		return Result{RequestID: rand.Text(), Error: SafeError(err)}
+		return Result{RequestID: rand.Text(), Error: DataError(err)}
 	}
 	if s.onChange != nil {
 		s.onChange()
+	}
+	if s.afterCommit != nil {
+		s.afterCommit(ctx, id, document)
 	}
 	return s.Get(ctx, IDRequest{ID: id})
 }
@@ -238,7 +250,10 @@ func (s *Service) Update(ctx context.Context, request UpdateRequest) Result {
 	}
 	old, err := s.repository.GetSubscription(ctx, request.ID)
 	if err != nil {
-		return Result{RequestID: rand.Text(), Error: SafeError(err)}
+		return Result{RequestID: rand.Text(), Error: DataError(err)}
+	}
+	if old.Revision != request.Revision {
+		return Result{RequestID: rand.Text(), Error: SafeError(database.ErrConflict)}
 	}
 	input := database.SubscriptionInput{URL: old.URL, Title: request.Title, SiteURL: old.SiteURL, Description: old.Description, CategoryIDs: request.CategoryIDs}
 	if request.URL != "" {
@@ -259,7 +274,7 @@ func (s *Service) Update(ctx context.Context, request UpdateRequest) Result {
 		input.Description = document.Description
 	}
 	if err = s.repository.UpdateSubscription(ctx, request.ID, request.Revision, input); err != nil {
-		return Result{RequestID: rand.Text(), Error: SafeError(err)}
+		return Result{RequestID: rand.Text(), Error: DataError(err)}
 	}
 	if s.onChange != nil {
 		s.onChange()
@@ -283,7 +298,7 @@ func (s *Service) archive(ctx context.Context, request RevisionRequest, restore 
 		err = s.repository.ArchiveFeed(ctx, request.ID, request.Revision)
 	}
 	if err != nil {
-		return Result{RequestID: rand.Text(), Error: SafeError(err)}
+		return Result{RequestID: rand.Text(), Error: DataError(err)}
 	}
 	if s.onChange != nil {
 		s.onChange()

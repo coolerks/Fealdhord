@@ -41,7 +41,10 @@ type Response struct {
 type Fetcher interface {
 	Fetch(context.Context, string, Request) (Response, error)
 }
-type Client struct{ client *http.Client }
+type Client struct {
+	client *http.Client
+	slots  chan struct{}
+}
 type resolver interface {
 	LookupNetIP(context.Context, string, string) ([]netip.Addr, error)
 }
@@ -53,7 +56,7 @@ func New() *Client {
 func newClient(lookup resolver, dial dialFunc) *Client {
 	transport := &http.Transport{
 		Proxy: nil, DisableCompression: true, ForceAttemptHTTP2: false,
-		MaxIdleConns: 8, MaxIdleConnsPerHost: 2, IdleConnTimeout: time.Minute,
+		MaxIdleConns: 8, MaxIdleConnsPerHost: 2, MaxConnsPerHost: 2, IdleConnTimeout: time.Minute,
 		TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 15 * time.Second, MaxResponseHeaderBytes: 64 << 10,
 		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
 			host, port, err := net.SplitHostPort(address)
@@ -75,7 +78,7 @@ func newClient(lookup resolver, dial dialFunc) *Client {
 			return nil, last
 		},
 	}
-	return &Client{client: &http.Client{Transport: transport, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+	return &Client{slots: make(chan struct{}, 4), client: &http.Client{Transport: transport, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) > 5 {
 			return ErrBlocked
 		}
@@ -209,6 +212,12 @@ func (c *Client) Fetch(ctx context.Context, raw string, options Request) (Respon
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	select {
+	case c.slots <- struct{}{}:
+		defer func() { <-c.slots }()
+	case <-ctx.Done():
+		return Response{}, ctx.Err()
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return Response{}, ErrInvalidURL

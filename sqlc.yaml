@@ -5,6 +5,7 @@ sql:
       - migrations/00001_ui_preferences.sql
       - migrations/00002_library.sql
       - migrations/00004_feed_refresh.sql
+      - migrations/00005_article_media.sql
     queries: internal/database/queries
     gen:
       go:

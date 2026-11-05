@@ -65,3 +65,16 @@ func TestDiscoveryExplicitCandidates(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+func TestXMLBaseSrcsetAndNoFabricatedLinks(t *testing.T) {
+	body := `<feed xmlns="http://www.w3.org/2005/Atom" xml:base="https://example.org/root/"><title>T</title><id>feed</id><entry xml:base="posts/"><id>one</id><link href="one"/><content type="html">&lt;img src="track.gif" width="1" height="1"/&gt;&lt;img srcset="small.jpg 200w, medium.jpg 480w, large.jpg 2000w" data-src="fallback.jpg"/&gt;</content></entry><entry><id>two</id><content type="text">no link</content></entry></feed>`
+	doc, err := Parse(context.Background(), []byte(body), "https://example.org/rss")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.Items[0].URL != "https://example.org/root/posts/one" || len(doc.Items[0].Images) < 1 || doc.Items[0].Images[0].URL != "https://example.org/root/posts/medium.jpg" {
+		t.Fatalf("基址或 srcset 错误 %+v", doc.Items[0])
+	}
+	if doc.Items[1].URL != "" || len(doc.Items[1].Images) != 0 {
+		t.Fatal("伪造了缺失 URL 或图片")
+	}
+}

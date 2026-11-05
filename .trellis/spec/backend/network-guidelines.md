@@ -29,3 +29,6 @@ httptest 加内部 resolver／dial 注入验证真正拨号目标；混合公网
 ## 7. 错误与正确做法
 
 错误：仅在 UI 校验 URL 后调用 gofeed.ParseURL／http.Get。正确：统一网关校验实际连接，只解析有界本地字节。测试专用 resolver／dial 注入不暴露生产关闭安全策略的配置。
+
+
+共享 netpolicy.Client 在 Fetch 外层限制全局 4 个请求，Transport 限制每主机 2 个连接且不启用 HTTP/2 合并；媒体另有 2 个并行探测／解码槽。媒体策略从后端事实读取，不能只靠 React 隐藏图片。回写复核 generation；本地 handler 只接登记 ID，不能接原始 URL／文件路径。

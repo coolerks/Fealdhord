@@ -12,6 +12,9 @@ type ScrollAnchor struct {
 }
 
 type Preferences struct {
+	WebImageFallback         bool                    `json:"web_image_fallback"`
+	RemoteImages             string                  `json:"remote_images"`
+	MediaCacheEnabled        bool                    `json:"media_cache_enabled"`
 	Theme                    string                  `json:"theme"`
 	ArticleViewMode          string                  `json:"article_view_mode"`
 	ListDensity              string                  `json:"list_density"`
@@ -33,7 +36,7 @@ type Preferences struct {
 }
 
 func Defaults() Preferences {
-	return Preferences{
+	return Preferences{RemoteImages: "subscriptions", MediaCacheEnabled: true,
 		Theme: "system", ArticleViewMode: "list", ListDensity: "compact", ListThumbnail: "none",
 		MasonryImageMode: "original_ratio", Animation: "full", FollowSystemReduceMotion: true,
 		SidebarWidth: 248, ListWidth: 360, ReaderOpen: false, SelectedScope: "all",
@@ -51,7 +54,7 @@ func oneOf(value string, choices ...string) bool {
 }
 
 func (p Preferences) Validate() error {
-	if !oneOf(p.Theme, "light", "dark", "system") || !oneOf(p.ArticleViewMode, "list", "masonry") ||
+	if !oneOf(p.RemoteImages, "always", "subscriptions", "never") || !oneOf(p.Theme, "light", "dark", "system") || !oneOf(p.ArticleViewMode, "list", "masonry") ||
 		!oneOf(p.ListDensity, "compact", "comfortable") || !oneOf(p.ListThumbnail, "none", "small") ||
 		!oneOf(p.MasonryImageMode, "original_ratio", "cropped") || !oneOf(p.Animation, "full", "subtle", "off") {
 		return errors.New("外观设置选项无效。")
@@ -75,6 +78,9 @@ func (p Preferences) Validate() error {
 // normalize 只用于读取旧设置；非法字段分别回退，保留其他有效偏好。
 func (p *Preferences) normalize() {
 	d := Defaults()
+	if !oneOf(p.RemoteImages, "always", "subscriptions", "never") {
+		p.RemoteImages = d.RemoteImages
+	}
 	if !oneOf(p.Theme, "light", "dark", "system") {
 		p.Theme = d.Theme
 	}
