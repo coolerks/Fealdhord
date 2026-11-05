@@ -2,7 +2,7 @@
 
 最后更新：2026-11-05（Asia/Singapore）。
 
-- 当前任务：[Phase 3 RSS 订阅与文章同步](active/phase3-rss.md)已获批准并实施中；首个子任务已实现受控 HTTP、发现和三格式解析，订阅刷新／媒体／功能接线继续进行；暂停 UI 视觉调整。
+- 当前任务：[Phase 3 RSS 订阅与文章同步](active/phase3-rss.md)已获批准并实施中；已实现受控 HTTP、发现、三格式解析与订阅／原子刷新核心，媒体及 Wails／功能接线继续进行；暂停 UI 视觉调整。
 
 - 最新修复：[命令面板图标动画](../08-handoffs/history/2026-11-05-command-icon-motion.md)已修正 cmdk 的 data-disabled=false 误判；真实组件悬停／键盘运动和禁用回归通过，已提交 ad8480d 并归档。
 

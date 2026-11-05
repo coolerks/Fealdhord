@@ -126,3 +126,33 @@ func TestBoundedDecompressionAndConditional304(t *testing.T) {
 		t.Fatalf("取消未贯穿：%v", err)
 	}
 }
+
+type resolverFunc func(context.Context, string, string) ([]netip.Addr, error)
+
+func (f resolverFunc) LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error) {
+	return f(ctx, network, host)
+}
+func TestRebindingBetweenRedirectCheckAndDial(t *testing.T) {
+	var requests, lookups, dials atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		http.Redirect(w, r, "http://rebound.example/end", 302)
+	}))
+	defer server.Close()
+	c := newClient(resolverFunc(func(context.Context, string, string) ([]netip.Addr, error) {
+		if lookups.Add(1) >= 3 {
+			return []netip.Addr{netip.MustParseAddr("127.0.0.1")}, nil
+		}
+		return []netip.Addr{netip.MustParseAddr("8.8.8.8")}, nil
+	}), func(ctx context.Context, network, address string) (net.Conn, error) {
+		dials.Add(1)
+		return (&net.Dialer{}).DialContext(ctx, network, server.Listener.Addr().String())
+	})
+	defer c.CloseIdleConnections()
+	if _, err := c.Fetch(context.Background(), "http://feed.example/start", Request{}); !errors.Is(err, ErrBlocked) {
+		t.Fatalf("重绑定未被拦截：%v", err)
+	}
+	if requests.Load() != 1 || dials.Load() != 1 {
+		t.Fatal("连接了重绑定目标")
+	}
+}

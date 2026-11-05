@@ -69,3 +69,23 @@ DELETE FROM article_categories WHERE source='feed' AND article_id IN (SELECT id 
 INSERT INTO article_categories(article_id,category_id,source,state,created_at,updated_at)
 SELECT a.id,fc.category_id,'feed','included',?,? FROM articles a JOIN feed_categories fc ON fc.feed_id=a.feed_id WHERE a.feed_id=?
 ON CONFLICT(article_id,category_id,source) DO UPDATE SET state='included',updated_at=excluded.updated_at;
+-- name: ListAllFeeds :many
+SELECT * FROM feeds ORDER BY sort_position,title,id;
+-- name: ListDueFeeds :many
+SELECT * FROM feeds WHERE archived_at IS NULL AND (next_check_at IS NULL OR next_check_at<=?) ORDER BY next_check_at,id LIMIT 500;
+-- name: SaveFeedDetails :execrows
+UPDATE feeds SET title=?,url=?,normalized_url=?,site_url=?,description=?,updated_at=?,revision=revision+1,
+ etag=CASE WHEN normalized_url<>? THEN '' ELSE etag END,
+ last_modified=CASE WHEN normalized_url<>? THEN '' ELSE last_modified END,
+ next_check_at=CASE WHEN normalized_url<>? THEN NULL ELSE next_check_at END
+WHERE id=? AND revision=?;
+-- name: SaveFeedSuccess :exec
+UPDATE feeds SET etag=?,last_modified=?,last_checked_at=?,last_success_at=?,next_check_at=?,error_count=0,last_error='',last_error_code='',updated_at=? WHERE id=?;
+-- name: SaveFeedNotModified :exec
+UPDATE feeds SET last_checked_at=?,last_success_at=?,next_check_at=?,error_count=0,last_error='',last_error_code='',updated_at=? WHERE id=?;
+-- name: SaveFeedFailure :exec
+UPDATE feeds SET last_checked_at=?,next_check_at=?,error_count=error_count+1,last_error=?,last_error_code=?,updated_at=? WHERE id=? AND archived_at IS NULL AND normalized_url=?;
+-- name: ListCategories :many
+SELECT * FROM categories ORDER BY sort_position,name,id;
+-- name: ListFeedCategories :many
+SELECT category_id FROM feed_categories WHERE feed_id=? ORDER BY category_id;

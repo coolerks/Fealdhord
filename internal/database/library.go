@@ -123,6 +123,14 @@ type ArticleInput struct {
 type identity struct{ kind, value string }
 
 func (s *Store) UpsertArticle(ctx context.Context, input ArticleInput) (id string, err error) {
+	err = s.transaction(ctx, func(q *sqlc.Queries) error { id, err = upsertArticle(ctx, q, input); return err })
+	if err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+func upsertArticle(ctx context.Context, q *sqlc.Queries, input ArticleInput) (id string, err error) {
 	if input.FeedID == "" || len(input.GUID) > 4096 || len(input.URL) > 8192 || len(input.Title) > 4096 || len(input.Summary) > 16384 || len(input.Author) > 1024 || len(input.Text)+len(input.HTML) > 4<<20 {
 		return "", ErrInvalidInput
 	}
@@ -149,7 +157,7 @@ func (s *Store) UpsertArticle(ctx context.Context, input ArticleInput) (id strin
 		input.FetchedAt = time.Now().UTC().UnixMilli()
 	}
 	terms := CJKTerms(input.Title + "\n" + input.Author + "\n" + input.Summary + "\n" + input.Text)
-	err = s.transaction(ctx, func(q *sqlc.Queries) error {
+	err = func() error {
 		matchedGUID := false
 		for _, alias := range aliases {
 			found, err := q.FindIdentity(ctx, sqlc.FindIdentityParams{FeedID: input.FeedID, Kind: alias.kind, Value: alias.value})
@@ -198,7 +206,7 @@ func (s *Store) UpsertArticle(ctx context.Context, input ArticleInput) (id strin
 			}
 		}
 		return q.InheritFeedCategories(ctx, sqlc.InheritFeedCategoriesParams{ArticleID: id, FeedID: input.FeedID, CreatedAt: input.FetchedAt, UpdatedAt: input.FetchedAt})
-	})
+	}()
 	if err != nil {
 		return "", err
 	}

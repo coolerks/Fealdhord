@@ -27,3 +27,6 @@
 ## Phase 3 实施记录
 
 2026-11-05：已实现 netpolicy 有界抓取与 Feed 本地字节解析、HTML alternate 发现及纯文本清理；相关网络和三格式测试通过。订阅服务、原子刷新、调度、首图及功能接线继续实施，不将解析库可用等同完整 RSS 路径交付。
+
+
+刷新核心已实现：FeedService 本地 DTO／订阅管理、事务内 article upsert 与整源提交、RefreshService 活动批次合并、4／2 并发边界、304、解析失败保留 validator、Retry-After／退避与取消。00004_feed_refresh 新增 last_error_code，使限流跨重启仍可执行。当前尚未装配到 Wails／前端，媒体后续接入，不宣称完整用户路径已交付。

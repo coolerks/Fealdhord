@@ -39,3 +39,6 @@ database/sql + modernc v1.61.1，goose 迁移，sqlc 常规查询；时间 UTC �
 ## Phase 2 真实依据
 
 Open 持有进程文件锁，有待升级时先一致快照；禁止覆盖现有备份／恢复目标，禁止失败后返回可写 Store。UpsertArticle 通过同一事务解析全部别名，冲突拒绝，不更新稳定 sort_at 或独立状态。effective_article_categories 统一 manual 优先与 AI 阈值，不能各查询重写一套优先级。FTS 特殊 SQL 仅放 database/search.go，查询参数绑定且有候选上限，触发器增改删同事务；00003 不传给 sqlc。实际签名／错误／测试详见[数据契约](../../../docs/04-specs/data-foundation.md)。
+
+
+Phase 3：UpsertArticle 与 CommitFeed 复用同一个事务内 upsertArticle；整源文章、别名、FTS、继承分类与 validator 同一事务。CommitFeed 复核未归档及预期 normalized_url，避免旧 URL 请求污染新配置。304 只更新源检查状态，不更新文章或清空 validator。00004_feed_refresh 新增 last_error_code，429 的重试窗口不得被手动刷新或重启绕过；sqlc schema 列表需包含新增迁移，生成文件不手改。

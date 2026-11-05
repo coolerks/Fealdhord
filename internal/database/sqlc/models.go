@@ -117,6 +117,7 @@ type Feed struct {
 	ArchivedAt    sql.NullInt64 `json:"archived_at"`
 	SortPosition  int64         `json:"sort_position"`
 	Revision      int64         `json:"revision"`
+	LastErrorCode string        `json:"last_error_code"`
 }
 
 type FeedCategory struct {

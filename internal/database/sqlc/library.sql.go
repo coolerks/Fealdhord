@@ -289,7 +289,7 @@ func (q *Queries) GetCategory(ctx context.Context, id string) (Category, error) 
 }
 
 const getFeed = `-- name: GetFeed :one
-SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision FROM feeds WHERE id=?
+SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code FROM feeds WHERE id=?
 `
 
 func (q *Queries) GetFeed(ctx context.Context, id string) (Feed, error) {
@@ -315,12 +315,13 @@ func (q *Queries) GetFeed(ctx context.Context, id string) (Feed, error) {
 		&i.ArchivedAt,
 		&i.SortPosition,
 		&i.Revision,
+		&i.LastErrorCode,
 	)
 	return i, err
 }
 
 const getFeedByURL = `-- name: GetFeedByURL :one
-SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision FROM feeds WHERE normalized_url=?
+SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code FROM feeds WHERE normalized_url=?
 `
 
 func (q *Queries) GetFeedByURL(ctx context.Context, normalizedUrl string) (Feed, error) {
@@ -346,6 +347,7 @@ func (q *Queries) GetFeedByURL(ctx context.Context, normalizedUrl string) (Feed,
 		&i.ArchivedAt,
 		&i.SortPosition,
 		&i.Revision,
+		&i.LastErrorCode,
 	)
 	return i, err
 }
@@ -392,6 +394,54 @@ func (q *Queries) InsertIdentity(ctx context.Context, arg InsertIdentityParams) 
 		arg.Value,
 	)
 	return err
+}
+
+const listAllFeeds = `-- name: ListAllFeeds :many
+SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code FROM feeds ORDER BY sort_position,title,id
+`
+
+func (q *Queries) ListAllFeeds(ctx context.Context) ([]Feed, error) {
+	rows, err := q.db.QueryContext(ctx, listAllFeeds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Feed
+	for rows.Next() {
+		var i Feed
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Url,
+			&i.NormalizedUrl,
+			&i.SiteUrl,
+			&i.Description,
+			&i.IconUrl,
+			&i.Etag,
+			&i.LastModified,
+			&i.LastCheckedAt,
+			&i.LastSuccessAt,
+			&i.NextCheckAt,
+			&i.ErrorCount,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ArchivedAt,
+			&i.SortPosition,
+			&i.Revision,
+			&i.LastErrorCode,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listArticles = `-- name: ListArticles :many
@@ -459,8 +509,125 @@ func (q *Queries) ListArticles(ctx context.Context, limit int64) ([]ListArticles
 	return items, nil
 }
 
+const listCategories = `-- name: ListCategories :many
+SELECT id, parent_id, name, normalized_name, icon, color, description, ai_enabled, ai_prompt, ai_threshold, created_at, updated_at, sort_position, revision FROM categories ORDER BY sort_position,name,id
+`
+
+func (q *Queries) ListCategories(ctx context.Context) ([]Category, error) {
+	rows, err := q.db.QueryContext(ctx, listCategories)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Category
+	for rows.Next() {
+		var i Category
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentID,
+			&i.Name,
+			&i.NormalizedName,
+			&i.Icon,
+			&i.Color,
+			&i.Description,
+			&i.AiEnabled,
+			&i.AiPrompt,
+			&i.AiThreshold,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SortPosition,
+			&i.Revision,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDueFeeds = `-- name: ListDueFeeds :many
+SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code FROM feeds WHERE archived_at IS NULL AND (next_check_at IS NULL OR next_check_at<=?) ORDER BY next_check_at,id LIMIT 500
+`
+
+func (q *Queries) ListDueFeeds(ctx context.Context, nextCheckAt sql.NullInt64) ([]Feed, error) {
+	rows, err := q.db.QueryContext(ctx, listDueFeeds, nextCheckAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Feed
+	for rows.Next() {
+		var i Feed
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Url,
+			&i.NormalizedUrl,
+			&i.SiteUrl,
+			&i.Description,
+			&i.IconUrl,
+			&i.Etag,
+			&i.LastModified,
+			&i.LastCheckedAt,
+			&i.LastSuccessAt,
+			&i.NextCheckAt,
+			&i.ErrorCount,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ArchivedAt,
+			&i.SortPosition,
+			&i.Revision,
+			&i.LastErrorCode,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFeedCategories = `-- name: ListFeedCategories :many
+SELECT category_id FROM feed_categories WHERE feed_id=? ORDER BY category_id
+`
+
+func (q *Queries) ListFeedCategories(ctx context.Context, feedID string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listFeedCategories, feedID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var category_id string
+		if err := rows.Scan(&category_id); err != nil {
+			return nil, err
+		}
+		items = append(items, category_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listFeeds = `-- name: ListFeeds :many
-SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision FROM feeds WHERE archived_at IS NULL ORDER BY sort_position,title,id
+SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code FROM feeds WHERE archived_at IS NULL ORDER BY sort_position,title,id
 `
 
 func (q *Queries) ListFeeds(ctx context.Context) ([]Feed, error) {
@@ -492,6 +659,7 @@ func (q *Queries) ListFeeds(ctx context.Context) ([]Feed, error) {
 			&i.ArchivedAt,
 			&i.SortPosition,
 			&i.Revision,
+			&i.LastErrorCode,
 		); err != nil {
 			return nil, err
 		}
@@ -597,6 +765,125 @@ type RestoreFeedParams struct {
 
 func (q *Queries) RestoreFeed(ctx context.Context, arg RestoreFeedParams) error {
 	_, err := q.db.ExecContext(ctx, restoreFeed, arg.UpdatedAt, arg.ID)
+	return err
+}
+
+const saveFeedDetails = `-- name: SaveFeedDetails :execrows
+UPDATE feeds SET title=?,url=?,normalized_url=?,site_url=?,description=?,updated_at=?,revision=revision+1,
+ etag=CASE WHEN normalized_url<>? THEN '' ELSE etag END,
+ last_modified=CASE WHEN normalized_url<>? THEN '' ELSE last_modified END,
+ next_check_at=CASE WHEN normalized_url<>? THEN NULL ELSE next_check_at END
+WHERE id=? AND revision=?
+`
+
+type SaveFeedDetailsParams struct {
+	Title           string `json:"title"`
+	Url             string `json:"url"`
+	NormalizedUrl   string `json:"normalized_url"`
+	SiteUrl         string `json:"site_url"`
+	Description     string `json:"description"`
+	UpdatedAt       int64  `json:"updated_at"`
+	NormalizedUrl_2 string `json:"normalized_url_2"`
+	NormalizedUrl_3 string `json:"normalized_url_3"`
+	NormalizedUrl_4 string `json:"normalized_url_4"`
+	ID              string `json:"id"`
+	Revision        int64  `json:"revision"`
+}
+
+func (q *Queries) SaveFeedDetails(ctx context.Context, arg SaveFeedDetailsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, saveFeedDetails,
+		arg.Title,
+		arg.Url,
+		arg.NormalizedUrl,
+		arg.SiteUrl,
+		arg.Description,
+		arg.UpdatedAt,
+		arg.NormalizedUrl_2,
+		arg.NormalizedUrl_3,
+		arg.NormalizedUrl_4,
+		arg.ID,
+		arg.Revision,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const saveFeedFailure = `-- name: SaveFeedFailure :exec
+UPDATE feeds SET last_checked_at=?,next_check_at=?,error_count=error_count+1,last_error=?,last_error_code=?,updated_at=? WHERE id=? AND archived_at IS NULL AND normalized_url=?
+`
+
+type SaveFeedFailureParams struct {
+	LastCheckedAt sql.NullInt64 `json:"last_checked_at"`
+	NextCheckAt   sql.NullInt64 `json:"next_check_at"`
+	LastError     string        `json:"last_error"`
+	LastErrorCode string        `json:"last_error_code"`
+	UpdatedAt     int64         `json:"updated_at"`
+	ID            string        `json:"id"`
+	NormalizedUrl string        `json:"normalized_url"`
+}
+
+func (q *Queries) SaveFeedFailure(ctx context.Context, arg SaveFeedFailureParams) error {
+	_, err := q.db.ExecContext(ctx, saveFeedFailure,
+		arg.LastCheckedAt,
+		arg.NextCheckAt,
+		arg.LastError,
+		arg.LastErrorCode,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.NormalizedUrl,
+	)
+	return err
+}
+
+const saveFeedNotModified = `-- name: SaveFeedNotModified :exec
+UPDATE feeds SET last_checked_at=?,last_success_at=?,next_check_at=?,error_count=0,last_error='',last_error_code='',updated_at=? WHERE id=?
+`
+
+type SaveFeedNotModifiedParams struct {
+	LastCheckedAt sql.NullInt64 `json:"last_checked_at"`
+	LastSuccessAt sql.NullInt64 `json:"last_success_at"`
+	NextCheckAt   sql.NullInt64 `json:"next_check_at"`
+	UpdatedAt     int64         `json:"updated_at"`
+	ID            string        `json:"id"`
+}
+
+func (q *Queries) SaveFeedNotModified(ctx context.Context, arg SaveFeedNotModifiedParams) error {
+	_, err := q.db.ExecContext(ctx, saveFeedNotModified,
+		arg.LastCheckedAt,
+		arg.LastSuccessAt,
+		arg.NextCheckAt,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	return err
+}
+
+const saveFeedSuccess = `-- name: SaveFeedSuccess :exec
+UPDATE feeds SET etag=?,last_modified=?,last_checked_at=?,last_success_at=?,next_check_at=?,error_count=0,last_error='',last_error_code='',updated_at=? WHERE id=?
+`
+
+type SaveFeedSuccessParams struct {
+	Etag          string        `json:"etag"`
+	LastModified  string        `json:"last_modified"`
+	LastCheckedAt sql.NullInt64 `json:"last_checked_at"`
+	LastSuccessAt sql.NullInt64 `json:"last_success_at"`
+	NextCheckAt   sql.NullInt64 `json:"next_check_at"`
+	UpdatedAt     int64         `json:"updated_at"`
+	ID            string        `json:"id"`
+}
+
+func (q *Queries) SaveFeedSuccess(ctx context.Context, arg SaveFeedSuccessParams) error {
+	_, err := q.db.ExecContext(ctx, saveFeedSuccess,
+		arg.Etag,
+		arg.LastModified,
+		arg.LastCheckedAt,
+		arg.LastSuccessAt,
+		arg.NextCheckAt,
+		arg.UpdatedAt,
+		arg.ID,
+	)
 	return err
 }
 
