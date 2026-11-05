@@ -3,7 +3,7 @@ import { cn } from "cn"
 import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
-import { XIcon } from "lucide-react"
+import { AnimatedGlyph } from "@/components/animated-glyph"
 
 function Dialog({
   ...props
@@ -72,7 +72,7 @@ function DialogContent({
               className="absolute top-2 right-2"
               size="icon-sm"
             >
-              <XIcon
+              <AnimatedGlyph meaning="x"
               />
               <span className="sr-only">关闭</span>
             </Button>

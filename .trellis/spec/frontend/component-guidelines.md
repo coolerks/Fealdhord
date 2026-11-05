@@ -45,3 +45,6 @@ cmdk 的 CommandInput 自带 aria-labelledby，可覆盖孤立 aria-label；使�
 ## 图标单次播放
 
 AnimatedGlyph 仅交互期间挂载 lucide-animated；startAnimation／stopAnimation 返回完成 Promise，cancelAnimation 负责卸载与模式切换。不得以固定延时猜结束、mouseleave 才归位或 pointerdown 重复启动。多 controls 必须等待所有阶段；异步续段核对代次。静态 SVG 由 npm run icons:generate 从同份已安装库源生成，禁止另外选择不匹配的 fallback 图形；生成字符串仅来自仓库已审阅源，不接收外部 HTML。图标模式 Provider 覆盖全局菜单，Portal 继承同一偏好。
+
+
+菜单项使用 Group／Separator 做语义分组，CommandPresentation／TextActionPresentation 消费 command-presentation 的图标与真实绑定，快捷键末尾对齐且 aria-hidden，条目自身提供 aria-keyshortcuts。右键目标与当前文章不同，不能显示 F／M 冒充该目标快捷键。结构图标也使用 AnimatedGlyph，不遗留静态 X／勾号／箭头。cmdk 焦点留在输入框，选项的键盘动画观察 data-selected，不能只监听 focusin。动画 CSS 不得叠加覆盖库的 transform。

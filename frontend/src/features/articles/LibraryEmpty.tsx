@@ -1,3 +1,4 @@
+import { AnimatedGlyph } from '@/components/animated-glyph'
 import { CircleAlert, Rss, Search, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
@@ -31,7 +32,7 @@ export function LibraryEmpty({ scope, searching, loading, failed, onRetry, onCle
   }
 
   return <Empty className="library-empty">
-    <EmptyHeader><EmptyMedia variant="icon"><Icon /></EmptyMedia><EmptyTitle>{title}</EmptyTitle></EmptyHeader>
+    <EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={Icon} meaning={failed?"badge-alert":searching?"search":featured?"ai":"radio-tower"}/></EmptyMedia><EmptyTitle>{title}</EmptyTitle></EmptyHeader>
     {action && <EmptyContent>{action}</EmptyContent>}
   </Empty>
 }

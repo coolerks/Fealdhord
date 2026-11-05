@@ -48,8 +48,9 @@ describe('真实虚拟双视图', () => {
     const article = articleFixtures(1)[0]
     const onOpen = vi.fn()
     render(<TooltipProvider><ArticleItem article={article} mode="masonry" selected={false} thumbnail="none" width={300} imageMode="original_ratio" onOpen={onOpen} onFavorite={vi.fn()} onRead={vi.fn()} /></TooltipProvider>)
-    fireEvent.error(screen.getByRole('img'))
-    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    fireEvent.error(screen.getByRole('img',{name:'测试首图'}))
+    expect(screen.queryByRole('img',{name:'测试首图'})).not.toBeInTheDocument()
+    expect(screen.getByRole('img',{name:'已收藏'})).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '打开文章：测试文章 0' }))
     expect(onOpen).toHaveBeenCalledWith('a-0')
   })

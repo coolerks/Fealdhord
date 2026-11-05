@@ -1,3 +1,5 @@
+import { AnimatedGlyph } from '@/components/animated-glyph'
+import type { IconMeaning } from '@/components/animated-glyph'
 import { useState } from 'react'
 import { Info, Palette, Rss, SlidersHorizontal, Sparkles } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -21,9 +23,9 @@ function Range({ name, label, value, min, max, step = 1, unit = '', onChange }: 
   return <Field><FieldLabel htmlFor={name}>{label}<span className="range-value">{value}{unit}</span></FieldLabel><Input type="range" id={name} min={min} max={max} step={step} value={value} onChange={event => { const next = event.target.valueAsNumber; if (Number.isFinite(next)) onChange(next) }} /></Field>
 }
 
-const sections: { id: SettingsTab; title: string; icon: typeof Palette }[] = [
-  { id: 'appearance', title: '外观与浏览', icon: Palette }, { id: 'reader', title: '阅读排版', icon: SlidersHorizontal },
-  { id: 'feeds', title: '订阅与分类', icon: Rss }, { id: 'ai', title: 'AI 与扩展', icon: Sparkles }, { id: 'about', title: '关于与诊断', icon: Info },
+const sections: { id: SettingsTab; title: string; icon: typeof Palette; meaning:IconMeaning }[] = [
+  { id: 'appearance', title: '外观与浏览', icon: Palette, meaning:"palette" }, { id: 'reader', title: '阅读排版', icon: SlidersHorizontal, meaning:"sliders-horizontal" },
+  { id: 'feeds', title: '订阅与分类', icon: Rss, meaning:"radio-tower" }, { id: 'ai', title: 'AI 与扩展', icon: Sparkles, meaning:"ai" }, { id: 'about', title: '关于与诊断', icon: Info, meaning:"circle-help" },
 ]
 
 export function SettingsDialog() {
@@ -39,7 +41,7 @@ export function SettingsDialog() {
   if (!preferences) return null
   const set = <K extends keyof Preferences>(key: K, value: Preferences[K]) => patch({ [key]: value })
   return <Dialog open={open} onOpenChange={value => useWorkspace.setState({ settingsOpen: value })}><DialogContent aria-describedby={undefined} className="settings-dialog" onCloseAutoFocus={event => { event.preventDefault(); restoreSettingsFocus() }}><DialogHeader><DialogTitle>设置</DialogTitle></DialogHeader>
-    <div className="settings-layout"><nav aria-label="设置分区" className="settings-nav">{sections.map(({ id, title, icon: Icon }) => <Button key={id} variant={tab === id ? 'secondary' : 'ghost'} aria-pressed={tab === id} onClick={() => useWorkspace.setState({ settingsTab: id })}><Icon data-icon="inline-start" />{title}</Button>)}</nav>
+    <div className="settings-layout"><nav aria-label="设置分区" className="settings-nav">{sections.map(({ id, title, icon: Icon, meaning }) => <Button key={id} variant={tab === id ? 'secondary' : 'ghost'} aria-pressed={tab === id} onClick={() => useWorkspace.setState({ settingsTab: id })}><AnimatedGlyph icon={Icon} meaning={meaning}/>{title}</Button>)}</nav>
       <section className="settings-body" aria-label={sections.find(section => section.id === tab)?.title}>
         {tab === 'appearance' && <FieldGroup>
           <Choice name="theme" label="主题" value={preferences.theme} choices={[["light", "浅色"], ["dark", "深色"], ["system", "跟随系统"]]} onChange={value => set('theme', value)} />
@@ -52,8 +54,8 @@ export function SettingsDialog() {
           <Field orientation="horizontal"><FieldLabel htmlFor="system-motion">遵从系统减少动态效果</FieldLabel><Switch id="system-motion" checked={preferences.follow_system_reduce_motion} onCheckedChange={value => set('follow_system_reduce_motion', value)} /></Field>
         </FieldGroup>}
         {tab === 'reader' && <FieldGroup><Field orientation="horizontal"><FieldLabel htmlFor="pin-reader">并排阅读（宽窗口三栏）</FieldLabel><Switch id="pin-reader" checked={preferences.reader_pinned} onCheckedChange={value=>set('reader_pinned',value)}/></Field><Range name="font-size" label="正文字号" value={preferences.reader_font_size} min={14} max={24} unit="px" onChange={value => set('reader_font_size', value)} /><Range name="line-height" label="行高" value={preferences.reader_line_height} min={1.4} max={2} step={.1} onChange={value => set('reader_line_height', value)} /><Range name="reader-width" label="正文宽度" value={preferences.reader_width} min={680} max={760} step={20} unit="px" onChange={value => set('reader_width', value)} /></FieldGroup>}
-        {tab === 'feeds' && <Empty><EmptyHeader><EmptyMedia variant="icon"><Rss /></EmptyMedia><EmptyTitle>订阅与分类尚未开放</EmptyTitle></EmptyHeader></Empty>}
-        {tab === 'ai' && <Empty><EmptyHeader><EmptyMedia variant="icon"><Sparkles /></EmptyMedia><EmptyTitle>AI 与扩展尚未开放</EmptyTitle></EmptyHeader></Empty>}
+        {tab === 'feeds' && <Empty><EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={Rss} meaning="radio-tower"/></EmptyMedia><EmptyTitle>订阅与分类尚未开放</EmptyTitle></EmptyHeader></Empty>}
+        {tab === 'ai' && <Empty><EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={Sparkles} meaning="ai"/></EmptyMedia><EmptyTitle>AI 与扩展尚未开放</EmptyTitle></EmptyHeader></Empty>}
         {tab === 'about' && <DiagnosticPanel />}
       </section>
     </div>

@@ -3,7 +3,7 @@
 import * as React from "react"
 import { cn } from "cn"
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
-import { ChevronRightIcon, CheckIcon } from "lucide-react"
+import { AnimatedGlyph } from "@/components/animated-glyph"
 
 function ContextMenu({
   ...props
@@ -116,7 +116,7 @@ function ContextMenuSubTrigger({
       {...props}
     >
       {children}
-      <ChevronRightIcon className="ml-auto" />
+      <AnimatedGlyph meaning="chevron-right" className="ml-auto" />
     </ContextMenuPrimitive.SubTrigger>
   )
 }
@@ -156,7 +156,7 @@ function ContextMenuCheckboxItem({
     >
       <span className="pointer-events-none absolute right-2">
         <ContextMenuPrimitive.ItemIndicator>
-          <CheckIcon
+          <AnimatedGlyph meaning="check"
           />
         </ContextMenuPrimitive.ItemIndicator>
       </span>
@@ -185,7 +185,7 @@ function ContextMenuRadioItem({
     >
       <span className="pointer-events-none absolute right-2">
         <ContextMenuPrimitive.ItemIndicator>
-          <CheckIcon
+          <AnimatedGlyph meaning="check"
           />
         </ContextMenuPrimitive.ItemIndicator>
       </span>

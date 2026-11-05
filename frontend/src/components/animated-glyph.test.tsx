@@ -70,3 +70,13 @@ describe('图标单次播放',()=>{
   expect(playback.reset).not.toHaveBeenCalled()
  })
 })
+
+it('命令选项的键盘选择变化触发一次动画，失败会恢复静态',async()=>{
+ playback.start.mockRejectedValueOnce(new Error('motion failure'))
+ const {container}=render(<IconMotionContext.Provider value="full"><div role="option" data-selected="false"><AnimatedGlyph meaning="settings"/></div></IconMotionContext.Provider>)
+ const option=screen.getByRole('option')
+ await act(async()=>option.setAttribute('data-selected','true'))
+ expect(playback.start).toHaveBeenCalledTimes(1)
+ expect(container.querySelector('[data-animating=true]')).not.toBeInTheDocument()
+ expect(container.querySelector('.icon-still')).toBeInTheDocument()
+})

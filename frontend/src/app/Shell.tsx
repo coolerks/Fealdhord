@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useSt
 import type { CSSProperties } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
+import { AnimatedGlyph } from '@/components/animated-glyph'
 import { CircleAlert } from 'lucide-react'
 import { LibraryEmpty } from '@/features/articles/LibraryEmpty'
 import { ApplicationMenu } from './ApplicationMenu'
@@ -131,7 +132,7 @@ export function Shell() {
       </main>
       <Suspense fallback={null}>{settingsOpen && <SettingsDialog />}{paletteOpen && <CommandPalette />}</Suspense>
       <div className="sr-only" aria-live="polite">{preferences.article_view_mode === 'masonry' ? '已切换到瀑布流视图' : '已切换到列表视图'}</div>
-      {saveStatus === 'error' && <div className="save-warning" role="status"><CircleAlert /><span>偏好保存失败</span><Button size="sm" variant="ghost" onClick={() => showSettings()}>查看</Button></div>}
+      {saveStatus === 'error' && <div className="save-warning" role="status"><AnimatedGlyph icon={CircleAlert} meaning="badge-alert"/><span>偏好保存失败</span><Button size="sm" variant="ghost" onClick={() => showSettings()}>查看</Button></div>}
       <Dialog open={helpOpen} onOpenChange={open=>useWorkspace.setState({helpOpen:open})}><DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>键盘快捷键</DialogTitle></DialogHeader><dl className="shortcut-list"><dt>下一篇／上一篇</dt><dd>J ／ K</dd><dt>收藏／切换已读</dt><dd>F ／ M</dd><dt>搜索文章</dt><dd>/</dd><dt>搜索与命令</dt><dd>⌘ ／ Ctrl + K</dd><dt>设置</dt><dd>⌘ ／ Ctrl + ,</dd><dt>返回浏览</dt><dd>Esc</dd><dt>Windows 菜单栏</dt><dd>F10</dd></dl></DialogContent></Dialog>
       {commandError&&<div role="alert" className="command-error">{commandError}<Button variant="ghost" onClick={()=>useWorkspace.setState({commandError:null})}>关闭</Button></div>}
     </div></div>

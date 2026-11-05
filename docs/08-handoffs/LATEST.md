@@ -1,11 +1,13 @@
-# 最近交接：界面减负与三方体验
+# 最近交接：菜单与图标动效一致性
 
 日期：2026-11-05。分支 codex/interface-clarity。
 
-AGENTS 已加入用户原文两条规则，并以 CURRENT 替代过期的“只有基础调用链已实现”说明。界面去掉品牌标语、重复视图解释、开发阶段文字、零值占位及常驻快捷键脚注；工具区合并并按分栏宽度重排，空区域不再提供无效折叠按钮。
+右键按文本编辑、文章操作、视图、应用分组，各项显示官方动画图标，真实快捷键按平台格式末尾对齐。Windows／Linux 应用菜单、命令面板复用命令呈现；CommandID、runCommand 与数据契约不变。右键目标不是当前文章时不显示 F／M，保留实际目标操作、文本快照、只读限制与焦点恢复。
 
-LibraryEmpty 统一空态呈现，删除对应死 CSS；命令面板名称／原生菜单／平台快捷键一致。cmdk 使用 Command label 修复实际为空的输入框可访问名称，测试以角色＋名称定位，保留焦点、表单标签、错误与加载范围。
+AnimatedGlyph 单次播放完自动归位，持续悬停不循环，移出不截断，重复事件不排队；多 controls 等待全部完成，多段续播可取消。Provider 覆盖全局菜单并遵从动态设置，cmdk 的键盘选择也能触发。恢复 Search／BookText 原版，所有页面和结构图标接入统一播放；移除旧 AI 缩放和卡片上移。
 
-用户通过简洁层级和真实状态获益；开发者通过组件边界与样式清理获益；AI Agent 通过准确可访问名称和不变的 CommandID／接口获益。数据模型、服务、持久化、虚拟双视图、菜单与动画仍保持；28 项前端测试、类型、lint 与原生构建通过。保留既有 Virtualizer Compiler 和主包体积提示；本轮未运行 E2E。
+38 个官方图标仅交互时挂载 Motion，静态 SVG 由 npm run icons:generate 从同份已审阅源生成。维护说明见 frontend/src/components/icons/README.md。代码规范记录 Promise／取消、快捷键上下文及 Portal 边界，防止再次只修首页或以固定延迟复位。
 
-后续仍为 Phase 3 RSS；当前已完成 Phase 2 数据基础，真实限制见[当前状态](../01-status/CURRENT.md)。规则提交 85c50cb，界面修订提交 4262340，任务已归档；原有框架配置与其他未跟踪文件保留。
+前端 38 项测试、类型、lint（0 error／1 项既有 Virtualizer Compiler 提示）、生产前端和 macOS 构建通过；bin/Fealdhord.app 已同步并通过 ad-hoc 签名验证。最大 JS 块 417.04kB、共享块 308.37kB，不将单块大小或 Motion 手动时钟测试当作总首屏体积／原生帧率认证。未运行 E2E、原生逐帧采样或 Windows 实机。
+
+用户获得清晰菜单与自动归位；开发者复用类型化呈现和播放控制；AI Agent 保留可访问名称、分组和真实 aria-keyshortcuts。后续仍为 Phase 3 RSS，实际范围见[当前状态](../01-status/CURRENT.md)。原有框架配置与其他未跟踪文件保留，不推送。

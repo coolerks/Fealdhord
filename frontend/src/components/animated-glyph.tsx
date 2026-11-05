@@ -40,10 +40,16 @@ function GlyphPlayback({ mode, icon: Fallback, meaning = 'book', className, ...p
     const hover = () => { hovered = true; enter() }
     const leave = () => { hovered = false }
     const focus = () => { if (!hovered) enter() }
+    // cmdk 用 aria-activedescendant 选择选项，键盘移动时焦点仍在输入框。
+    const selection = trigger.getAttribute('role') === 'option' ? new MutationObserver(() => {
+      if (!hovered && trigger.getAttribute('data-selected') === 'true') enter()
+    }) : null
+    selection?.observe(trigger, { attributes: true, attributeFilter: ['data-selected'] })
     trigger.addEventListener('mouseenter', hover)
     trigger.addEventListener('mouseleave', leave)
     trigger.addEventListener('focusin', focus)
     return () => {
+      selection?.disconnect()
       trigger.removeEventListener('mouseenter', hover)
       trigger.removeEventListener('mouseleave', leave)
       trigger.removeEventListener('focusin', focus)
@@ -59,6 +65,8 @@ function GlyphPlayback({ mode, icon: Fallback, meaning = 'book', className, ...p
       try {
         await animation.startAnimation()
         if (current) await animation.stopAnimation()
+      } catch {
+        // 装饰动画失败时归回静态图标，不影响原操作。
       } finally {
         if (current) { busy.current = false; setPlaying(false) }
       }
