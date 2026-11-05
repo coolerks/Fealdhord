@@ -15,6 +15,7 @@ vi.mock('@/lib/preferences', () => ({ preferencesAPI: api }))
 const library=vi.hoisted(()=>({list:vi.fn(async()=>({items:[],hasMore:false})),text:vi.fn(async()=>''),setRead:vi.fn(async()=>{}),setFavorite:vi.fn(async()=>{})}))
 vi.mock('@/lib/library-api',()=>({libraryAPI:library}))
 vi.mock('@/lib/api', () => ({ desktopAPI: { info: vi.fn(), subscribe: vi.fn(() => () => {}), start: vi.fn(), cancel: vi.fn(), snapshot: vi.fn() } }))
+vi.mock('@/lib/rss-api',()=>({feedsQueryKey:['rss','feeds'],rssAPI:{list:vi.fn(async()=>({items:[],categories:[]})),current:vi.fn(async()=>({generation:0,operation_id:'',status:'completed',completed:0,total:0,sequence:0,results:[]})),subscribeRefresh:vi.fn(()=>()=>{}),subscribeLibrary:vi.fn(()=>()=>{})}}))
 import App from './App'
 
 let geometry: ReturnType<typeof installGeometry>
@@ -189,7 +190,7 @@ describe('Phase 1 阅读 Shell', () => {
     const dialog=await screen.findByRole('dialog',{name:'命令面板'})
     expect(within(dialog).getByRole('combobox',{name:'搜索命令'})).toBeInTheDocument()
     await userEvent.click(screen.getByRole('option',{name:'订阅管理…'}))
-    expect(await screen.findByText('订阅与分类尚未开放')).toBeInTheDocument()
+    expect(await screen.findByRole('textbox',{name:'订阅或网页地址'})).toBeInTheDocument()
     expect(screen.queryByText(/RSS 阶段/)).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button',{name:/^关闭$/}))
     await waitFor(()=>expect(screen.getByRole('button',{name:'打开设置'})).toHaveFocus())
@@ -273,4 +274,13 @@ describe('菜单图标与快捷键',()=>{
   expect(paste.querySelector('.animated-glyph svg')).toBeInTheDocument()
   expect(paste.lastElementChild).toHaveTextContent('Ctrl+V')
  })
+})
+
+
+it('从不加载图片时立即隐藏已有封面，不等待后端 Query 重取', async()=>{
+  const prefs=preferencesFixture();prefs.remote_images='never';prefs.list_thumbnail='small'
+  api.get.mockResolvedValue({preferences:prefs,revision:0})
+  setup(true)
+  await screen.findByRole('button',{name:'打开文章：测试文章 0'})
+  expect(document.querySelector('.article-cover img')).toBeNull()
 })

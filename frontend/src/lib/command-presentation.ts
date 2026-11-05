@@ -2,7 +2,7 @@ import type { IconMeaning } from '@/components/animated-glyph'
 import type { CommandID } from './commands'
 
 export const commandIcons = {
-  settings:'settings',about:'circle-help',help:'circle-help',feeds:'radio-tower',ai:'ai',search:'search',palette:'search',
+  refresh:'refresh',settings:'settings',about:'circle-help',help:'circle-help',feeds:'radio-tower',ai:'ai',search:'search',palette:'search',
   all:'book',unread:'unread',favorites:'favorite',featured:'ai',list:'list',masonry:'grid',sidebar:'collapse',reader:'panel-right-open',
   'theme-system':'monitor-cog','theme-light':'sun','theme-dark':'moon',next:'chevron-right',previous:'chevron-left',favorite:'favorite',read:'read',
   close:'x',minimize:'minimize',maximize:'maximize',fullscreen:'maximize',quit:'x',
@@ -17,6 +17,7 @@ const modified=(key:string,mac:boolean,shift=false):Shortcut=>({label:mac?`${shi
 /** 只展示已在 Shell 或 macOS 系统菜单注册的绑定。 */
 export function commandShortcut(id:CommandID,mac:boolean,articleTargetMatches=true):Shortcut|undefined {
   switch(id) {
+    case 'refresh':return modified('R',mac)
     case 'settings':return modified(',',mac)
     case 'search':return modified('F',mac)
     case 'palette':return modified('K',mac)

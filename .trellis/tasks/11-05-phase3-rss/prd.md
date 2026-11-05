@@ -27,4 +27,4 @@ Phase 2 已有 SQLite 身份去重、分类继承、独立已读／收藏和 FTS
 
 ## 交付顺序
 
-四个子任务按 ingestion → refresh → media → workflow 串行，由主会话独立执行。整个阶段的共同验收由父任务负责；顺序与依赖见 implement.md。暂无需要用户补充的产品决策，等待最终规划评审后进入首个子任务。
+四个子任务按 ingestion → refresh → media → workflow 串行，由主会话独立执行。整个阶段的共同验收由父任务负责；顺序与依赖见 implement.md。本阶段已按获批顺序实现并检查通过，待归档。

@@ -9,6 +9,7 @@
 | [Hook、查询与订阅](hook-guidelines.md) | 对应行为与验证门禁 |
 | [状态所有权与恢复](state-management.md) | 对应行为与验证门禁 |
 | [TypeScript 与边界数据](type-safety.md) | 对应行为与验证门禁 |
+| [RSS 功能接线](rss-guidelines.md) | 订阅表单、刷新恢复、Query 与隐私策略 |
 | [前端质量与性能](quality-guidelines.md) | 对应行为与验证门禁 |
 
 相关产品契约以 [文档入口](../../../docs/README.md) 为索引；若后续实现改变契约，同阶段修改对应规格。禁止子代理，codex.dispatch_mode 保持 inline。

@@ -105,4 +105,4 @@ UPDATE article_media SET status=?,url=?,remote_url=?,source=?,width=?,height=?,a
 -- name: BlockAllMedia :exec
 UPDATE article_media SET status='blocked',generation=generation+1;
 -- name: ListPendingMedia :many
-SELECT article_id FROM article_media WHERE status IN ('pending','blocked') OR (status='failed' AND (retry_after IS NULL OR retry_after<=?)) LIMIT 500;
+SELECT article_id FROM article_media WHERE status IN ('pending','blocked','none') OR (status='failed' AND (retry_after IS NULL OR retry_after<=?)) LIMIT 500;

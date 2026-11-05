@@ -10,7 +10,7 @@ import { native } from '@/lib/native'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 
 const groups: {title:string;sections:CommandID[][]}[] = [
- {title:'文件',sections:[['feeds'],['settings','close','quit']]},
+ {title:'文件',sections:[['feeds','refresh'],['settings','close','quit']]},
  {title:'显示',sections:[['all','unread','favorites'],['list','masonry','sidebar','reader'],['theme-system','theme-light','theme-dark'],['fullscreen']]},
  {title:'文章',sections:[['previous','next'],['favorite','read']]},
  {title:'窗口',sections:[['minimize','maximize'],['palette']]},

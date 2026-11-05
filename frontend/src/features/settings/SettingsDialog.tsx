@@ -14,6 +14,8 @@ import { restoreSettingsFocus, useWorkspace } from '@/stores/workspace'
 import type { SettingsTab } from '@/stores/workspace'
 import { preferencesAPI } from '@/lib/preferences'
 import type { Preferences } from '@/lib/preferences'
+import { RefreshStatus } from '@/features/feeds/RefreshStatus'
+import { FeedSettings } from '@/features/feeds/FeedSettings'
 import DiagnosticPanel from './DiagnosticPanel'
 
 function Choice({ name, label, value, choices, onChange }: { name: string; label: string; value: string; choices: [string, string][]; onChange: (value: string) => void }) {
@@ -40,7 +42,7 @@ export function SettingsDialog() {
   const [reloadError, setReloadError] = useState('')
   if (!preferences) return null
   const set = <K extends keyof Preferences>(key: K, value: Preferences[K]) => patch({ [key]: value })
-  return <Dialog open={open} onOpenChange={value => useWorkspace.setState({ settingsOpen: value })}><DialogContent aria-describedby={undefined} className="settings-dialog" onCloseAutoFocus={event => { event.preventDefault(); restoreSettingsFocus() }}><DialogHeader><DialogTitle>设置</DialogTitle></DialogHeader>
+  return <Dialog open={open} onOpenChange={value => useWorkspace.setState({ settingsOpen: value })}><DialogContent aria-describedby={undefined} className="settings-dialog" onCloseAutoFocus={event => { event.preventDefault(); restoreSettingsFocus() }}><DialogHeader><DialogTitle>设置</DialogTitle></DialogHeader><RefreshStatus />
     <div className="settings-layout"><nav aria-label="设置分区" className="settings-nav">{sections.map(({ id, title, icon: Icon, meaning }) => <Button key={id} variant={tab === id ? 'secondary' : 'ghost'} aria-pressed={tab === id} onClick={() => useWorkspace.setState({ settingsTab: id })}><AnimatedGlyph icon={Icon} meaning={meaning}/>{title}</Button>)}</nav>
       <section className="settings-body" aria-label={sections.find(section => section.id === tab)?.title}>
         {tab === 'appearance' && <FieldGroup>
@@ -54,7 +56,7 @@ export function SettingsDialog() {
           <Field orientation="horizontal"><FieldLabel htmlFor="system-motion">遵从系统减少动态效果</FieldLabel><Switch id="system-motion" checked={preferences.follow_system_reduce_motion} onCheckedChange={value => set('follow_system_reduce_motion', value)} /></Field>
         </FieldGroup>}
         {tab === 'reader' && <FieldGroup><Field orientation="horizontal"><FieldLabel htmlFor="pin-reader">并排阅读（宽窗口三栏）</FieldLabel><Switch id="pin-reader" checked={preferences.reader_pinned} onCheckedChange={value=>set('reader_pinned',value)}/></Field><Range name="font-size" label="正文字号" value={preferences.reader_font_size} min={14} max={24} unit="px" onChange={value => set('reader_font_size', value)} /><Range name="line-height" label="行高" value={preferences.reader_line_height} min={1.4} max={2} step={.1} onChange={value => set('reader_line_height', value)} /><Range name="reader-width" label="正文宽度" value={preferences.reader_width} min={680} max={760} step={20} unit="px" onChange={value => set('reader_width', value)} /></FieldGroup>}
-        {tab === 'feeds' && <Empty><EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={Rss} meaning="radio-tower"/></EmptyMedia><EmptyTitle>订阅与分类尚未开放</EmptyTitle></EmptyHeader></Empty>}
+        {tab === 'feeds' && <FeedSettings />}
         {tab === 'ai' && <Empty><EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={Sparkles} meaning="ai"/></EmptyMedia><EmptyTitle>AI 与扩展尚未开放</EmptyTitle></EmptyHeader></Empty>}
         {tab === 'about' && <DiagnosticPanel />}
       </section>

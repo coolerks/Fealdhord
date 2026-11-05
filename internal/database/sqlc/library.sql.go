@@ -796,7 +796,7 @@ func (q *Queries) ListFeeds(ctx context.Context) ([]Feed, error) {
 }
 
 const listPendingMedia = `-- name: ListPendingMedia :many
-SELECT article_id FROM article_media WHERE status IN ('pending','blocked') OR (status='failed' AND (retry_after IS NULL OR retry_after<=?)) LIMIT 500
+SELECT article_id FROM article_media WHERE status IN ('pending','blocked','none') OR (status='failed' AND (retry_after IS NULL OR retry_after<=?)) LIMIT 500
 `
 
 func (q *Queries) ListPendingMedia(ctx context.Context, retryAfter sql.NullInt64) ([]string, error) {

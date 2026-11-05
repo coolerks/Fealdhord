@@ -26,6 +26,6 @@
   ],
   "parent": "11-04-fealdhord-spec",
   "relatedFiles": [],
-  "notes": "规划文档已完成；暂停视觉调整，待 Phase 3 最终方案评审。",
+  "notes": "已按批准范围实现，相关检查通过；见 docs/09-research/phase3-validation.md。",
   "meta": {}
 }

@@ -10,7 +10,7 @@
 | R-04 | 瀑布流顺序与锚点 | lanes／异步尺寸不自动满足可访问顺序 | Phase 1 原型，Phase 4 规模测试 |
 | R-05 | 中文搜索召回与体积 | unicode61 与 trigram 有边界，二字片段方案未 Go 验证 | Phase 2／4 候选检索与连续文本校验、100k 测量 |
 | R-06 | sqlc／FTS 与驱动兼容 | 系统 sqlite 可用不等于 modernc 可用 | Phase 2 实际 FTS5 与生成器探针 |
-| R-07 | 抓取 SSRF／资源耗尽 | RSS、Reader、媒体均能触发网络 | 网络统一策略、逐跳检查、字节／像素限额，Phase 3 |
+| R-07 | 抓取 SSRF／资源耗尽，持续防护 | Phase 3 RSS／媒体统一网关、DNS 固定拨号、逐跳检查及字节／像素限制已受测 | 后续 Reader／AI 网络仍必须复用网关；不等同全部未来网络入口已验收 |
 | R-08 | 凭据服务不可用 | Linux Secret Service 不一定存在 | 仅内存 fallback，不落明文，Phase 5 平台测试 |
 | R-09 | Provider 部分兼容 | 多工具、SSE、参数、usage 差异 | 独立 Adapter、capability、Mock contracts，Phase 5 |
 | R-10 | Prompt injection／误写 | 外部内容与工具组合可能误导执行 | 后端审批快照、最小 allowlist、revision，Phase 7–11 |

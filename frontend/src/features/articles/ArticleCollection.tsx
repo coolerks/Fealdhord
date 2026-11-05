@@ -110,7 +110,7 @@ export function ArticleCollection({ articles, preferences, queryKey, selectedID,
       {virtualizer.getVirtualItems().map(item => {
         const article = articles[item.index]
         return <li key={article.id} data-index={item.index} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: columnWidth, transform: `translate(${item.lane * (columnWidth + gap)}px, ${item.start}px)` }}>
-          <ArticleItem article={article} mode={mode} selected={article.id === selectedID} thumbnail={preferences.list_thumbnail} width={columnWidth} imageMode={preferences.masonry_image_mode} onOpen={onOpen} onFavorite={onFavorite} onRead={onRead} />
+          <ArticleItem imagesAllowed={preferences.remote_images!=='never'} article={article} mode={mode} selected={article.id === selectedID} thumbnail={preferences.list_thumbnail} width={columnWidth} imageMode={preferences.masonry_image_mode} onOpen={onOpen} onFavorite={onFavorite} onRead={onRead} />
         </li>
       })}
     </ol>

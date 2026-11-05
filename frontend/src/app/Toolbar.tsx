@@ -20,7 +20,7 @@ export function Toolbar({ count, overlay, hasSelection }: { count: number; overl
   const showSettings = useWorkspace(state => state.showSettings)
   const title = scopes.find(scope => scope.id === preferences.selected_scope)?.title ?? '全部文章'
   return <><header className="articles-toolbar"><div className="articles-heading"><h1>{title}</h1><span>{count} 篇</span></div><div className="toolbar-actions" role="group" aria-label="文章操作">
-    <SemanticButton icon={RefreshCw} label="订阅接入后可刷新" meaning="refresh" disabled />
+    <SemanticButton icon={RefreshCw} label="刷新所有订阅" meaning="refresh" onClick={()=>runCommand('refresh',client)} />
     <SemanticButton icon={Search} label="搜索文章" meaning="search" active={searchOpen} onClick={() => {if(searchOpen)useWorkspace.setState({searchOpen:false});else runCommand('search',client)}} />
     <SemanticButton id="reader-toggle" disabled={overlay && !hasSelection} icon={preferences.reader_open ? PanelRightClose : PanelRightOpen} label={overlay && !hasSelection ? '选择文章后打开阅读面板' : preferences.reader_open ? '收起阅读面板' : '展开阅读面板'} meaning="panel-right-open" onClick={() => patch({ reader_open: !preferences.reader_open })} />
   </div><div className="view-toolbar"><ToggleGroup type="single" value={preferences.article_view_mode} onValueChange={value => { if (value === 'list' || value === 'masonry') patch({ article_view_mode: value }) }} spacing={0} variant="outline" aria-label="文章视图"><ToggleGroupItem value="list" aria-label="列表视图" title="列表视图" className="meaning-list"><AnimatedGlyph icon={List} meaning="list"/></ToggleGroupItem><ToggleGroupItem value="masonry" aria-label="瀑布流视图" title="瀑布流视图" className="meaning-grid"><AnimatedGlyph icon={LayoutGrid} meaning="grid"/></ToggleGroupItem></ToggleGroup>

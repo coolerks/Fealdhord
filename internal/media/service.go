@@ -4,6 +4,7 @@ package media
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"github.com/coolerks/Fealdhord/internal/database"
 	"github.com/coolerks/Fealdhord/internal/feed"
@@ -145,6 +146,42 @@ func (s *Service) Ingest(ctx context.Context, feedID string, document *feed.Docu
 		s.Enqueue(ids[index])
 	}
 }
+
+// 原始图片直接交给 WebView 前，拒绝 PNG／WebP 动画块，避免解码器只校验首帧。
+func animatedImage(body []byte, kind string) bool {
+	offset := 8
+	if kind == "webp" {
+		offset = 12
+	}
+	if kind != "png" && kind != "webp" {
+		return false
+	}
+	for offset+8 <= len(body) {
+		var size uint32
+		var tag string
+		overhead := 8
+		if kind == "png" {
+			size = binary.BigEndian.Uint32(body[offset : offset+4])
+			tag = string(body[offset+4 : offset+8])
+			overhead = 12
+		} else {
+			tag = string(body[offset : offset+4])
+			size = binary.LittleEndian.Uint32(body[offset+4 : offset+8])
+		}
+		if tag == "acTL" || tag == "ANIM" || tag == "ANMF" {
+			return true
+		}
+		advance := uint64(size) + uint64(overhead)
+		if kind == "webp" {
+			advance += uint64(size % 2)
+		}
+		if advance > uint64(len(body)-offset) {
+			break
+		}
+		offset += int(advance)
+	}
+	return false
+}
 func imageInfo(body []byte) (image.Config, string, error) {
 	config, kind, err := image.DecodeConfig(bytes.NewReader(body))
 	if err != nil {
@@ -153,7 +190,7 @@ func imageInfo(body []byte) (image.Config, string, error) {
 	if config.Width < 64 || config.Height < 64 || int64(config.Width) > 40000000/int64(config.Height) {
 		return config, "", errUnavailable
 	}
-	if kind != "png" && kind != "jpeg" && kind != "webp" {
+	if animatedImage(body, kind) || (kind != "png" && kind != "jpeg" && kind != "webp") {
 		return config, "", errUnavailable
 	}
 	decoded, format, err := image.Decode(bytes.NewReader(body))
@@ -293,7 +330,7 @@ func (s *Service) probe(ctx context.Context, record database.MediaRecord) ([]byt
 		if ctx.Err() != nil || !s.allowed(ctx, record) {
 			return nil, "", errUnavailable
 		}
-		if !ok && diskAllowed(Policy{CacheEnabled: true}, candidate.URL, headers) {
+		if !ok && diskAllowed(Policy{CacheEnabled: true}, candidate.URL, headers) && diskAllowed(Policy{CacheEnabled: true}, finalURL, headers) {
 			if err := s.cache.put(key, body, diskAllowed(s.policy(ctx), candidate.URL, headers)); err != nil {
 				continue
 			}

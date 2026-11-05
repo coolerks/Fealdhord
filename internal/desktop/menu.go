@@ -49,6 +49,7 @@ func InstallMenu(app *application.App) {
 	file := menu.AddSubmenu("文件")
 	add(file, "添加订阅…", "feeds", "Cmd+N")
 	add(file, "订阅管理…", "feeds", "")
+	add(file, "刷新订阅", "refresh", "Cmd+R")
 	file.Add("导入 OPML…").SetEnabled(false)
 	file.Add("导出 OPML…").SetEnabled(false)
 	file.AddSeparator()

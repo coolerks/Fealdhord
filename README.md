@@ -2,9 +2,9 @@
 
 本地优先的 AI RSS 阅读器与 Agent 工作空间，目标支持 Windows、macOS 与 Linux。零 AI 配置也应完整阅读。
 
-当前完成 Phase 0–2：Wails 桌面工程、正式三栏阅读 Shell、虚拟列表／瀑布流、原生菜单／全局右键、主题／内部图标动画／键盘、SQLite 偏好与领域数据恢复。核心 schema、身份／分类优先级和 FTS5 已验证；RSS 抓取与 AI 尚未实现，生产库不会自动填充示例文章。
+当前完成 Phase 0–3：Wails 桌面工程、双栏／可选并排阅读、虚拟列表／瀑布流、原生菜单／全局右键、主题／图标动画、SQLite 数据基础，以及真实 RSS 发现／订阅管理／条件刷新／调度／首图。已支持 RSS、Atom、JSON Feed，无需 AI 配置。完整基础阅读器与 AI 继续后续阶段，生产库不会自动填充示例文章。
 
-[文档入口](docs/README.md) · [当前状态](docs/01-status/CURRENT.md) · [路线图](docs/01-status/ROADMAP.md) · [Phase 2 验收](docs/09-research/phase2-validation.md)
+[文档入口](docs/README.md) · [当前状态](docs/01-status/CURRENT.md) · [路线图](docs/01-status/ROADMAP.md) · [Phase 3 验收](docs/09-research/phase3-validation.md)
 
 ## 开发环境
 
@@ -28,7 +28,7 @@ wails3 task run
 
 ```sh
 wails3 task check
-go test -race ./internal/app/... ./internal/database/... ./internal/library/... ./internal/settings/...
+go test -race ./internal/app/... ./internal/database/... ./internal/library/... ./internal/settings/... ./internal/netpolicy/... ./internal/feed/... ./internal/refresh/... ./internal/media/...
 ```
 
 check 顺序执行 Go test／vet 和前端 typecheck／lint／test。生成绑定：`wails3 task bindings`，生成输出不可手改。Phase 0 原生绑定往返、进度、取消和完成已经本机窗口验证；Phase 1 使用组件／单元测试与原生构建，不重复 E2E。构建与 Go 全包检查应顺序执行，避免 dist 重建和 go:embed 读取竞争。

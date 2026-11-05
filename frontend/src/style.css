@@ -264,3 +264,14 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 [role^=menuitem][data-highlighted] .menu-shortcut { color:inherit;opacity:.7; }
 [role^=menuitem] .animated-glyph { width:16px;height:16px; }
 [role^=menuitem] .animated-glyph svg { width:16px;height:16px; }
+
+/* RSS 操作沿用现有设置布局和语义 token。 */
+.feed-form { display:grid; gap:12px; }
+.feed-list { display:grid; gap:16px; padding:0; list-style:none; }
+.feed-list li { display:flex; flex-wrap:wrap; gap:8px; border-bottom:1px solid var(--border); padding-bottom:12px; }
+.feed-details { flex:1; min-width:0; display:grid; gap:4px; }
+.feed-details small,.feed-candidate small { overflow-wrap:anywhere; color:var(--muted-foreground); }
+.feed-candidate { height:auto; display:grid; white-space:normal; text-align:left; }
+.feed-actions { display:flex; flex-wrap:wrap; align-items:center; }
+.refresh-status { padding:8px 20px; border-bottom:1px solid var(--border); font-size:13px; }
+.refresh-status progress { width:80px; margin-inline:12px; }

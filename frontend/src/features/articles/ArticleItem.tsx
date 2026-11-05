@@ -7,13 +7,13 @@ import { coverHeight } from './layout'
 import { cn } from '@/lib/utils'
 
 type Props = {
-  article: Article; mode: string; selected: boolean; thumbnail: string; width: number; imageMode: string
+  imagesAllowed?: boolean; article: Article; mode: string; selected: boolean; thumbnail: string; width: number; imageMode: string
   onOpen: (id: string) => void; onFavorite: (id: string) => void; onRead: (id: string) => void
 }
-export const ArticleItem = memo(function ArticleItem({ article, mode, selected, thumbnail, width, imageMode, onOpen, onFavorite, onRead }: Props) {
+export const ArticleItem = memo(function ArticleItem({ imagesAllowed=true, article, mode, selected, thumbnail, width, imageMode, onOpen, onFavorite, onRead }: Props) {
   const [failedURL, setFailedURL] = useState('')
   const imageHeight = coverHeight(article, width, imageMode)
-  const showCover = imageHeight > 0 && article.cover?.url !== failedURL && (mode === 'masonry' || thumbnail === 'small')
+  const showCover = imagesAllowed && imageHeight > 0 && article.cover?.url !== failedURL && (mode === 'masonry' || thumbnail === 'small')
   const time = new Date(article.publishedAt)
   const label = Number.isNaN(time.getTime()) ? '时间未知' : new Intl.DateTimeFormat('zh-CN', { month: 'short', day: 'numeric' }).format(time)
   return <div className={cn('article-item', mode === 'masonry' ? 'article-card' : 'article-row', selected && 'is-selected', article.isRead && 'is-read')} data-article-id={article.id}>

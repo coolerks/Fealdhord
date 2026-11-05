@@ -73,3 +73,7 @@ internal/feed.Service 已实现 List{include_archived}、Get{id}、Discover{url}
 internal/refresh.API 白名单仅 Start{feed_ids}、Current、Get／Cancel{operation_id}，不绑定协调器 Close／StartScheduler／SetAfterCommit。快照包含 operation_id、generation、sequence、status、completed、total、results；generation 单进程按批次递增，先比较代次再比较 sequence，避免旧结果覆盖新刷新。窗口重载可用 Current 恢复本进程状态；不声称刷新操作跨进程持久化。
 
 新增类型事件 fealdhord:refresh 与 fealdhord:library-changed；原有诊断事件不变。media.API 只绑定无路径参数的 ClearCache，ServeHTTP 由 Wails 内部路由挂载，不是可调用的前端绑定。设置增加 remote_images、media_cache_enabled、web_image_fallback；旧 JSON 默认仅订阅、开启磁盘缓存、关闭网页补图。
+
+## Phase 3 前端消费契约
+
+`rssAPI` 是订阅／刷新／缓存绑定的唯一适配入口；`useRSSSync` 订阅事件后恢复 Current，并仅对活动 operation_id 每 5 秒 Get，卸载清理。`useRefresh` 按 generation 优先、同代次 sequence 递增合并，关闭终态屏蔽迟到事件。`fealdhord:library-changed` 合并失效 feeds 和文章 Query，保持既有状态保存路径。所有设置仍经 SettingsService revision 串行落盘；表单编辑使用打开时 revision，不从新列表借用新 revision。

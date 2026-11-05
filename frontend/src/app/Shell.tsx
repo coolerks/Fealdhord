@@ -25,9 +25,13 @@ import { cn } from '@/lib/utils'
 const SettingsDialog = lazy(() => import('@/features/settings/SettingsDialog').then(module => ({ default: module.SettingsDialog })))
 const CommandPalette = lazy(() => import('./CommandPalette').then(module => ({ default: module.CommandPalette })))
 
+import { useRSSSync } from './use-rss-sync'
+import { RefreshStatus } from '@/features/feeds/RefreshStatus'
+
 const EMPTY_ARTICLES:Article[]=[]
 
 export function Shell() {
+  useRSSSync()
   const preferences = useWorkspace(state => state.preferences)!
   const patch = useWorkspace(state => state.patch)
   const search = useWorkspace(state => state.search)
@@ -86,7 +90,9 @@ export function Shell() {
 
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
-      if (event.isComposing || event.defaultPrevented || useWorkspace.getState().settingsOpen) return
+      if (event.isComposing || event.defaultPrevented) return
+      if (!native.isMac() && (event.metaKey || event.ctrlKey) && event.key.toLowerCase()==='r') { event.preventDefault();runCommand('refresh',client);return }
+      if (useWorkspace.getState().settingsOpen) return
       if (!native.isMac() && event.key==='F10') {event.preventDefault();document.querySelector<HTMLElement>('[data-slot=menubar-trigger]')?.focus();return}
       if ((event.metaKey||event.ctrlKey) && !native.isMac()) {
         const id=event.key===','?'settings':event.key.toLowerCase()==='f'?'search':event.key==='1'?'all':event.key==='2'?'unread':event.key==='3'?'favorites':null
@@ -123,7 +129,7 @@ export function Shell() {
       <Sidebar articles={data} motionMode={mode} />
       {!preferences.sidebar_collapsed && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={280} onResize={setSidebarDraft} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
       <main className={cn('reading-workspace', !overlay && readerVisible && 'three-column')}>
-        <section className="article-pane" aria-label="文章浏览"><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />
+        <section className="article-pane" aria-label="文章浏览"><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />{!settingsOpen && <RefreshStatus />}
           {articles.length > 0 && !isError ? <ArticleCollection articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
           {page?.hasMore && <p className="library-limit" role="status">仅显示最新 {data.length} 篇</p>}
         </section>
@@ -133,7 +139,7 @@ export function Shell() {
       <Suspense fallback={null}>{settingsOpen && <SettingsDialog />}{paletteOpen && <CommandPalette />}</Suspense>
       <div className="sr-only" aria-live="polite">{preferences.article_view_mode === 'masonry' ? '已切换到瀑布流视图' : '已切换到列表视图'}</div>
       {saveStatus === 'error' && <div className="save-warning" role="status"><AnimatedGlyph icon={CircleAlert} meaning="badge-alert"/><span>偏好保存失败</span><Button size="sm" variant="ghost" onClick={() => showSettings()}>查看</Button></div>}
-      <Dialog open={helpOpen} onOpenChange={open=>useWorkspace.setState({helpOpen:open})}><DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>键盘快捷键</DialogTitle></DialogHeader><dl className="shortcut-list"><dt>下一篇／上一篇</dt><dd>J ／ K</dd><dt>收藏／切换已读</dt><dd>F ／ M</dd><dt>搜索文章</dt><dd>/</dd><dt>搜索与命令</dt><dd>⌘ ／ Ctrl + K</dd><dt>设置</dt><dd>⌘ ／ Ctrl + ,</dd><dt>返回浏览</dt><dd>Esc</dd><dt>Windows 菜单栏</dt><dd>F10</dd></dl></DialogContent></Dialog>
+      <Dialog open={helpOpen} onOpenChange={open=>useWorkspace.setState({helpOpen:open})}><DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>键盘快捷键</DialogTitle></DialogHeader><dl className="shortcut-list"><dt>下一篇／上一篇</dt><dd>J ／ K</dd><dt>收藏／切换已读</dt><dd>F ／ M</dd><dt>搜索文章</dt><dd>/</dd><dt>搜索与命令</dt><dd>⌘ ／ Ctrl + K</dd><dt>设置</dt><dd>⌘ ／ Ctrl + ,</dd><dt>刷新订阅</dt><dd>⌘ ／ Ctrl + R</dd><dt>返回浏览</dt><dd>Esc</dd><dt>Windows 菜单栏</dt><dd>F10</dd></dl></DialogContent></Dialog>
       {commandError&&<div role="alert" className="command-error">{commandError}<Button variant="ghost" onClick={()=>useWorkspace.setState({commandError:null})}>关闭</Button></div>}
     </div></div>
   </MotionConfig>

@@ -1,6 +1,6 @@
 # Phase 3 实施顺序
 
-状态：规划已收敛，待最终评审；尚未编辑产品代码。用户已授权主会话独立开发、分部分提交和暂停视觉调整。
+状态：已按批准范围实现并检查通过（2026-11-05）；实际证据见 docs/09-research/phase3-validation.md。
 
 1. rss-ingestion：先网络安全边界，再发现、三格式解析、正文规范化。独立验收离线 HTTP／DNS／fixture；不先用普通 http.Get 绕过网关做功能。
 2. rss-refresh：依赖 ingestion 通过。实现事务内 upsert、批量提交、FeedService、刷新快照／合并／取消、条件请求与到期调度，再生成 Wails 绑定。验证真实 SQLite 与可控时钟。

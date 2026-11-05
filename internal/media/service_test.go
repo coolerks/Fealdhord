@@ -192,3 +192,78 @@ func TestSwitchToNeverCancelsInFlightImage(t *testing.T) {
 		t.Fatalf("旧请求覆盖禁图状态 %+v", record)
 	}
 }
+
+func TestAnimatedPNGRejectedEvenWhenDecoderAcceptsFirstFrame(t *testing.T) {
+	_, _, picture := fixture(t)
+	// acTL 放在 IHDR 之后；Go PNG 解码器忽略此辅助块，浏览器会将有效 APNG 视为动画。
+	chunk := make([]byte, 20)
+	binary.BigEndian.PutUint32(chunk, 8)
+	copy(chunk[4:], "acTL")
+	binary.BigEndian.PutUint32(chunk[8:], 2)
+	binary.BigEndian.PutUint32(chunk[16:], crc32.ChecksumIEEE(chunk[4:16]))
+	animated := append(append(append([]byte{}, picture[:33]...), chunk...), picture[33:]...)
+	if _, err := png.Decode(bytes.NewReader(animated)); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := imageInfo(animated); err == nil {
+		t.Fatal("动画 PNG 不应交给浏览器播放")
+	}
+	if _, _, err := imageInfo(picture); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEnablingWebFallbackRetriesNone(t *testing.T) {
+	store, id, picture := fixture(t)
+	ctx := context.Background()
+	record, err := store.GetMedia(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := database.ArticleInput{FeedID: record.FeedID, GUID: "one", Title: "文章", Text: "正文", URL: "https://example.test/article"}
+	if _, err = store.UpsertArticle(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.RegisterArticleMedia(ctx, id, input, nil); err != nil {
+		t.Fatal(err)
+	}
+	var enabled atomic.Bool
+	var calls atomic.Int32
+	service, err := New(ctx, store, fetchFunc(func(_ context.Context, url string, _ netpolicy.Request) (netpolicy.Response, error) {
+		calls.Add(1)
+		body := picture
+		if url == input.URL {
+			body = []byte(`<meta property="og:image" content="https://example.test/cover.png">`)
+		}
+		return netpolicy.Response{URL: url, Status: 200, Body: body}, nil
+	}), t.TempDir(), func(context.Context) Policy {
+		return Policy{RemoteImages: "subscriptions", WebFallback: enabled.Load(), CacheEnabled: true}
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	if _, _, err = service.load(ctx, id); err == nil {
+		t.Fatal("默认不应补图")
+	}
+	record, _ = store.GetMedia(ctx, id)
+	if record.Status != "none" || calls.Load() != 0 {
+		t.Fatal(record.Status, calls.Load())
+	}
+	enabled.Store(true)
+	if err = service.PolicyChanged(ctx, Policy{RemoteImages: "subscriptions", WebFallback: true, CacheEnabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		record, _ = store.GetMedia(ctx, id)
+		if record.Status == "ready" {
+			if calls.Load() != 2 {
+				t.Fatal(calls.Load())
+			}
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("启用补图未重试无图记录", record)
+}

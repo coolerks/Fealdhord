@@ -2,7 +2,7 @@
 
 最后更新：2026-11-05（Asia/Singapore）。
 
-- 当前任务：[Phase 3 RSS 订阅与文章同步](active/phase3-rss.md)已获批准并实施中；已实现受控 HTTP、发现、三格式解析与订阅／原子刷新核心，媒体策略与本地加载、Wails 白名单服务已实现并验证，前端功能接线继续进行；暂停 UI 视觉调整。
+- 最新完成：[Phase 3 RSS 订阅与文章同步](../09-research/phase3-validation.md)：安全抓取、三格式解析与发现、订阅管理、原子刷新／取消／调度、受控首图及界面接线均已完成检查；暂停 UI 视觉调整。
 
 - 最新修复：[命令面板图标动画](../08-handoffs/history/2026-11-05-command-icon-motion.md)已修正 cmdk 的 data-disabled=false 误判；真实组件悬停／键盘运动和禁用回归通过，已提交 ad8480d 并归档。
 
@@ -15,9 +15,9 @@
 - 原生体验：macOS 系统菜单／透明标题栏／窗口模糊材质，Windows／Linux 自行实现的菜单栏，全局右键，中性灰白／深色、默认双栏和 Reader 聚焦、可选并排阅读，内部路径图标动画与动态优先级。
 - 数据基础：00001 设置、00002 核心领域、00003 FTS；实例锁、升级前一致快照、新目标恢复；稳定身份、分类多来源优先级、状态独立持久化和 FTS 同步／重建。
 - 数据接线：LibraryService 真实有界元数据、按需正文、已读／收藏持久化；失败重试／回滚。前端当前最多 500 篇并提示 hasMore，完整分页与全库筛选／搜索 UI 属于 Phase 4。
-- 质量：database 7 项、LibraryService 2 项、settings 5 项及 race 通过；前端现有 43 项（2026-11-05）、类型／lint／原生 build 通过；数据层证据见 Phase 2 验收记录。保留 Virtualizer Compiler 兼容提示；本轮最大 JS 块 417.04kB、共享块 308.42kB，未声称总首屏体积、原生帧率、全平台或十万条性能通过。
-- 生产库：不注入 fixture；RSS 的网络／解析基础已实现，生产前端订阅接线仍在实施，首图后端管线已实现；AI／Agent／Skills／MCP 尚未实现。其他平台未实机验证。
-- 进行中：Phase 3 RSS 纵向路径（安全网络、发现／解析、去重、条件请求／调度与首图），继续使用已建立的领域仓储。
+- 质量：Go 全包 test／vet 与 RSS 相关七包 race 通过；前端 54 项、类型／lint、Wails 绑定／production build、macOS 调试包签名核验通过。保留 Virtualizer Compiler 兼容提示；最大 JS 块 419.83kB、共享块 311.45kB；未执行本轮 E2E、全平台、帧率或十万篇性能验收。
+- 生产库：不注入 fixture；无需 AI 即可发现／添加真实订阅并同步阅读、管理／归档恢复及设置图片策略；本轮检查未访问用户生产库。AI／Agent／Skills／MCP 尚未实现，其他平台未实机验证。
+- 下一阶段：Phase 4 完整基础阅读器，包括全库分页／筛选搜索、分类管理／按源导航、OPML 和阅读增强；当前尚未实现。
 - [数据验收](../09-research/phase2-validation.md) · [原生体验契约与证据](../04-specs/native-experience.md) · [交接](../08-handoffs/LATEST.md)。
 
 功能提交：942ec94（原生体验修订）、8253005（迁移／快照恢复），3cb0bd5（领域仓储与真实数据接线）。文档中文、禁止子代理、非必要不做 E2E、按完成部分直接本地提交；未自动推送。
