@@ -11,3 +11,5 @@
 组件与质量规范已实际更新，要求真实首次挂载路径及中间帧断言，禁止仅凭 Promise／data-animating 宣称运动。src/templates/markdown/spec 不存在，未创建虚构模板。菜单、业务接口、数据与焦点策略保持；其他未跟踪框架文件保留。
 
 实际状态见[当前状态](../01-status/CURRENT.md)。后续仍为 Phase 3 RSS；本轮直接提交，不推送。
+
+修复提交 c047117；[根因与预防记录](../../.trellis/tasks/archive/2026-11/11-05-icon-motion-regression/research.md)随任务归档。
