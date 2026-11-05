@@ -1,0 +1,30 @@
+{
+  "id": "phase5-ai-chat",
+  "name": "phase5-ai-chat",
+  "title": "Phase 5 · AI 服务与基础 Chat",
+  "description": "交付三协议 Adapter、系统凭据与模型配置、基础 Chat",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "moyok",
+  "assignee": "moyok",
+  "createdAt": "2026-11-06",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "11-06-ai-model-adapters",
+    "11-06-ai-provider-settings",
+    "11-06-ai-basic-chat"
+  ],
+  "parent": "11-04-fealdhord-spec",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
