@@ -21,6 +21,7 @@ export interface Preferences {
     "list_width": number;
     "reader_pinned": boolean;
     "reader_open": boolean;
+    "selected_scope_id": string;
     "selected_scope": string;
     "selected_article_id": string;
     "scroll_anchors": { [_ in string]?: ScrollAnchor } | null;

@@ -81,3 +81,7 @@ internal/refresh.API 白名单仅 Start{feed_ids}、Current、Get／Cancel{opera
 ## Phase 4 查询接口（首部分）
 
 LibraryService.Query(ArticleQuery) 已接真实数据库分页；List 保留兼容调用但应用不再使用固定500条路径。Page 增加 next_cursor／snapshot_id／search_limited；Summary 增加 feed_id／url／title_matches（UTF-16 纯文本范围）。RebuildSearch 显式重建索引并推进代次，返回 ok／error／request_id，前端随后重新查询。时间游标绑定出生代次与 rowid 上界，防 rowid 复用；全文游标额外绑定 generation／rank。游标带进程内 HMAC 和30分钟期限，重启或索引变化返回 CursorExpired。导航分类、阅读增强与 OPML 仍在后续子任务实施。
+
+## Phase 4 分类导航接口
+
+navigation.Service 暴露 List／Save／PreviewDelete／Remove／Memberships／SetMembership。分类编辑用 revision CAS，删除复核 tree_revision；成员 UI 仅 manual 来源，state=auto 删除人工行。导航统计来自全库有效关系，Feed 只列活动订阅。偏好增加 selected_scope_id，selected_scope 新增 feed／category；FeedService.Update 的 apply_existing 默认 true，false 仅作用于新入库文章。具体校验和回归见[分类导航规范](../../.trellis/spec/backend/navigation-guidelines.md)。

@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { articleQueryKey } from './library'
-import { libraryArticles } from './library-query'
+import { libraryArticles,visibleArticles } from './library-query'
 import type { LibraryData } from './library-query'
 import { toggleArticleState } from './article-state'
 import { useWorkspace } from '@/stores/workspace'
@@ -25,7 +25,7 @@ export function runCommand(id: CommandID, client: QueryClient, articleID?: strin
  case 'ai':state.showSettings('ai');break
  case 'palette':useWorkspace.setState({ paletteOpen:true });break
  case 'search':patch({reader_open:false});useWorkspace.setState({searchOpen:true});requestAnimationFrame(()=>document.getElementById('article-search')?.focus());break
- case 'all':case 'unread':case 'favorites':case 'featured':patch({selected_scope:id});break
+ case 'all':case 'unread':case 'favorites':case 'featured':patch({selected_scope:id,selected_scope_id:''});break
  case 'list':case 'masonry':patch({article_view_mode:id});break
  case 'sidebar':patch({sidebar_collapsed:!prefs.sidebar_collapsed});break
  case 'reader':patch({reader_open:!prefs.reader_open});break
@@ -33,7 +33,7 @@ export function runCommand(id: CommandID, client: QueryClient, articleID?: strin
  case 'theme-light':patch({theme:'light'});break
  case 'theme-dark':patch({theme:'dark'});break
  case 'next':case 'previous': {
-  const articles=libraryArticles(client.getQueryData<LibraryData>(state.activeArticleQueryKey ?? articleQueryKey)).filter(article=>(prefs.selected_scope!=='unread'||!article.isRead)&&(prefs.selected_scope!=='favorites'||article.isFavorite))
+  const articles=visibleArticles(libraryArticles(client.getQueryData<LibraryData>(state.activeArticleQueryKey ?? articleQueryKey)),{scope:{kind:prefs.selected_scope,id:prefs.selected_scope_id},sort:'published_desc',read:state.readFilter,favorite:state.favoriteFilter==='all'?undefined:state.favoriteFilter==='favorites'})
   const current=articles.findIndex(article=>article.id===prefs.selected_article_id)
   const article=articles[Math.max(0,Math.min(articles.length-1,current<0?0:current+(id==='next'?1:-1)))]
   if(article)patch({selected_article_id:article.id,reader_open:true})

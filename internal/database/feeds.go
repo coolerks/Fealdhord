@@ -18,6 +18,7 @@ type Subscription struct {
 	CategoryIDs                                                                        []string
 }
 type SubscriptionInput struct {
+	ApplyExisting                    *bool
 	URL, Title, SiteURL, Description string
 	CategoryIDs                      []string
 }
@@ -226,10 +227,27 @@ func (s *Store) UpdateSubscription(ctx context.Context, id string, revision int6
 		} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
+		categoriesChanged := false
+		if input.CategoryIDs != nil {
+			previous, err := q.ListFeedCategories(ctx, id)
+			if err != nil {
+				return err
+			}
+			categoriesChanged = len(previous) != len(input.CategoryIDs)
+			wanted := map[string]bool{}
+			for _, category := range input.CategoryIDs {
+				wanted[category] = true
+			}
+			for _, category := range previous {
+				if !wanted[category] {
+					categoriesChanged = true
+				}
+			}
+		}
 		if err := saveDetails(ctx, q, id, revision, input); err != nil {
 			return err
 		}
-		if input.CategoryIDs != nil {
+		if categoriesChanged && (input.ApplyExisting == nil || *input.ApplyExisting) {
 			if err := q.RemoveInheritedMemberships(ctx, id); err != nil {
 				return err
 			}

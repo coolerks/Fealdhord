@@ -926,6 +926,42 @@ func (q *Queries) RestoreFeed(ctx context.Context, arg RestoreFeedParams) error 
 	return err
 }
 
+const saveCategory = `-- name: SaveCategory :execrows
+UPDATE categories SET name=?,normalized_name=?,parent_id=?,icon=?,color=?,description=?,sort_position=?,updated_at=?,revision=revision+1 WHERE id=? AND revision=?
+`
+
+type SaveCategoryParams struct {
+	Name           string         `json:"name"`
+	NormalizedName string         `json:"normalized_name"`
+	ParentID       sql.NullString `json:"parent_id"`
+	Icon           string         `json:"icon"`
+	Color          string         `json:"color"`
+	Description    string         `json:"description"`
+	SortPosition   int64          `json:"sort_position"`
+	UpdatedAt      int64          `json:"updated_at"`
+	ID             string         `json:"id"`
+	Revision       int64          `json:"revision"`
+}
+
+func (q *Queries) SaveCategory(ctx context.Context, arg SaveCategoryParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, saveCategory,
+		arg.Name,
+		arg.NormalizedName,
+		arg.ParentID,
+		arg.Icon,
+		arg.Color,
+		arg.Description,
+		arg.SortPosition,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.Revision,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const saveFeedDetails = `-- name: SaveFeedDetails :execrows
 UPDATE feeds SET title=?,url=?,normalized_url=?,site_url=?,description=?,updated_at=?,revision=revision+1,
  etag=CASE WHEN normalized_url<>? THEN '' ELSE etag END,

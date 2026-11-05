@@ -16,8 +16,67 @@ export interface ArticleScope {
     "id"?: string;
 }
 
+export interface CategoryDeletion {
+    "id": string;
+    "name": string;
+    "revision": number;
+    "tree_revision": string;
+    "children": number;
+    "articles": number;
+    "feeds": number;
+}
+
+export interface CategoryInfo {
+    "id": string;
+    "parent_id": string;
+    "name": string;
+    "icon": string;
+    "color": string;
+    "description": string;
+    "sort_position": number;
+    "revision": number;
+    "total": number;
+    "unread": number;
+}
+
+export interface CategoryInput {
+    "id": string;
+    "revision": number;
+    "parent_id": string;
+    "name": string;
+    "icon": string;
+    "color": string;
+    "description": string;
+    "sort_position": number;
+}
+
 export interface CategorySummary {
     "id": string;
     "name": string;
     "parent_id"?: string | null;
+}
+
+export interface MembershipInfo {
+    "category_id": string;
+    "effective": boolean;
+    "manual": string;
+}
+
+export interface NavFeed {
+    "id": string;
+    "title": string;
+    "total": number;
+    "unread": number;
+}
+
+export interface NavTotals {
+    "total": number;
+    "unread": number;
+    "favorites": number;
+}
+
+export interface Navigation {
+    "categories": CategoryInfo[] | null;
+    "feeds": NavFeed[] | null;
+    "totals": NavTotals;
 }

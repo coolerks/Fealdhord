@@ -68,11 +68,12 @@ type AddRequest struct {
 	CategoryIDs []string `json:"category_ids"`
 }
 type UpdateRequest struct {
-	ID          string   `json:"id"`
-	Revision    int64    `json:"revision"`
-	URL         string   `json:"url"`
-	Title       string   `json:"title"`
-	CategoryIDs []string `json:"category_ids"`
+	ApplyExisting *bool    `json:"apply_existing,omitempty"`
+	ID            string   `json:"id"`
+	Revision      int64    `json:"revision"`
+	URL           string   `json:"url"`
+	Title         string   `json:"title"`
+	CategoryIDs   []string `json:"category_ids"`
 }
 type Result struct {
 	OK        bool          `json:"ok"`
@@ -255,7 +256,7 @@ func (s *Service) Update(ctx context.Context, request UpdateRequest) Result {
 	if old.Revision != request.Revision {
 		return Result{RequestID: rand.Text(), Error: SafeError(database.ErrConflict)}
 	}
-	input := database.SubscriptionInput{URL: old.URL, Title: request.Title, SiteURL: old.SiteURL, Description: old.Description, CategoryIDs: request.CategoryIDs}
+	input := database.SubscriptionInput{URL: old.URL, Title: request.Title, SiteURL: old.SiteURL, Description: old.Description, CategoryIDs: request.CategoryIDs, ApplyExisting: request.ApplyExisting}
 	if request.URL != "" {
 		input.URL, err = netpolicy.NormalizeURL(request.URL)
 		if err != nil {

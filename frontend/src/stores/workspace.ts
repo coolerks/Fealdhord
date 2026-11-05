@@ -3,7 +3,7 @@ import { preferencesAPI } from '@/lib/preferences'
 import type { Preferences, Snapshot } from '@/lib/preferences'
 import { PreferenceWriter } from '@/lib/preference-writer'
 
-export type SettingsTab = 'appearance' | 'reader' | 'feeds' | 'ai' | 'about'
+export type SettingsTab = 'appearance' | 'reader' | 'categories' | 'feeds' | 'ai' | 'about'
 type Workspace = {
   preferences: Preferences | null
   revision: number
@@ -13,6 +13,8 @@ type Workspace = {
   saveStatus: 'saved' | 'saving' | 'error'
   search: string
   sort: 'newest' | 'oldest' | 'relevance'
+  readFilter:'all'|'read'|'unread'
+  favoriteFilter:'all'|'favorites'|'unstarred'
   activeArticleQueryKey:readonly unknown[]|null
   settingsTab: SettingsTab
   settingsOpen: boolean
@@ -36,7 +38,7 @@ export function restoreSettingsFocus() {
 
 export const useWorkspace = create<Workspace>((set, get) => ({
   preferences: null, revision: 0, version: 0, savedVersion: 0, saveError: null, saveStatus: 'saved',
-  search: '', sort: 'relevance', activeArticleQueryKey:null, settingsTab: 'appearance', settingsOpen: false, paletteOpen: false, searchOpen: false, aiOpen: false, helpOpen: false, commandError: null,
+  search: '', sort: 'relevance', activeArticleQueryKey:null,readFilter:'all',favoriteFilter:'all', settingsTab: 'appearance', settingsOpen: false, paletteOpen: false, searchOpen: false, aiOpen: false, helpOpen: false, commandError: null,
   initialize(snapshot) {
     writer = new PreferenceWriter(snapshot.revision, preferencesAPI.update,
       (saved, version) => set(state => ({ revision: saved.revision, savedVersion: version, saveStatus: state.version > version ? 'saving' : 'saved' })),

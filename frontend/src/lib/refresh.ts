@@ -3,6 +3,7 @@ import { rssAPI, feedsQueryKey } from './rss-api'
 import { articleQueryKey } from './library'
 import { useRefresh } from '@/stores/refresh'
 export function invalidateRSS(client:QueryClient) {
+  void client.invalidateQueries({queryKey:['navigation']})
   void client.invalidateQueries({queryKey:articleQueryKey})
   void client.invalidateQueries({queryKey:feedsQueryKey})
 }

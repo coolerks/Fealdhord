@@ -51,3 +51,5 @@ imperative handle 就绪不等于 StrictMode 副作用重放完成。播放不�
 
 
 第三方控件兼容必须覆盖真实生成属性：cmdk 可用项含 data-disabled=false，Radix 用空属性表示禁用。只有 role／label 相同的手写节点不覆盖这些约定；command-icon-motion.test.tsx 使用真实 CommandItem 和 Motion 断言悬停／键盘运动、归位重播及禁用静态。
+
+批量脚本必须逐文件读取与写入对应内容，不跨文件复用上一次的文本变量；提交前核对 diff --numstat，非重构出现大段删除必须先查原因。组件／类型检查不会解析独立 CSS，原生／生产构建必须覆盖资源编译，不能据组件通过宣称样式完整。

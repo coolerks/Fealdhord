@@ -34,9 +34,9 @@ it('合并频繁领域事件为一次 Query 重取，并清理尚未执行的更
   const changed=api.subscribeLibrary.mock.calls[0][0]
   act(()=>{changed();changed();changed()})
   await act(()=>vi.advanceTimersByTimeAsync(80))
-  expect(invalidate).toHaveBeenCalledTimes(2)
+  expect(invalidate).toHaveBeenCalledTimes(3)
   act(()=>changed());unmount();await vi.advanceTimersByTimeAsync(100)
-  expect(invalidate).toHaveBeenCalledTimes(2)
+  expect(invalidate).toHaveBeenCalledTimes(3)
 })
 it('丢失结束事件时轮询恢复终态，不持续重复请求',async()=>{
   api.get.mockResolvedValue({...running,sequence:4,status:'completed',completed:2})

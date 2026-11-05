@@ -8,6 +8,7 @@ import type { Feed } from '@/lib/rss-api'
 const api=vi.hoisted(()=>({list:vi.fn(),discover:vi.fn(),add:vi.fn(),update:vi.fn(),archive:vi.fn(),restore:vi.fn(),clearCache:vi.fn(),start:vi.fn()}))
 vi.mock('@/lib/rss-api',()=>({rssAPI:api,feedsQueryKey:['rss','feeds']}))
 vi.mock('@/lib/preferences',()=>({preferencesAPI:{update:vi.fn()}}))
+vi.mock('@/lib/navigation-api',()=>({navigationQueryKey:['navigation'],navigationAPI:{list:vi.fn(async()=>({feeds:[],categories:[],totals:{total:0,unread:0,favorites:0}}))}}))
 import { FeedSettings } from './FeedSettings'
 const feed:Feed={id:'one',title:'测试源',url:'https://example.test/feed',revision:4,archived:false,site_url:'',description:'',last_error:'',category_ids:[]}
 function setup() { return render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}})}><FeedSettings/></QueryClientProvider>) }
@@ -36,7 +37,7 @@ it('编辑保存携带打开时的 revision；冲突不会自动覆盖或关闭'
   await userEvent.clear(within(dialog).getByRole('textbox',{name:'名称'}));await userEvent.type(within(dialog).getByRole('textbox',{name:'名称'}),'新名称')
   await userEvent.click(within(dialog).getByRole('button',{name:'保存订阅'}))
   expect(await within(dialog).findByRole('alert')).toHaveTextContent('数据已变更')
-  expect(api.update).toHaveBeenCalledWith(expect.objectContaining({revision:4,title:'新名称'}))
+  expect(api.update).toHaveBeenCalledWith(expect.objectContaining({revision:4,title:'新名称'}),expect.any(AbortSignal))
 })
 it('归档先确认并保留文章，归档源可以恢复',async()=>{
   api.archive.mockResolvedValue({...feed,archived:true,revision:5})

@@ -10,7 +10,7 @@ vi.mock('@/lib/library-api',()=>({libraryAPI:api}))
 vi.mock('@/lib/preferences',()=>({preferencesAPI:{get:vi.fn(),update:vi.fn()}}))
 import { useLibraryQuery } from './use-library-query'
 function setup(){const client=new QueryClient();return renderHook(useLibraryQuery,{wrapper:({children}:{children:React.ReactNode})=><QueryClientProvider client={client}>{children}</QueryClientProvider>})}
-beforeEach(()=>{vi.resetAllMocks();useWorkspace.setState({preferences:preferencesFixture(),sort:'relevance',search:'',activeArticleQueryKey:null})})
+beforeEach(()=>{vi.resetAllMocks();useWorkspace.setState({preferences:preferencesFixture(),sort:'relevance',readFilter:'all',favoriteFilter:'all',search:'',activeArticleQueryKey:null})})
 it('数据库分页合入同一 Query，两视图不重置分页',async()=>{
  const items=articleFixtures(120)
  api.list.mockImplementation(async request=>request.cursor ? {items:items.slice(50,100),hasMore:true,nextCursor:'third'} : {items:items.slice(0,50),hasMore:true,nextCursor:'second'})

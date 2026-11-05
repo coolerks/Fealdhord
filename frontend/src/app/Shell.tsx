@@ -16,7 +16,7 @@ import { Reader } from '@/features/reader/Reader'
 import { useWorkspace } from '@/stores/workspace'
 import { effectiveMotion, useMediaQuery } from '@/lib/environment'
 import { useLibraryQuery } from '@/features/articles/use-library-query'
-import { findCachedArticle } from '@/lib/library-query'
+import { findCachedArticle,libraryAnchorKey } from '@/lib/library-query'
 import { Sidebar } from './Sidebar'
 import { Toolbar } from './Toolbar'
 import { cn } from '@/lib/utils'
@@ -53,7 +53,7 @@ export function Shell() {
   const [listDraft, setListDraft] = useState<number | null>(null)
   const sidebarWidth = preferences.sidebar_collapsed ? 64 : sidebarDraft ?? preferences.sidebar_width
   const listWidth = listDraft ?? preferences.list_width
-  const queryKey = JSON.stringify(library.key)
+  const queryKey = libraryAnchorKey(library.key)
 
   useLayoutEffect(() => {
     const dark = preferences.theme === 'dark' || (preferences.theme === 'system' && systemDark)
@@ -122,7 +122,7 @@ export function Shell() {
   const emptySearch = search.trim() !== ''
   return <MotionConfig reducedMotion={mode === 'full' ? 'never' : 'always'} transition={{ duration: mode === 'off' ? 0 : mode === 'subtle' ? .1 : .22, ease: [.22, 1, .36, 1] }}>
     <div className="desktop-shell" data-platform={native.isMac()?'mac':'other'}>{!native.isMac()&&<ApplicationMenu/>}<div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={preferences.sidebar_collapsed}>
-      <Sidebar articles={data} motionMode={mode} />
+      <Sidebar motionMode={mode} />
       {!preferences.sidebar_collapsed && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={280} onResize={setSidebarDraft} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
       <main className={cn('reading-workspace', !overlay && readerVisible && 'three-column')}>
         <section className="article-pane" aria-label="文章浏览"><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />{!settingsOpen && <RefreshStatus />}

@@ -16,6 +16,7 @@ import (
 	"github.com/coolerks/Fealdhord/internal/database"
 	desktopintegration "github.com/coolerks/Fealdhord/internal/desktop"
 	"github.com/coolerks/Fealdhord/internal/library"
+	"github.com/coolerks/Fealdhord/internal/navigation"
 	"github.com/coolerks/Fealdhord/internal/settings"
 
 	fealdhord "github.com/coolerks/Fealdhord/internal/app"
@@ -43,6 +44,7 @@ func main() {
 	})
 	var settingsRepository settings.Repository
 	var libraryRepository library.Repository
+	var navigationRepository navigation.Repository
 	var feedRepository feed.Repository
 	var refreshRepository refresh.Repository
 	var mediaRepository media.Repository
@@ -56,6 +58,7 @@ func main() {
 		} else {
 			settingsRepository = store
 			libraryRepository = store
+			navigationRepository = store
 			feedRepository = store
 			refreshRepository = store
 			mediaRepository = store
@@ -121,6 +124,7 @@ func main() {
 		Name: "Fealdhord", Description: "折栈，本地优先的 RSS 阅读器",
 		Services: []application.Service{
 			application.NewService(service), application.NewService(settingsService),
+			application.NewService(navigation.NewService(navigationRepository, changed)),
 			application.NewService(library.NewService(libraryRepository, func(ctx context.Context) bool { return policy(ctx).RemoteImages != "never" })),
 			application.NewService(feedService), application.NewService(refresh.NewAPI(refreshService)),
 			application.NewServiceWithOptions(media.NewAPI(mediaService), application.ServiceOptions{Route: "/media/"}),

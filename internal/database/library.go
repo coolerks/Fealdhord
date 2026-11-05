@@ -137,6 +137,7 @@ func (s *Store) UpsertArticle(ctx context.Context, input ArticleInput) (id strin
 }
 
 func upsertArticle(ctx context.Context, q *sqlc.Queries, input ArticleInput) (id string, err error) {
+	created := false
 	if input.FeedID == "" || len(input.GUID) > 4096 || len(input.URL) > 8192 || len(input.Title) > 4096 || len(input.Summary) > 16384 || len(input.Author) > 1024 || len(input.Text)+len(input.HTML) > 4<<20 {
 		return "", ErrInvalidInput
 	}
@@ -181,6 +182,7 @@ func upsertArticle(ctx context.Context, q *sqlc.Queries, input ArticleInput) (id
 			}
 		}
 		if id == "" {
+			created = true
 			id = rand.Text()
 			sortAt := input.FetchedAt
 			if input.PublishedAt != nil {
@@ -209,6 +211,9 @@ func upsertArticle(ctx context.Context, q *sqlc.Queries, input ArticleInput) (id
 			if err := q.InsertIdentity(ctx, sqlc.InsertIdentityParams{ArticleID: id, FeedID: input.FeedID, Kind: alias.kind, Value: alias.value}); err != nil {
 				return err
 			}
+		}
+		if !created {
+			return nil
 		}
 		return q.InheritFeedCategories(ctx, sqlc.InheritFeedCategoriesParams{ArticleID: id, FeedID: input.FeedID, CreatedAt: input.FetchedAt, UpdatedAt: input.FetchedAt})
 	}()

@@ -4,5 +4,12 @@
 export type {
     ArticleQuery,
     ArticleScope,
-    CategorySummary
+    CategoryDeletion,
+    CategoryInfo,
+    CategoryInput,
+    CategorySummary,
+    MembershipInfo,
+    NavFeed,
+    NavTotals,
+    Navigation
 } from "./models.js";

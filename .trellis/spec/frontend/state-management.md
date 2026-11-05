@@ -43,3 +43,5 @@ library Query 现在保存 Page={items,hasMore}，生产从 Go 读取，不再�
 ## Phase 4 分页缓存
 
 library Query 迁移为 InfiniteData<LibraryPage>；libraryKey 包含 scope／search／read／favorite／sort／limit，cursor 是 pageParam，不是独立键。默认全库时间倒序50条保留基础 articleQueryKey。只能通过 libraryArticles／findCachedArticle／updateCachedArticle 访问跨页缓存；文章状态串行写入同步所有相关文章页，过滤页失效重取，不复制到 Zustand。搜索防抖150ms，signal 取消 Wails CancellablePromise；旧响应留在旧键，不覆盖新查询。命令读取 activeArticleQueryKey 的已加载结果，切换 list／masonry 不变查询键。
+
+分类与订阅选择保存 selected_scope／selected_scope_id；导航 Query=['navigation'] 来自独立全库计数，禁止从分页数据计数。readFilter／favoriteFilter 为短期 UI 状态并进入查询键。滚动锚点键使用 libraryAnchorKey 的有界64位UI哈希，不能把512字搜索 JSON 直接写入≤512字节的偏好键；此哈希不是安全游标签名。

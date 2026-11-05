@@ -81,6 +81,7 @@ export interface URLRequest {
 }
 
 export interface UpdateRequest {
+    "apply_existing"?: boolean | null;
     "id": string;
     "revision": number;
     "url": string;

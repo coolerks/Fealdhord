@@ -7,11 +7,13 @@ import { useWorkspace } from '@/stores/workspace'
 
 export function useLibraryQuery() {
   const scope=useWorkspace(state=>state.preferences?.selected_scope ?? 'all')
+  const scopeID=useWorkspace(state=>state.preferences?.selected_scope_id ?? '')
+  const readFilter=useWorkspace(state=>state.readFilter),favoriteFilter=useWorkspace(state=>state.favoriteFilter)
   const search=useWorkspace(state=>state.search),sort=useWorkspace(state=>state.sort)
   const [term,setTerm]=useState(search)
   const [repairing,setRepairing]=useState(false),[repairError,setRepairError]=useState('')
   useEffect(()=>{const timer=setTimeout(()=>setTerm(search),150);return ()=>clearTimeout(timer)},[search])
-  const request=useMemo<ArticleQuery>(()=>({scope:{kind:scope},search:term,sort:sort==='oldest'?'published_asc':sort==='relevance'&&term?'relevance':'published_desc',limit:50}),[scope,term,sort])
+  const request=useMemo<ArticleQuery>(()=>({scope:{kind:scope,...(scope==='feed'||scope==='category'?{id:scopeID}:{})},search:term,read:readFilter,favorite:favoriteFilter==='all'?undefined:favoriteFilter==='favorites',sort:sort==='oldest'?'published_asc':sort==='relevance'&&term?'relevance':'published_desc',limit:50}),[scope,scopeID,term,sort,readFilter,favoriteFilter])
   const key=useMemo(()=>libraryKey(request),[request])
   const result=useInfiniteQuery({queryKey:key,initialPageParam:undefined as string|undefined,
     queryFn:({pageParam,signal})=>libraryAPI.list({...request,cursor:pageParam},signal),

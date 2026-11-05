@@ -13,7 +13,12 @@ export const rssAPI = {
   async list() { return unwrap(await FeedService.List({include_archived:true})) },
   async discover(url:string) { return unwrap(await FeedService.Discover({url})).candidates ?? [] },
   async add(request:AddRequest) { return unwrap(await FeedService.Add(request)) },
-  async update(request:UpdateRequest) { return unwrap(await FeedService.Update(request)) },
+  async update(request:UpdateRequest,signal?:AbortSignal) {
+    const call=FeedService.Update(request),cancel=()=>call.cancel()
+    if(signal?.aborted) call.cancel()
+    signal?.addEventListener('abort',cancel,{once:true})
+    try{return unwrap(await call)}catch(error){if(signal?.aborted)throw new Error('保存请求已取消，请重新载入确认结果。');throw error}finally{signal?.removeEventListener('abort',cancel)}
+  },
   async archive(request:RevisionRequest) { return unwrap(await FeedService.Remove(request)) },
   async restore(request:RevisionRequest) { return unwrap(await FeedService.Restore(request)) },
   async start(feed_ids:string[] = []) { return unwrap(await RefreshService.Start({feed_ids})) },

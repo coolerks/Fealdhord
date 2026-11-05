@@ -17,6 +17,7 @@ const library=vi.hoisted(()=>({list:vi.fn(async()=>({items:[],hasMore:false})),t
 vi.mock('@/lib/library-api',()=>({libraryAPI:library}))
 vi.mock('@/lib/api', () => ({ desktopAPI: { info: vi.fn(), subscribe: vi.fn(() => () => {}), start: vi.fn(), cancel: vi.fn(), snapshot: vi.fn() } }))
 vi.mock('@/lib/rss-api',()=>({feedsQueryKey:['rss','feeds'],rssAPI:{list:vi.fn(async()=>({items:[],categories:[]})),current:vi.fn(async()=>({generation:0,operation_id:'',status:'completed',completed:0,total:0,sequence:0,results:[]})),subscribeRefresh:vi.fn(()=>()=>{}),subscribeLibrary:vi.fn(()=>()=>{})}}))
+vi.mock('@/lib/navigation-api',()=>({navigationQueryKey:['navigation'],navigationAPI:{list:vi.fn(async()=>({categories:[],feeds:[],totals:{total:0,unread:0,favorites:0}}))}}))
 import App from './App'
 
 let geometry: ReturnType<typeof installGeometry>
@@ -24,7 +25,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   host.isMac.mockReturnValue(false)
   geometry = installGeometry()
-  useWorkspace.setState({ preferences: null, revision: 0, version: 0, savedVersion: 0, saveError: null, saveStatus: 'saved', search: '', sort: 'newest', settingsOpen: false, settingsTab: 'appearance', paletteOpen: false, searchOpen: false, aiOpen: false, helpOpen:false,commandError:null })
+  useWorkspace.setState({ preferences: null, revision: 0, version: 0, savedVersion: 0, saveError: null, saveStatus: 'saved', search: '', sort: 'newest',readFilter:'all',favoriteFilter:'all', settingsOpen: false, settingsTab: 'appearance', paletteOpen: false, searchOpen: false, aiOpen: false, helpOpen:false,commandError:null })
   api.get.mockResolvedValue({ preferences: preferencesFixture(), revision: 0 })
   api.update.mockImplementation(async (preferences, revision) => ({ preferences, revision: revision + 1 }))
 })

@@ -27,6 +27,7 @@ type Preferences struct {
 	ListWidth                int                     `json:"list_width"`
 	ReaderPinned             bool                    `json:"reader_pinned"`
 	ReaderOpen               bool                    `json:"reader_open"`
+	SelectedScopeID          string                  `json:"selected_scope_id"`
 	SelectedScope            string                  `json:"selected_scope"`
 	SelectedArticleID        string                  `json:"selected_article_id"`
 	ScrollAnchors            map[string]ScrollAnchor `json:"scroll_anchors"`
@@ -64,7 +65,7 @@ func (p Preferences) Validate() error {
 		math.IsNaN(p.ReaderLineHeight) || p.ReaderLineHeight < 1.4 || p.ReaderLineHeight > 2 {
 		return errors.New("布局或阅读尺寸超出允许范围。")
 	}
-	if !oneOf(p.SelectedScope, "all", "unread", "favorites", "featured") || len(p.SelectedArticleID) > 256 || len(p.ScrollAnchors) > 32 {
+	if !oneOf(p.SelectedScope, "all", "unread", "favorites", "featured", "feed", "category") || ((p.SelectedScope == "feed" || p.SelectedScope == "category") && p.SelectedScopeID == "") || len(p.SelectedScopeID) > 256 || len(p.SelectedArticleID) > 256 || len(p.ScrollAnchors) > 32 {
 		return errors.New("视图恢复设置无效。")
 	}
 	for key, anchor := range p.ScrollAnchors {
@@ -114,11 +115,18 @@ func (p *Preferences) normalize() {
 	if math.IsNaN(p.ReaderLineHeight) || p.ReaderLineHeight < 1.4 || p.ReaderLineHeight > 2 {
 		p.ReaderLineHeight = d.ReaderLineHeight
 	}
-	if !oneOf(p.SelectedScope, "all", "unread", "favorites", "featured") {
+	if !oneOf(p.SelectedScope, "all", "unread", "favorites", "featured", "feed", "category") {
 		p.SelectedScope = d.SelectedScope
 	}
 	if len(p.SelectedArticleID) > 256 {
 		p.SelectedArticleID = ""
+	}
+	if len(p.SelectedScopeID) > 256 || ((p.SelectedScope == "feed" || p.SelectedScope == "category") && p.SelectedScopeID == "") {
+		p.SelectedScope = "all"
+		p.SelectedScopeID = ""
+	}
+	if p.SelectedScope != "feed" && p.SelectedScope != "category" {
+		p.SelectedScopeID = ""
 	}
 	if p.ScrollAnchors == nil || len(p.ScrollAnchors) > 32 {
 		p.ScrollAnchors = d.ScrollAnchors

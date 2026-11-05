@@ -31,3 +31,11 @@ export function visibleArticles(articles:Article[],query:ArticleQuery) {
     !(query.favorite===false && article.isFavorite))
 }
 export function initialLibraryData(page:LibraryPage):LibraryData {return {pages:[page],pageParams:[undefined]}}
+
+// 偏好锚点的键不能随512字搜索词增长；此哈希仅标识UI位置，不承担安全签名。
+export function libraryAnchorKey(key:readonly unknown[]) {
+  const text=JSON.stringify(key)
+  let value=0xcbf29ce484222325n
+  for(let index=0;index<text.length;index++) value=BigInt.asUintN(64,(value^BigInt(text.charCodeAt(index)))*0x100000001b3n)
+  return `library:${value.toString(16)}`
+}
