@@ -11,3 +11,5 @@ AnimatedGlyph 单次播放完自动归位，持续悬停不循环，移出不截
 前端 38 项测试、类型、lint（0 error／1 项既有 Virtualizer Compiler 提示）、生产前端和 macOS 构建通过；bin/Fealdhord.app 已同步并通过 ad-hoc 签名验证。最大 JS 块 417.04kB、共享块 308.37kB，不将单块大小或 Motion 手动时钟测试当作总首屏体积／原生帧率认证。未运行 E2E、原生逐帧采样或 Windows 实机。
 
 用户获得清晰菜单与自动归位；开发者复用类型化呈现和播放控制；AI Agent 保留可访问名称、分组和真实 aria-keyshortcuts。后续仍为 Phase 3 RSS，实际范围见[当前状态](../01-status/CURRENT.md)。原有框架配置与其他未跟踪文件保留，不推送。
+
+功能提交：38805c8、9d6376d；[任务记录](../../.trellis/tasks/archive/2026-11/11-05-menu-icon-motion/prd.md)已归档。
