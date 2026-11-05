@@ -19,7 +19,9 @@
 - 数据接线：LibraryService 真实有界元数据、按需正文、已读／收藏持久化；失败重试／回滚。Phase 4 首部分已改为真实全库 Query 与每页50条的连续加载，搜索／筛选在数据库执行；分类与活动订阅导航、全库计数已接线；安全 HTML、提取缓存／取消、系统浏览器原文入口及自动已读／字体已接线。
 - 质量：Go 全包 test／vet 与 RSS 相关七包 race 通过；前端 80 项、类型／lint、Wails 绑定／production build、macOS 调试包签名核验通过。保留 Virtualizer Compiler 兼容提示；未执行本轮 E2E、全平台、帧率或十万篇性能验收。
 - 生产库：不注入 fixture；无需 AI 即可发现／添加真实订阅并同步阅读、管理／归档恢复及设置图片策略；本轮检查未访问用户生产库。OPML 可通过设置／系统及应用菜单导入导出；AI／Agent／Skills／MCP 尚未实现，其他平台未实机验证。
-- 当前任务：Phase 4 四部分实现及联验完成，正在同步归档；[验收与限制](../09-research/phase4-validation.md)。OPML 先预览、后确认事务保存，支持多分类／空分类／同源复用与归档恢复；刷新失败不影响已保存导入，取消提交不承诺回滚。
+- 最新任务：[Phase 4](../../.trellis/tasks/archive/2026-11/11-05-phase4-reader/task.json)四部分实现及联验完成并已归档；[验收与限制](../09-research/phase4-validation.md)。OPML 先预览、后确认事务保存，支持多分类／空分类／同源复用与归档恢复；刷新失败不影响已保存导入，取消提交不承诺回滚。
 - [数据验收](../09-research/phase2-validation.md) · [原生体验契约与证据](../04-specs/native-experience.md) · [交接](../08-handoffs/LATEST.md)。
 
 功能提交：942ec94（原生体验修订）、8253005（迁移／快照恢复），3cb0bd5（领域仓储与真实数据接线）。文档中文、禁止子代理、非必要不做 E2E、按完成部分直接本地提交；未自动推送。
+
+Phase 4提交：c1a3960（查询）、a034025（分类）、47e695a（安全阅读）、af5589e（OPML）；6cf26d3修复macOS调试打包签名缓存。后续按路线图推进AI基础能力，尚未宣称实现。

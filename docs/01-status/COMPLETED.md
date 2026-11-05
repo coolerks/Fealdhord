@@ -9,3 +9,5 @@
 2026-11-04：原生阅读体验修订完成（942ec94），包括系统／应用菜单、全局右键、中性配色与真实窗口材质、内部图标动画。随后按持续授权完成 Phase 2 数据基础，首批迁移／快照恢复提交为 8253005，真实领域仓储／FTS／状态及前端有界接线同阶段完成。
 
 2026-11-05：[Phase 3 RSS](../../.trellis/tasks/archive/2026-11/11-05-phase3-rss/task.json)及四个子任务实现、检查并归档。网络解析 24bd2a8，订阅刷新 0f02953，首图与装配 9a37105，界面接线及联验 264c3df。Go 全包／相关 race、前端 54 项、绑定与原生构建／调试签名通过；[验收记录](../09-research/phase3-validation.md)。未新增 E2E 或自动推送。
+
+2026-11-06：[Phase 4 基础阅读器](../../.trellis/tasks/archive/2026-11/11-05-phase4-reader/task.json)及四个子任务完成并归档。查询c1a3960、分类a034025、阅读47e695a、OPML af5589e；调试签名构建修复6cf26d3。Go全包test／vet与相关race、前端20文件80项／类型／lint、SQLC／绑定、production构建和macOS调试签名通过；[验收](../09-research/phase4-validation.md)列出未测范围。无E2E或自动推送。
