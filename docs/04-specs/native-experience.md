@@ -39,3 +39,7 @@ lucide-animated（MIT）官方 registry 源码按图标保存在 components/icon
 错误：只用 CSS blur 覆盖不透明 NSWindow、画第二套 macOS 交通灯、把所有 SVG 平移两像素冒充语义动画。正确：窗口级材质和透明链路、原生控制、安全回退与内部路径动画，组件行为及本机效果分别验证。
 
 参考：[Wails 菜单](https://v3.wails.io/features/menus/application/)、[窗口选项](https://v3.wails.io/features/windows/options/)、[动画库](https://lucide-animated.com/)、[MIT 源码](https://github.com/pqoqubbw/icons)。
+
+## 2026-11-05 界面减负
+
+侧栏与原生菜单统一使用“命令面板”，文章搜索保留独立入口；命令输入框及列表有可访问名称。阅读工具区合并，窄分栏按容器宽度重排；去掉品牌副标、宣传性空态、重复视图解释和常驻快捷键脚注。订阅与分类、AI 与扩展仅展示真实不可用状态；加载范围与保存失败保留。规则与三方体验判断写入 AGENTS.md，数据服务和命令 ID 不变。

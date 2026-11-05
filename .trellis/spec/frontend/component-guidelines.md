@@ -35,3 +35,9 @@ Props 明确类型；article_id 为条目 key；按钮有 type、accessible name
 ## 原生体验修订
 
 默认中性灰白，不再使用绿色主题；默认双栏＋Reader 聚焦，reader_pinned 才三栏。AnimatedGlyph 只在完整动态交互中挂载库实例，fallback 与动画 SVG 形状一致，完整父按钮触发；异步多段动画必须可中断。全局右键不可禁用文本选择；文本菜单使用打开前快照，异步剪贴板返回时核对整段原值。具体签名见[原生体验契约](../../../docs/04-specs/native-experience.md)。
+
+## 界面减负与三方体验
+
+遵守 AGENTS 两条规则：删除重复标语／视图解释／开发阶段说明，以操作层级与状态表达含义；错误、真实加载范围和不可用状态仍要明确。标题、图标按钮及命令名称必须匹配实际行为，保留语义角色、label 和焦点策略；不得为了少文字删掉无障碍名称。空态由 LibraryEmpty 统一处理，避免 Shell 多层条件及无效 CSS。窄分栏工具区通过容器查询重排，不用说明弥补拥挤布局。
+
+cmdk 的 CommandInput 自带 aria-labelledby，可覆盖孤立 aria-label；使用 Command 的 label 属性给生成标签赋值，并用 getByRole('combobox', {name:'搜索命令'}) 验证真实可访问名称。仅在 JSX 中看见 aria-label 不能证明 Agent 能识别控件。文案与角色语义变化同步命令面板／原生菜单，CommandID 与数据接口保持稳定。

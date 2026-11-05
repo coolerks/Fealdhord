@@ -2,13 +2,13 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useSt
 import type { CSSProperties } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
-import { CircleAlert, Rss, Search, Sparkles } from 'lucide-react'
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { CircleAlert } from 'lucide-react'
+import { LibraryEmpty } from '@/features/articles/LibraryEmpty'
 import { ApplicationMenu } from './ApplicationMenu'
 import { native } from '@/lib/native'
 import { isCommand,runCommand } from '@/lib/commands'
 import { IconMotionContext } from '@/components/animated-glyph'
-import { Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription } from '@/components/ui/dialog'
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Splitter } from '@/components/splitter'
 import { ArticleCollection } from '@/features/articles/ArticleCollection'
@@ -118,15 +118,14 @@ export function Shell() {
   useEffect(()=>native.onCommand(id=>{if(isCommand(id))runCommand(id,client)}),[client])
 
   const emptySearch = search.trim() !== ''
-  const featured = preferences.selected_scope === 'featured'
   return <IconMotionContext.Provider value={mode}><MotionConfig reducedMotion={mode === 'full' ? 'never' : 'always'} transition={{ duration: mode === 'off' ? 0 : mode === 'subtle' ? .1 : .22, ease: [.22, 1, .36, 1] }}>
     <div className="desktop-shell" data-platform={native.isMac()?'mac':'other'}>{!native.isMac()&&<ApplicationMenu/>}<div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={preferences.sidebar_collapsed}>
       <Sidebar articles={data} motionMode={mode} />
       {!preferences.sidebar_collapsed && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={280} onResize={setSidebarDraft} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
       <main className={cn('reading-workspace', !overlay && readerVisible && 'three-column')}>
         <section className="article-pane" aria-label="文章浏览"><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />
-          {isError?<Empty><EmptyHeader><EmptyMedia variant="icon"><CircleAlert/></EmptyMedia><EmptyTitle>暂时无法读取文章</EmptyTitle><EmptyDescription>本地数据读取失败，请重试。已有订阅和偏好不会被清空。</EmptyDescription></EmptyHeader><EmptyContent><Button variant="outline" onClick={()=>{void refetch()}}>重新读取文章</Button></EmptyContent></Empty>:articles.length > 0 ? <ArticleCollection articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /> : <Empty className="library-empty"><EmptyHeader><EmptyMedia variant="icon">{featured ? <Sparkles /> : emptySearch ? <Search /> : <Rss />}</EmptyMedia><EmptyTitle>{isLoading ? '正在读取文章…' : featured ? '把值得读的，留给你' : emptySearch ? '没有找到匹配文章' : preferences.selected_scope === 'favorites' ? '值得重读的内容，会在这里' : preferences.selected_scope === 'unread' ? '暂时没有未读文章' : '你的阅读，从这里开始'}</EmptyTitle><EmptyDescription>{featured ? '精选需要配置 AI 评分，当前未启用。全部、未读和收藏可独立使用。' : emptySearch ? '试试其他关键词，或清除搜索条件。' : '还没有文章。订阅接入后，这里会呈现你的信息流。'}</EmptyDescription></EmptyHeader><EmptyContent>{emptySearch ? <Button variant="outline" onClick={() => useWorkspace.setState({ search: '' })}>清除搜索</Button> : <Button variant="outline" onClick={() => showSettings(featured ? 'ai' : 'feeds')}>{featured ? <Sparkles data-icon="inline-start" /> : <Rss data-icon="inline-start" />}{featured ? '了解 AI 精选' : '了解订阅管理'}</Button>}</EmptyContent><span className="empty-view-note">{preferences.article_view_mode === 'masonry' ? '瀑布流 · 图文浏览' : '列表 · 高效阅读'}</span></Empty>}
-          {page?.hasMore&&<p className="library-limit" role="status">已载入最新 {data.length} 篇；完整分页将在阅读器阶段接入。</p>}<footer className="article-status"><span><span className="status-dot" />{saveStatus === 'error' ? '偏好尚未保存' : saveStatus === 'saving' ? '正在保存偏好' : '本地阅读空间'}</span><span><kbd>J</kbd><kbd>K</kbd> 切换</span></footer>
+          {articles.length > 0 && !isError ? <ArticleCollection articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
+          {page?.hasMore && <p className="library-limit" role="status">仅显示最新 {data.length} 篇</p>}
         </section>
         {!overlay && readerVisible && <><Splitter label="调整文章列表宽度" value={listDraft ?? preferences.list_width} min={300} max={420} onResize={setListDraft} onCommit={value => { patch({ list_width: value }); setListDraft(null) }} /><Reader article={selected} preferences={preferences} overlay={false} onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></>}
         <AnimatePresence>{overlay && readerVisible && <motion.div className="reader-drawer" transition={mode === 'full' ? { type: 'spring', stiffness: 380, damping: 38 } : { duration: mode === 'off' ? 0 : .1 }} initial={mode === 'full' ? { x: 64, opacity: 0 } : { opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={mode === 'full' ? { x: 16, opacity: 0 } : { opacity: 0 }}><Reader article={selected} preferences={preferences} overlay onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></motion.div>}</AnimatePresence>
@@ -134,7 +133,7 @@ export function Shell() {
       <Suspense fallback={null}>{settingsOpen && <SettingsDialog />}{paletteOpen && <CommandPalette />}</Suspense>
       <div className="sr-only" aria-live="polite">{preferences.article_view_mode === 'masonry' ? '已切换到瀑布流视图' : '已切换到列表视图'}</div>
       {saveStatus === 'error' && <div className="save-warning" role="status"><CircleAlert /><span>偏好保存失败</span><Button size="sm" variant="ghost" onClick={() => showSettings()}>查看</Button></div>}
-      <Dialog open={helpOpen} onOpenChange={open=>useWorkspace.setState({helpOpen:open})}><DialogContent><DialogHeader><DialogTitle>键盘快捷键</DialogTitle><DialogDescription>让阅读跟上你的节奏。</DialogDescription></DialogHeader><dl className="shortcut-list"><dt>下一篇／上一篇</dt><dd>J ／ K</dd><dt>收藏／切换已读</dt><dd>F ／ M</dd><dt>搜索文章</dt><dd>/</dd><dt>搜索与命令</dt><dd>⌘ ／ Ctrl + K</dd><dt>设置</dt><dd>⌘ ／ Ctrl + ,</dd><dt>返回浏览</dt><dd>Esc</dd><dt>Windows 菜单栏</dt><dd>F10</dd></dl></DialogContent></Dialog>
+      <Dialog open={helpOpen} onOpenChange={open=>useWorkspace.setState({helpOpen:open})}><DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>键盘快捷键</DialogTitle></DialogHeader><dl className="shortcut-list"><dt>下一篇／上一篇</dt><dd>J ／ K</dd><dt>收藏／切换已读</dt><dd>F ／ M</dd><dt>搜索文章</dt><dd>/</dd><dt>搜索与命令</dt><dd>⌘ ／ Ctrl + K</dd><dt>设置</dt><dd>⌘ ／ Ctrl + ,</dd><dt>返回浏览</dt><dd>Esc</dd><dt>Windows 菜单栏</dt><dd>F10</dd></dl></DialogContent></Dialog>
       {commandError&&<div role="alert" className="command-error">{commandError}<Button variant="ghost" onClick={()=>useWorkspace.setState({commandError:null})}>关闭</Button></div>}
     </div></div>
   </MotionConfig></IconMotionContext.Provider>

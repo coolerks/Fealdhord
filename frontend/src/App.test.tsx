@@ -35,15 +35,18 @@ function setup(withArticles = false) {
 }
 
 describe('Phase 1 阅读 Shell', () => {
-  it('真实空库显示导航、Reader 和两个可切换视图，不混入示例文章', async () => {
+  it('精简空态保留导航与双视图的可访问操作，不混入示例文章', async () => {
     setup()
     expect(await screen.findByRole('heading', { name: '全部文章' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: '阅读视图' })).toBeInTheDocument()
     expect(screen.queryByRole('complementary',{name:'阅读面板'})).not.toBeInTheDocument()
-    expect(screen.getByText('还没有订阅')).toBeInTheDocument()
+    expect(screen.getByRole('heading',{name:'订阅'})).toBeInTheDocument()
+    expect(screen.getByRole('button',{name:'管理订阅'})).toBeInTheDocument()
     expect(screen.queryByText('测试文章 0')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('radio', { name: '瀑布流视图' }))
-    expect(screen.getByText('瀑布流 · 图文浏览')).toBeInTheDocument()
+    expect(screen.getByRole('radio',{name:'瀑布流视图'})).toHaveAttribute('aria-checked','true')
+    expect(screen.queryByText('一目了然，快速浏览')).not.toBeInTheDocument()
+    expect(screen.queryByText('本地优先，安心阅读')).not.toBeInTheDocument()
     expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ article_view_mode: 'masonry' }), expect.any(Number))
   })
 
@@ -87,7 +90,7 @@ describe('Phase 1 阅读 Shell', () => {
     fireEvent.keyDown(separator, { key: 'End' })
     expect(useWorkspace.getState().preferences?.sidebar_width).toBe(280)
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
-    expect(await screen.findByRole('dialog', { name: '搜索与命令' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: '命令面板' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('option', { name: '打开设置' }))
     expect(await screen.findByRole('dialog', { name: '设置' })).toBeInTheDocument()
   })
@@ -169,13 +172,36 @@ describe('Phase 1 阅读 Shell', () => {
     render(<App client={client}/>)
     expect(await screen.findByText('暂时无法读取文章')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button',{name:'重新读取文章'}))
-    expect(await screen.findByText('你的阅读，从这里开始')).toBeInTheDocument()
+    expect(await screen.findByText('暂无文章')).toBeInTheDocument()
     const articles=articleFixtures(1).map(article=>({...article,contentText:''}))
     act(()=>client.setQueryData(articleQueryKey,{items:articles,hasMore:false}))
     library.text.mockResolvedValueOnce('按需读取的完整正文')
     await userEvent.click(await screen.findByRole('button',{name:'打开文章：测试文章 0'}))
     expect(await screen.findByText('按需读取的完整正文')).toBeInTheDocument()
     expect(library.text).toHaveBeenCalledWith('a-0')
+  })
+
+  it('命令面板名称与行为一致，精简设置仍保留功能状态和焦点', async()=>{
+    setup()
+    const trigger=await screen.findByRole('button',{name:'命令面板'})
+    expect(trigger).toHaveAttribute('aria-keyshortcuts','Control+K')
+    await userEvent.click(trigger)
+    const dialog=await screen.findByRole('dialog',{name:'命令面板'})
+    expect(within(dialog).getByRole('combobox',{name:'搜索命令'})).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('option',{name:'订阅管理…'}))
+    expect(await screen.findByText('订阅与分类尚未开放')).toBeInTheDocument()
+    expect(screen.queryByText(/RSS 阶段/)).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button',{name:/^关闭$/}))
+    await waitFor(()=>expect(screen.getByRole('button',{name:'打开设置'})).toHaveFocus())
+  })
+
+  it('加载范围与保存失败属于必要反馈，精简后仍然可见',async()=>{
+    const {client}=setup()
+    await screen.findByRole('heading',{name:'全部文章'})
+    act(()=>client.setQueryData(articleQueryKey,{items:articleFixtures(20),hasMore:true}))
+    expect(await screen.findByText('仅显示最新 20 篇')).toHaveAttribute('role','status')
+    act(()=>useWorkspace.setState({saveStatus:'error',saveError:'保存失败'}))
+    expect(screen.getByText('偏好保存失败')).toBeInTheDocument()
   })
 
   it('设置载入失败显示重试，不能冒充已恢复成功', async () => {

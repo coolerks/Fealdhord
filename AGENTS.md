@@ -43,7 +43,7 @@
 - 开始工作前阅读 `docs/README.md`、`docs/01-status/CURRENT.md`，检查 `docs/01-status/active/` 与当前 Trellis 任务；按需读取相关设计、架构、规格与 ADR。
 - `.trellis/tasks/` 是任务工作流记录，`docs/01-status/active/` 只作镜像；`CURRENT.md` 是产品当前实际开发状态的唯一权威。
 - 修改 Schema、API、权限、UI 信息架构、Skill 或 MCP 契约时同步文档；结束有意义阶段时更新任务、CURRENT 与 `docs/08-handoffs/LATEST.md`。
-- 执行对应阶段真实可运行的检查，区分计划、未测和通过；不删除未知实现、不覆盖已有工作。Phase 0 已有应用工程；只有基础调用链已实现，不得将其余拟定规格写成现有功能。
+- 执行对应阶段真实可运行的检查，区分计划、未测和通过；不删除未知实现、不覆盖已有工作。实际交付与限制以 `docs/01-status/CURRENT.md` 为准，不得将规划中的能力写成现有功能。
 
 ## 功能优先与测试范围
 

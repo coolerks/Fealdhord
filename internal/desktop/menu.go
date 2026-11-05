@@ -67,7 +67,7 @@ func InstallMenu(app *application.App) {
 	add(view, "瀑布流视图", "masonry", "")
 	add(view, "显示／隐藏侧栏", "sidebar", "Cmd+Shift+L")
 	add(view, "显示／隐藏阅读面板", "reader", "")
-	add(view, "搜索与命令…", "palette", "Cmd+K")
+	add(view, "命令面板…", "palette", "Cmd+K")
 	view.AddSeparator()
 	add(view, "跟随系统外观", "theme-system", "")
 	add(view, "浅色外观", "theme-light", "")
