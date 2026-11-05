@@ -240,3 +240,38 @@
 ### Next Steps
 
 - 继续产品路线 Phase 3；未测原生帧率与 Windows 实机，不将浏览器探针当作全平台认证。
+
+
+## Session 8: 修复命令面板图标禁用误判
+<!-- trellis-session: v=2 fp=bb3ab8b5ff7a94af -->
+
+**Date**: 2026-11-05
+**Task**: 修复命令面板图标禁用误判
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+排除 cmdk data-disabled=false 的禁用误判，恢复命令行悬停和键盘选中动画。
+
+### Main Changes
+
+- 仅修正共享禁用选择器，保持真正禁用状态、StrictMode 和命令行为。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ad8480d` | fix: 恢复命令面板可用选项的图标动画 |
+
+### Testing
+
+- [OK] 真实 cmdk＋Motion 两项回归先失败再通过；全部前端 43 项、类型、lint 通过。
+- [OK] macOS 构建、应用包签名与文档验证通过；保留既有 Virtualizer 提示，未扩大 E2E。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 后续按产品路线推进，命令面板回归使用真实控件属性。
