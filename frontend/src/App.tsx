@@ -8,7 +8,15 @@ import { Button } from '@/components/ui/button'
 import { preferencesAPI } from '@/lib/preferences'
 import { useWorkspace } from '@/stores/workspace'
 import { GlobalContextMenu } from '@/app/GlobalContextMenu'
+import { IconMotionContext } from '@/components/animated-glyph'
+import { effectiveMotion, useMediaQuery } from '@/lib/environment'
 import { Shell } from '@/app/Shell'
+
+function IconMotionProvider({children}:{children:React.ReactNode}) {
+  const preferences=useWorkspace(state=>state.preferences)
+  const reduced=useMediaQuery('(prefers-reduced-motion: reduce)')
+  return <IconMotionContext.Provider value={preferences?effectiveMotion(preferences,reduced):'off'}>{children}</IconMotionContext.Provider>
+}
 
 function PreferencesGate() {
   const preferences = useWorkspace(state => state.preferences)
@@ -22,5 +30,5 @@ function PreferencesGate() {
 
 export default function App({ client }: { client?: QueryClient }) {
   const [defaultClient] = useState(() => new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false }, mutations: { retry: false } } }))
-  return <QueryClientProvider client={client ?? defaultClient}><TooltipProvider delayDuration={450}><GlobalContextMenu><PreferencesGate /></GlobalContextMenu></TooltipProvider></QueryClientProvider>
+  return <QueryClientProvider client={client ?? defaultClient}><TooltipProvider delayDuration={450}><IconMotionProvider><GlobalContextMenu><PreferencesGate /></GlobalContextMenu></IconMotionProvider></TooltipProvider></QueryClientProvider>
 }

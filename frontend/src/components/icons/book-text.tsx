@@ -8,8 +8,9 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 export interface BookTextIconHandle {
-  startAnimation: () => void;
-  stopAnimation: () => void;
+  cancelAnimation: () => void;
+  startAnimation: () => Promise<unknown>;
+  stopAnimation: () => Promise<unknown>;
 }
 
 interface BookTextIconProps extends HTMLAttributes<HTMLDivElement> {
@@ -25,6 +26,7 @@ const BookTextIcon = forwardRef<BookTextIconHandle, BookTextIconProps>(
       isControlledRef.current = true;
 
       return {
+      cancelAnimation: () => { controls.stop(); },
         startAnimation: () => controls.start("animate"),
         stopAnimation: () => controls.start("normal"),
       };
@@ -59,14 +61,39 @@ const BookTextIcon = forwardRef<BookTextIconHandle, BookTextIconProps>(
         onMouseLeave={handleMouseLeave}
         {...props}
       >
-        <svg fill="none" height={size} width={size} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+        <motion.svg
+          animate={controls}
+          fill="none"
+          height={size}
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          variants={{
+            animate: {
+              scale: [1, 1.04, 1],
+              rotate: [0, -8, 8, -8, 0],
+              y: [0, -2, 0],
+              transition: {
+                duration: 0.6,
+                ease: "easeInOut",
+                times: [0, 0.2, 0.5, 0.8, 1],
+              },
+            },
+            normal: {
+              scale: 1,
+              rotate: 0,
+              y: 0,
+            },
+          }}
           viewBox="0 0 24 24"
+          width={size}
           xmlns="http://www.w3.org/2000/svg"
         >
           <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20" />
-          <motion.path animate={controls} initial="normal" variants={{normal:{pathLength:1,opacity:1},animate:{pathLength:[0,1],opacity:[0,1],transition:{duration:.5,delay:.15}}}} d="M8 11h8" />
-          <motion.path animate={controls} initial="normal" variants={{normal:{pathLength:1,opacity:1},animate:{pathLength:[0,1],opacity:[0,1],transition:{duration:.5}}}} d="M8 7h6" />
-        </svg>
+          <path d="M8 11h8" />
+          <path d="M8 7h6" />
+        </motion.svg>
       </div>
     );
   }

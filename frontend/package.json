@@ -15,7 +15,8 @@
     "test": "vitest run",
     "build": "tsc --noEmit && vite build",
     "build:dev": "tsc --noEmit && vite build --mode development",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "icons:generate": "node scripts/generate-icon-stills.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "5.3.0",

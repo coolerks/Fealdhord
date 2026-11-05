@@ -1,41 +1,72 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import {BookText,Bookmark,CheckCheck,Layers,PanelLeftClose,PanelLeftOpen,CircleDashed} from 'lucide-react'
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { HTMLAttributes } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { SettingsIcon } from './icons/settings'
-import { SearchIcon } from './icons/search'
-import { BookmarkIcon } from './icons/bookmark'
-import { FolderOpenIcon } from './icons/folder-open'
-import { LayoutGridIcon } from './icons/layout-grid'
-import { SparklesIcon } from './icons/sparkles'
-import { PanelLeftCloseIcon } from './icons/panel-left-close'
-import { PanelLeftOpenIcon } from './icons/panel-left-open'
-import { CheckCheckIcon } from './icons/check-check'
-import { BookTextIcon } from './icons/book-text'
-import { LayersIcon } from './icons/layers'
-import { RefreshCWIcon } from './icons/refresh-cw'
-import { PlusIcon } from './icons/plus'
-import { CircleDashedIcon } from './icons/circle-dashed'
+import { animatedIcons } from './icon-catalog'
+import type { AnimatedIconName } from './icon-catalog'
+import stills from './icon-stills.json'
+import { cn } from '@/lib/utils'
 
-export const IconMotionContext=createContext<'full'|'subtle'|'off'>('full')
-type Handle={startAnimation:()=>void;stopAnimation:()=>void}
-const icons={settings:SettingsIcon,search:SearchIcon,favorite:BookmarkIcon,folder:FolderOpenIcon,grid:LayoutGridIcon,ai:SparklesIcon,collapse:PanelLeftCloseIcon,expand:PanelLeftOpenIcon,read:CheckCheckIcon,book:BookTextIcon,list:LayersIcon,refresh:RefreshCWIcon,add:PlusIcon,unread:CircleDashedIcon}
-const staticIcons:Partial<Record<keyof typeof icons,LucideIcon>>={book:BookText,favorite:Bookmark,read:CheckCheck,list:Layers,collapse:PanelLeftClose,expand:PanelLeftOpen,unread:CircleDashed}
-export type IconMeaning=keyof typeof icons
-export function AnimatedGlyph({icon:Fallback,meaning='book'}:{icon:LucideIcon;meaning?:string}) {
- const mode=useContext(IconMotionContext)
- const holder=useRef<HTMLSpanElement>(null),handle=useRef<Handle>(null)
- const [mounted,setMounted]=useState(false)
- const Component=Object.hasOwn(icons,meaning)?icons[meaning as IconMeaning]:undefined
- const Static=staticIcons[meaning as IconMeaning]??Fallback
- useEffect(()=>{
-  const trigger=holder.current?.closest<HTMLElement>('button,[role=radio],[data-animated-trigger]')
-  if(!trigger||!Component||mode!=='full')return
-  let timer:ReturnType<typeof setTimeout>|undefined
-  const enter=()=>{if(trigger.hasAttribute('disabled'))return;clearTimeout(timer);setMounted(true);handle.current?.startAnimation()}
-  const leave=()=>{if(trigger.contains(document.activeElement))return;handle.current?.stopAnimation();timer=setTimeout(()=>setMounted(false),350)}
-  trigger.addEventListener('mouseenter',enter);trigger.addEventListener('mouseleave',leave);trigger.addEventListener('focusin',enter);trigger.addEventListener('focusout',leave);trigger.addEventListener('pointerdown',enter)
-  return()=>{clearTimeout(timer);trigger.removeEventListener('mouseenter',enter);trigger.removeEventListener('mouseleave',leave);trigger.removeEventListener('focusin',enter);trigger.removeEventListener('focusout',leave);trigger.removeEventListener('pointerdown',enter)}
- },[Component,mode])
- useEffect(()=>{if(mounted&&mode==='full')handle.current?.startAnimation()},[mounted,mode])
- return <span ref={holder} className="animated-glyph" data-icon="inline-start" data-meaning={meaning} data-animating={mounted&&mode==='full'} aria-hidden="true">{Component&&mounted&&mode==='full'?<Component ref={handle} size={20}/>:<Static/>}</span>
+export const IconMotionContext = createContext<'full' | 'subtle' | 'off'>('off')
+export type IconHandle = { cancelAnimation: () => void; startAnimation: () => Promise<unknown>; stopAnimation: () => Promise<unknown> }
+const aliases = { favorite: 'bookmark', folder: 'folder-open', grid: 'layout-grid', ai: 'sparkles', collapse: 'panel-left-close', expand: 'panel-left-open', read: 'check-check', book: 'book-text', list: 'layers', refresh: 'refresh-cw', add: 'plus', unread: 'circle-dashed' } as const
+export type IconMeaning = AnimatedIconName | keyof typeof aliases
+const triggerSelector = 'button,[role=radio],[role=menuitem],[role=menuitemradio],[role=menuitemcheckbox],[role=option],[data-animated-trigger]'
+
+type Props = Omit<HTMLAttributes<HTMLSpanElement>, 'children'> & { icon?: LucideIcon; meaning?: IconMeaning }
+/** 仅交互时挂载库动画；静态 SVG 由相同库源生成，避免首次悬停换形。 */
+export function AnimatedGlyph({ icon: Fallback, meaning = 'book', className, ...props }: Props) {
+  const mode = useContext(IconMotionContext)
+  return <GlyphPlayback key={`${mode}:${meaning}`} mode={mode} icon={Fallback} meaning={meaning} className={className} {...props} />
+}
+
+function GlyphPlayback({ mode, icon: Fallback, meaning = 'book', className, ...props }: Props & {mode:'full'|'subtle'|'off'}) {
+  const holder = useRef<HTMLSpanElement>(null)
+  const handle = useRef<IconHandle>(null)
+  const busy = useRef(false)
+  const [playing, setPlaying] = useState(false)
+  const name: AnimatedIconName = Object.hasOwn(aliases, meaning) ? aliases[meaning as keyof typeof aliases] : meaning as AnimatedIconName
+  const Component = animatedIcons[name]
+
+  useEffect(() => {
+    const element = holder.current
+    const trigger = element?.closest<HTMLElement>(triggerSelector) ?? element
+    if (!trigger || mode !== 'full') return
+    let hovered = false
+    const enter = () => {
+      if (busy.current || trigger.matches(':disabled,[aria-disabled=true],[data-disabled]')) return
+      busy.current = true
+      setPlaying(true)
+    }
+    const hover = () => { hovered = true; enter() }
+    const leave = () => { hovered = false }
+    const focus = () => { if (!hovered) enter() }
+    trigger.addEventListener('mouseenter', hover)
+    trigger.addEventListener('mouseleave', leave)
+    trigger.addEventListener('focusin', focus)
+    return () => {
+      trigger.removeEventListener('mouseenter', hover)
+      trigger.removeEventListener('mouseleave', leave)
+      trigger.removeEventListener('focusin', focus)
+    }
+  }, [Component, mode])
+
+  useLayoutEffect(() => {
+    if (!playing || mode !== 'full') return
+    const animation = handle.current
+    if (!animation) return
+    let current = true
+    void (async () => {
+      try {
+        await animation.startAnimation()
+        if (current) await animation.stopAnimation()
+      } finally {
+        if (current) { busy.current = false; setPlaying(false) }
+      }
+    })()
+    return () => { current = false; animation.cancelAnimation() }
+  }, [playing, mode, Component])
+
+  return <span {...props} ref={holder} className={cn('animated-glyph', className)} data-icon="inline-start" data-meaning={meaning} data-animating={playing && mode === 'full'} aria-hidden="true">
+    {playing && mode === 'full' ? <Component ref={handle} size={20} /> : stills[name] ? <span className="icon-still" dangerouslySetInnerHTML={{ __html: stills[name] }} /> : Fallback ? <Fallback /> : null}
+  </span>
 }

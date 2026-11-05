@@ -8,8 +8,9 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 export interface SearchIconHandle {
-  startAnimation: () => void;
-  stopAnimation: () => void;
+  cancelAnimation: () => void;
+  startAnimation: () => Promise<unknown>;
+  stopAnimation: () => Promise<unknown>;
 }
 
 interface SearchIconProps extends HTMLAttributes<HTMLDivElement> {
@@ -25,6 +26,7 @@ const SearchIcon = forwardRef<SearchIconHandle, SearchIconProps>(
       isControlledRef.current = true;
 
       return {
+      cancelAnimation: () => { controls.stop(); },
         startAnimation: () => controls.start("animate"),
         stopAnimation: () => controls.start("normal"),
       };
@@ -59,15 +61,32 @@ const SearchIcon = forwardRef<SearchIconHandle, SearchIconProps>(
         onMouseLeave={handleMouseLeave}
         {...props}
       >
-        <svg
-          fill="none" height={size} width={size} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+        <motion.svg
+          animate={controls}
+          fill="none"
+          height={size}
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          transition={{
+            duration: 1,
+            bounce: 0.3,
+          }}
+          variants={{
+            normal: { x: 0, y: 0 },
+            animate: {
+              x: [0, 0, -3, 0],
+              y: [0, -4, 0, 0],
+            },
+          }}
           viewBox="0 0 24 24"
+          width={size}
           xmlns="http://www.w3.org/2000/svg"
         >
-          <motion.circle animate={controls} initial="normal" variants={{normal:{r:8},animate:{r:[8,7,8],transition:{duration:.7}}}} cx="11" cy="11" r="8" />
-          <motion.path animate={controls} initial="normal" variants={{normal:{opacity:0,pathLength:0},animate:{opacity:[0,1,1,0],pathLength:[0,1,1,0],transition:{duration:.8}}}} d="M6 11h10" />
+          <circle cx="11" cy="11" r="8" />
           <path d="m21 21-4.3-4.3" />
-        </svg>
+        </motion.svg>
       </div>
     );
   }

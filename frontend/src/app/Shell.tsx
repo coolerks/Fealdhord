@@ -7,7 +7,6 @@ import { LibraryEmpty } from '@/features/articles/LibraryEmpty'
 import { ApplicationMenu } from './ApplicationMenu'
 import { native } from '@/lib/native'
 import { isCommand,runCommand } from '@/lib/commands'
-import { IconMotionContext } from '@/components/animated-glyph'
 import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Splitter } from '@/components/splitter'
@@ -118,7 +117,7 @@ export function Shell() {
   useEffect(()=>native.onCommand(id=>{if(isCommand(id))runCommand(id,client)}),[client])
 
   const emptySearch = search.trim() !== ''
-  return <IconMotionContext.Provider value={mode}><MotionConfig reducedMotion={mode === 'full' ? 'never' : 'always'} transition={{ duration: mode === 'off' ? 0 : mode === 'subtle' ? .1 : .22, ease: [.22, 1, .36, 1] }}>
+  return <MotionConfig reducedMotion={mode === 'full' ? 'never' : 'always'} transition={{ duration: mode === 'off' ? 0 : mode === 'subtle' ? .1 : .22, ease: [.22, 1, .36, 1] }}>
     <div className="desktop-shell" data-platform={native.isMac()?'mac':'other'}>{!native.isMac()&&<ApplicationMenu/>}<div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={preferences.sidebar_collapsed}>
       <Sidebar articles={data} motionMode={mode} />
       {!preferences.sidebar_collapsed && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={280} onResize={setSidebarDraft} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
@@ -136,5 +135,5 @@ export function Shell() {
       <Dialog open={helpOpen} onOpenChange={open=>useWorkspace.setState({helpOpen:open})}><DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>键盘快捷键</DialogTitle></DialogHeader><dl className="shortcut-list"><dt>下一篇／上一篇</dt><dd>J ／ K</dd><dt>收藏／切换已读</dt><dd>F ／ M</dd><dt>搜索文章</dt><dd>/</dd><dt>搜索与命令</dt><dd>⌘ ／ Ctrl + K</dd><dt>设置</dt><dd>⌘ ／ Ctrl + ,</dd><dt>返回浏览</dt><dd>Esc</dd><dt>Windows 菜单栏</dt><dd>F10</dd></dl></DialogContent></Dialog>
       {commandError&&<div role="alert" className="command-error">{commandError}<Button variant="ghost" onClick={()=>useWorkspace.setState({commandError:null})}>关闭</Button></div>}
     </div></div>
-  </MotionConfig></IconMotionContext.Provider>
+  </MotionConfig>
 }

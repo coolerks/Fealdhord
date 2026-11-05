@@ -9,8 +9,9 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 export interface LayersIconHandle {
-  startAnimation: () => void;
-  stopAnimation: () => void;
+  cancelAnimation: () => void;
+  startAnimation: () => Promise<unknown>;
+  stopAnimation: () => Promise<unknown>;
 }
 
 interface LayersIconProps extends HTMLAttributes<HTMLDivElement> {
@@ -34,12 +35,13 @@ const LayersIcon = forwardRef<LayersIconHandle, LayersIconProps>(
       isControlledRef.current = true;
 
       return {
+      cancelAnimation: () => { generation.current++; controls.stop(); },
         startAnimation: async () => {
           const current=++generation.current;
           await controls.start("firstState");
           if(current===generation.current) await controls.start("secondState");
         },
-        stopAnimation: () => { generation.current++; controls.start("normal"); },
+        stopAnimation: () => { generation.current++; return controls.start("normal"); },
       };
     });
 

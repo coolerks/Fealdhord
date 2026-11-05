@@ -9,8 +9,9 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 export interface PanelLeftCloseIconHandle {
-  startAnimation: () => void;
-  stopAnimation: () => void;
+  cancelAnimation: () => void;
+  startAnimation: () => Promise<unknown>;
+  stopAnimation: () => Promise<unknown>;
 }
 
 interface PanelLeftCloseIconProps extends HTMLAttributes<HTMLDivElement> {
@@ -37,6 +38,7 @@ const PanelLeftCloseIcon = forwardRef<
   useImperativeHandle(ref, () => {
     isControlledRef.current = true;
     return {
+      cancelAnimation: () => { controls.stop(); },
       startAnimation: () => controls.start("animate"),
       stopAnimation: () => controls.start("normal"),
     };

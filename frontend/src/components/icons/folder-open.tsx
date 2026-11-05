@@ -9,8 +9,9 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 export interface FolderOpenIconHandle {
-  startAnimation: () => void;
-  stopAnimation: () => void;
+  cancelAnimation: () => void;
+  startAnimation: () => Promise<unknown>;
+  stopAnimation: () => Promise<unknown>;
 }
 
 interface FolderOpenIconProps extends HTMLAttributes<HTMLDivElement> {
@@ -38,6 +39,7 @@ const FolderOpenIcon = forwardRef<FolderOpenIconHandle, FolderOpenIconProps>(
     useImperativeHandle(ref, () => {
       isControlledRef.current = true;
       return {
+      cancelAnimation: () => { controls.stop(); },
         startAnimation: () => controls.start("animate"),
         stopAnimation: () => controls.start("normal"),
       };

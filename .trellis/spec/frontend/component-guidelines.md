@@ -41,3 +41,7 @@ Props 明确类型；article_id 为条目 key；按钮有 type、accessible name
 遵守 AGENTS 两条规则：删除重复标语／视图解释／开发阶段说明，以操作层级与状态表达含义；错误、真实加载范围和不可用状态仍要明确。标题、图标按钮及命令名称必须匹配实际行为，保留语义角色、label 和焦点策略；不得为了少文字删掉无障碍名称。空态由 LibraryEmpty 统一处理，避免 Shell 多层条件及无效 CSS。窄分栏工具区通过容器查询重排，不用说明弥补拥挤布局。
 
 cmdk 的 CommandInput 自带 aria-labelledby，可覆盖孤立 aria-label；使用 Command 的 label 属性给生成标签赋值，并用 getByRole('combobox', {name:'搜索命令'}) 验证真实可访问名称。仅在 JSX 中看见 aria-label 不能证明 Agent 能识别控件。文案与角色语义变化同步命令面板／原生菜单，CommandID 与数据接口保持稳定。
+
+## 图标单次播放
+
+AnimatedGlyph 仅交互期间挂载 lucide-animated；startAnimation／stopAnimation 返回完成 Promise，cancelAnimation 负责卸载与模式切换。不得以固定延时猜结束、mouseleave 才归位或 pointerdown 重复启动。多 controls 必须等待所有阶段；异步续段核对代次。静态 SVG 由 npm run icons:generate 从同份已安装库源生成，禁止另外选择不匹配的 fallback 图形；生成字符串仅来自仓库已审阅源，不接收外部 HTML。图标模式 Provider 覆盖全局菜单，Portal 继承同一偏好。

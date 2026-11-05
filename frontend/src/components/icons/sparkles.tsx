@@ -9,8 +9,9 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 export interface SparklesIconHandle {
-  startAnimation: () => void;
-  stopAnimation: () => void;
+  cancelAnimation: () => void;
+  startAnimation: () => Promise<unknown>;
+  stopAnimation: () => Promise<unknown>;
 }
 
 interface SparklesIconProps extends HTMLAttributes<HTMLDivElement> {
@@ -60,14 +61,9 @@ const SparklesIcon = forwardRef<SparklesIconHandle, SparklesIconProps>(
       isControlledRef.current = true;
 
       return {
-        startAnimation: () => {
-          sparkleControls.start("hover");
-          starControls.start("blink", { delay: 1 });
-        },
-        stopAnimation: () => {
-          sparkleControls.start("initial");
-          starControls.start("initial");
-        },
+      cancelAnimation: () => { sparkleControls.stop(); starControls.stop(); },
+        startAnimation: () => Promise.all([sparkleControls.start("hover"), starControls.start("blink", { delay: 1 })]),
+        stopAnimation: () => Promise.all([sparkleControls.start("initial"), starControls.start("initial")]),
       };
     });
 

@@ -8,8 +8,9 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 export interface SettingsIconHandle {
-  startAnimation: () => void;
-  stopAnimation: () => void;
+  cancelAnimation: () => void;
+  startAnimation: () => Promise<unknown>;
+  stopAnimation: () => Promise<unknown>;
 }
 
 interface SettingsIconProps extends HTMLAttributes<HTMLDivElement> {
@@ -25,6 +26,7 @@ const SettingsIcon = forwardRef<SettingsIconHandle, SettingsIconProps>(
       isControlledRef.current = true;
 
       return {
+      cancelAnimation: () => { controls.stop(); },
         startAnimation: () => controls.start("animate"),
         stopAnimation: () => controls.start("normal"),
       };

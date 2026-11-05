@@ -231,10 +231,10 @@ html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion
 .reader-toolbar { min-height:72px;padding:20px 28px;border:0; }
 [data-platform=mac] .reader-toolbar { padding-top:60px;min-height:108px;--wails-draggable:drag; }
 .reader-toolbar button { --wails-draggable:no-drag; }
-.animated-glyph { display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:20px;height:20px;line-height:0;pointer-events:none; }
-.animated-glyph>div { display:contents; }
+.animated-glyph { display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:20px;height:20px;line-height:0; }
+.animated-glyph>div,.animated-glyph>.icon-still { display:contents; }
 .animated-glyph svg { width:20px;height:20px;stroke-width:1.7; }
-.semantic-button .animated-glyph svg,.nav-item .animated-glyph svg { transition:none; }
+.animated-glyph svg { transition:none; }
 .semantic-button:active { background:var(--accent); }
 .shortcut-list { display:grid;grid-template-columns:1fr auto;gap:16px;font-size:13px;margin:12px 0; }
 .shortcut-list dd { color:var(--muted-foreground);margin:0; }

@@ -8,8 +8,9 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 export interface PlusIconHandle {
-  startAnimation: () => void;
-  stopAnimation: () => void;
+  cancelAnimation: () => void;
+  startAnimation: () => Promise<unknown>;
+  stopAnimation: () => Promise<unknown>;
 }
 
 interface PlusIconProps extends HTMLAttributes<HTMLDivElement> {
@@ -25,6 +26,7 @@ const PlusIcon = forwardRef<PlusIconHandle, PlusIconProps>(
       isControlledRef.current = true;
 
       return {
+      cancelAnimation: () => { controls.stop(); },
         startAnimation: () => controls.start("animate"),
         stopAnimation: () => controls.start("normal"),
       };
