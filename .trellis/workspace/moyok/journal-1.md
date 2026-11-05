@@ -312,3 +312,38 @@
 ### Next Steps
 
 - Phase 4：完整分页／全库搜索筛选、分类管理与按源导航、OPML、阅读增强。
+
+
+## Session 10: Phase 4 基础阅读器完成
+<!-- trellis-session: v=2 fp=062c3eee6a95cb34 -->
+
+**Date**: 2026-11-06
+**Task**: Phase 4 基础阅读器完成
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+完成全库分页搜索、分类导航、安全正文与Reader提取、原生OPML迁移；修复调试包签名缓存并完成联验与五任务归档。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `17904d2` | docs: 规划 Phase 4 完整阅读器并启动全库查询任务 |
+| `c1a3960` | feat: 接通全库分页搜索与跨页文章状态 |
+| `a034025` | feat: 完成分类管理订阅导航与全库计数 |
+| `47e695a` | feat: 完成安全正文阅读与受控网页提取 |
+| `6cf26d3` | fix: 避免覆盖旧可执行文件导致调试包签名核验失败 |
+| `af5589e` | feat: 完成 OPML 预览导入导出与有界刷新接线 |
+
+### Testing
+
+- [OK] Go全包test与vet、职责相关race、前端20文件80项、类型与lint、SQLC与Wails绑定、production构建及macOS调试签名通过；未执行E2E或其他平台实机。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 依据路线图规划AI基础能力；AI/Agent/Skills/MCP尚未实现。
