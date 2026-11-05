@@ -16,3 +16,5 @@ ADR-0001 已接受并在 Phase 0 本机验证；其余方案依阶段逐步落�
 - [ADR-0010：共享数据的虚拟双视图](ADR-0010-shared-virtualized-views.md)
 - [ADR-0011：受控首图与正文媒体](ADR-0011-safe-media-pipeline.md)
 - [ADR-0012：迁移、备份与可恢复启动](ADR-0012-versioned-migrations.md)
+
+- [ADR-0013：Reader 提取器与登记式正文资源](ADR-0013-reader-extractor.md)

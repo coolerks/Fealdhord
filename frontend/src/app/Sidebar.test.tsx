@@ -11,6 +11,7 @@ vi.mock('@/lib/native',()=>({native:{isMac:()=>false}}))
 import { TooltipProvider } from '@/components/ui/tooltip'
 vi.mock('@/lib/library-api',()=>({libraryAPI:{}}))
 vi.mock('@/lib/rss-api',()=>({rssAPI:{},feedsQueryKey:['rss','feeds']}))
+vi.mock('@/lib/reader-api',()=>({readerAPI:{}}))
 import { Sidebar } from './Sidebar'
 const category={id:'root',parent_id:'',name:'技术',revision:1,icon:'folder',color:'',description:'',sort_position:0,total:1000,unread:600}
 beforeEach(()=>{

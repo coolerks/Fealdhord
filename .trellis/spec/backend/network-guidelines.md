@@ -32,3 +32,5 @@ httptest 加内部 resolver／dial 注入验证真正拨号目标；混合公网
 
 
 共享 netpolicy.Client 在 Fetch 外层限制全局 4 个请求，Transport 限制每主机 2 个连接且不启用 HTTP/2 合并；媒体另有 2 个并行探测／解码槽。媒体策略从后端事实读取，不能只靠 React 隐藏图片。回写复核 generation；本地 handler 只接登记 ID，不能接原始 URL／文件路径。
+
+Phase 4：Feed.SanitizeBody 可保留规范化 HTTP(S) img／a 地址，属于 Go 缓存的中间 HTML，不是可直接展示的 DTO；Reader 发送前必须二次清理和登记本地资源。旧“清理器一律删除 img”的约束已由此更严格的展示边界替代，测试保留恶意事件／URL拒绝。

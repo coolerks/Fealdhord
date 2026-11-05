@@ -18,6 +18,8 @@ vi.mock('@/lib/library-api',()=>({libraryAPI:library}))
 vi.mock('@/lib/api', () => ({ desktopAPI: { info: vi.fn(), subscribe: vi.fn(() => () => {}), start: vi.fn(), cancel: vi.fn(), snapshot: vi.fn() } }))
 vi.mock('@/lib/rss-api',()=>({feedsQueryKey:['rss','feeds'],rssAPI:{list:vi.fn(async()=>({items:[],categories:[]})),current:vi.fn(async()=>({generation:0,operation_id:'',status:'completed',completed:0,total:0,sequence:0,results:[]})),subscribeRefresh:vi.fn(()=>()=>{}),subscribeLibrary:vi.fn(()=>()=>{})}}))
 vi.mock('@/lib/navigation-api',()=>({navigationQueryKey:['navigation'],navigationAPI:{list:vi.fn(async()=>({categories:[],feeds:[],totals:{total:0,unread:0,favorites:0}}))}}))
+const reader=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
+vi.mock('@/lib/reader-api',()=>({readerAPI:reader}))
 import App from './App'
 
 let geometry: ReturnType<typeof installGeometry>
@@ -26,6 +28,7 @@ beforeEach(() => {
   host.isMac.mockReturnValue(false)
   geometry = installGeometry()
   useWorkspace.setState({ preferences: null, revision: 0, version: 0, savedVersion: 0, saveError: null, saveStatus: 'saved', search: '', sort: 'newest',readFilter:'all',favoriteFilter:'all', settingsOpen: false, settingsTab: 'appearance', paletteOpen: false, searchOpen: false, aiOpen: false, helpOpen:false,commandError:null })
+  reader.get.mockResolvedValue({article_id:'a-0',html:'',text:'',mode:'feed',has_cached:false,has_original:false})
   api.get.mockResolvedValue({ preferences: preferencesFixture(), revision: 0 })
   api.update.mockImplementation(async (preferences, revision) => ({ preferences, revision: revision + 1 }))
 })
@@ -178,10 +181,10 @@ describe('Phase 1 阅读 Shell', () => {
     expect(await screen.findByText('暂无文章')).toBeInTheDocument()
     const articles=articleFixtures(1).map(article=>({...article,contentText:''}))
     act(()=>client.setQueryData(articleQueryKey,initialLibraryData({items:articles,hasMore:false})))
-    library.text.mockResolvedValueOnce('按需读取的完整正文')
+    reader.get.mockResolvedValueOnce({article_id:'a-0',html:'<p>按需读取的完整正文</p>',text:'按需读取的完整正文',mode:'feed',has_cached:false,has_original:false})
     await userEvent.click(await screen.findByRole('button',{name:'打开文章：测试文章 0'}))
     expect(await screen.findByText('按需读取的完整正文')).toBeInTheDocument()
-    expect(library.text).toHaveBeenCalledWith('a-0')
+    expect(reader.get).toHaveBeenCalledWith('a-0','feed',expect.any(AbortSignal))
   })
 
   it('命令面板名称与行为一致，精简设置仍保留功能状态和焦点', async()=>{

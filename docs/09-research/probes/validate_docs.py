@@ -58,7 +58,7 @@ def main():
         for n in range(1,8):
             require(bool(re.search(rf'^## {n}\. ', text, re.M)), f'契约缺少第 {n} 节：{p.relative_to(ROOT)}')
     adrs = sorted((DOCS / '06-decisions').glob('ADR-*.md'))
-    require([int(p.name[4:8]) for p in adrs] == list(range(1,13)), 'ADR 编号不连续或数量错误')
+    require(len(adrs) >= 12 and [int(p.name[4:8]) for p in adrs] == list(range(1,len(adrs)+1)), 'ADR 编号不连续或缺少原始决策')
     for p in adrs:
         require(all(x in p.read_text() for x in ['## 背景','## 决定','## 替代方案','## 后果与验证']), f'ADR 结构不全：{p.name}')
     require(json.loads((TASK / 'task.json').read_text())['status'] in {'planning','in_progress','completed'}, '规格任务状态非法')

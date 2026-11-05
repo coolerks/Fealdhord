@@ -222,7 +222,7 @@ func (s *Store) QueryArticles(ctx context.Context, raw ArticleQuery) (QueryPage,
 	}
 	statement := `SELECT a.id,a.title,a.url,a.author,substr(a.summary,1,500),a.sort_at,a.feed_id,f.title,
  COALESCE(r.is_read,0),CASE WHEN fav.article_id IS NULL THEN 0 ELSE 1 END,
- m.url,m.width,m.height,m.alt,` + score + `,` + content + `
+ m.url,m.width,m.height,m.alt,a.revision,` + score + `,` + content + `
  FROM articles a JOIN feeds f ON f.id=a.feed_id JOIN article_query_birth birth ON birth.article_id=a.id
  LEFT JOIN reading_states r ON r.article_id=a.id LEFT JOIN favorites fav ON fav.article_id=a.id
  LEFT JOIN article_media m ON m.article_id=a.id AND m.status='ready' ` + join + `
@@ -238,7 +238,7 @@ func (s *Store) QueryArticles(ctx context.Context, raw ArticleQuery) (QueryPage,
 		row := sqlc.ListArticlesRow{}
 		var rank float64
 		var fullText string
-		if err = rows.Scan(&row.ID, &row.Title, &row.Url, &row.Author, &row.Summary, &row.SortAt, &row.FeedID, &row.FeedTitle, &row.IsRead, &row.IsFavorite, &row.CoverUrl, &row.CoverWidth, &row.CoverHeight, &row.CoverAlt, &rank, &fullText); err != nil {
+		if err = rows.Scan(&row.ID, &row.Title, &row.Url, &row.Author, &row.Summary, &row.SortAt, &row.FeedID, &row.FeedTitle, &row.IsRead, &row.IsFavorite, &row.CoverUrl, &row.CoverWidth, &row.CoverHeight, &row.CoverAlt, &row.Revision, &rank, &fullText); err != nil {
 			rows.Close()
 			return out, err
 		}

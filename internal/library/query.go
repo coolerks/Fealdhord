@@ -20,7 +20,7 @@ type queryRepository interface {
 }
 
 func projectArticle(row sqlc.ListArticlesRow, covers bool) Article {
-	article := Article{ID: row.ID, FeedID: row.FeedID, URL: row.Url, Title: row.Title, FeedTitle: row.FeedTitle, Summary: row.Summary, SortAt: time.UnixMilli(row.SortAt).UTC().Format(time.RFC3339Nano), IsRead: row.IsRead == 1, IsFavorite: row.IsFavorite == 1, TitleMatches: []TextRange{}}
+	article := Article{Revision: row.Revision, ID: row.ID, FeedID: row.FeedID, URL: row.Url, Title: row.Title, FeedTitle: row.FeedTitle, Summary: row.Summary, SortAt: time.UnixMilli(row.SortAt).UTC().Format(time.RFC3339Nano), IsRead: row.IsRead == 1, IsFavorite: row.IsFavorite == 1, TitleMatches: []TextRange{}}
 	if covers && row.CoverUrl.Valid && strings.HasPrefix(row.CoverUrl.String, "/media/") {
 		cover := &Cover{URL: row.CoverUrl.String, Alt: row.CoverAlt.String}
 		if row.CoverWidth.Valid && row.CoverWidth.Int64 > 0 {

@@ -47,6 +47,31 @@ func (q *Queries) AddMediaCandidate(ctx context.Context, arg AddMediaCandidatePa
 	return err
 }
 
+const addReaderResource = `-- name: AddReaderResource :exec
+INSERT INTO reader_resources(id,article_id,article_hash,mode,kind,url) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET article_hash=excluded.article_hash,url=excluded.url
+`
+
+type AddReaderResourceParams struct {
+	ID          string `json:"id"`
+	ArticleID   string `json:"article_id"`
+	ArticleHash string `json:"article_hash"`
+	Mode        string `json:"mode"`
+	Kind        string `json:"kind"`
+	Url         string `json:"url"`
+}
+
+func (q *Queries) AddReaderResource(ctx context.Context, arg AddReaderResourceParams) error {
+	_, err := q.db.ExecContext(ctx, addReaderResource,
+		arg.ID,
+		arg.ArticleID,
+		arg.ArticleHash,
+		arg.Mode,
+		arg.Kind,
+		arg.Url,
+	)
+	return err
+}
+
 const applyFeedCategories = `-- name: ApplyFeedCategories :exec
 INSERT INTO article_categories(article_id,category_id,source,state,created_at,updated_at)
 SELECT a.id,fc.category_id,'feed','included',?,? FROM articles a JOIN feed_categories fc ON fc.feed_id=a.feed_id WHERE a.feed_id=?
@@ -568,7 +593,7 @@ func (q *Queries) ListAllFeeds(ctx context.Context) ([]Feed, error) {
 const listArticles = `-- name: ListArticles :many
 SELECT a.id,a.title,a.url,a.author,substr(a.summary,1,500) AS summary,a.sort_at,a.feed_id,f.title AS feed_title,
  COALESCE(r.is_read,0) AS is_read,CASE WHEN fav.article_id IS NULL THEN 0 ELSE 1 END AS is_favorite,
- m.url AS cover_url,m.width AS cover_width,m.height AS cover_height,m.alt AS cover_alt
+ m.url AS cover_url,m.width AS cover_width,m.height AS cover_height,m.alt AS cover_alt,a.revision
 FROM articles a JOIN feeds f ON f.id=a.feed_id
 LEFT JOIN reading_states r ON r.article_id=a.id LEFT JOIN favorites fav ON fav.article_id=a.id
 LEFT JOIN article_media m ON m.article_id=a.id AND m.status='ready'
@@ -590,6 +615,7 @@ type ListArticlesRow struct {
 	CoverWidth  sql.NullInt64  `json:"cover_width"`
 	CoverHeight sql.NullInt64  `json:"cover_height"`
 	CoverAlt    sql.NullString `json:"cover_alt"`
+	Revision    int64          `json:"revision"`
 }
 
 func (q *Queries) ListArticles(ctx context.Context, limit int64) ([]ListArticlesRow, error) {
@@ -616,6 +642,7 @@ func (q *Queries) ListArticles(ctx context.Context, limit int64) ([]ListArticles
 			&i.CoverWidth,
 			&i.CoverHeight,
 			&i.CoverAlt,
+			&i.Revision,
 		); err != nil {
 			return nil, err
 		}
@@ -898,6 +925,20 @@ func (q *Queries) RemoveInheritedMemberships(ctx context.Context, feedID string)
 	return err
 }
 
+const removeReaderResources = `-- name: RemoveReaderResources :exec
+DELETE FROM reader_resources WHERE article_id=? AND mode=?
+`
+
+type RemoveReaderResourcesParams struct {
+	ArticleID string `json:"article_id"`
+	Mode      string `json:"mode"`
+}
+
+func (q *Queries) RemoveReaderResources(ctx context.Context, arg RemoveReaderResourcesParams) error {
+	_, err := q.db.ExecContext(ctx, removeReaderResources, arg.ArticleID, arg.Mode)
+	return err
+}
+
 const resetManualMembership = `-- name: ResetManualMembership :exec
 DELETE FROM article_categories WHERE article_id=? AND category_id=? AND source='manual'
 `
@@ -1077,6 +1118,34 @@ func (q *Queries) SaveFeedSuccess(ctx context.Context, arg SaveFeedSuccessParams
 		arg.NextCheckAt,
 		arg.UpdatedAt,
 		arg.ID,
+	)
+	return err
+}
+
+const saveReaderDocument = `-- name: SaveReaderDocument :exec
+INSERT INTO reader_contents(article_id,sanitized_html,content_text,source_url,fetched_at,extractor_version,content_hash) VALUES(?,?,?,?,?,?,?)
+ON CONFLICT(article_id) DO UPDATE SET sanitized_html=excluded.sanitized_html,content_text=excluded.content_text,source_url=excluded.source_url,fetched_at=excluded.fetched_at,extractor_version=excluded.extractor_version,content_hash=excluded.content_hash
+`
+
+type SaveReaderDocumentParams struct {
+	ArticleID        string `json:"article_id"`
+	SanitizedHtml    string `json:"sanitized_html"`
+	ContentText      string `json:"content_text"`
+	SourceUrl        string `json:"source_url"`
+	FetchedAt        int64  `json:"fetched_at"`
+	ExtractorVersion string `json:"extractor_version"`
+	ContentHash      string `json:"content_hash"`
+}
+
+func (q *Queries) SaveReaderDocument(ctx context.Context, arg SaveReaderDocumentParams) error {
+	_, err := q.db.ExecContext(ctx, saveReaderDocument,
+		arg.ArticleID,
+		arg.SanitizedHtml,
+		arg.ContentText,
+		arg.SourceUrl,
+		arg.FetchedAt,
+		arg.ExtractorVersion,
+		arg.ContentHash,
 	)
 	return err
 }

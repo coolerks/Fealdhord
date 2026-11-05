@@ -1,4 +1,5 @@
 export type Article = {
+  revision?: number
   feedID?: string
   url?: string
   titleMatches?: {start:number;end:number}[]

@@ -12,6 +12,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -49,8 +50,10 @@ type Document struct {
 
 var cleanHTML = func() *bluemonday.Policy {
 	p := bluemonday.NewPolicy()
-	p.AllowElements("p", "br", "div", "span", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "code", "strong", "em", "b", "i", "u", "s", "ul", "ol", "li", "table", "thead", "tbody", "tr", "th", "td", "hr", "a")
+	p.AllowElements("p", "br", "div", "span", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "code", "strong", "em", "b", "i", "u", "s", "ul", "ol", "li", "table", "thead", "tbody", "tr", "th", "td", "hr", "a", "img")
 	p.AllowAttrs("href").OnElements("a")
+	p.AllowAttrs("src", "alt").OnElements("img")
+	p.AllowAttrs("width", "height").Matching(regexp.MustCompile(`^[0-9]{1,5}$`)).OnElements("img")
 	p.AllowURLSchemes("http", "https")
 	p.RequireParseableURLs(true)
 	return p
@@ -237,11 +240,6 @@ func parse(ctx context.Context, data []byte, base string) (*Document, error) {
 		if len(content) > 4<<20 {
 			return nil, ErrParse
 		}
-		item.HTML = cleanHTML.Sanitize(content)
-		item.Text = Text(item.HTML)
-		if len(item.Text)+len(item.HTML) > 4<<20 {
-			return nil, ErrParse
-		}
 		item.PublishedAt = timestamp(entry.PublishedParsed)
 		item.UpdatedAt = timestamp(entry.UpdatedParsed)
 		imageBase := base
@@ -250,6 +248,18 @@ func parse(ctx context.Context, data []byte, base string) (*Document, error) {
 		}
 		if scope.explicit {
 			imageBase = scope.base
+		}
+		bodyBase := imageBase
+		if entry.Content != "" && scope.content != "" {
+			bodyBase = scope.content
+		}
+		if entry.Content == "" && scope.summary != "" {
+			bodyBase = scope.summary
+		}
+		item.HTML = SanitizeBody(content, bodyBase)
+		item.Text = Text(item.HTML)
+		if len(item.Text)+len(item.HTML) > 4<<20 {
+			return nil, ErrParse
 		}
 		banner := ""
 		if originalJSON != nil && index < len(originalJSON.Items) {

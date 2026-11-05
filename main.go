@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"embed"
+	"fmt"
 	"github.com/coolerks/Fealdhord/internal/feed"
 	"github.com/coolerks/Fealdhord/internal/media"
 	"github.com/coolerks/Fealdhord/internal/netpolicy"
+	"github.com/coolerks/Fealdhord/internal/reader"
 	"github.com/coolerks/Fealdhord/internal/refresh"
 	"log/slog"
 	"os"
@@ -45,6 +47,7 @@ func main() {
 	var settingsRepository settings.Repository
 	var libraryRepository library.Repository
 	var navigationRepository navigation.Repository
+	var readerRepository reader.Repository
 	var feedRepository feed.Repository
 	var refreshRepository refresh.Repository
 	var mediaRepository media.Repository
@@ -59,6 +62,7 @@ func main() {
 			settingsRepository = store
 			libraryRepository = store
 			navigationRepository = store
+			readerRepository = store
 			feedRepository = store
 			refreshRepository = store
 			mediaRepository = store
@@ -120,10 +124,20 @@ func main() {
 			mediaService.Ingest(ctx, id, document, ids)
 		}
 	})
+	readerService := reader.NewService(readerRepository, client, func(ctx context.Context, article database.ReaderArticle) bool {
+		value := policy(ctx)
+		return value.RemoteImages == "always" || (value.RemoteImages == "subscriptions" && !article.Archived)
+	}, func(target string) error {
+		if desktop == nil {
+			return fmt.Errorf("桌面应用尚未就绪")
+		}
+		return desktop.Browser.OpenURL(target)
+	})
 	desktop = application.New(application.Options{
 		Name: "Fealdhord", Description: "折栈，本地优先的 RSS 阅读器",
 		Services: []application.Service{
 			application.NewService(service), application.NewService(settingsService),
+			application.NewService(readerService),
 			application.NewService(navigation.NewService(navigationRepository, changed)),
 			application.NewService(library.NewService(libraryRepository, func(ctx context.Context) bool { return policy(ctx).RemoteImages != "never" })),
 			application.NewService(feedService), application.NewService(refresh.NewAPI(refreshService)),

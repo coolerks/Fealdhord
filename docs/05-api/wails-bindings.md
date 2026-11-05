@@ -85,3 +85,7 @@ LibraryService.Query(ArticleQuery) 已接真实数据库分页；List 保留兼�
 ## Phase 4 分类导航接口
 
 navigation.Service 暴露 List／Save／PreviewDelete／Remove／Memberships／SetMembership。分类编辑用 revision CAS，删除复核 tree_revision；成员 UI 仅 manual 来源，state=auto 删除人工行。导航统计来自全库有效关系，Feed 只列活动订阅。偏好增加 selected_scope_id，selected_scope 新增 feed／category；FeedService.Update 的 apply_existing 默认 true，false 仅作用于新入库文章。具体校验和回归见[分类导航规范](../../.trellis/spec/backend/navigation-guidelines.md)。
+
+## Phase 4 Reader 接口
+
+reader.Service.Get／Extract 使用 article_id和mode，返回安全本地资源HTML及text／has_cached／has_original。OpenLink仅接当前文章的resource_id（空表示原文），不接受任意地址。ArticleSummary新增revision用于正文缓存键；Settings新增reader_auto_read=true和reader_font_family=sans，旧JSON从默认值恢复。正文RPC采用CancellablePromise上下文取消，提取缓存独立于订阅正文。具体限额与错误见[Reader规范](../../.trellis/spec/backend/reader-guidelines.md)。

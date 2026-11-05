@@ -25,6 +25,8 @@ export interface Preferences {
     "selected_scope": string;
     "selected_article_id": string;
     "scroll_anchors": { [_ in string]?: ScrollAnchor } | null;
+    "reader_auto_read": boolean;
+    "reader_font_family": string;
     "reader_font_size": number;
     "reader_line_height": number;
     "reader_width": number;

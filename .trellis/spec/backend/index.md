@@ -6,6 +6,7 @@
 | --- | --- |
 | [后端目录与依赖边界](directory-structure.md) | 对应行为与验证门禁 |
 | [数据库、迁移与身份](database-guidelines.md) | 对应行为与验证门禁 |
+| [安全正文与登记资源](reader-guidelines.md) | Reader HTML、提取、缓存、取消与本地资源边界 |
 | [分类管理与导航](navigation-guidelines.md) | 分类 CAS、删除预览、全库计数及历史继承范围 |
 | [全库文章查询与游标](article-query-guidelines.md) | 分页、FTS 版本、候选边界及纯文本命中范围 |
 | [受控网络与 Feed 解析](network-guidelines.md) | SSRF、压缩限额与三格式解析契约 |

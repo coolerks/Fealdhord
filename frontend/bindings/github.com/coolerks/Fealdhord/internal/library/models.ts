@@ -9,6 +9,7 @@ import * as app$0 from "../app/models.js";
 import * as database$0 from "../database/models.js";
 
 export interface Article {
+    "revision": number;
     "feed_id": string;
     "url": string;
     "title_matches": TextRange[] | null;

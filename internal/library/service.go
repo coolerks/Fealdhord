@@ -28,6 +28,7 @@ type TextRange struct {
 	End   int `json:"end"`
 }
 type Article struct {
+	Revision     int64       `json:"revision"`
 	FeedID       string      `json:"feed_id"`
 	URL          string      `json:"url"`
 	TitleMatches []TextRange `json:"title_matches"`

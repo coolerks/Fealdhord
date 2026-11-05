@@ -24,7 +24,7 @@ func TestThreeFormatsAndSafeContent(t *testing.T) {
 			if len(doc.Items) != 1 || doc.Items[0].URL != "https://example.org/one" || !strings.Contains(doc.Items[0].Text, "正文") {
 				t.Fatalf("规范化不正确 %+v", doc)
 			}
-			if strings.Contains(doc.Items[0].HTML, "script") || strings.Contains(doc.Items[0].HTML, "onerror") || strings.Contains(doc.Items[0].HTML, "<img") || strings.Contains(doc.Items[0].Text, "attack") {
+			if strings.Contains(doc.Items[0].HTML, "script") || strings.Contains(doc.Items[0].HTML, "onerror") || strings.Contains(doc.Items[0].Text, "attack") {
 				t.Fatal("危险正文未清理")
 			}
 			if sample.name == "json" && len(doc.Items[0].Images) != 2 {

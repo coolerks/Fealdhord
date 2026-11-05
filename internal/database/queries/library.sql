@@ -24,7 +24,7 @@ DELETE FROM articles WHERE id=?;
 -- name: ListArticles :many
 SELECT a.id,a.title,a.url,a.author,substr(a.summary,1,500) AS summary,a.sort_at,a.feed_id,f.title AS feed_title,
  COALESCE(r.is_read,0) AS is_read,CASE WHEN fav.article_id IS NULL THEN 0 ELSE 1 END AS is_favorite,
- m.url AS cover_url,m.width AS cover_width,m.height AS cover_height,m.alt AS cover_alt
+ m.url AS cover_url,m.width AS cover_width,m.height AS cover_height,m.alt AS cover_alt,a.revision
 FROM articles a JOIN feeds f ON f.id=a.feed_id
 LEFT JOIN reading_states r ON r.article_id=a.id LEFT JOIN favorites fav ON fav.article_id=a.id
 LEFT JOIN article_media m ON m.article_id=a.id AND m.status='ready'
@@ -108,3 +108,10 @@ UPDATE article_media SET status='blocked',generation=generation+1;
 SELECT article_id FROM article_media WHERE status IN ('pending','blocked','none') OR (status='failed' AND (retry_after IS NULL OR retry_after<=?)) LIMIT 500;
 -- name: SaveCategory :execrows
 UPDATE categories SET name=?,normalized_name=?,parent_id=?,icon=?,color=?,description=?,sort_position=?,updated_at=?,revision=revision+1 WHERE id=? AND revision=?;
+-- name: SaveReaderDocument :exec
+INSERT INTO reader_contents(article_id,sanitized_html,content_text,source_url,fetched_at,extractor_version,content_hash) VALUES(?,?,?,?,?,?,?)
+ON CONFLICT(article_id) DO UPDATE SET sanitized_html=excluded.sanitized_html,content_text=excluded.content_text,source_url=excluded.source_url,fetched_at=excluded.fetched_at,extractor_version=excluded.extractor_version,content_hash=excluded.content_hash;
+-- name: RemoveReaderResources :exec
+DELETE FROM reader_resources WHERE article_id=? AND mode=?;
+-- name: AddReaderResource :exec
+INSERT INTO reader_resources(id,article_id,article_hash,mode,kind,url) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET article_hash=excluded.article_hash,url=excluded.url;

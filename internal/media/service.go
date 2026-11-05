@@ -182,7 +182,7 @@ func animatedImage(body []byte, kind string) bool {
 	}
 	return false
 }
-func imageInfo(body []byte) (image.Config, string, error) {
+func imageHeader(body []byte) (image.Config, string, error) {
 	config, kind, err := image.DecodeConfig(bytes.NewReader(body))
 	if err != nil {
 		return config, "", err
@@ -192,6 +192,13 @@ func imageInfo(body []byte) (image.Config, string, error) {
 	}
 	if animatedImage(body, kind) || (kind != "png" && kind != "jpeg" && kind != "webp") {
 		return config, "", errUnavailable
+	}
+	return config, kind, nil
+}
+func imageInfo(body []byte) (image.Config, string, error) {
+	config, kind, err := imageHeader(body)
+	if err != nil {
+		return config, "", err
 	}
 	decoded, format, err := image.Decode(bytes.NewReader(body))
 	if err != nil || format != kind || decoded.Bounds().Dx() != config.Width || decoded.Bounds().Dy() != config.Height {
@@ -373,6 +380,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if r.Method != "GET" && r.Method != "HEAD" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, "/media/inline/") {
+		s.serveInline(w, r)
 		return
 	}
 	id := strings.TrimPrefix(r.URL.Path, "/media/")

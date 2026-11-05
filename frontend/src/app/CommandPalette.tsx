@@ -7,7 +7,7 @@ import type { CommandID } from '@/lib/commands'
 import { CommandPresentation } from '@/components/command-presentation'
 import { commandShortcut } from '@/lib/command-presentation'
 import { native } from '@/lib/native'
-const entries:CommandID[]=['all','favorites','search','masonry','settings','refresh','feeds','ai','theme-light','theme-dark','help']
+const entries:CommandID[]=['all','favorites','search','masonry','settings','refresh','feeds','categories','reader-mode','open-original','ai','theme-light','theme-dark','help']
 export function CommandPalette() {
  const open=useWorkspace(state=>state.paletteOpen),client=useQueryClient()
  const items=(start:number,end:number)=>entries.slice(start,end).map(id=><CommandItem key={id} aria-keyshortcuts={commandShortcut(id,native.isMac())?.keys} onSelect={()=>{useWorkspace.setState({paletteOpen:false});runCommand(id,client)}}><CommandPresentation id={id} label={id==='settings'?'打开设置':undefined}/></CommandItem>)

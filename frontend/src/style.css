@@ -284,3 +284,11 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 .nav-tree-row .nav-item { flex:1; min-width:0; }
 .nav-tree-row .nav-node-label { overflow:hidden; text-overflow:ellipsis; }
 .nav-section nav { margin-block:4px 12px; }
+
+.reader-prose pre,.reader-prose table { max-width:100%; overflow-x:auto; display:block; }
+.reader-prose pre { padding:16px; background:var(--muted); border-radius:6px; white-space:pre; }
+.reader-prose td,.reader-prose th { padding:6px 10px; border:1px solid var(--border); }
+.reader-prose img { display:block; max-width:100%; height:auto; margin:20px auto; }
+.reader-prose[data-images=blocked] img { display:none; }
+.reader-prose a { text-decoration:underline; text-underline-offset:3px; }
+.reader-operation { margin-block:12px; font-size:13px; }

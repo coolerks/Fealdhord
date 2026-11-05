@@ -149,6 +149,16 @@ type ReaderContent struct {
 	SourceUrl        string `json:"source_url"`
 	FetchedAt        int64  `json:"fetched_at"`
 	ExtractorVersion string `json:"extractor_version"`
+	ContentHash      string `json:"content_hash"`
+}
+
+type ReaderResource struct {
+	ID          string `json:"id"`
+	ArticleID   string `json:"article_id"`
+	ArticleHash string `json:"article_hash"`
+	Mode        string `json:"mode"`
+	Kind        string `json:"kind"`
+	Url         string `json:"url"`
 }
 
 type ReadingState struct {
