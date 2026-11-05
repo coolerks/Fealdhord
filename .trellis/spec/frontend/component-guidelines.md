@@ -51,3 +51,6 @@ AnimatedGlyph 仅交互期间挂载 lucide-animated；startAnimation／stopAnima
 
 
 StrictMode 下按需挂载的图标，播放在 useEffect 内排入可取消 queueMicrotask，等本轮 passive effects／副作用重放后才调用句柄。cleanup 先使 current 失效，再取消实际 controls；微任务执行前核对 current。不要在父 useLayoutEffect 抢先启动新子树，不要用固定延时或取消 StrictMode 绕过。真实组合回归见 animated-glyph.integration.test.tsx，必须有多个不同中间帧及最终静态／重播断言。
+
+
+禁用属性必须读取值约定：原生 :disabled、aria-disabled=true、Radix 空 data-disabled、cmdk data-disabled=true 均阻止播放；cmdk 可用行带 data-disabled=false，不能用 [data-disabled] 存在性一律禁用。命令面板图标变更用真实 Command／CommandItem 验证 hover、键盘选中和禁用，不以手写 role=option 替代真实 DOM。

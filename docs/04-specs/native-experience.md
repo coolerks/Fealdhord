@@ -59,3 +59,8 @@ lucide-animated（MIT）官方 registry 源码按图标保存在 components/icon
 上轮 38 项检查没有覆盖 StrictMode 下 hover 才新增真实 Motion 子树的组合，不能证明实际动画已恢复。父级 layout effect 提前播放被子树副作用重放清理取消，Promise 未完成使 busy 卡住；现改为 passive effect 后排入可取消微任务，保留 StrictMode 与原版轨迹。
 
 真实组合测试覆盖全部 38 个图标，断言多个不同 SVG 中间状态及归位／重播；补充启动前取消。全部前端共 41 项、类型、lint 及 macOS 构建通过。Chrome 的真实时钟探针确认 Settings 两轮及 Layers 多段播放自动归位，临时探针已清理；不据此声明原生 WebKit／Windows 帧率通过。
+
+
+## 2026-11-05 命令面板禁用属性兼容
+
+cmdk 可用项也输出 data-disabled=false，现排除该 false 值，保留真正的禁用状态。真实 CommandItem＋Motion 验证悬停、键盘选中、归位重播及禁用静态，不能用缺属性的手写节点替代。全部前端 43 项、类型、lint 和 macOS 构建通过，命令行为与可访问名称不变。

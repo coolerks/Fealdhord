@@ -48,3 +48,6 @@ Taskfile 的工作目录放在任务级 dir，不能给单条 cmd 写 dir 并假
 图标播放 Promise 完成、data-animating=true 或 mock startAnimation 被调用，均不能证明画面运动。AnimatedGlyph 这种交互时新增 Motion 子树的组件，必须用真实图标／Motion，在应用同样的 StrictMode 环境下，从 hover／focus 触发按需挂载，再验证中间帧 SVG transform、路径或透明度确实改变，最终自动归位及再次进入可重播。预先挂载图标后再调用句柄的目录测试，只能检查图标自身，不能替代外层调度回归。
 
 imperative handle 就绪不等于 StrictMode 副作用重放完成。播放不能在新子树尚可能清理时抢先启动；取消必须覆盖未执行调度和已执行播放。保留 StrictMode，不用删除严格模式、固定延时清 busy 或吞错静态回退掩盖根因。手动时钟可验证中间帧及完成，不声称原生帧率达标。
+
+
+第三方控件兼容必须覆盖真实生成属性：cmdk 可用项含 data-disabled=false，Radix 用空属性表示禁用。只有 role／label 相同的手写节点不覆盖这些约定；command-icon-motion.test.tsx 使用真实 CommandItem 和 Motion 断言悬停／键盘运动、归位重播及禁用静态。

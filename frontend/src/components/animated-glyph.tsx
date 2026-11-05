@@ -33,7 +33,8 @@ function GlyphPlayback({ mode, icon: Fallback, meaning = 'book', className, ...p
     if (!trigger || mode !== 'full') return
     let hovered = false
     const enter = () => {
-      if (busy.current || trigger.matches(':disabled,[aria-disabled=true],[data-disabled]')) return
+      // Radix 用空属性表示禁用；cmdk 的可用项也带 data-disabled="false"。
+      if (busy.current || trigger.matches(':disabled,[aria-disabled=true],[data-disabled]:not([data-disabled=false])')) return
       busy.current = true
       setPlaying(true)
     }
