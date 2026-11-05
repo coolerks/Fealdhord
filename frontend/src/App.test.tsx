@@ -5,7 +5,8 @@ import { QueryClient } from '@tanstack/react-query'
 import { articleFixtures, preferencesFixture } from '@/test/fixtures'
 import { installGeometry } from '@/test/geometry'
 import { useWorkspace } from '@/stores/workspace'
-import type { LibraryPage } from '@/lib/library'
+import { initialLibraryData,libraryArticles } from '@/lib/library-query'
+import type { LibraryData } from '@/lib/library-query'
 import { articleQueryKey } from '@/lib/library'
 
 const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),onCommand:vi.fn(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(),minimize:vi.fn(),maximize:vi.fn(),fullscreen:vi.fn(),quit:vi.fn()}))
@@ -31,7 +32,7 @@ afterEach(() => { geometry.cleanup(); vi.restoreAllMocks() })
 
 function setup(withArticles = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  client.setQueryData(articleQueryKey, {items:withArticles ? articleFixtures(20) : [],hasMore:false})
+  client.setQueryData(articleQueryKey, initialLibraryData({items:withArticles ? articleFixtures(20) : [],hasMore:false}))
   return { client, ...render(<App client={client} />) }
 }
 
@@ -57,17 +58,17 @@ describe('Phase 1 阅读 Shell', () => {
     await userEvent.click(screen.getByRole('button', { name: '打开文章：测试文章 0' }))
     expect(screen.getByRole('heading', { name: '测试文章 0' })).toBeInTheDocument()
     fireEvent.keyDown(window, { key: 'f' })
-    expect(client.getQueryData<LibraryPage>(articleQueryKey)?.items[0].isFavorite).toBe(false)
+    expect(libraryArticles(client.getQueryData<LibraryData>(articleQueryKey))[0].isFavorite).toBe(false)
     await userEvent.click(screen.getByRole('radio', { name: '瀑布流视图' }))
     await act(async () => { geometry.resize() })
     expect(useWorkspace.getState().preferences?.selected_article_id).toBe('a-0')
     expect(screen.getByRole('heading', { name: '测试文章 0' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '搜索文章' }))
-    const search = screen.getByRole('textbox', { name: '搜索当前文章' })
+    const search = screen.getByRole('textbox', { name: '搜索全部文章' })
     await userEvent.type(search, '不存在')
-    expect(screen.getByText('没有找到匹配文章')).toBeInTheDocument()
+    expect(await screen.findByText('没有找到匹配文章')).toBeInTheDocument()
     fireEvent.keyDown(search, { key: 'm' })
-    expect(client.getQueryData<LibraryPage>(articleQueryKey)?.items[0].isRead).toBe(true)
+    expect(libraryArticles(client.getQueryData<LibraryData>(articleQueryKey))[0].isRead).toBe(true)
   })
 
   it('主题和动画即时生效，设置关闭后恢复触发点焦点', async () => {
@@ -111,7 +112,7 @@ describe('Phase 1 阅读 Shell', () => {
     await userEvent.click(screen.getByRole('radio', { name: '瀑布流视图' }))
     expect(container.querySelector('.reader-content')?.scrollTop).toBe(430)
     fireEvent.keyDown(window, { key: '/' })
-    await waitFor(() => expect(screen.getByRole('textbox', { name: '搜索当前文章' })).toHaveFocus())
+    await waitFor(() => expect(screen.getByRole('textbox', { name: '搜索全部文章' })).toHaveFocus())
     expect(useWorkspace.getState().preferences?.reader_open).toBe(false)
   })
 
@@ -148,7 +149,7 @@ describe('Phase 1 阅读 Shell', () => {
   it('输入框右键保留剪切与粘贴，受控搜索状态随编辑更新', async()=>{
     setup()
     await userEvent.click(await screen.findByRole('button',{name:'搜索文章'}))
-    const field=screen.getByRole('textbox',{name:'搜索当前文章'}) as HTMLInputElement
+    const field=screen.getByRole('textbox',{name:'搜索全部文章'}) as HTMLInputElement
     await userEvent.type(field,'abcdef')
     field.setSelectionRange(1,3)
     await act(async()=>{fireEvent.contextMenu(field);await new Promise(resolve=>setTimeout(resolve,0))})
@@ -175,7 +176,7 @@ describe('Phase 1 阅读 Shell', () => {
     await userEvent.click(screen.getByRole('button',{name:'重新读取文章'}))
     expect(await screen.findByText('暂无文章')).toBeInTheDocument()
     const articles=articleFixtures(1).map(article=>({...article,contentText:''}))
-    act(()=>client.setQueryData(articleQueryKey,{items:articles,hasMore:false}))
+    act(()=>client.setQueryData(articleQueryKey,initialLibraryData({items:articles,hasMore:false})))
     library.text.mockResolvedValueOnce('按需读取的完整正文')
     await userEvent.click(await screen.findByRole('button',{name:'打开文章：测试文章 0'}))
     expect(await screen.findByText('按需读取的完整正文')).toBeInTheDocument()
@@ -199,8 +200,8 @@ describe('Phase 1 阅读 Shell', () => {
   it('加载范围与保存失败属于必要反馈，精简后仍然可见',async()=>{
     const {client}=setup()
     await screen.findByRole('heading',{name:'全部文章'})
-    act(()=>client.setQueryData(articleQueryKey,{items:articleFixtures(20),hasMore:true}))
-    expect(await screen.findByText('仅显示最新 20 篇')).toHaveAttribute('role','status')
+    act(()=>client.setQueryData(articleQueryKey,initialLibraryData({items:articleFixtures(20),hasMore:true,nextCursor:'more'})))
+    expect(await screen.findByRole('button',{name:'载入更多文章'})).toBeEnabled()
     act(()=>useWorkspace.setState({saveStatus:'error',saveError:'保存失败'}))
     expect(screen.getByText('偏好保存失败')).toBeInTheDocument()
   })
@@ -236,7 +237,7 @@ describe('菜单图标与快捷键',()=>{
   await userEvent.hover(favorite)
   expect(favorite.querySelector('[data-animating=true]')).toBeInTheDocument()
   await userEvent.click(favorite)
-  await waitFor(()=>expect(client.getQueryData<LibraryPage>(articleQueryKey)?.items[1].isFavorite).toBe(true))
+  await waitFor(()=>expect(libraryArticles(client.getQueryData<LibraryData>(articleQueryKey))[1].isFavorite).toBe(true))
   expect(useWorkspace.getState().preferences?.selected_article_id).toBe('a-0')
  })
  it('macOS 右键显示系统格式，关闭动态时 Portal 也保持静态',async()=>{
@@ -256,7 +257,7 @@ describe('菜单图标与快捷键',()=>{
  it('只读文本菜单保留复制和全选，禁用修改项；Windows 编辑菜单有相同快捷键',async()=>{
   setup()
   await userEvent.click(await screen.findByRole('button',{name:'搜索文章'}))
-  const field=screen.getByRole('textbox',{name:'搜索当前文章'}) as HTMLInputElement
+  const field=screen.getByRole('textbox',{name:'搜索全部文章'}) as HTMLInputElement
   await userEvent.type(field,'abcdef')
   field.readOnly=true;field.setSelectionRange(0,2)
   await act(async()=>{fireEvent.contextMenu(field);await new Promise(resolve=>setTimeout(resolve,0))})

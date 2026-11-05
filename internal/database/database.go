@@ -28,10 +28,12 @@ type PreferenceRecord struct {
 }
 
 type Store struct {
-	db      *sql.DB
-	queries *sqlc.Queries
-	lock    *flock.Flock
-	write   sync.Mutex
+	cursorOnce   sync.Once
+	cursorSecret string
+	db           *sql.DB
+	queries      *sqlc.Queries
+	lock         *flock.Flock
+	write        sync.Mutex
 }
 
 var ErrDatabaseInUse = errors.New("数据库正在被另一个实例使用")

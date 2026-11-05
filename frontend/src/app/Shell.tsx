@@ -1,6 +1,6 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { CircleAlert } from 'lucide-react'
@@ -15,9 +15,8 @@ import { ArticleCollection } from '@/features/articles/ArticleCollection'
 import { Reader } from '@/features/reader/Reader'
 import { useWorkspace } from '@/stores/workspace'
 import { effectiveMotion, useMediaQuery } from '@/lib/environment'
-import { libraryAPI } from '@/lib/library-api'
-import type { Article } from '@/lib/library'
-import { articleQueryKey, filterArticles } from '@/lib/library'
+import { useLibraryQuery } from '@/features/articles/use-library-query'
+import { findCachedArticle } from '@/lib/library-query'
 import { Sidebar } from './Sidebar'
 import { Toolbar } from './Toolbar'
 import { cn } from '@/lib/utils'
@@ -28,14 +27,12 @@ const CommandPalette = lazy(() => import('./CommandPalette').then(module => ({ d
 import { useRSSSync } from './use-rss-sync'
 import { RefreshStatus } from '@/features/feeds/RefreshStatus'
 
-const EMPTY_ARTICLES:Article[]=[]
 
 export function Shell() {
   useRSSSync()
   const preferences = useWorkspace(state => state.preferences)!
   const patch = useWorkspace(state => state.patch)
   const search = useWorkspace(state => state.search)
-  const sort = useWorkspace(state => state.sort)
   const showSettings = useWorkspace(state => state.showSettings)
   const helpOpen=useWorkspace(state=>state.helpOpen)
   const commandError=useWorkspace(state=>state.commandError)
@@ -43,10 +40,9 @@ export function Shell() {
   const paletteOpen = useWorkspace(state => state.paletteOpen)
   const saveStatus = useWorkspace(state => state.saveStatus)
   const client = useQueryClient()
-  const { data:page, isLoading, isError,refetch } = useQuery({ queryKey: articleQueryKey, queryFn: libraryAPI.list, staleTime: 30000,retry:false })
-  const data=page?.items??EMPTY_ARTICLES
-  const articles = useMemo(() => filterArticles(data, preferences.selected_scope, search, sort), [data, preferences.selected_scope, search, sort])
-  const selected = data.find(article => article.id === preferences.selected_article_id)
+  const library=useLibraryQuery()
+  const {articles,data,isLoading,isError,refetch}=library
+  const selected = data.find(article=>article.id===preferences.selected_article_id) ?? findCachedArticle(client,preferences.selected_article_id)
   const compact = useMediaQuery('(max-width: 1080px)')
   const systemDark = useMediaQuery('(prefers-color-scheme: dark)')
   const systemReduced = useMediaQuery('(prefers-reduced-motion: reduce)')
@@ -57,7 +53,7 @@ export function Shell() {
   const [listDraft, setListDraft] = useState<number | null>(null)
   const sidebarWidth = preferences.sidebar_collapsed ? 64 : sidebarDraft ?? preferences.sidebar_width
   const listWidth = listDraft ?? preferences.list_width
-  const queryKey = `${preferences.selected_scope}|${search}|${sort}`
+  const queryKey = JSON.stringify(library.key)
 
   useLayoutEffect(() => {
     const dark = preferences.theme === 'dark' || (preferences.theme === 'system' && systemDark)
@@ -130,8 +126,12 @@ export function Shell() {
       {!preferences.sidebar_collapsed && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={280} onResize={setSidebarDraft} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
       <main className={cn('reading-workspace', !overlay && readerVisible && 'three-column')}>
         <section className="article-pane" aria-label="文章浏览"><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />{!settingsOpen && <RefreshStatus />}
-          {articles.length > 0 && !isError ? <ArticleCollection articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
-          {page?.hasMore && <p className="library-limit" role="status">仅显示最新 {data.length} 篇</p>}
+          {articles.length > 0 ? <ArticleCollection articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} incomplete={library.hasNextPage} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
+          {library.isError && search.trim() && <div className="library-limit"><Button variant="ghost" disabled={library.repairing} onClick={()=>{void library.repairSearch()}}>{library.repairing?'正在重建索引…':'重建搜索索引'}</Button>{library.repairError && <p role="alert">{library.repairError}</p>}</div>}
+          {library.searchLimited && <p className="library-limit" role="status">搜索候选较多，可继续载入或缩小范围。</p>}
+          {library.searchPending && <p className="library-limit" role="status">正在准备搜索…</p>}
+          {library.isFetchNextPageError && <p role="alert">{library.expired?'列表已变化，请重新载入。':'继续读取失败。'}<Button variant="ghost" onClick={()=>{void (library.expired?refetch():library.fetchNextPage())}}>重试</Button></p>}
+          {library.hasNextPage && <div className="library-limit"><Button variant="ghost" disabled={library.isFetching} onClick={()=>{void library.fetchNextPage()}}>{library.isFetchingNextPage?'正在载入…':'载入更多文章'}</Button></div>}
         </section>
         {!overlay && readerVisible && <><Splitter label="调整文章列表宽度" value={listDraft ?? preferences.list_width} min={300} max={420} onResize={setListDraft} onCommit={value => { patch({ list_width: value }); setListDraft(null) }} /><Reader article={selected} preferences={preferences} overlay={false} onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></>}
         <AnimatePresence>{overlay && readerVisible && <motion.div className="reader-drawer" transition={mode === 'full' ? { type: 'spring', stiffness: 380, damping: 38 } : { duration: mode === 'off' ? 0 : .1 }} initial={mode === 'full' ? { x: 64, opacity: 0 } : { opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={mode === 'full' ? { x: 16, opacity: 0 } : { opacity: 0 }}><Reader article={selected} preferences={preferences} overlay onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></motion.div>}</AnimatePresence>

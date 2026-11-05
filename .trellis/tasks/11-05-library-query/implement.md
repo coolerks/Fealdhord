@@ -4,3 +4,5 @@
 2. 实现 数据库查询、FTS 游标、LibraryService.Query、前端分页缓存及状态命令适配，先底层契约，再服务与前端纵向路径。
 3. 按父计划运行职责相关检查并修复；更新 API／产品规格、CURRENT／交接。
 4. 直接提交，继续下一部分；父阶段联验后统一归档。
+
+实现记录：新增00006 search_state／出生代次，Query／RebuildSearch、签名游标、前端 InfiniteData 与跨页状态缓存、150ms搜索取消、安全标题命中和加载更多已实现；Go全包／vet、相关race、前端59项／类型／lint、绑定与原生构建通过。

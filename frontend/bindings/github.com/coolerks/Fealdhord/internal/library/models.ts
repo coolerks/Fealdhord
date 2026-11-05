@@ -4,8 +4,14 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as app$0 from "../app/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as database$0 from "../database/models.js";
 
 export interface Article {
+    "feed_id": string;
+    "url": string;
+    "title_matches": TextRange[] | null;
     "id": string;
     "title": string;
     "feed_title": string;
@@ -39,6 +45,12 @@ export interface IDRequest {
     "article_id": string;
 }
 
+export interface IndexResult {
+    "ok": boolean;
+    "error"?: app$0.AppError | null;
+    "request_id": string;
+}
+
 export interface ListRequest {
     "limit": number;
 }
@@ -51,9 +63,14 @@ export interface ListResult {
 }
 
 export interface Page {
+    "next_cursor": string;
+    "snapshot_id": string;
+    "search_limited": boolean;
     "items": Article[] | null;
     "has_more": boolean;
 }
+
+export type QueryRequest = database$0.ArticleQuery;
 
 export interface State {
     "article_id": string;
@@ -70,4 +87,9 @@ export interface StateResult {
     "data"?: State | null;
     "error"?: app$0.AppError | null;
     "request_id": string;
+}
+
+export interface TextRange {
+    "start": number;
+    "end": number;
 }

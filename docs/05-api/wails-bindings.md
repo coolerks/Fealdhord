@@ -77,3 +77,7 @@ internal/refresh.API 白名单仅 Start{feed_ids}、Current、Get／Cancel{opera
 ## Phase 3 前端消费契约
 
 `rssAPI` 是订阅／刷新／缓存绑定的唯一适配入口；`useRSSSync` 订阅事件后恢复 Current，并仅对活动 operation_id 每 5 秒 Get，卸载清理。`useRefresh` 按 generation 优先、同代次 sequence 递增合并，关闭终态屏蔽迟到事件。`fealdhord:library-changed` 合并失效 feeds 和文章 Query，保持既有状态保存路径。所有设置仍经 SettingsService revision 串行落盘；表单编辑使用打开时 revision，不从新列表借用新 revision。
+
+## Phase 4 查询接口（首部分）
+
+LibraryService.Query(ArticleQuery) 已接真实数据库分页；List 保留兼容调用但应用不再使用固定500条路径。Page 增加 next_cursor／snapshot_id／search_limited；Summary 增加 feed_id／url／title_matches（UTF-16 纯文本范围）。RebuildSearch 显式重建索引并推进代次，返回 ok／error／request_id，前端随后重新查询。时间游标绑定出生代次与 rowid 上界，防 rowid 复用；全文游标额外绑定 generation／rank。游标带进程内 HMAC 和30分钟期限，重启或索引变化返回 CursorExpired。导航分类、阅读增强与 OPML 仍在后续子任务实施。

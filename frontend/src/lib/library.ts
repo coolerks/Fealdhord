@@ -1,4 +1,7 @@
 export type Article = {
+  feedID?: string
+  url?: string
+  titleMatches?: {start:number;end:number}[]
   id: string
   title: string
   feedTitle: string
@@ -11,7 +14,7 @@ export type Article = {
   cover?: { url: string; width?: number; height?: number; alt?: string }
 }
 export const articleQueryKey = ['library', 'articles'] as const
-export type LibraryPage={items:Article[];hasMore:boolean}
+export type LibraryPage={items:Article[];hasMore:boolean;nextCursor?:string;snapshotID?:string;searchLimited?:boolean}
 
 export function filterArticles(articles: Article[], scope: string, search: string, sort: 'newest' | 'oldest') {
   const term = search.trim().toLocaleLowerCase()

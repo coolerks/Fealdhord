@@ -5,8 +5,6 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
-	"strings"
-	"time"
 
 	"github.com/coolerks/Fealdhord/internal/app"
 	"github.com/coolerks/Fealdhord/internal/database"
@@ -25,19 +23,29 @@ type Cover struct {
 	Height *int64 `json:"height,omitempty"`
 	Alt    string `json:"alt"`
 }
+type TextRange struct {
+	Start int `json:"start"`
+	End   int `json:"end"`
+}
 type Article struct {
-	ID         string `json:"id"`
-	Title      string `json:"title"`
-	FeedTitle  string `json:"feed_title"`
-	Summary    string `json:"summary"`
-	SortAt     string `json:"sort_at"`
-	IsRead     bool   `json:"is_read"`
-	IsFavorite bool   `json:"is_favorite"`
-	Cover      *Cover `json:"cover,omitempty"`
+	FeedID       string      `json:"feed_id"`
+	URL          string      `json:"url"`
+	TitleMatches []TextRange `json:"title_matches"`
+	ID           string      `json:"id"`
+	Title        string      `json:"title"`
+	FeedTitle    string      `json:"feed_title"`
+	Summary      string      `json:"summary"`
+	SortAt       string      `json:"sort_at"`
+	IsRead       bool        `json:"is_read"`
+	IsFavorite   bool        `json:"is_favorite"`
+	Cover        *Cover      `json:"cover,omitempty"`
 }
 type Page struct {
-	Items   []Article `json:"items"`
-	HasMore bool      `json:"has_more"`
+	NextCursor    string    `json:"next_cursor"`
+	SnapshotID    string    `json:"snapshot_id"`
+	SearchLimited bool      `json:"search_limited"`
+	Items         []Article `json:"items"`
+	HasMore       bool      `json:"has_more"`
 }
 type ListRequest struct {
 	Limit int64 `json:"limit"`
@@ -90,6 +98,8 @@ func NewService(repository Repository, allowed ...func(context.Context) bool) *S
 func safeError(err error) *app.AppError {
 	code, message, retry := "DatabaseError", "无法读取或更新本地文章，请重试。", true
 	switch {
+	case errors.Is(err, database.ErrCursorExpired):
+		code, message, retry = "CursorExpired", "列表已变化，请重新载入。", true
 	case errors.Is(err, database.ErrConflict):
 		code, message, retry = "Conflict", "目标已更新，请重新载入。", true
 	case errors.Is(err, database.ErrNotFound):
@@ -128,19 +138,7 @@ func (s *Service) List(ctx context.Context, request ListRequest) ListResult {
 	}
 	covers := s.coverAllowed == nil || s.coverAllowed(ctx)
 	for _, row := range rows {
-		article := Article{ID: row.ID, Title: row.Title, FeedTitle: row.FeedTitle, Summary: row.Summary, SortAt: time.UnixMilli(row.SortAt).UTC().Format(time.RFC3339Nano), IsRead: row.IsRead == 1, IsFavorite: row.IsFavorite == 1}
-		if covers && row.CoverUrl.Valid && strings.HasPrefix(row.CoverUrl.String, "/media/") {
-			cover := &Cover{URL: row.CoverUrl.String, Alt: row.CoverAlt.String}
-			if row.CoverWidth.Valid && row.CoverWidth.Int64 > 0 {
-				value := row.CoverWidth.Int64
-				cover.Width = &value
-			}
-			if row.CoverHeight.Valid && row.CoverHeight.Int64 > 0 {
-				value := row.CoverHeight.Int64
-				cover.Height = &value
-			}
-			article.Cover = cover
-		}
+		article := projectArticle(row, covers)
 		page.Items = append(page.Items, article)
 	}
 	result.OK = true

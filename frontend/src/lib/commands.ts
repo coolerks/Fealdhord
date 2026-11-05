@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { articleQueryKey, filterArticles } from './library'
-import type { LibraryPage } from './library'
+import { articleQueryKey } from './library'
+import { libraryArticles } from './library-query'
+import type { LibraryData } from './library-query'
 import { toggleArticleState } from './article-state'
 import { useWorkspace } from '@/stores/workspace'
 import { startRefresh } from './refresh'
@@ -32,8 +33,7 @@ export function runCommand(id: CommandID, client: QueryClient, articleID?: strin
  case 'theme-light':patch({theme:'light'});break
  case 'theme-dark':patch({theme:'dark'});break
  case 'next':case 'previous': {
-  const all=client.getQueryData<LibraryPage>(articleQueryKey)?.items??[]
-  const articles=filterArticles(all,prefs.selected_scope,state.search,state.sort)
+  const articles=libraryArticles(client.getQueryData<LibraryData>(state.activeArticleQueryKey ?? articleQueryKey)).filter(article=>(prefs.selected_scope!=='unread'||!article.isRead)&&(prefs.selected_scope!=='favorites'||article.isFavorite))
   const current=articles.findIndex(article=>article.id===prefs.selected_article_id)
   const article=articles[Math.max(0,Math.min(articles.length-1,current<0?0:current+(id==='next'?1:-1)))]
   if(article)patch({selected_article_id:article.id,reader_open:true})

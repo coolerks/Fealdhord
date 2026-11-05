@@ -8,18 +8,19 @@ type Props = {
   searching: boolean
   loading: boolean
   failed: boolean
+  incomplete?:boolean
   onRetry: () => void
   onClearSearch: () => void
   onSettings: (section: 'ai' | 'feeds') => void
 }
 
-export function LibraryEmpty({ scope, searching, loading, failed, onRetry, onClearSearch, onSettings }: Props) {
+export function LibraryEmpty({ scope, searching, loading, failed, incomplete=false, onRetry, onClearSearch, onSettings }: Props) {
   const featured = scope === 'featured'
   let title = '暂无文章'
   if (scope === 'favorites') title = '暂无收藏'
   if (scope === 'unread') title = '没有未读文章'
   if (featured) title = '精选尚未开放'
-  if (searching) title = '没有找到匹配文章'
+  if (searching) title = incomplete ? '当前页没有匹配文章' : '没有找到匹配文章'
   if (loading) title = '正在读取文章…'
   if (failed) title = '暂时无法读取文章'
   const Icon = failed ? CircleAlert : searching ? Search : featured ? Sparkles : Rss

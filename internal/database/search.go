@@ -11,6 +11,8 @@ import (
 func isCJK(r rune) bool {
 	return unicode.In(r, unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Hangul)
 }
+func SearchTerms(text string) []string { return searchSegments(text) }
+
 func searchSegments(text string) []string {
 	var result []string
 	var current []rune
@@ -150,6 +152,16 @@ func (s *Store) CheckSearchIndex(ctx context.Context) error {
 func (s *Store) RebuildSearchIndex(ctx context.Context) error {
 	s.write.Lock()
 	defer s.write.Unlock()
-	_, err := s.db.ExecContext(ctx, "INSERT INTO article_fts(article_fts) VALUES('rebuild')")
-	return err
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, "INSERT INTO article_fts(article_fts) VALUES('rebuild')"); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, "UPDATE search_state SET generation=generation+1 WHERE id=1"); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

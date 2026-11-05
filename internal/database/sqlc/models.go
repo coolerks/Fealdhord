@@ -81,6 +81,11 @@ type ArticleMedium struct {
 	Mime       string         `json:"mime"`
 }
 
+type ArticleQueryBirth struct {
+	ArticleID  string `json:"article_id"`
+	Generation int64  `json:"generation"`
+}
+
 type Category struct {
 	ID             string         `json:"id"`
 	ParentID       sql.NullString `json:"parent_id"`
@@ -152,4 +157,9 @@ type ReadingState struct {
 	ReadAt    sql.NullInt64 `json:"read_at"`
 	UpdatedAt int64         `json:"updated_at"`
 	Revision  int64         `json:"revision"`
+}
+
+type SearchState struct {
+	ID         int64 `json:"id"`
+	Generation int64 `json:"generation"`
 }

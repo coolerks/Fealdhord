@@ -17,6 +17,14 @@ export function List(request: $models.ListRequest): $CancellablePromise<$models.
     return $Call.ByID(3735443839, request);
 }
 
+export function Query(request: $models.QueryRequest): $CancellablePromise<$models.ListResult> {
+    return $Call.ByID(1818819389, request);
+}
+
+export function RebuildSearch(): $CancellablePromise<$models.IndexResult> {
+    return $Call.ByID(2155886422);
+}
+
 export function SetFavorite(request: $models.StateRequest): $CancellablePromise<$models.StateResult> {
     return $Call.ByID(564494613, request);
 }

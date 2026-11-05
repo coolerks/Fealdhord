@@ -39,3 +39,7 @@ workspace.initialize 仅在首次偏好恢复／显式重载时调用；patch �
 ## Phase 2 真实依据
 
 library Query 现在保存 Page={items,hasMore}，生产从 Go 读取，不再是固定空数组；Reader 正文按 article_id 独立缓存，列表不得加载全部正文。文章状态由 article-state 串行落盘，失败只把最新意图回滚到最后保存值，不能回滚到另一个失败请求的乐观值。RFC3339 不同小数精度不能直接字符串排序，比较真实时间。hasMore 必须提示加载范围，不能把当前有界页冒充全库。
+
+## Phase 4 分页缓存
+
+library Query 迁移为 InfiniteData<LibraryPage>；libraryKey 包含 scope／search／read／favorite／sort／limit，cursor 是 pageParam，不是独立键。默认全库时间倒序50条保留基础 articleQueryKey。只能通过 libraryArticles／findCachedArticle／updateCachedArticle 访问跨页缓存；文章状态串行写入同步所有相关文章页，过滤页失效重取，不复制到 Zustand。搜索防抖150ms，signal 取消 Wails CancellablePromise；旧响应留在旧键，不覆盖新查询。命令读取 activeArticleQueryKey 的已加载结果，切换 list／masonry 不变查询键。

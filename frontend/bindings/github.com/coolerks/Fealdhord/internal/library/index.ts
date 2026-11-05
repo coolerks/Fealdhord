@@ -12,10 +12,13 @@ export type {
     Detail,
     DetailResult,
     IDRequest,
+    IndexResult,
     ListRequest,
     ListResult,
     Page,
+    QueryRequest,
     State,
     StateRequest,
-    StateResult
+    StateResult,
+    TextRange
 } from "./models.js";
