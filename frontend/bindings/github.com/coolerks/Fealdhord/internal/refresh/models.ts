@@ -34,6 +34,11 @@ export interface Result {
 }
 
 export interface Snapshot {
+    "success_count"?: number;
+    "cancelled_count"?: number;
+    "skipped_count"?: number;
+    "failed_count"?: number;
+    "results_truncated"?: boolean;
     "generation": number;
     "operation_id": string;
     "status": string;

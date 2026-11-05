@@ -58,3 +58,7 @@ StrictMode 下按需挂载的图标，播放在 useEffect 内排入可取消 que
 ## Reader 版本与命令调度
 
 Reader 的安全 HTML 仅来自 readerAPI，图片／链接均为登记 ID。当前正文 Query 包含 article revision，变化时重挂载内部正文、取消旧提取；外层自动已读 ref 保留同篇已处理意图，避免刷新后又覆盖人工未读。挂载前到达的菜单请求使用可取消 queueMicrotask 消费，cleanup 先失效，严格模式重放后才发请求；不能先清请求再启动一个马上被 StrictMode cleanup 取消的操作。保留真实 StrictMode 单次执行回归。
+
+## OPML 预览与原生授权
+
+transferAPI 是唯一文件调用边界，Go空items归一为数组；组件不拼宿主路径。Settings data分区持有短期预览和选择，Zustand仅保存一次性transferIntent；菜单早到意图仍用可取消微任务消费，StrictMode不得重复打开原生对话框。活动操作ref防重复提交、AbortSignal中止请求，卸载／旧授权返回后Discard能力；成功预览不能立即Discard其origin token，否则会误删同源私有预览。确认前零Import调用，取消在途提交提示检查列表，不能承诺已提交回滚。预览每页最多200行，跨页选择保留；标签使用data-animated-trigger供整行悬停及输入聚焦播放既有图标动画。

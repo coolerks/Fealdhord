@@ -17,6 +17,7 @@ import type { Preferences } from '@/lib/preferences'
 import { RefreshStatus } from '@/features/feeds/RefreshStatus'
 import { CategoryManager } from '@/features/categories/CategoryManager'
 import { FeedSettings } from '@/features/feeds/FeedSettings'
+import { TransferPanel } from '@/features/transfer/TransferPanel'
 import DiagnosticPanel from './DiagnosticPanel'
 
 function Choice({ name, label, value, choices, onChange }: { name: string; label: string; value: string; choices: [string, string][]; onChange: (value: string) => void }) {
@@ -28,6 +29,7 @@ function Range({ name, label, value, min, max, step = 1, unit = '', onChange }: 
 
 const sections: { id: SettingsTab; title: string; icon: typeof Palette; meaning:IconMeaning }[] = [
   { id: 'appearance', title: '外观与浏览', icon: Palette, meaning:"palette" }, { id: 'reader', title: '阅读排版', icon: SlidersHorizontal, meaning:"sliders-horizontal" },
+  {id:'data',title:'导入与导出',icon:Folder,meaning:'folder'},
   {id:'categories',title:'分类',icon:Folder,meaning:'folder'},
   { id: 'feeds', title: '订阅', icon: Rss, meaning:"radio-tower" }, { id: 'ai', title: 'AI 与扩展', icon: Sparkles, meaning:"ai" }, { id: 'about', title: '关于与诊断', icon: Info, meaning:"circle-help" },
 ]
@@ -59,6 +61,7 @@ export function SettingsDialog() {
         </FieldGroup>}
         {tab === 'reader' && <FieldGroup><Field orientation="horizontal"><FieldLabel htmlFor="reader-auto-read">正文呈现后标为已读</FieldLabel><Switch id="reader-auto-read" checked={preferences.reader_auto_read} onCheckedChange={value=>set('reader_auto_read',value)}/></Field><Choice name="reader-font" label="阅读字体" value={preferences.reader_font_family} choices={[["sans","系统无衬线"],["serif","衬线"],["monospace","等宽"]]} onChange={value=>set('reader_font_family',value)}/><Field orientation="horizontal"><FieldLabel htmlFor="pin-reader">并排阅读（宽窗口三栏）</FieldLabel><Switch id="pin-reader" checked={preferences.reader_pinned} onCheckedChange={value=>set('reader_pinned',value)}/></Field><Range name="font-size" label="正文字号" value={preferences.reader_font_size} min={14} max={24} unit="px" onChange={value => set('reader_font_size', value)} /><Range name="line-height" label="行高" value={preferences.reader_line_height} min={1.4} max={2} step={.1} onChange={value => set('reader_line_height', value)} /><Range name="reader-width" label="正文宽度" value={preferences.reader_width} min={680} max={760} step={20} unit="px" onChange={value => set('reader_width', value)} /></FieldGroup>}
         {tab === 'feeds' && <FeedSettings />}
+        {tab==='data' && <TransferPanel/>}
         {tab==='categories' && <CategoryManager/>}
         {tab === 'ai' && <Empty><EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={Sparkles} meaning="ai"/></EmptyMedia><EmptyTitle>AI 与扩展尚未开放</EmptyTitle></EmptyHeader></Empty>}
         {tab === 'about' && <DiagnosticPanel />}

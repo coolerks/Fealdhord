@@ -19,3 +19,8 @@ it('全部失败的 partial 也不能显示成功',()=>{
   render(<RefreshStatus/>);expect(screen.getByRole('status')).toHaveTextContent('2 个订阅失败')
   expect(screen.queryByText('刷新完成')).not.toBeInTheDocument()
 })
+
+it('截断的事件明细不掩盖较早失败的累计数',()=>{
+ useRefresh.setState({error:null,snapshot:{...running,status:'completed',completed:200,total:200,results:[],failed_count:5,success_count:195,cancelled_count:0,skipped_count:0,results_truncated:true}})
+ render(<RefreshStatus/>);expect(screen.getByRole('status')).toHaveTextContent('5 个订阅失败')
+})

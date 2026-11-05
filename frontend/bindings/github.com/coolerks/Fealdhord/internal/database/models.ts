@@ -56,6 +56,28 @@ export interface CategorySummary {
     "parent_id"?: string | null;
 }
 
+export interface ImportOutline {
+    "key": string;
+    "parent_key": string;
+    "title": string;
+    "url": string;
+    "site_url": string;
+    "kind": string;
+    "status": string;
+    "reason": string;
+    "depth": number;
+}
+
+export interface ImportReport {
+    "feeds_added": number;
+    "feeds_reused": number;
+    "feeds_restored": number;
+    "categories_added": number;
+    "associations_added": number;
+    "skipped": number;
+    "feed_ids": string[] | null;
+}
+
 export interface MembershipInfo {
     "category_id": string;
     "effective": boolean;

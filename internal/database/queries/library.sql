@@ -115,3 +115,9 @@ ON CONFLICT(article_id) DO UPDATE SET sanitized_html=excluded.sanitized_html,con
 DELETE FROM reader_resources WHERE article_id=? AND mode=?;
 -- name: AddReaderResource :exec
 INSERT INTO reader_resources(id,article_id,article_hash,mode,kind,url) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET article_hash=excluded.article_hash,url=excluded.url;
+-- name: ListAllFeedCategories :many
+SELECT feed_id,category_id FROM feed_categories ORDER BY feed_id,category_id;
+-- name: SetImportedSite :exec
+UPDATE feeds SET site_url=? WHERE id=?;
+-- name: TouchImportedFeed :exec
+UPDATE feeds SET updated_at=?,revision=revision+1 WHERE id=?;

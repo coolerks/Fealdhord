@@ -22,7 +22,8 @@ Go 服务方法形如 `ListArticles(req ListArticlesRequest) ListArticlesResult`
 | AgentService | Start{conversation_id?,scope,input,model_id?,skill_ids?}；Cancel{run_id}；Get{run_id}；ResolveAction{action_id,decision:approve或deny} | RunSnapshot／ActionReceipt |
 | SkillService | List；Get；Save；SetEnabled；Delete | SkillSummary／校验结果 |
 | MCPService | List；Save；Connect；Disconnect；Inspect；SetPolicy | 脱敏服务／能力快照 |
-| DataService | PreviewOPML{dialog_token}；ImportOPML{preview_id,selection}；ExportOPML{dialog_token}；Backup{dialog_token} | 导入报告／文件结果 |
+| transfer.API（已实现） | ChooseImport／ChooseExport；PreviewOPML{dialog_token}；ImportOPML{preview_id,selected,apply_existing,refresh}；ExportOPML{dialog_token}；Discard{dialog_token,preview_id} | 一次性文件能力／预览／导入报告／文件结果 |
+| DataService（后续） | Backup{dialog_token} | 备份文件结果 |
 
 文件路径来自原生对话框授予的一次性 token，前端不能任意写宿主路径；本轮只定义 API，不实现。内置工具不能调用凭据编辑或 DataService 的任意路径操作。
 
@@ -80,7 +81,7 @@ internal/refresh.API 白名单仅 Start{feed_ids}、Current、Get／Cancel{opera
 
 ## Phase 4 查询接口（首部分）
 
-LibraryService.Query(ArticleQuery) 已接真实数据库分页；List 保留兼容调用但应用不再使用固定500条路径。Page 增加 next_cursor／snapshot_id／search_limited；Summary 增加 feed_id／url／title_matches（UTF-16 纯文本范围）。RebuildSearch 显式重建索引并推进代次，返回 ok／error／request_id，前端随后重新查询。时间游标绑定出生代次与 rowid 上界，防 rowid 复用；全文游标额外绑定 generation／rank。游标带进程内 HMAC 和30分钟期限，重启或索引变化返回 CursorExpired。导航分类、阅读增强与 OPML 仍在后续子任务实施。
+LibraryService.Query(ArticleQuery) 已接真实数据库分页；List 保留兼容调用但应用不再使用固定500条路径。Page 增加 next_cursor／snapshot_id／search_limited；Summary 增加 feed_id／url／title_matches（UTF-16 纯文本范围）。RebuildSearch 显式重建索引并推进代次，返回 ok／error／request_id，前端随后重新查询。时间游标绑定出生代次与 rowid 上界，防 rowid 复用；全文游标额外绑定 generation／rank。游标带进程内 HMAC 和30分钟期限，重启或索引变化返回 CursorExpired。导航分类、阅读增强和 OPML 已按 Phase 4 子任务接线，实际限制见对应规格。
 
 ## Phase 4 分类导航接口
 
@@ -89,3 +90,9 @@ navigation.Service 暴露 List／Save／PreviewDelete／Remove／Memberships／S
 ## Phase 4 Reader 接口
 
 reader.Service.Get／Extract 使用 article_id和mode，返回安全本地资源HTML及text／has_cached／has_original。OpenLink仅接当前文章的resource_id（空表示原文），不接受任意地址。ArticleSummary新增revision用于正文缓存键；Settings新增reader_auto_read=true和reader_font_family=sans，旧JSON从默认值恢复。正文RPC采用CancellablePromise上下文取消，提取缓存独立于订阅正文。具体限额与错误见[Reader规范](../../.trellis/spec/backend/reader-guidelines.md)。
+
+### Phase 4 OPML 与刷新事件
+
+transfer.API 的 Choose 返回 token／name／cancelled；Preview 返回 preview_id／name／items，outline 含 key／parent_key／title／url／site_url／kind／status／reason／depth，Go保留私有计划与版本。Import返回 report（feeds_added／feeds_reused／feeds_restored／categories_added／associations_added／skipped／feed_ids）、refresh_queued／refresh_error。Export仅返回name／bytes；Discard返回ok／error／request_id。其余均为统一ok／data／error／request_id，禁止前端传宿主路径或修改计划内容。绑定方法可取消，提交完成后取消不能承诺回滚。
+
+刷新Snapshot增加 success_count／cancelled_count／skipped_count／failed_count及results_truncated。运行中事件最多每200ms广播一次，明细最近100项；终态立即广播，Get／Current保留完整结果。累计数与截断明细独立，UI不能仅据明细判断无失败；每次操作最多10000目标，网络并发仍4／每站点2。

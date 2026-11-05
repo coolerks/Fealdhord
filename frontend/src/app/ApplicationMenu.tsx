@@ -7,10 +7,9 @@ import { captureTextTarget, editText } from '@/lib/text-actions'
 import { CommandPresentation, TextActionPresentation } from '@/components/command-presentation'
 import { commandShortcut, textShortcut } from '@/lib/command-presentation'
 import { native } from '@/lib/native'
-import { AnimatedGlyph } from '@/components/animated-glyph'
 
 const groups: {title:string;sections:CommandID[][]}[] = [
- {title:'文件',sections:[['feeds','categories','refresh'],['settings','close','quit']]},
+ {title:'文件',sections:[['feeds','categories','refresh'],['import-opml','export-opml'],['settings','close','quit']]},
  {title:'显示',sections:[['all','unread','favorites'],['list','masonry','sidebar','reader'],['theme-system','theme-light','theme-dark'],['fullscreen']]},
  {title:'文章',sections:[['previous','next'],['reader-mode','open-original'],['favorite','read']]},
  {title:'窗口',sections:[['minimize','maximize'],['palette']]},
@@ -30,5 +29,5 @@ export function ApplicationMenu() {
  {groups.slice(1).map(renderGroup)}
  </Menubar></div>
  function textItem(action:Parameters<typeof editText>[0]) {return <MenubarItem key={action} aria-keyshortcuts={textShortcut(action,native.isMac()).keys} onSelect={()=>{void editText(action,text.current??captureTextTarget())}}><TextActionPresentation action={action}/></MenubarItem>}
- function renderGroup(group:typeof groups[number]) {return <MenubarMenu key={group.title}><MenubarTrigger>{group.title}</MenubarTrigger><MenubarContent className="action-menu">{group.sections.map((section,index)=><Fragment key={index}>{index>0&&<MenubarSeparator/>}<MenubarGroup>{section.map(command)}</MenubarGroup></Fragment>)}{group.title==='文件'&&<><MenubarSeparator/><MenubarGroup><MenubarItem disabled><AnimatedGlyph meaning="folder"/>导入 OPML…</MenubarItem><MenubarItem disabled><AnimatedGlyph meaning="folder"/>导出 OPML…</MenubarItem></MenubarGroup></>}</MenubarContent></MenubarMenu>}
+ function renderGroup(group:typeof groups[number]) {return <MenubarMenu key={group.title}><MenubarTrigger>{group.title}</MenubarTrigger><MenubarContent className="action-menu">{group.sections.map((section,index)=><Fragment key={index}>{index>0&&<MenubarSeparator/>}<MenubarGroup>{section.map(command)}</MenubarGroup></Fragment>)}</MenubarContent></MenubarMenu>}
 }

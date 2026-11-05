@@ -2,7 +2,7 @@ import type { IconMeaning } from '@/components/animated-glyph'
 import type { CommandID } from './commands'
 
 export const commandIcons = {
-  'reader-mode':'book','open-original':'book',categories:'folder',refresh:'refresh',settings:'settings',about:'circle-help',help:'circle-help',feeds:'radio-tower',ai:'ai',search:'search',palette:'search',
+  'import-opml':'folder','export-opml':'folder','reader-mode':'book','open-original':'book',categories:'folder',refresh:'refresh',settings:'settings',about:'circle-help',help:'circle-help',feeds:'radio-tower',ai:'ai',search:'search',palette:'search',
   all:'book',unread:'unread',favorites:'favorite',featured:'ai',list:'list',masonry:'grid',sidebar:'collapse',reader:'panel-right-open',
   'theme-system':'monitor-cog','theme-light':'sun','theme-dark':'moon',next:'chevron-right',previous:'chevron-left',favorite:'favorite',read:'read',
   close:'x',minimize:'minimize',maximize:'maximize',fullscreen:'maximize',quit:'x',

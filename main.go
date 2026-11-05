@@ -9,6 +9,7 @@ import (
 	"github.com/coolerks/Fealdhord/internal/netpolicy"
 	"github.com/coolerks/Fealdhord/internal/reader"
 	"github.com/coolerks/Fealdhord/internal/refresh"
+	"github.com/coolerks/Fealdhord/internal/transfer"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -41,6 +42,7 @@ func init() {
 
 func main() {
 	var desktop *application.App
+	var mainWindow *application.WebviewWindow
 	service, stop := fealdhord.NewBootstrapService(context.Background(), func(event fealdhord.OperationEvent) {
 		desktop.Event.Emit(fealdhord.EventName, event)
 	})
@@ -48,6 +50,7 @@ func main() {
 	var libraryRepository library.Repository
 	var navigationRepository navigation.Repository
 	var readerRepository reader.Repository
+	var transferRepository transfer.Repository
 	var feedRepository feed.Repository
 	var refreshRepository refresh.Repository
 	var mediaRepository media.Repository
@@ -63,6 +66,7 @@ func main() {
 			libraryRepository = store
 			navigationRepository = store
 			readerRepository = store
+			transferRepository = store
 			feedRepository = store
 			refreshRepository = store
 			mediaRepository = store
@@ -133,11 +137,29 @@ func main() {
 		}
 		return desktop.Browser.OpenURL(target)
 	})
+	transferService := transfer.NewService(transferRepository, func(ctx context.Context) (string, error) {
+		if desktop == nil || mainWindow == nil || ctx.Err() != nil {
+			return "", context.Canceled
+		}
+		return desktop.Dialog.OpenFile().SetTitle("导入 OPML").AddFilter("OPML 订阅文件", "*.opml;*.xml").AttachToWindow(mainWindow).PromptForSingleSelection()
+	}, func(ctx context.Context) (string, error) {
+		if desktop == nil || mainWindow == nil || ctx.Err() != nil {
+			return "", context.Canceled
+		}
+		return desktop.Dialog.SaveFileWithOptions(&application.SaveFileDialogOptions{Title: "导出 OPML", Filename: "Fealdhord.opml", Filters: []application.FileFilter{{DisplayName: "OPML 订阅文件", Pattern: "*.opml;*.xml"}}, Window: mainWindow}).PromptForSingleSelection()
+	}, changed, func(ids []string) error {
+		result := refreshService.Start(context.Background(), refresh.StartRequest{FeedIDs: ids})
+		if !result.OK {
+			return fmt.Errorf("刷新队列不可用")
+		}
+		return nil
+	})
 	desktop = application.New(application.Options{
 		Name: "Fealdhord", Description: "折栈，本地优先的 RSS 阅读器",
 		Services: []application.Service{
 			application.NewService(service), application.NewService(settingsService),
 			application.NewService(readerService),
+			application.NewService(transfer.NewAPI(transferService)),
 			application.NewService(navigation.NewService(navigationRepository, changed)),
 			application.NewService(library.NewService(libraryRepository, func(ctx context.Context) bool { return policy(ctx).RemoteImages != "never" })),
 			application.NewService(feedService), application.NewService(refresh.NewAPI(refreshService)),
@@ -147,6 +169,7 @@ func main() {
 		Mac:    application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
 	})
 	desktop.OnShutdown(func() {
+		transferService.Close()
 		stop()
 		refreshService.Close()
 		if mediaService != nil {
@@ -156,7 +179,7 @@ func main() {
 	})
 	refreshService.StartScheduler()
 	desktopintegration.InstallMenu(desktop)
-	desktop.Window.NewWithOptions(desktopintegration.WindowOptions())
+	mainWindow = desktop.Window.NewWithOptions(desktopintegration.WindowOptions())
 	if err := desktop.Run(); err != nil {
 		stop()
 		slog.Error("桌面应用启动失败", "error", err)

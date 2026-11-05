@@ -9,3 +9,7 @@
 5. 联验 SEARCH／CAT／READER／OPML／API；运行 Go test／vet／相关 race、sqlc／绑定、前端类型／lint／测试、Wails build 与 macOS 调试包；文档检查，CURRENT／LATEST、归档、日志。
 
 主会话 inline；每次切换职责读取对应 PRD／设计和 .trellis/spec。构建写 dist 时不并行 Go 全包 embed 检查。每部分直接提交，不推送；无关框架文件保留。
+
+## 联验结果（2026-11-06）
+
+四部分已实现；查询c1a3960、分类a034025、阅读47e695a、macOS调试签名构建修复6cf26d3。Go全包test／vet、职责相关race、前端20文件80项／类型／lint、SQLC／Wails绑定与production构建、macOS调试包严格签名核验通过；原生签名初次缓存失效已修复并重复验证。未执行本轮E2E／其他平台实机／100k性能；实际边界见docs/09-research/phase4-validation.md。

@@ -542,6 +542,38 @@ func (q *Queries) InsertIdentity(ctx context.Context, arg InsertIdentityParams) 
 	return err
 }
 
+const listAllFeedCategories = `-- name: ListAllFeedCategories :many
+SELECT feed_id,category_id FROM feed_categories ORDER BY feed_id,category_id
+`
+
+type ListAllFeedCategoriesRow struct {
+	FeedID     string `json:"feed_id"`
+	CategoryID string `json:"category_id"`
+}
+
+func (q *Queries) ListAllFeedCategories(ctx context.Context) ([]ListAllFeedCategoriesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAllFeedCategories)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAllFeedCategoriesRow
+	for rows.Next() {
+		var i ListAllFeedCategoriesRow
+		if err := rows.Scan(&i.FeedID, &i.CategoryID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAllFeeds = `-- name: ListAllFeeds :many
 SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code FROM feeds ORDER BY sort_position,title,id
 `
@@ -1165,6 +1197,20 @@ func (q *Queries) SetFeedCategory(ctx context.Context, arg SetFeedCategoryParams
 	return err
 }
 
+const setImportedSite = `-- name: SetImportedSite :exec
+UPDATE feeds SET site_url=? WHERE id=?
+`
+
+type SetImportedSiteParams struct {
+	SiteUrl string `json:"site_url"`
+	ID      string `json:"id"`
+}
+
+func (q *Queries) SetImportedSite(ctx context.Context, arg SetImportedSiteParams) error {
+	_, err := q.db.ExecContext(ctx, setImportedSite, arg.SiteUrl, arg.ID)
+	return err
+}
+
 const setMediaState = `-- name: SetMediaState :execrows
 UPDATE article_media SET status=?,url=?,remote_url=?,source=?,width=?,height=?,alt=?,checked_at=?,retry_after=?,cache_key=?,mime=? WHERE article_id=? AND generation=?
 `
@@ -1254,6 +1300,20 @@ func (q *Queries) SetRead(ctx context.Context, arg SetReadParams) error {
 		arg.ReadAt,
 		arg.UpdatedAt,
 	)
+	return err
+}
+
+const touchImportedFeed = `-- name: TouchImportedFeed :exec
+UPDATE feeds SET updated_at=?,revision=revision+1 WHERE id=?
+`
+
+type TouchImportedFeedParams struct {
+	UpdatedAt int64  `json:"updated_at"`
+	ID        string `json:"id"`
+}
+
+func (q *Queries) TouchImportedFeed(ctx context.Context, arg TouchImportedFeedParams) error {
+	_, err := q.db.ExecContext(ctx, touchImportedFeed, arg.UpdatedAt, arg.ID)
 	return err
 }
 

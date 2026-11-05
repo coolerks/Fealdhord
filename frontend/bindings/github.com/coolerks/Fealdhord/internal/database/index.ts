@@ -8,6 +8,8 @@ export type {
     CategoryInfo,
     CategoryInput,
     CategorySummary,
+    ImportOutline,
+    ImportReport,
     MembershipInfo,
     NavFeed,
     NavTotals,

@@ -3,6 +3,7 @@ package refresh
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/coolerks/Fealdhord/internal/database"
 	"github.com/coolerks/Fealdhord/internal/netpolicy"
 	"net/http"
@@ -191,5 +192,35 @@ func TestBoundedGlobalAndPerHostConcurrency(t *testing.T) {
 	await(t, service, started.Data.OperationID)
 	if maxActive > 4 || maxHost > 2 || maxHost < 2 {
 		t.Fatalf("并发边界不正确 global=%d host=%d", maxActive, maxHost)
+	}
+}
+
+func TestBoundedProgressEventsKeepFullResultAPI(t *testing.T) {
+	var events []Event
+	service := NewService(context.Background(), nil, nil, func(event Event) { events = append(events, event) }, nil)
+	defer service.Close()
+	now := time.Unix(1000, 0)
+	service.now = func() time.Time { return now }
+	r := &run{snapshot: Snapshot{OperationID: "op", Generation: 1, Status: "running", FailedCount: 120}}
+	for i := range 1000 {
+		r.snapshot.Results = append(r.snapshot.Results, FeedResult{FeedID: fmt.Sprint(i), Status: "failed"})
+	}
+	value := eventSnapshot(r)
+	if len(value.Results) != 100 || !value.ResultsTruncated || len(snapshot(r).Results) != 1000 || snapshot(r).ResultsTruncated {
+		t.Fatal("进度截断污染了完整结果")
+	}
+	for i := range 100 {
+		value.Sequence = i + 1
+		service.publish(value)
+	}
+	if len(events) != 1 {
+		t.Fatal("频繁进度未节流", len(events))
+	}
+	now = now.Add(200 * time.Millisecond)
+	service.publish(value)
+	value.Status = "completed"
+	service.publish(value)
+	if len(events) != 3 || events[2].Payload.FailedCount != 120 {
+		t.Fatal("终态或累计失败计数丢失", events)
 	}
 }

@@ -19,6 +19,7 @@ import (
 )
 
 const EventName = "fealdhord:refresh"
+const maxRefreshFeeds = 10000
 
 type Repository interface {
 	Subscriptions(context.Context, bool) ([]database.Subscription, error)
@@ -40,13 +41,18 @@ type FeedResult struct {
 	Message string `json:"message,omitempty"`
 }
 type Snapshot struct {
-	Generation  int64        `json:"generation"`
-	OperationID string       `json:"operation_id"`
-	Status      string       `json:"status"`
-	Completed   int          `json:"completed"`
-	Total       int          `json:"total"`
-	Sequence    int          `json:"sequence"`
-	Results     []FeedResult `json:"results"`
+	SuccessCount     int          `json:"success_count,omitempty"`
+	CancelledCount   int          `json:"cancelled_count,omitempty"`
+	SkippedCount     int          `json:"skipped_count,omitempty"`
+	FailedCount      int          `json:"failed_count,omitempty"`
+	ResultsTruncated bool         `json:"results_truncated,omitempty"`
+	Generation       int64        `json:"generation"`
+	OperationID      string       `json:"operation_id"`
+	Status           string       `json:"status"`
+	Completed        int          `json:"completed"`
+	Total            int          `json:"total"`
+	Sequence         int          `json:"sequence"`
+	Results          []FeedResult `json:"results"`
 }
 type Result struct {
 	OK        bool          `json:"ok"`
@@ -72,23 +78,26 @@ type run struct {
 	next, workers int
 }
 type Service struct {
-	mu                sync.Mutex
-	repository        Repository
-	fetcher           netpolicy.Fetcher
-	ctx               context.Context
-	cancel            context.CancelFunc
-	wg                sync.WaitGroup
-	closed, scheduled bool
-	active            *run
-	history           map[string]*run
-	order             []string
-	hosts             map[string]chan struct{}
-	now               func() time.Time
-	jitter            func() float64
-	emit              func(Event)
-	changed           func()
-	afterCommit       func(context.Context, string, *feed.Document, []string)
-	generation        int64
+	mu                     sync.Mutex
+	publishMu              sync.Mutex
+	lastPublished          time.Time
+	lastPublishedOperation string
+	repository             Repository
+	fetcher                netpolicy.Fetcher
+	ctx                    context.Context
+	cancel                 context.CancelFunc
+	wg                     sync.WaitGroup
+	closed, scheduled      bool
+	active                 *run
+	history                map[string]*run
+	order                  []string
+	hosts                  map[string]chan struct{}
+	now                    func() time.Time
+	jitter                 func() float64
+	emit                   func(Event)
+	changed                func()
+	afterCommit            func(context.Context, string, *feed.Document, []string)
+	generation             int64
 }
 
 func NewService(ctx context.Context, repository Repository, fetcher netpolicy.Fetcher, emit func(Event), changed func()) *Service {
@@ -107,13 +116,39 @@ func snapshot(r *run) Snapshot {
 }
 func success(value Snapshot) Result { return Result{OK: true, Data: &value, RequestID: rand.Text()} }
 func failure(err error) Result      { return Result{Error: feed.SafeError(err), RequestID: rand.Text()} }
-func (s *Service) publish(value Snapshot) {
-	if s.emit != nil {
-		s.emit(Event{SchemaVersion: 1, EventID: rand.Text(), OperationID: value.OperationID, Sequence: value.Sequence, Type: "refresh.progress", OccurredAt: s.now().UTC().Format(time.RFC3339Nano), Payload: value})
+
+// eventSnapshot 明细有界；Get／Current 始终返回完整活动快照。
+func eventSnapshot(r *run) Snapshot {
+	out := r.snapshot
+	start := 0
+	if len(out.Results) > 100 {
+		start = len(out.Results) - 100
+		out.ResultsTruncated = true
 	}
+	out.Results = append([]FeedResult{}, out.Results[start:]...)
+	return out
+}
+func (s *Service) publish(value Snapshot) {
+	if s.emit == nil {
+		return
+	}
+	s.publishMu.Lock()
+	now := s.now()
+	if value.Status == "running" && value.OperationID == s.lastPublishedOperation && now.Sub(s.lastPublished) < 200*time.Millisecond {
+		s.publishMu.Unlock()
+		return
+	}
+	s.lastPublished = now
+	s.lastPublishedOperation = value.OperationID
+	s.publishMu.Unlock()
+	if len(value.Results) > 100 {
+		value.Results = append([]FeedResult{}, value.Results[len(value.Results)-100:]...)
+		value.ResultsTruncated = true
+	}
+	s.emit(Event{SchemaVersion: 1, EventID: rand.Text(), OperationID: value.OperationID, Sequence: value.Sequence, Type: "refresh.progress", OccurredAt: s.now().UTC().Format(time.RFC3339Nano), Payload: value})
 }
 func (s *Service) Start(ctx context.Context, request StartRequest) Result {
-	if s.repository == nil || s.fetcher == nil || len(request.FeedIDs) > 5000 {
+	if s.repository == nil || s.fetcher == nil || len(request.FeedIDs) > maxRefreshFeeds {
 		return failure(database.ErrInvalidInput)
 	}
 	ids := request.FeedIDs
@@ -127,7 +162,7 @@ func (s *Service) Start(ctx context.Context, request StartRequest) Result {
 			ids = append(ids, row.ID)
 		}
 	}
-	if len(ids) > 5000 {
+	if len(ids) > maxRefreshFeeds {
 		return failure(database.ErrInvalidInput)
 	}
 	for _, id := range ids {
@@ -165,7 +200,7 @@ func (s *Service) Start(ctx context.Context, request StartRequest) Result {
 			newIDs = append(newIDs, id)
 		}
 	}
-	if len(r.ids)+len(newIDs) > 5000 {
+	if len(r.ids)+len(newIDs) > maxRefreshFeeds {
 		s.mu.Unlock()
 		return failure(database.ErrInvalidInput)
 	}
@@ -232,6 +267,16 @@ func (s *Service) worker(r *run) {
 		s.mu.Lock()
 		r.snapshot.Completed++
 		r.snapshot.Results = append(r.snapshot.Results, outcome)
+		switch outcome.Status {
+		case "failed":
+			r.snapshot.FailedCount++
+		case "completed":
+			r.snapshot.SuccessCount++
+		case "cancelled":
+			r.snapshot.CancelledCount++
+		case "skipped":
+			r.snapshot.SkippedCount++
+		}
 		r.snapshot.Sequence++
 		if r.snapshot.Completed == r.snapshot.Total {
 			r.snapshot.Status = "completed"
@@ -251,7 +296,7 @@ func (s *Service) worker(r *run) {
 				s.active = nil
 			}
 		}
-		value := snapshot(r)
+		value := eventSnapshot(r)
 		s.mu.Unlock()
 		s.publish(value)
 	}
