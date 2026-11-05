@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import type { HTMLAttributes } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { animatedIcons } from './icon-catalog'
@@ -56,21 +56,26 @@ function GlyphPlayback({ mode, icon: Fallback, meaning = 'book', className, ...p
     }
   }, [Component, mode])
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!playing || mode !== 'full') return
     const animation = handle.current
     if (!animation) return
     let current = true
-    void (async () => {
-      try {
-        await animation.startAnimation()
-        if (current) await animation.stopAnimation()
-      } catch {
-        // 装饰动画失败时归回静态图标，不影响原操作。
-      } finally {
-        if (current) { busy.current = false; setPlaying(false) }
-      }
-    })()
+    // 图标是本轮悬停才挂载的子树。等 passive effects 与 StrictMode 重放完成，
+    // 再启动真实播放；否则子树清理会停止首轮动画并悬置完成 Promise。
+    queueMicrotask(() => {
+      if (!current) return
+      void (async () => {
+        try {
+          await animation.startAnimation()
+          if (current) await animation.stopAnimation()
+        } catch {
+          // 装饰动画失败时归回静态图标，不影响原操作。
+        } finally {
+          if (current) { busy.current = false; setPlaying(false) }
+        }
+      })()
+    })
     return () => { current = false; animation.cancelAnimation() }
   }, [playing, mode, Component])
 

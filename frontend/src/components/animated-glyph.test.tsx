@@ -22,7 +22,7 @@ describe('图标单次播放',()=>{
   const {container}=render(fixture())
   const button=screen.getByRole('button',{name:'设置'})
   const initial=container.querySelector('.icon-still')?.innerHTML
-  fireEvent.mouseEnter(button)
+  await act(async()=>{fireEvent.mouseEnter(button)})
   expect(playback.start).toHaveBeenCalledTimes(1)
   fireEvent.mouseLeave(button);fireEvent.mouseEnter(button);fireEvent.focusIn(button);fireEvent.pointerDown(button)
   expect(playback.start).toHaveBeenCalledTimes(1)
@@ -42,7 +42,7 @@ describe('图标单次播放',()=>{
   const play=deferred();playback.start.mockReturnValue(play.promise)
   const content=(mode:'full'|'off')=><IconMotionContext.Provider value={mode}><div role="menuitem" tabIndex={-1}>设置<AnimatedGlyph meaning="settings"/></div></IconMotionContext.Provider>
   const {rerender}=render(content('full'))
-  fireEvent.focusIn(screen.getByRole('menuitem'))
+  await act(async()=>{fireEvent.focusIn(screen.getByRole('menuitem'))})
   expect(playback.start).toHaveBeenCalledTimes(1)
   rerender(content('off'))
   expect(playback.cancel).toHaveBeenCalledTimes(1)
@@ -61,7 +61,7 @@ describe('图标单次播放',()=>{
  it('被动图标自身 hover，卸载取消播放，不新增按钮角色',async()=>{
   const play=deferred();playback.start.mockReturnValue(play.promise)
   const {container,unmount}=render(<IconMotionContext.Provider value="full"><AnimatedGlyph meaning="settings"/></IconMotionContext.Provider>)
-  fireEvent.mouseEnter(container.querySelector('.animated-glyph')!)
+  await act(async()=>{fireEvent.mouseEnter(container.querySelector('.animated-glyph')!)})
   expect(playback.start).toHaveBeenCalledTimes(1)
   expect(screen.queryByRole('button')).not.toBeInTheDocument()
   unmount()
@@ -79,4 +79,19 @@ it('命令选项的键盘选择变化触发一次动画，失败会恢复静态'
  expect(playback.start).toHaveBeenCalledTimes(1)
  expect(container.querySelector('[data-animating=true]')).not.toBeInTheDocument()
  expect(container.querySelector('.icon-still')).toBeInTheDocument()
+})
+
+it.each(['off','unmount'] as const)('启动微任务执行前 %s 会取消任务，不补播',async(action)=>{
+ const pending:VoidFunction[]=[]
+ const microtask=vi.spyOn(globalThis,'queueMicrotask').mockImplementation(callback=>{pending.push(callback)})
+ try {
+  const {rerender,unmount}=render(fixture())
+  fireEvent.mouseEnter(screen.getByRole('button'))
+  expect(playback.start).not.toHaveBeenCalled()
+  if(action==='off')rerender(fixture('off'))
+  else unmount()
+  await act(async()=>{for(const callback of pending)callback()})
+  expect(playback.start).not.toHaveBeenCalled()
+  expect(playback.reset).not.toHaveBeenCalled()
+ } finally {microtask.mockRestore()}
 })

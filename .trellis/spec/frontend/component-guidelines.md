@@ -48,3 +48,6 @@ AnimatedGlyph 仅交互期间挂载 lucide-animated；startAnimation／stopAnima
 
 
 菜单项使用 Group／Separator 做语义分组，CommandPresentation／TextActionPresentation 消费 command-presentation 的图标与真实绑定，快捷键末尾对齐且 aria-hidden，条目自身提供 aria-keyshortcuts。右键目标与当前文章不同，不能显示 F／M 冒充该目标快捷键。结构图标也使用 AnimatedGlyph，不遗留静态 X／勾号／箭头。cmdk 焦点留在输入框，选项的键盘动画观察 data-selected，不能只监听 focusin。动画 CSS 不得叠加覆盖库的 transform。
+
+
+StrictMode 下按需挂载的图标，播放在 useEffect 内排入可取消 queueMicrotask，等本轮 passive effects／副作用重放后才调用句柄。cleanup 先使 current 失效，再取消实际 controls；微任务执行前核对 current。不要在父 useLayoutEffect 抢先启动新子树，不要用固定延时或取消 StrictMode 绕过。真实组合回归见 animated-glyph.integration.test.tsx，必须有多个不同中间帧及最终静态／重播断言。

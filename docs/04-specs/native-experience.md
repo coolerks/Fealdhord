@@ -52,3 +52,10 @@ lucide-animated（MIT）官方 registry 源码按图标保存在 components/icon
 覆盖设置导航、阅读器、工具栏、命令面板、文章标记、空态，以及 Dialog 关闭／菜单勾号和箭头。恢复官方 Search／BookText，移除 AI 旧 CSS 缩放及卡片 Hover 平移，避免和库轨迹叠加。多 controls 等全部结束，续段有取消代次，cancelAnimation 停止活动任务；cmdk 通过 data-selected 变化支持键盘选择。
 
 新增生命周期／菜单回归，以及 Motion 手动时钟驱动的全部 38 个图标播放＋归位检查。当前前端共 38 项通过，类型、lint（0 error／1 项既有 Virtualizer 提示）、前端与 macOS 构建通过；不将手动时钟测试当作原生帧率认证。未运行 E2E、Windows 实机或逐帧性能采样。
+
+
+## 2026-11-05 严格模式动画回归修复
+
+上轮 38 项检查没有覆盖 StrictMode 下 hover 才新增真实 Motion 子树的组合，不能证明实际动画已恢复。父级 layout effect 提前播放被子树副作用重放清理取消，Promise 未完成使 busy 卡住；现改为 passive effect 后排入可取消微任务，保留 StrictMode 与原版轨迹。
+
+真实组合测试覆盖全部 38 个图标，断言多个不同 SVG 中间状态及归位／重播；补充启动前取消。全部前端共 41 项、类型、lint 及 macOS 构建通过。Chrome 的真实时钟探针确认 Settings 两轮及 Layers 多段播放自动归位，临时探针已清理；不据此声明原生 WebKit／Windows 帧率通过。

@@ -1,15 +1,13 @@
-# 最近交接：菜单与图标动效一致性
+# 最近交接：图标动画失效回归修复
 
 日期：2026-11-05。分支 codex/interface-clarity。
 
-右键按文本编辑、文章操作、视图、应用分组，各项显示官方动画图标，真实快捷键按平台格式末尾对齐。Windows／Linux 应用菜单、命令面板复用命令呈现；CommandID、runCommand 与数据契约不变。右键目标不是当前文章时不显示 F／M，保留实际目标操作、文本快照、只读限制与焦点恢复。
+已修复 StrictMode 下所有图标首次 hover 后不运动且 busy 卡住的问题。图标按需挂载时父级 useLayoutEffect 抢先启动，子树副作用重放取消播放，完成 Promise 悬置；现在于 useEffect 后排入可取消微任务，保留 StrictMode、官方轨迹及现有模式偏好。
 
-AnimatedGlyph 单次播放完自动归位，持续悬停不循环，移出不截断，重复事件不排队；多 controls 等待全部完成，多段续播可取消。Provider 覆盖全局菜单并遵从动态设置，cmdk 的键盘选择也能触发。恢复 Search／BookText 原版，所有页面和结构图标接入统一播放；移除旧 AI 缩放和卡片上移。
+上一轮模拟控制测试不执行真实 Motion 生命周期，目录测试又在预挂载后启动，均绕开了失败路径。本轮真实组合回归先在旧代码失败，再验证 38 个图标至少 3 个不同中间 SVG 状态、收尾和重播；覆盖按钮、菜单、被动图标。新增启动前 Off／卸载取消检查，全部前端 41 项、类型、lint（1 项既有 Virtualizer 提示）、生产前端与 macOS 构建通过。
 
-38 个官方图标仅交互时挂载 Motion，静态 SVG 由 npm run icons:generate 从同份已审阅源生成。维护说明见 frontend/src/components/icons/README.md。代码规范记录 Promise／取消、快捷键上下文及 Portal 边界，防止再次只修首页或以固定延迟复位。
+另在 Chrome 保留 StrictMode 与真实时钟进行针对性核验：Settings 首轮 339、第二轮 338 个不同 SVG 状态，Layers 多段 117 个，每轮自动归位。临时探针与独立服务已清理。未执行完整 E2E、原生 WebKit 帧率或 Windows 实机采样。
 
-前端 38 项测试、类型、lint（0 error／1 项既有 Virtualizer Compiler 提示）、生产前端和 macOS 构建通过；bin/Fealdhord.app 已同步并通过 ad-hoc 签名验证。最大 JS 块 417.04kB、共享块 308.37kB，不将单块大小或 Motion 手动时钟测试当作总首屏体积／原生帧率认证。未运行 E2E、原生逐帧采样或 Windows 实机。
+组件与质量规范已实际更新，要求真实首次挂载路径及中间帧断言，禁止仅凭 Promise／data-animating 宣称运动。src/templates/markdown/spec 不存在，未创建虚构模板。菜单、业务接口、数据与焦点策略保持；其他未跟踪框架文件保留。
 
-用户获得清晰菜单与自动归位；开发者复用类型化呈现和播放控制；AI Agent 保留可访问名称、分组和真实 aria-keyshortcuts。后续仍为 Phase 3 RSS，实际范围见[当前状态](../01-status/CURRENT.md)。原有框架配置与其他未跟踪文件保留，不推送。
-
-功能提交：38805c8、9d6376d；[任务记录](../../.trellis/tasks/archive/2026-11/11-05-menu-icon-motion/prd.md)已归档。
+实际状态见[当前状态](../01-status/CURRENT.md)。后续仍为 Phase 3 RSS；本轮直接提交，不推送。

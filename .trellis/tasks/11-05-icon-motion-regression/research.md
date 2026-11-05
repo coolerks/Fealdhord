@@ -15,16 +15,23 @@ B（跨层契约）：父组件的立即启动与新挂载 Motion 子树的 Reac
 | 优先级 | 机制 | 行动与状态 |
 | --- | --- | --- |
 | P0 | 回归证据 | 真实 AnimatedGlyph＋Motion＋StrictMode＋首次 hover 已复现失败；非严格模式对照通过 |
-| P0 | 调度边界 | 候选 passive effect 后可取消微任务已通过同一探针，产品修复等待最终评审 |
+| P0 | 调度边界 | 候选 passive effect 后可取消微任务已通过同一探针，已落地生产组件并通过真实组合回归 |
 | P0 | 测试门禁 | 必须断言中间帧实际 SVG 变化和最终归位，前端质量规范已实际更新 |
-| P1 | 取消安全 | 实施时验证离开、模式切换、卸载和重复进入，不用超时强制清 busy |
+| P1 | 取消安全 | 已验证模式切换、卸载、未执行微任务及再次进入；不用超时强制清 busy |
 
 ## 4. 系统性扩展与置信度
 
 按钮、菜单、设置、阅读器和被动图标均复用同一 GlyphPlayback，因此一个挂载竞态会传播到全部图标。真实应用根入口开启 StrictMode，测试渲染 App 却没有始终复现同一挂载环境。系统减少动态或运行旧产物也可能解释不动，但不能解释保持所有其他条件、只移除 StrictMode 后通过的对照。严格模式挂载链路是已证实缺陷，对本次主要根因置信度高于 90%；不据此声称排除了所有平台问题。
 
-候选只在研究目录临时复制组件，改为 useEffect 并在可取消 queueMicrotask 中启动；同一 StrictMode 探针通过。研究临时文件已移除，生产代码未改。正式回归应在用户批准后直接使用生产组件，先失败再修复。
+候选只在研究目录临时复制组件，改为 useEffect 并在可取消 queueMicrotask 中启动；同一 StrictMode 探针通过。研究临时文件已移除，生产代码未改。用户批准后，正式回归直接使用生产组件：旧实现失败，修复后全部图标通过，且不 mock Motion。
 
 ## 5. 知识沉淀
 
 已更新 .trellis/spec/frontend/quality-guidelines.md：Promise／状态断言不能代替运动；必须覆盖按需挂载、StrictMode、真实中间帧与终态。已建立本任务记录，后续修复同步组件规范、CURRENT 与交接。src/templates/markdown/spec 在本仓库不存在，无可同步的模板源码，不新建虚构目录。
+
+
+## 完成证据
+
+前端 41 项测试、类型、lint（0 error／1 项既有 Virtualizer 提示）、生产前端与 macOS 构建通过。独立真实 Chrome 探针保留 StrictMode 与真实时钟，Settings 首轮 339 个不同 SVG 状态、第二轮 338 个，Layers 多段 117 个；每轮均自动归位。截图 /tmp/fealdhord-motion-regression.png 记录结果文字，运动证据来自运行时 SVG 变化，不把截图本身当作动画。
+
+模板源码目录不存在，无模板可同步。实际已更新组件与质量规范、CURRENT 和交接；修复不会删除 StrictMode、引入固定延时或常驻全部 Motion 实例。真实 WebKit 帧率与 Windows 实机尚未采样。
