@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { AISettings } from './AISettings'
 import { restoreSettingsFocus, useWorkspace } from '@/stores/workspace'
 import type { SettingsTab } from '@/stores/workspace'
 import { preferencesAPI } from '@/lib/preferences'
@@ -65,7 +65,7 @@ export function SettingsDialog() {
         {tab === 'feeds' && <FeedSettings />}
         {tab==='data' && <TransferPanel/>}
         {tab==='categories' && <CategoryManager/>}
-        {tab === 'ai' && <Empty><EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={Sparkles} meaning="ai"/></EmptyMedia><EmptyTitle>AI 与扩展尚未开放</EmptyTitle></EmptyHeader></Empty>}
+        {tab === 'ai' && <AISettings />}
         {tab === 'about' && <DiagnosticPanel />}
       </section>
     </div>

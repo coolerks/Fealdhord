@@ -3,7 +3,7 @@
   "name": "ai-provider-settings",
   "title": "Provider、凭据与模型设置",
   "description": "系统凭据、Provider 与模型管理、用途分配及连接测试",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

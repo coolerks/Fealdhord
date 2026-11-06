@@ -9,6 +9,7 @@ sql:
       - migrations/00006_library_query.sql
       - migrations/00007_reader_resources.sql
       - migrations/00008_repair_article_query_birth.sql
+      - migrations/00009_ai_providers.sql
     queries: internal/database/queries
     gen:
       go:

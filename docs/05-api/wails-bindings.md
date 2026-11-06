@@ -98,3 +98,7 @@ transfer.API 的 Choose 返回 token／name／cancelled；Preview 返回 preview
 刷新Snapshot增加 success_count／cancelled_count／skipped_count／failed_count及results_truncated。运行中事件最多每200ms广播一次，明细最近100项；终态立即广播，Get／Current保留完整结果。累计数与截断明细独立，UI不能仅据明细判断无失败；每次操作最多10000目标，网络并发仍4／每站点2。
 
 阅读默认方式沿用 reader_open_mode（feed／full），分别打开订阅预览和阅读模式。旧设置中的 reader_full_mode 读取时忽略。
+
+## AI 设置
+
+`aiconfig.API` 提供 `List`、`SaveProvider`、`DeleteProvider`、`SaveModel`、`DeleteModel`、`Assign`、`TestConnection`。密钥仅通过 `SaveProvider` 的 `apiKey` 进入 Go，`null` 保留，空字符串清除。读取和保存结果只包含 `hasCredential`。测试连接仅接收已保存的模型 ID，取消沿绑定的请求上下文传递。详细行为见 [Provider 与模型设置规格](../04-specs/providers.md)。

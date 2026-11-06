@@ -22,6 +22,7 @@ import (
 	"github.com/coolerks/Fealdhord/internal/navigation"
 	"github.com/coolerks/Fealdhord/internal/settings"
 
+	"github.com/coolerks/Fealdhord/internal/aiconfig"
 	fealdhord "github.com/coolerks/Fealdhord/internal/app"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -54,6 +55,7 @@ func main() {
 	var feedRepository feed.Repository
 	var refreshRepository refresh.Repository
 	var mediaRepository media.Repository
+	var aiConfig *aiconfig.Service
 	dataDir, pathErr := os.UserConfigDir()
 	if pathErr == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -70,6 +72,7 @@ func main() {
 			feedRepository = store
 			refreshRepository = store
 			mediaRepository = store
+			aiConfig = aiconfig.New(store.AIProviderQueries(), aiconfig.SystemCredentials{})
 			defer func() {
 				if err := store.Close(); err != nil {
 					slog.Error("关闭设置数据库失败", "error", err)
@@ -160,6 +163,7 @@ func main() {
 		Services: []application.Service{
 			application.NewService(service), application.NewService(settingsService),
 			application.NewService(readerService),
+			application.NewService(aiconfig.NewAPI(aiConfig)),
 			application.NewService(transfer.NewAPI(transferService)),
 			application.NewService(navigation.NewService(navigationRepository, changed)),
 			application.NewService(library.NewService(libraryRepository, func(ctx context.Context) bool { return policy(ctx).RemoteImages != "never" })),

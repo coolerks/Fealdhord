@@ -8,6 +8,29 @@ import (
 	"database/sql"
 )
 
+type AiModel struct {
+	ID          string `json:"id"`
+	ProviderID  string `json:"provider_id"`
+	Model       string `json:"model"`
+	DisplayName string `json:"display_name"`
+	Enabled     int64  `json:"enabled"`
+	Revision    int64  `json:"revision"`
+	CreatedAt   int64  `json:"created_at"`
+	UpdatedAt   int64  `json:"updated_at"`
+}
+
+type AiProvider struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Protocol      string `json:"protocol"`
+	BaseUrl       string `json:"base_url"`
+	CredentialRef string `json:"credential_ref"`
+	Enabled       int64  `json:"enabled"`
+	Revision      int64  `json:"revision"`
+	CreatedAt     int64  `json:"created_at"`
+	UpdatedAt     int64  `json:"updated_at"`
+}
+
 type AppSetting struct {
 	Key           string `json:"key"`
 	ValueJson     string `json:"value_json"`
@@ -140,6 +163,11 @@ type FeedCategory struct {
 	FeedID     string `json:"feed_id"`
 	CategoryID string `json:"category_id"`
 	CreatedAt  int64  `json:"created_at"`
+}
+
+type ModelAssignment struct {
+	TaskType string `json:"task_type"`
+	ModelID  string `json:"model_id"`
 }
 
 type ReaderContent struct {

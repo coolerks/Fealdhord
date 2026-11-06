@@ -12,12 +12,14 @@ require (
 	github.com/mmcdole/gofeed v1.5.0
 	github.com/pressly/goose/v3 v3.28.0
 	github.com/wailsapp/wails/v3 v3.0.0
+	github.com/zalando/go-keyring v0.2.6
 	golang.org/x/image v0.47.0
 	golang.org/x/net v0.60.0
 	modernc.org/sqlite v1.61.1
 )
 
 require (
+	al.essio.dev/pkg/shellescape v1.6.0 // indirect
 	github.com/adrg/xdg v0.5.3 // indirect
 	github.com/andybalholm/cascadia v1.3.4 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
