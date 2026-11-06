@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="135 105 920 920" role="img" aria-label="Fealdhord 折栈应用图标，白色底板与三层悬浮折页">
+  <defs>
+    <!-- Strictly white app tile; optical separation comes from its silhouette and shadow. -->
+    <filter id="tileShadow" x="-18%" y="-16%" width="136%" height="142%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="21" result="blur"/>
+      <feOffset in="blur" dx="0" dy="20" result="offset"/>
+      <feFlood flood-color="#202B4C" flood-opacity=".20" result="tone"/>
+      <feComposite in="tone" in2="offset" operator="in" result="shadow"/>
+      <feMerge><feMergeNode in="shadow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="markShadow" x="-22%" y="-30%" width="150%" height="172%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="15" result="blur"/>
+      <feOffset in="blur" dx="0" dy="17" result="offset"/>
+      <feFlood flood-color="#0A1838" flood-opacity=".12" result="tone"/>
+      <feComposite in="tone" in2="offset" operator="in" result="shadow"/>
+      <feMerge><feMergeNode in="shadow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- Top paper shadow is very slightly stronger than on the reference image. -->
+    <filter id="upperLeafShadow" x="-24%" y="-24%" width="150%" height="155%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="6" result="blur"/>
+      <feOffset in="blur" dx="2" dy="6" result="offset"/>
+      <feFlood flood-color="#233A6E" flood-opacity=".18" result="tone"/>
+      <feComposite in="tone" in2="offset" operator="in" result="shadow"/>
+      <feMerge><feMergeNode in="shadow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <linearGradient id="bottomLeaf" x1="337" y1="665" x2="835" y2="869" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#102852"/>
+      <stop offset=".36" stop-color="#142E5E"/>
+      <stop offset=".75" stop-color="#24529C"/>
+      <stop offset="1" stop-color="#2E61AD"/>
+    </linearGradient>
+    <radialGradient id="bottomSheen" cx="0" cy="0" r="1" gradientTransform="translate(547 866) rotate(-68) scale(272 375)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2C61B3" stop-opacity=".52"/>
+      <stop offset="1" stop-color="#2C61B3" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="middleLeaf" x1="292" y1="698" x2="862" y2="481" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#416FAC"/>
+      <stop offset=".2" stop-color="#7398CD"/>
+      <stop offset=".44" stop-color="#A5C3F3"/>
+      <stop offset=".75" stop-color="#C7DBFF"/>
+      <stop offset="1" stop-color="#A8C4F4"/>
+    </linearGradient>
+    <radialGradient id="middleSoftLight" cx="0" cy="0" r="1" gradientTransform="translate(732 666) rotate(158) scale(390 210)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E3EEFF" stop-opacity=".65"/>
+      <stop offset="1" stop-color="#E3EEFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="upperLeaf" x1="465" y1="300" x2="616" y2="661" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset=".52" stop-color="#FFFFFF"/>
+      <stop offset=".85" stop-color="#F9FAFE"/>
+      <stop offset="1" stop-color="#F2F5FD"/>
+    </linearGradient>
+    <linearGradient id="upperEdge" x1="860" y1="255" x2="748" y2="450" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D9DFED" stop-opacity=".72"/>
+      <stop offset=".35" stop-color="#CFD6E8" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#7F98C4" stop-opacity=".08"/>
+    </linearGradient>
+    <linearGradient id="middleEdge" x1="267" y1="755" x2="795" y2="718" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#527FB5" stop-opacity=".6"/>
+      <stop offset=".6" stop-color="#BBD5FF" stop-opacity=".38"/>
+      <stop offset="1" stop-color="#DCE9FF" stop-opacity=".54"/>
+    </linearGradient>
+    <path id="bottomShape" d="M268 754 C342 701 413 650 490 649 C579 647 650 671 712 698 C776 727 824 688 865 632 C895 644 906 659 900 683 C886 724 859 783 838 830 C820 877 785 889 742 880 C662 865 574 808 495 776 C415 743 338 741 268 757 Z"/>
+    <path id="middleShape" d="M268 754 C294 671 370 605 486 565 C610 530 699 496 748 451 C787 466 849 486 892 499 C909 504 919 520 912 541 L867 632 C846 681 828 709 802 716 C766 729 726 718 682 705 C586 676 518 664 459 671 C381 677 311 717 268 754 Z"/>
+    <path id="topShape" d="M268 753 C282 641 324 535 387 446 C477 322 652 281 868 254 C830 312 786 390 748 451 C716 504 680 529 600 551 C479 584 378 612 313 682 C291 706 276 729 268 753 Z"/>
+  </defs>
+
+  <!-- App icon rounded squircle; no background beyond this is baked into the asset. -->
+  <path d="M383 145 H811 C924 145 1009 231 1009 347 V776 C1009 894 924 981 809 981 H383 C267 981 185 894 185 776 V348 C185 234 269 145 383 145 Z"
+        fill="#FFFFFF" filter="url(#tileShadow)"/>
+
+  <g filter="url(#markShadow)">
+    <!-- Three floating, physically overlapping page faces. -->
+    <use href="#bottomShape" fill="url(#bottomLeaf)"/>
+    <use href="#bottomShape" fill="url(#bottomSheen)"/>
+    <path d="M268 754 C349 696 422 650 491 649 C582 646 647 675 715 700" fill="none" stroke="#355B9B" stroke-opacity=".45" stroke-width="2.4"/>
+
+    <use href="#middleShape" fill="url(#middleLeaf)"/>
+    <use href="#middleShape" fill="url(#middleSoftLight)"/>
+
+    <g filter="url(#upperLeafShadow)">
+      <use href="#topShape" fill="url(#upperLeaf)"/>
+    </g>
+    <!-- Very fine crescent along the upper fold edge: intentional, not a dark outline. -->
+    <path d="M868 254 C830 313 787 389 748 451" stroke="url(#upperEdge)" stroke-width="1.25" fill="none" stroke-linecap="round"/>
+    <path d="M268 753 C282 641 324 535 387 446 C477 322 652 281 868 254" fill="none" stroke="#EBEEF6" stroke-width="1.1" stroke-opacity=".72"/>
+  </g>
+</svg>

@@ -1,0 +1,136 @@
+name: 桌面版本发布
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: 构建 ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows-amd64
+            runner: ubuntu-24.04
+          - target: linux-amd64
+            runner: ubuntu-24.04
+          - target: macos-universal
+            runner: macos-15
+    env:
+      VERSION: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 校验版本标签
+        shell: bash
+        run: |
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: 安装 Linux WebView 构建依赖
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev libx11-dev
+      - name: 生成绑定并构建前端
+        shell: bash
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0
+          npm ci --prefix frontend
+          "$(go env GOPATH)/bin/wails3" task bindings
+          npm --prefix frontend run build
+          mkdir -p bin/release
+      - name: 交叉编译并打包 Windows x64
+        if: matrix.target == 'windows-amd64'
+        run: |
+          wails="$(go env GOPATH)/bin/wails3"
+          "$wails" task icons
+          "$wails" generate syso -arch amd64 -icon bin/icons/Fealdhord.ico \
+            -manifest build/windows/Fealdhord.exe.manifest -out rsrc_windows_amd64.syso
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -tags production -trimpath \
+            -ldflags="-s -w -H windowsgui" -o bin/Fealdhord.exe .
+          zip -j "bin/release/Fealdhord-${VERSION}-windows-amd64.zip" bin/Fealdhord.exe
+      - name: 打包 Linux x64
+        if: matrix.target == 'linux-amd64'
+        run: |
+          root=bin/deb
+          install -d "$root/DEBIAN" "$root/usr/bin"
+          CGO_ENABLED=1 go build -tags production -trimpath -ldflags="-s -w" -o "$root/usr/bin/Fealdhord" .
+          install -Dm644 build/linux/Fealdhord.desktop "$root/usr/share/applications/io.fealdhord.desktop"
+          install -Dm644 build/appicon.png "$root/usr/share/icons/hicolor/1024x1024/apps/io.fealdhord.desktop.png"
+          cat > "$root/DEBIAN/control" <<CONTROL
+          Package: fealdhord
+          Version: ${VERSION#v}
+          Architecture: amd64
+          Maintainer: Fealdhord
+          Depends: libc6 (>= 2.39), libgtk-4-1, libwebkitgtk-6.0-4, libx11-6
+          Description: Fealdhord RSS 阅读器
+          CONTROL
+          dpkg-deb --root-owner-group --build "$root" "bin/release/Fealdhord-${VERSION}-linux-amd64.deb"
+      - name: 编译并打包 macOS 通用应用
+        if: matrix.target == 'macos-universal'
+        env:
+          MACOSX_DEPLOYMENT_TARGET: '13.0'
+          CGO_ENABLED: '1'
+        run: |
+          for arch in arm64 amd64; do
+            GOARCH="$arch" go build -tags production -trimpath -ldflags="-s -w" -o "bin/Fealdhord-$arch" .
+          done
+          lipo -create bin/Fealdhord-arm64 bin/Fealdhord-amd64 -output bin/Fealdhord
+          lipo -verify_arch arm64 x86_64 bin/Fealdhord
+          "$(go env GOPATH)/bin/wails3" task bundle:mac
+          ditto -c -k --keepParent bin/Fealdhord.app "bin/release/Fealdhord-${VERSION}-macos-universal.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: bin/release/*
+          if-no-files-found: error
+
+  publish:
+    name: 发布到 GitHub Releases
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - name: 发布安装包与校验和
+        working-directory: release
+        run: |
+          files=(
+            "Fealdhord-${VERSION}-windows-amd64.zip"
+            "Fealdhord-${VERSION}-linux-amd64.deb"
+            "Fealdhord-${VERSION}-macos-universal.zip"
+          )
+          sha256sum "${files[@]}" > SHA256SUMS.txt
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            gh release upload "$VERSION" "${files[@]}" SHA256SUMS.txt --clobber
+          else
+            flags=()
+            if [[ "$VERSION" == *-* ]]; then flags+=(--prerelease --latest=false); fi
+            gh release create "$VERSION" "${files[@]}" SHA256SUMS.txt \
+              --verify-tag --generate-notes "${flags[@]}"
+          fi

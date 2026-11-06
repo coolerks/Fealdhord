@@ -156,6 +156,7 @@ func main() {
 	})
 	desktop = application.New(application.Options{
 		Name: "Fealdhord", Description: "折栈，本地优先的 RSS 阅读器",
+		Icon: appIcon,
 		Services: []application.Service{
 			application.NewService(service), application.NewService(settingsService),
 			application.NewService(readerService),
@@ -180,6 +181,7 @@ func main() {
 	refreshService.StartScheduler()
 	desktopintegration.InstallMenu(desktop)
 	mainWindow = desktop.Window.NewWithOptions(desktopintegration.WindowOptions())
+	installTray(desktop, mainWindow)
 	if err := desktop.Run(); err != nil {
 		stop()
 		slog.Error("桌面应用启动失败", "error", err)

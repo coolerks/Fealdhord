@@ -5,6 +5,7 @@
 <key>CFBundleName</key><string>Fealdhord</string>
 <key>CFBundleDisplayName</key><string>折栈 Fealdhord</string>
 <key>CFBundleExecutable</key><string>Fealdhord</string>
+<key>CFBundleIconFile</key><string>Fealdhord.icns</string>
 <key>CFBundleIdentifier</key><string>io.fealdhord.desktop</string>
 <key>CFBundleVersion</key><string>0.1.0</string>
 <key>CFBundleShortVersionString</key><string>0.1.0</string>

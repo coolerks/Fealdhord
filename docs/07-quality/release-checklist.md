@@ -12,3 +12,15 @@
 - README 启动／测试／构建命令可复现，CURRENT／ROADMAP／COMPLETED／追踪表与 LATEST 同步。
 
 完成判断 RELEASE-01：上述门禁逐项给出证据或明确不适用理由；阻塞项未消除不发布正式完成声明。
+
+## Alpha 自动构建
+
+推送 `v0.1.0-alpha.1` 这类版本标签会触发 GitHub Actions，普通分支提交不会触发。全部平台构建通过后，工作流会发布安装包和 `SHA256SUMS.txt`。带预发布后缀的标签在 GitHub Releases 标为预发布。
+
+| 下载包 | 适用环境 |
+| --- | --- |
+| Windows x64 ZIP | 解压运行 `Fealdhord.exe`，系统需要 WebView2 |
+| macOS 通用 ZIP | macOS 13 及以上，包含 Apple Silicon 和 Intel 架构，使用临时签名 |
+| Linux x64 DEB | Ubuntu 24.04 或具有相应运行库的兼容系统，安装时解析 GTK 4 和 WebKitGTK 6 依赖 |
+
+应用图标源文件在 `build/appicon.svg`。更新对应的 1024px PNG 后，可运行 `wails3 task icons` 派生 ICNS 和 ICO。托盘源文件在 `build/tray.svg` 与 `build/tray-contrast.svg`。更新时同步导出 64px 透明 PNG。macOS 使用模板着色，Windows 和 Linux 使用黑白描边，Linux 托盘显示取决于桌面环境是否支持 StatusNotifierItem。

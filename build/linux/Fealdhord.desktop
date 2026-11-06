@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Fealdhord
+Name[zh_CN]=折栈
+Comment=本地优先的 RSS 阅读器
+Exec=/usr/bin/Fealdhord
+Icon=io.fealdhord.desktop
+StartupWMClass=Fealdhord
+Terminal=false
+Categories=Network;News;

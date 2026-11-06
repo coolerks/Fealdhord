@@ -20,3 +20,6 @@ __pycache__/
 *.db-shm
 *.sqlite
 *.sqlite3
+
+# Windows 可执行文件资源（由打包任务生成）
+/rsrc_windows_*.syso

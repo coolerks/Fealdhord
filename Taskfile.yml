@@ -17,6 +17,12 @@ tasks:
     cmds:
       - npm run build
 
+  icons:
+    summary: 从应用 PNG 生成 macOS 和 Windows 图标
+    cmds:
+      - mkdir -p bin/icons
+      - wails3 generate icons -input build/appicon.png -macfilename bin/icons/Fealdhord.icns -windowsfilename bin/icons/Fealdhord.ico
+
   build:
     summary: 构建当前平台桌面应用
     cmds:
@@ -38,7 +44,9 @@ tasks:
     summary: 创建本机调试用 macOS 应用包，不代表发布签名
     platforms: [darwin]
     cmds:
-      - mkdir -p bin/{{.APP_NAME}}.app/Contents/MacOS
+      - task: icons
+      - mkdir -p bin/{{.APP_NAME}}.app/Contents/MacOS bin/{{.APP_NAME}}.app/Contents/Resources
+      - cp bin/icons/Fealdhord.icns bin/{{.APP_NAME}}.app/Contents/Resources/Fealdhord.icns
       # 替换已签名可执行文件时使用新 inode，避免原位覆盖后的签名缓存失效。
       - rm -f bin/{{.APP_NAME}}.app/Contents/MacOS/{{.APP_NAME}}
       - cp bin/{{.APP_NAME}} bin/{{.APP_NAME}}.app/Contents/MacOS/{{.APP_NAME}}
