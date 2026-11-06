@@ -47,7 +47,7 @@ export function Sidebar({ motionMode }: { motionMode: 'full' | 'subtle' | 'off' 
     switch (event.key) { case 'ArrowDown': next = (index + 1) % buttons.length; break; case 'ArrowUp': next = (index - 1 + buttons.length) % buttons.length; break; case 'Home': next = 0; break; case 'End': next = buttons.length - 1; break; default: return }
     event.preventDefault(); buttons[next]?.focus()
   }
-  return <aside id="workspace-sidebar" className="glass-sidebar" aria-label="主导航" hidden={collapsed}>
+  return <aside id="workspace-sidebar" className="glass-sidebar" aria-label="主导航" inert={collapsed} aria-hidden={collapsed || undefined}>
     <div className="sidebar-titlebar" />
     <Button id="open-command" variant="outline" className="sidebar-search" aria-label="命令面板" aria-keyshortcuts={native.isMac() ? "Meta+K" : "Control+K"} onClick={openCommands}><AnimatedGlyph icon={Search} meaning="search"/><span>命令面板</span><kbd aria-hidden="true">{native.isMac() ? '⌘ K' : 'Ctrl K'}</kbd></Button>
     <nav className="system-nav" aria-label="阅读视图" onKeyDown={keyboard}>{scopes.map(({ id, title, short, icon: Icon }) => {

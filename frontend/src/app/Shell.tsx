@@ -123,14 +123,14 @@ export function Shell() {
 
   const emptySearch = search.trim() !== ''
   return <MotionConfig reducedMotion={mode === 'full' ? 'never' : 'always'} transition={{ duration: mode === 'off' ? 0 : mode === 'subtle' ? .1 : .22, ease: [.22, 1, .36, 1] }}>
-    <div className="desktop-shell" data-platform={native.isMac()?'mac':'other'}>{!native.isMac()&&<ApplicationMenu/>}<div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={sidebarCollapsed}>
+    <div className="desktop-shell" data-platform={native.isMac()?'mac':'other'}>{!native.isMac()&&<ApplicationMenu/>}<div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={sidebarCollapsed} data-sidebar-resizing={sidebarDraft !== null}>
       <div className="sidebar-toggle">
         <SemanticButton id="sidebar-toggle" icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
           label={sidebarCollapsed ? '展开侧栏' : '折叠侧栏'} meaning={sidebarCollapsed ? 'expand' : 'collapse'}
           aria-expanded={!sidebarCollapsed} aria-controls="workspace-sidebar"
           onClick={() => runCommand('sidebar', client)} />
       </div>
-      <Sidebar motionMode={mode} />
+      <div className="sidebar-track"><Sidebar motionMode={mode} /></div>
       {!preferences.sidebar_collapsed && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={280} onResize={setSidebarDraft} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
       <main className={cn('reading-workspace', !overlay && readerVisible && 'three-column')}>
         <section className="article-pane" aria-label="文章浏览"><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />{!settingsOpen && <RefreshStatus />}
