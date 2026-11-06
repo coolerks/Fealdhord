@@ -2,8 +2,13 @@
 SELECT * FROM article_ai_settings WHERE id=1;
 
 -- name: SaveArticleAISettings :one
-UPDATE article_ai_settings SET classification=?,featured=?,prompt=?,revision=revision+1
-WHERE id=1 AND revision=? RETURNING *;
+UPDATE article_ai_settings SET
+ profile_revision=CASE WHEN classification<>sqlc.arg(classification) OR featured<>sqlc.arg(featured) OR prompt<>sqlc.arg(prompt)
+  THEN revision+1 ELSE profile_revision END,
+ classification=sqlc.arg(classification),featured=sqlc.arg(featured),prompt=sqlc.arg(prompt),
+ requests_per_hour=sqlc.arg(requests_per_hour),tokens_per_hour=sqlc.arg(tokens_per_hour),
+ minimum_importance=sqlc.arg(minimum_importance),minimum_relevance=sqlc.arg(minimum_relevance),revision=revision+1
+WHERE id=1 AND revision=sqlc.arg(revision) RETURNING *;
 
 -- name: ArticleAIInput :one
 SELECT a.id, a.content_hash, substr(a.title,1,512) AS title, substr(a.summary,1,2048) AS summary,
@@ -37,8 +42,8 @@ DELETE FROM article_ai_attempts WHERE started_at<=?;
 -- name: ReserveArticleAIAttempt :execrows
 INSERT INTO article_ai_attempts(id,started_at,estimated_tokens)
 SELECT ?,?,sqlc.arg(estimate)
-WHERE (SELECT count(*) FROM article_ai_attempts)<100
- AND (SELECT CAST(COALESCE(sum(estimated_tokens),0) AS INTEGER) FROM article_ai_attempts)+sqlc.arg(estimate)<=200000;
+WHERE (SELECT count(*) FROM article_ai_attempts)<(SELECT requests_per_hour FROM article_ai_settings WHERE id=1)
+ AND (SELECT CAST(COALESCE(sum(estimated_tokens),0) AS INTEGER) FROM article_ai_attempts)+sqlc.arg(estimate)<=(SELECT tokens_per_hour FROM article_ai_settings WHERE id=1);
 
 -- name: IncrementSearchGeneration :exec
 UPDATE search_state SET generation=generation+1 WHERE id=1;

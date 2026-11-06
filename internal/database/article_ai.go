@@ -93,7 +93,7 @@ func loadArticleAISnapshot(ctx context.Context, q *sqlc.Queries, id, task string
 			return out, ErrArticleAICategories
 		}
 	}
-	data, err := json.Marshal(out)
+	data, err := articleAIProfileJSON(out)
 	if err != nil {
 		return out, err
 	}
@@ -113,6 +113,34 @@ func loadArticleAISnapshot(ctx context.Context, q *sqlc.Queries, id, task string
 	key := sha256.Sum256([]byte(out.ProfileKey + ":" + out.Article.ContentHash))
 	out.Key = hex.EncodeToString(key[:])
 	return out, nil
+}
+
+// 保留 00011 的序列化顺序和字段，旧评分可以直接用于新阈值。
+func articleAIProfileJSON(snapshot ArticleAISnapshot) ([]byte, error) {
+	type profileSettings struct {
+		ID             int64  `json:"id"`
+		Classification int64  `json:"classification"`
+		Featured       int64  `json:"featured"`
+		Prompt         string `json:"prompt"`
+		Revision       int64  `json:"revision"`
+	}
+	settings := snapshot.Settings
+	return json.Marshal(struct {
+		Article          sqlc.ArticleAIInputRow
+		Settings         profileSettings
+		Categories       []sqlc.ArticleAICategoriesRow
+		ModelID          string
+		ModelRevision    int64
+		ProviderRevision int64
+		Task             string
+		Key              string
+		ProfileKey       string
+	}{
+		Settings: profileSettings{ID: settings.ID, Classification: settings.Classification, Featured: settings.Featured,
+			Prompt: settings.Prompt, Revision: settings.ProfileRevision},
+		Categories: snapshot.Categories, ModelID: snapshot.ModelID, ModelRevision: snapshot.ModelRevision,
+		ProviderRevision: snapshot.ProviderRevision, Task: snapshot.Task,
+	})
 }
 
 func (s *Store) ArticleAISnapshot(ctx context.Context, id, task string, preview bool) (ArticleAISnapshot, error) {
@@ -181,7 +209,7 @@ func (s *Store) CommitArticleAI(ctx context.Context, snapshot ArticleAISnapshot,
 		}
 		if err := q.SaveArticleAIResult(ctx, sqlc.SaveArticleAIResultParams{
 			ArticleID: snapshot.Article.ID, Task: snapshot.Task, InputKey: snapshot.Key, ProfileKey: snapshot.ProfileKey, ContentHash: snapshot.Article.ContentHash,
-			ModelID: snapshot.ModelID, ModelRevision: snapshot.ModelRevision, ProviderRevision: snapshot.ProviderRevision, SettingsRevision: snapshot.Settings.Revision,
+			ModelID: snapshot.ModelID, ModelRevision: snapshot.ModelRevision, ProviderRevision: snapshot.ProviderRevision, SettingsRevision: snapshot.Settings.ProfileRevision,
 			Importance: scores.Importance, Relevance: scores.Relevance, Reason: scores.Reason, InputTokens: input, OutputTokens: output, EvaluatedAt: now.UnixMilli(),
 		}); err != nil {
 			return err

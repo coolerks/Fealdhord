@@ -12,6 +12,7 @@ sql:
       - migrations/00009_ai_providers.sql
       - migrations/00010_chat.sql
       - migrations/00011_article_intelligence.sql
+      - migrations/00012_article_ai_controls.sql
     queries: internal/database/queries
     gen:
       go:

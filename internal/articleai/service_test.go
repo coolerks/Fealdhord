@@ -164,12 +164,34 @@ func TestArticleAIWorkflow(t *testing.T) {
 	if candidate, err := store.NextArticleAI(ctx, "featured", now.Add(-time.Hour)); err != nil || candidate != "" {
 		t.Fatalf("completed candidate: %q %v", candidate, err)
 	}
+	settings, err = service.Settings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings.MinimumImportance = 0.8
+	settings.TokensPerHour = 100000
+	if _, err := service.Save(ctx, settings); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.QueryArticles(ctx, query); err != database.ErrCursorExpired {
+		t.Fatalf("stale threshold cursor: %v", err)
+	}
+	query.Cursor = ""
+	page, err = store.QueryArticles(ctx, query)
+	if err != nil || len(page.Items) != 1 || page.Items[0].ID != id || page.NextCursor != "" {
+		t.Fatalf("threshold: %+v %v", page, err)
+	}
+	before := calls
+	if result, err := service.Evaluate(ctx, Request{ArticleID: second, Task: "featured"}); err != nil || !result.Cached || calls != before {
+		t.Fatalf("threshold invalidated cache: %+v %v", result, err)
+	}
+
 	snapshot, err := store.ArticleAISnapshot(ctx, id, "featured", false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	later := now.Add(2 * time.Hour)
-	if err := store.ReserveArticleAI(ctx, snapshot, false, 200000, later); err != nil {
+	if err := store.ReserveArticleAI(ctx, snapshot, false, 100000, later); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.ReserveArticleAI(ctx, snapshot, false, 1, later); err != database.ErrArticleAIBudget {

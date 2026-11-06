@@ -140,7 +140,7 @@ func (q *Queries) GetArticleAIResult(ctx context.Context, arg GetArticleAIResult
 }
 
 const getArticleAISettings = `-- name: GetArticleAISettings :one
-SELECT id, classification, featured, prompt, revision FROM article_ai_settings WHERE id=1
+SELECT id, classification, featured, prompt, revision, requests_per_hour, tokens_per_hour, minimum_importance, minimum_relevance, profile_revision FROM article_ai_settings WHERE id=1
 `
 
 func (q *Queries) GetArticleAISettings(ctx context.Context) (ArticleAiSetting, error) {
@@ -152,6 +152,11 @@ func (q *Queries) GetArticleAISettings(ctx context.Context) (ArticleAiSetting, e
 		&i.Featured,
 		&i.Prompt,
 		&i.Revision,
+		&i.RequestsPerHour,
+		&i.TokensPerHour,
+		&i.MinimumImportance,
+		&i.MinimumRelevance,
+		&i.ProfileRevision,
 	)
 	return i, err
 }
@@ -193,8 +198,8 @@ func (q *Queries) RecordArticleAIDefer(ctx context.Context, arg RecordArticleAID
 const reserveArticleAIAttempt = `-- name: ReserveArticleAIAttempt :execrows
 INSERT INTO article_ai_attempts(id,started_at,estimated_tokens)
 SELECT ?,?,?3
-WHERE (SELECT count(*) FROM article_ai_attempts)<100
- AND (SELECT CAST(COALESCE(sum(estimated_tokens),0) AS INTEGER) FROM article_ai_attempts)+?3<=200000
+WHERE (SELECT count(*) FROM article_ai_attempts)<(SELECT requests_per_hour FROM article_ai_settings WHERE id=1)
+ AND (SELECT CAST(COALESCE(sum(estimated_tokens),0) AS INTEGER) FROM article_ai_attempts)+?3<=(SELECT tokens_per_hour FROM article_ai_settings WHERE id=1)
 `
 
 type ReserveArticleAIAttemptParams struct {
@@ -260,15 +265,24 @@ func (q *Queries) SaveArticleAIResult(ctx context.Context, arg SaveArticleAIResu
 }
 
 const saveArticleAISettings = `-- name: SaveArticleAISettings :one
-UPDATE article_ai_settings SET classification=?,featured=?,prompt=?,revision=revision+1
-WHERE id=1 AND revision=? RETURNING id, classification, featured, prompt, revision
+UPDATE article_ai_settings SET
+ profile_revision=CASE WHEN classification<>?1 OR featured<>?2 OR prompt<>?3
+  THEN revision+1 ELSE profile_revision END,
+ classification=?1,featured=?2,prompt=?3,
+ requests_per_hour=?4,tokens_per_hour=?5,
+ minimum_importance=?6,minimum_relevance=?7,revision=revision+1
+WHERE id=1 AND revision=?8 RETURNING id, classification, featured, prompt, revision, requests_per_hour, tokens_per_hour, minimum_importance, minimum_relevance, profile_revision
 `
 
 type SaveArticleAISettingsParams struct {
-	Classification int64  `json:"classification"`
-	Featured       int64  `json:"featured"`
-	Prompt         string `json:"prompt"`
-	Revision       int64  `json:"revision"`
+	Classification    int64   `json:"classification"`
+	Featured          int64   `json:"featured"`
+	Prompt            string  `json:"prompt"`
+	RequestsPerHour   int64   `json:"requests_per_hour"`
+	TokensPerHour     int64   `json:"tokens_per_hour"`
+	MinimumImportance float64 `json:"minimum_importance"`
+	MinimumRelevance  float64 `json:"minimum_relevance"`
+	Revision          int64   `json:"revision"`
 }
 
 func (q *Queries) SaveArticleAISettings(ctx context.Context, arg SaveArticleAISettingsParams) (ArticleAiSetting, error) {
@@ -276,6 +290,10 @@ func (q *Queries) SaveArticleAISettings(ctx context.Context, arg SaveArticleAISe
 		arg.Classification,
 		arg.Featured,
 		arg.Prompt,
+		arg.RequestsPerHour,
+		arg.TokensPerHour,
+		arg.MinimumImportance,
+		arg.MinimumRelevance,
 		arg.Revision,
 	)
 	var i ArticleAiSetting
@@ -285,6 +303,11 @@ func (q *Queries) SaveArticleAISettings(ctx context.Context, arg SaveArticleAISe
 		&i.Featured,
 		&i.Prompt,
 		&i.Revision,
+		&i.RequestsPerHour,
+		&i.TokensPerHour,
+		&i.MinimumImportance,
+		&i.MinimumRelevance,
+		&i.ProfileRevision,
 	)
 	return i, err
 }

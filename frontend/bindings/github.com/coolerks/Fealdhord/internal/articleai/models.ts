@@ -22,4 +22,8 @@ export interface Settings {
     "featured": boolean;
     "prompt": string;
     "revision": number;
+    "requestsPerHour": number;
+    "tokensPerHour": number;
+    "minimumImportance": number;
+    "minimumRelevance": number;
 }

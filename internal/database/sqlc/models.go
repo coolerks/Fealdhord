@@ -92,11 +92,16 @@ type ArticleAiResult struct {
 }
 
 type ArticleAiSetting struct {
-	ID             int64  `json:"id"`
-	Classification int64  `json:"classification"`
-	Featured       int64  `json:"featured"`
-	Prompt         string `json:"prompt"`
-	Revision       int64  `json:"revision"`
+	ID                int64   `json:"id"`
+	Classification    int64   `json:"classification"`
+	Featured          int64   `json:"featured"`
+	Prompt            string  `json:"prompt"`
+	Revision          int64   `json:"revision"`
+	RequestsPerHour   int64   `json:"requests_per_hour"`
+	TokensPerHour     int64   `json:"tokens_per_hour"`
+	MinimumImportance float64 `json:"minimum_importance"`
+	MinimumRelevance  float64 `json:"minimum_relevance"`
+	ProfileRevision   int64   `json:"profile_revision"`
 }
 
 type ArticleCategory struct {

@@ -151,6 +151,7 @@ func (s *Store) QueryArticles(ctx context.Context, raw ArticleQuery) (QueryPage,
 	}
 	featured := query.Scope.Kind == "featured"
 	var featureProfile string
+	var featureSettings sqlc.ArticleAiSetting
 	if featured {
 		profile, err := loadArticleAISnapshot(ctx, s.queries.WithTx(tx), "", "featured", false)
 		if errors.Is(err, ErrArticleAIDisabled) || errors.Is(err, ErrArticleAIModel) {
@@ -163,6 +164,7 @@ func (s *Store) QueryArticles(ctx context.Context, raw ArticleQuery) (QueryPage,
 			return out, err
 		}
 		featureProfile = profile.ProfileKey
+		featureSettings = profile.Settings
 	}
 	cursor := queryCursor{Hash: queryHash(query), Upper: upper, Generation: generation, FeatureProfile: featureProfile, Expires: time.Now().Add(30 * time.Minute).Unix()}
 	if featured {
@@ -194,8 +196,8 @@ func (s *Store) QueryArticles(ctx context.Context, raw ArticleQuery) (QueryPage,
 		args = append(args, query.Scope.ID)
 	}
 	if featured {
-		conditions = append(conditions, "f.archived_at IS NULL", "a.sort_at>=?", "ar.profile_key=?", "ar.importance>=0.7", "ar.relevance>=0.6")
-		args = append(args, cursor.Since, featureProfile)
+		conditions = append(conditions, "f.archived_at IS NULL", "a.sort_at>=?", "ar.profile_key=?", "ar.importance>=?", "ar.relevance>=?")
+		args = append(args, cursor.Since, featureProfile, featureSettings.MinimumImportance, featureSettings.MinimumRelevance)
 	}
 	if query.Scope.Kind == "unread" || query.Read == "unread" {
 		conditions = append(conditions, "COALESCE(r.is_read,0)=0")
@@ -219,7 +221,7 @@ func (s *Store) QueryArticles(ctx context.Context, raw ArticleQuery) (QueryPage,
 	}
 	if featured {
 		join += ` JOIN article_ai_results ar ON ar.article_id=a.id AND ar.task='featured' AND ar.content_hash=a.content_hash
- JOIN article_ai_settings ai_settings ON ai_settings.id=1 AND ai_settings.featured=1 AND ai_settings.revision=ar.settings_revision
+ JOIN article_ai_settings ai_settings ON ai_settings.id=1 AND ai_settings.featured=1 AND ai_settings.profile_revision=ar.settings_revision
  JOIN model_assignments ma ON ma.task_type='featured' AND ma.model_id=ar.model_id
  JOIN ai_models am ON am.id=ma.model_id AND am.enabled=1 AND am.revision=ar.model_revision
  JOIN ai_providers ap ON ap.id=am.provider_id AND ap.enabled=1 AND ap.revision=ar.provider_revision `

@@ -20,3 +20,5 @@
 
 ## 实现位置
 数据层在 `internal/database/article_ai.go`，服务在 `internal/articleai`。不得从前端直接构造 AI 成员写入，也不得用精选结果创建普通分类。
+
+预算及展示阈值更新只递增设置 CAS revision，保留 profile_revision。迁移 00012 将既有 revision 复制为 profile_revision，模型配置摘要保留旧字段序列化。精选阈值变更使旧游标过期，预算预留实时读取数据库限额。

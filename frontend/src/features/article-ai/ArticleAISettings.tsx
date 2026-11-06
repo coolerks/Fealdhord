@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
@@ -23,8 +24,15 @@ const messages: Record<string, string> = {
   RateLimitError: '模型服务已限流，请稍后重试。',
   Timeout: '模型服务响应超时。',
   TooManyCategories: '自动分类目前最多支持 128 个分类。',
-  ValidationError: '提示词过长，请缩短后重试。',
+  ValidationError: '请检查预算、评分阈值和提示词长度。',
 }
+
+const numericSettings = [
+  { key: 'requestsPerHour', label: '每小时请求上限', min: 1, max: 1000, step: 1 },
+  { key: 'tokensPerHour', label: '每小时估算输入 token 上限', min: 1000, max: 2000000, step: 1 },
+  { key: 'minimumImportance', label: '精选最低重要性', min: 0, max: 1, step: 0.01 },
+  { key: 'minimumRelevance', label: '精选最低相关性', min: 0, max: 1, step: 0.01 },
+] as const
 
 function message(error: unknown) {
   const raw = error instanceof Error ? error.message : ''
@@ -108,7 +116,15 @@ export function ArticleAISettings() {
           <FieldLabel htmlFor="classification-prompt">分类提示词</FieldLabel>
           <Textarea id="classification-prompt" disabled={busy} value={value.prompt} maxLength={4096} onChange={event => setDraft({ ...value, prompt: event.target.value })} />
         </Field>
-        <p className="text-muted-foreground">启用后会向所选服务发送近期文章的标题、摘要和部分正文。分类还会发送分类名称、描述及提示词。每小时最多 100 次请求、20 万估算输入 token。</p>
+        <p className="text-muted-foreground">启用后会向所选服务发送近期文章的标题、摘要和部分正文。分类还会发送分类名称、描述及提示词。</p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {numericSettings.map(({ key, label, min, max, step }) => <Field key={key}>
+            <FieldLabel htmlFor={`article-ai-${key}`}>{label}</FieldLabel>
+            <Input id={`article-ai-${key}`} type="number" required min={min} max={max} step={step}
+              disabled={busy} value={Number.isFinite(value[key]) ? value[key] : ''}
+              onChange={event => setDraft({ ...value, [key]: event.target.valueAsNumber })} />
+          </Field>)}
+        </div>
         <div><Button type="submit" size="sm" disabled={busy || !draft}>保存文章 AI 设置</Button></div>
         {save.isError && <p role="alert">{message(save.error)}</p>}
       </FieldGroup>
