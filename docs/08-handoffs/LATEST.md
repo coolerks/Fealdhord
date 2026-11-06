@@ -7,3 +7,5 @@ OPML原生授权不暴露宿主路径；预览不写库、不联网，确认单�
 Go全包test／vet、相关race，前端20文件80项／类型／lint通过；既有Virtualizer Compiler提示保留。SQLC／绑定／原生构建及调试签名结果见[验收](../09-research/phase4-validation.md)。未做本轮E2E、其他平台实机或100k性能验收；新目标导出依赖同目录硬链接，提交后取消可能已保存。未操作生产库、未推送；AI／Agent／Skills／MCP仍未实现。
 
 [当前状态](../01-status/CURRENT.md)是唯一实际状态权威。原始无关未跟踪Trellis／平台目录保留，不加入功能提交。
+
+2026-11-06 修复公开订阅误拒。混合 DNS 仅拨号通过校验的地址，三个用户示例均经真实网络发现并入库。Go 全包、vet、网络与 Feed 相关 race 和 macOS 调试包严格签名检查通过。[回归记录](history/2026-11-06-rss-public-feed-regression.md)

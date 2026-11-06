@@ -6,7 +6,7 @@ RSS／网页／图片、模型输出、OPML、Skill 文件和 MCP 内容均不�
 
 ## 网络网关
 
-Feed、发现、Reader、封面探测只允许 HTTP(S)，默认拒绝 URL userinfo、loopback、私网、链路本地、组播、未指定、保留地址及 IPv4-mapped IPv6 绕过。解析 DNS 后检查全部候选，dial 连接已检查 IP，保留 Host／TLS SNI；每次重定向重新检查。最多 5 次重定向，跨主机不转发认证／cookie。拒绝本地文件和任意协议；代理同样必须执行目标策略，不能用代理绕过。
+Feed、发现、Reader、封面探测只允许 HTTP(S)，默认拒绝 URL userinfo、loopback、私网、链路本地、组播、未指定、保留地址及 IPv4-mapped IPv6 绕过。逐条检查 DNS 候选，剔除不允许的 IP。仅连接通过校验的固定公网 IP，保留 Host／TLS SNI。没有合规候选则拒绝；每次重定向重新检查。最多 5 次重定向，跨主机不转发认证／cookie。拒绝本地文件和任意协议；代理同样必须执行目标策略，不能用代理绕过。
 
 用户显式配置 Provider／MCP 的指定本机服务可单独授权 origin；该例外不用于 Feed／图片。网络限额拟定：Feed 解压后 10 MiB、Reader 5 MiB、图片 8 MiB 与 40MP、单请求 20 秒、图片 8 秒；超限流式中止。防解压炸弹和 DNS 变化必须有测试。
 

@@ -25,7 +25,7 @@ func localClient(t *testing.T, handler http.HandlerFunc) (*Client, *atomic.Int32
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 	calls := &atomic.Int32{}
-	c := newClient(fixedResolver{[]netip.Addr{netip.MustParseAddr("8.8.8.8")}}, func(ctx context.Context, network, address string) (net.Conn, error) {
+	c := newClient(fixedResolver{[]netip.Addr{netip.MustParseAddr("fd27:712::1"), netip.MustParseAddr("8.8.8.8"), netip.MustParseAddr("127.0.0.1")}}, func(ctx context.Context, network, address string) (net.Conn, error) {
 		if address != "8.8.8.8:80" {
 			t.Errorf("未连接已校验 IP：%s", address)
 		}
@@ -46,7 +46,7 @@ func TestBlockedTargets(t *testing.T) {
 		t.Fatalf("规范化失败 %q %v", canonical, err)
 	}
 }
-func TestAllDNSCandidatesAndPinnedDial(t *testing.T) {
+func TestMixedDNSUsesOnlyPinnedPublicIP(t *testing.T) {
 	c, calls := localClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Host != "feed.example" {
 			t.Errorf("Host 丢失：%s", r.Host)
@@ -57,12 +57,12 @@ func TestAllDNSCandidatesAndPinnedDial(t *testing.T) {
 	if err != nil || string(response.Body) != "ok" || calls.Load() != 1 {
 		t.Fatalf("安全抓取失败 %+v %v", response, err)
 	}
-	c = newClient(fixedResolver{[]netip.Addr{netip.MustParseAddr("8.8.8.8"), netip.MustParseAddr("127.0.0.1")}}, func(context.Context, string, string) (net.Conn, error) {
-		t.Fatal("混合 DNS 不应拨号")
+	c = newClient(fixedResolver{[]netip.Addr{netip.MustParseAddr("fd27:712::1"), netip.MustParseAddr("127.0.0.1")}}, func(context.Context, string, string) (net.Conn, error) {
+		t.Fatal("仅含私网的 DNS 不应拨号")
 		return nil, nil
 	})
 	if _, err = c.Fetch(context.Background(), "http://feed.example/", Request{}); !errors.Is(err, ErrBlocked) {
-		t.Fatalf("混合 DNS 未拒绝：%v", err)
+		t.Fatalf("仅含私网的 DNS 未拒绝：%v", err)
 	}
 }
 func TestRedirectsAndCrossOriginValidators(t *testing.T) {
@@ -154,5 +154,23 @@ func TestRebindingBetweenRedirectCheckAndDial(t *testing.T) {
 	}
 	if requests.Load() != 1 || dials.Load() != 1 {
 		t.Fatal("连接了重绑定目标")
+	}
+}
+
+func TestPublicDialFailureDoesNotFallBackToPrivateDNS(t *testing.T) {
+	dialFailure := errors.New("公网连接失败")
+	c := newClient(fixedResolver{[]netip.Addr{
+		netip.MustParseAddr("8.8.8.8"),
+		netip.MustParseAddr("fd27:712::1"),
+		netip.MustParseAddr("::ffff:127.0.0.1"),
+	}}, func(_ context.Context, _, address string) (net.Conn, error) {
+		if address != "8.8.8.8:80" {
+			t.Errorf("尝试了未经允许的地址：%s", address)
+		}
+		return nil, dialFailure
+	})
+	defer c.CloseIdleConnections()
+	if _, err := c.Fetch(context.Background(), "http://feed.example/", Request{}); !errors.Is(err, dialFailure) {
+		t.Fatalf("应保留公网连接错误：%v", err)
 	}
 }

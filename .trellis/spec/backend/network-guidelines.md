@@ -10,7 +10,7 @@ internal/netpolicy.Fetcher.Fetch(ctx,rawURL,Request) 返回 Response{URL,Status,
 
 ## 3. 契约
 
-只允许无 userinfo 的 HTTP(S)，规范化 IDNA、默认端口和 fragment，保留 query。DNS 全部候选均须为允许的公网地址，Dial 使用已校验 IP，Transport 保留 Host／TLS SNI，禁止环境代理绕过；每次跳转重检，最多 5 跳。跨源不继承条件请求或敏感头。响应最多解压后 10MiB／20 秒，图片调用可收紧；原始字节同样受限，仅支持 identity／gzip。
+只允许无 userinfo 的 HTTP(S)，规范化 IDNA、默认端口和 fragment，保留 query。逐条校验 DNS 候选并剔除私网与保留地址，剩余为空时拒绝。Dial 只使用筛出的固定公网 IP，Transport 保留 Host／TLS SNI，禁止环境代理绕过；每次跳转重检，最多 5 跳。跨源不继承条件请求或敏感头。响应最多解压后 10MiB／20 秒，图片调用可收紧；原始字节同样受限，仅支持 identity／gzip。
 
 Parser 仅消费网关字节，禁止 ParseURL；XML／JSON 检查深度、token 数、条目数及指令，拒绝 DTD。HTML 自定义 allowlist 清理，纯文本供现有 Reader，不返回可执行原文；JSON Feed 的 content_text 与 title 不能被误当 HTML。图片只登记候选，不在解析事务发请求。
 
@@ -24,7 +24,7 @@ Parser 仅消费网关字节，禁止 ParseURL；XML／JSON 检查深度、token
 
 ## 6. 必需测试
 
-httptest 加内部 resolver／dial 注入验证真正拨号目标；混合公网私网 DNS、映射 IPv6、重定向、压缩炸弹、原始超限和取消。RSS／Atom／JSON 自制 fixture、坏日期／缺标题、JSON 纯文本与脚本清理；测试不访问真实站点。
+httptest 加内部 resolver／dial 注入验证真正拨号目标；混合 DNS 只拨公网、仅有私网时拒绝、公网拨号失败时不能回退到私网、映射 IPv6、重定向、压缩炸弹、原始超限和取消。RSS／Atom／JSON 自制 fixture、坏日期／缺标题、JSON 纯文本与脚本清理；测试不访问真实站点。
 
 ## 7. 错误与正确做法
 

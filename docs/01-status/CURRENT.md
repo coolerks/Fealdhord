@@ -2,6 +2,8 @@
 
 最后更新：2026-11-06（Asia/Singapore）。
 
+- 2026-11-06 修复公开 RSS／Atom 在混合 DNS 下被拒。用户提供的三个地址均通过生产订阅服务发现、添加和临时库文章查询。详见[回归记录](../08-handoffs/history/2026-11-06-rss-public-feed-regression.md)。
+
 - 最新完成：[Phase 4 基础阅读器](../09-research/phase4-validation.md)：全库分页／搜索、分类与订阅导航、安全 HTML／Reader 提取、OPML 导入导出均已接线并通过相关检查；暂停 UI 视觉调整。
 
 - 前阶段完成：[Phase 3 RSS 订阅与文章同步](../09-research/phase3-validation.md)：安全抓取、三格式解析与发现、订阅管理、原子刷新／取消／调度、受控首图及界面接线均已完成检查；暂停 UI 视觉调整。

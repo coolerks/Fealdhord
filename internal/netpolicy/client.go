@@ -187,15 +187,18 @@ func resolve(ctx context.Context, lookup resolver, host string) ([]netip.Addr, e
 	if err != nil {
 		return nil, err
 	}
-	if len(ips) == 0 {
-		return nil, ErrBlocked
-	}
+	// 系统 DNS 可以同时返回可用的公网地址和私有地址。
+	// 拨号只使用这里筛出的固定 IP，避免重新解析域名。
+	allowed := make([]netip.Addr, 0, len(ips))
 	for _, ip := range ips {
-		if !publicIP(ip) {
-			return nil, ErrBlocked
+		if publicIP(ip) {
+			allowed = append(allowed, ip.Unmap())
 		}
 	}
-	return ips, nil
+	if len(allowed) == 0 {
+		return nil, ErrBlocked
+	}
+	return allowed, nil
 }
 func (c *Client) Fetch(ctx context.Context, raw string, options Request) (Response, error) {
 	target, err := NormalizeURL(raw)
