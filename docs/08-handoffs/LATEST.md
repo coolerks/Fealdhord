@@ -58,3 +58,5 @@ macOS 启动窗口改用原生可用区域居中，目标尺寸上限调整为 1
 
 macOS 侧栏切换为 AppKit Sidebar 材质。通过 Wails 原生窗口句柄在首次显示前安装，前端只负责侧栏底色及实色回退。
 macOS 的 Taskfile 与标签发布启用 Wails `private_mac_apis`，让 WebView 底色透明。
+
+macOS 侧栏的导航状态使用统一的半透明底色，折叠按钮改为圆形浅底及细描边。
