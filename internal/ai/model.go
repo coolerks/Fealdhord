@@ -3,6 +3,7 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
 
@@ -15,6 +16,8 @@ type ModelRequest struct {
 	Model           string
 	System          string
 	Messages        []Message
+	Tools           []ToolDefinition
+	ToolChoice      ToolChoice
 	Temperature     *float64
 	TopP            *float64
 	MaxOutputTokens *int
@@ -22,8 +25,27 @@ type ModelRequest struct {
 }
 
 type Message struct {
-	Role    string
-	Content []ContentBlock
+	Role       string
+	Content    []ContentBlock
+	ToolCalls  []ToolCall
+	ToolCallID string
+}
+
+type ToolDefinition struct {
+	Name        string
+	Description string
+	InputSchema json.RawMessage
+}
+
+type ToolChoice struct {
+	Mode string // auto, none, required, or function
+	Name string
+}
+
+type ToolCall struct {
+	ID            string
+	Name          string
+	ArgumentsJSON string
 }
 
 type ContentBlock struct {
@@ -44,13 +66,17 @@ type ModelResponse struct {
 }
 
 type ModelEvent struct {
-	Type         string
-	MessageID    string
-	Sequence     uint64
-	Text         string
-	Usage        *Usage
-	FinishReason string
-	Error        error
+	Type           string
+	MessageID      string
+	Sequence       uint64
+	Text           string
+	CallID         string
+	ToolName       string
+	ArgumentsDelta string
+	ToolCall       *ToolCall
+	Usage          *Usage
+	FinishReason   string
+	Error          error
 }
 
 type ModelError struct {

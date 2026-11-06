@@ -8,4 +8,8 @@
 
 Phase 5 已接入 Chat Completions 的单轮文本适配器，支持非流式响应和流式事件、用量、拒绝及取消。已通过本地 HTTP 协议测试。工具调用、Responses、Messages、Provider 设置和桌面 Chat 待实现。
 
-下一步完善 Chat Completions 工具调用与结果续轮，再分别实现 Responses 和 Messages。
+## 已完成的工具路径
+
+Chat Completions 适配器已支持工具声明、指定工具、非流式工具调用、流式参数交错拼接和工具结果续轮。本地 HTTP 测试覆盖完整调用、缺失终态、未闭合参数和错误的结果引用。 适配器不执行工具。
+
+下一步分别实现 Responses 和 Messages。

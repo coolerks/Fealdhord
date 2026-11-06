@@ -117,3 +117,104 @@ func TestChatRateLimitAndCancellation(t *testing.T) {
 		t.Fatal("取消没有停止流式读取")
 	}
 }
+
+func TestChatToolsRoundTrip(t *testing.T) {
+	model, req := chatFixture(t, func(w http.ResponseWriter, r *http.Request) {
+		var payload chatRequest
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Errorf("请求解码失败：%v", err)
+			return
+		}
+		if len(payload.Tools) != 1 || payload.Tools[0].Type != "function" ||
+			payload.Tools[0].Function.Name != "lookup" {
+			t.Errorf("工具声明错误：%+v", payload.Tools)
+		}
+		if len(payload.Messages) == 2 {
+			choice, ok := payload.ToolChoice.(map[string]any)
+			if !ok || choice["type"] != "function" {
+				t.Errorf("工具选择错误：%v", payload.ToolChoice)
+			}
+			io.WriteString(w, `{"choices":[{"message":{"role":"assistant","tool_calls":[{"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{\"id\":1}"}}]},"finish_reason":"tool_calls"}]}`)
+			return
+		}
+		if len(payload.Messages) != 4 {
+			t.Errorf("续轮消息数量错误：%d", len(payload.Messages))
+			return
+		}
+		assistant, result := payload.Messages[2], payload.Messages[3]
+		if assistant.Role != "assistant" || len(assistant.ToolCalls) != 1 ||
+			assistant.ToolCalls[0].ID != "call_1" || assistant.ToolCalls[0].Function.Arguments != `{"id":1}` ||
+			result.Role != "tool" || result.ToolCallID != "call_1" || result.Content != "找到文章" {
+			t.Errorf("续轮请求不正确：%+v %+v", assistant, result)
+		}
+		io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"已找到"},"finish_reason":"stop"}]}`)
+	})
+	req.Tools = []ToolDefinition{{Name: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}}
+	req.ToolChoice = ToolChoice{Mode: "function", Name: "lookup"}
+	first, err := model.Generate(context.Background(), req)
+	if err != nil || first.FinishReason != "tool_calls" || len(first.Message.ToolCalls) != 1 {
+		t.Fatalf("工具调用未归一化：%+v %v", first, err)
+	}
+	req.ToolChoice = ToolChoice{}
+	req.Messages = append(req.Messages, first.Message, Message{
+		Role: "tool", ToolCallID: first.Message.ToolCalls[0].ID,
+		Content: []ContentBlock{{Type: "text", Text: "找到文章"}},
+	})
+	second, err := model.Generate(context.Background(), req)
+	if err != nil || second.Message.Content[0].Text != "已找到" {
+		t.Fatalf("工具结果续轮失败：%+v %v", second, err)
+	}
+	req.Messages[len(req.Messages)-1].ToolCallID = "unknown"
+	_, err = model.Generate(context.Background(), req)
+	var modelErr *ModelError
+	if !errors.As(err, &modelErr) || modelErr.Code != "ValidationError" {
+		t.Fatalf("错误调用 ID 未拒绝：%v", err)
+	}
+}
+
+func TestChatToolStreamInterleaving(t *testing.T) {
+	for _, test := range []struct {
+		name, lastArgument, tail, terminal string
+	}{
+		{"完整", "}", "data: [DONE]\n\n", "message_end"},
+		{"第二项未闭合", "", "data: [DONE]\n\n", "error"},
+		{"缺少流终态", "}", "", "error"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			model, req := chatFixture(t, func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				io.WriteString(w, `data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"a","type":"function","function":{"name":"lookup","arguments":"{\"x\":"}}]}}]}`+"\n\n")
+				io.WriteString(w, `data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"b","type":"function","function":{"name":"lookup","arguments":"{\"y\":2"}}]}}]}`+"\n\n")
+				io.WriteString(w, `data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"1}"}},{"index":1,"function":{"arguments":"`+test.lastArgument+`"}}]},"finish_reason":"tool_calls"}]}`+"\n\n")
+				io.WriteString(w, test.tail)
+			})
+			req.Tools = []ToolDefinition{{Name: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}}
+			stream, err := model.Stream(context.Background(), req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var complete []ToolCall
+			var last string
+			deltas := map[string]string{}
+			for event := range stream {
+				last = event.Type
+				switch event.Type {
+				case "tool_call_arguments_delta":
+					deltas[event.CallID] += event.ArgumentsDelta
+				case "tool_call_end":
+					complete = append(complete, *event.ToolCall)
+				}
+			}
+			if last != test.terminal || deltas["a"] != `{"x":1}` || deltas["b"] != `{"y":2`+test.lastArgument {
+				t.Fatalf("流式事件错误：%q %+v", last, deltas)
+			}
+			if test.terminal == "error" && len(complete) != 0 {
+				t.Fatalf("异常流发布了完整调用：%+v", complete)
+			}
+			if test.terminal == "message_end" && (len(complete) != 2 ||
+				complete[0].ArgumentsJSON != deltas["a"] || complete[1].ArgumentsJSON != deltas["b"]) {
+				t.Fatalf("完整调用拼接错误：%+v", complete)
+			}
+		})
+	}
+}
