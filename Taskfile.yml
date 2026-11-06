@@ -29,11 +29,19 @@ tasks:
     cmds:
       - task: bindings
       - task: frontend
+      - task: resources:windows
       - go build {{if ne .DEV "true"}}-tags production{{end}} -o {{.OUTPUT_DIR}}/{{.APP_NAME}}{{exeExt}} .
     env:
       MACOSX_DEPLOYMENT_TARGET: '{{if eq OS "darwin"}}13.0{{end}}'
       CGO_CFLAGS: '{{if eq OS "darwin"}}-mmacosx-version-min=13.0{{end}}'
       CGO_LDFLAGS: '{{if eq OS "darwin"}}-mmacosx-version-min=13.0{{end}}'
+
+  resources:windows:
+    summary: 为本机 Windows 构建更新应用图标资源
+    platforms: [windows]
+    cmds:
+      - task: icons
+      - wails3 generate syso -arch {{ARCH}} -icon bin/icons/Fealdhord.ico -manifest build/windows/Fealdhord.exe.manifest -out rsrc_windows_{{ARCH}}.syso
 
 
   run:

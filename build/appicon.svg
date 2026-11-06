@@ -66,24 +66,26 @@
     <path id="topShape" d="M268 753 C282 641 324 535 387 446 C477 322 652 281 868 254 C830 312 786 390 748 451 C716 504 680 529 600 551 C479 584 378 612 313 682 C291 706 276 729 268 753 Z"/>
   </defs>
 
-  <!-- App icon rounded squircle; no background beyond this is baked into the asset. -->
-  <path d="M383 145 H811 C924 145 1009 231 1009 347 V776 C1009 894 924 981 809 981 H383 C267 981 185 894 185 776 V348 C185 234 269 145 383 145 Z"
-        fill="#FFFFFF" filter="url(#tileShadow)"/>
+  <g transform="translate(595 565) scale(.9) translate(-595 -565)">
+    <!-- App icon rounded squircle; no background beyond this is baked into the asset. -->
+    <path d="M383 145 H811 C924 145 1009 231 1009 347 V776 C1009 894 924 981 809 981 H383 C267 981 185 894 185 776 V348 C185 234 269 145 383 145 Z"
+          fill="#FFFFFF" filter="url(#tileShadow)"/>
 
-  <g filter="url(#markShadow)">
-    <!-- Three floating, physically overlapping page faces. -->
-    <use href="#bottomShape" fill="url(#bottomLeaf)"/>
-    <use href="#bottomShape" fill="url(#bottomSheen)"/>
-    <path d="M268 754 C349 696 422 650 491 649 C582 646 647 675 715 700" fill="none" stroke="#355B9B" stroke-opacity=".45" stroke-width="2.4"/>
+    <g filter="url(#markShadow)">
+      <!-- Three floating, physically overlapping page faces. -->
+      <use href="#bottomShape" fill="url(#bottomLeaf)"/>
+      <use href="#bottomShape" fill="url(#bottomSheen)"/>
+      <path d="M268 754 C349 696 422 650 491 649 C582 646 647 675 715 700" fill="none" stroke="#355B9B" stroke-opacity=".45" stroke-width="2.4"/>
 
-    <use href="#middleShape" fill="url(#middleLeaf)"/>
-    <use href="#middleShape" fill="url(#middleSoftLight)"/>
+      <use href="#middleShape" fill="url(#middleLeaf)"/>
+      <use href="#middleShape" fill="url(#middleSoftLight)"/>
 
-    <g filter="url(#upperLeafShadow)">
-      <use href="#topShape" fill="url(#upperLeaf)"/>
+      <g filter="url(#upperLeafShadow)">
+        <use href="#topShape" fill="url(#upperLeaf)"/>
+      </g>
+      <!-- Very fine crescent along the upper fold edge: intentional, not a dark outline. -->
+      <path d="M868 254 C830 313 787 389 748 451" stroke="url(#upperEdge)" stroke-width="1.25" fill="none" stroke-linecap="round"/>
+      <path d="M268 753 C282 641 324 535 387 446 C477 322 652 281 868 254" fill="none" stroke="#577FB6" stroke-width="1.1" stroke-opacity=".72"/>
     </g>
-    <!-- Very fine crescent along the upper fold edge: intentional, not a dark outline. -->
-    <path d="M868 254 C830 313 787 389 748 451" stroke="url(#upperEdge)" stroke-width="1.25" fill="none" stroke-linecap="round"/>
-    <path d="M268 753 C282 641 324 535 387 446 C477 322 652 281 868 254" fill="none" stroke="#577FB6" stroke-width="1.1" stroke-opacity=".72"/>
   </g>
 </svg>
