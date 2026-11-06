@@ -9,7 +9,7 @@ import { initialLibraryData,libraryArticles } from '@/lib/library-query'
 import type { LibraryData } from '@/lib/library-query'
 import { articleQueryKey } from '@/lib/library'
 
-const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),onCommand:vi.fn(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(),minimize:vi.fn(),maximize:vi.fn(),fullscreen:vi.fn(),quit:vi.fn()}))
+const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),isWindows:vi.fn(()=>false),onCommand:vi.fn(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(async()=>{}),minimize:vi.fn(async()=>{}),maximize:vi.fn(async()=>{}),fullscreen:vi.fn(),quit:vi.fn()}))
 vi.mock('@/lib/native',()=>({native:host}))
 const api = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn() }))
 vi.mock('@/lib/preferences', () => ({ preferencesAPI: api }))
@@ -26,6 +26,7 @@ let geometry: ReturnType<typeof installGeometry>
 beforeEach(() => {
   vi.clearAllMocks()
   host.isMac.mockReturnValue(false)
+  host.isWindows.mockReturnValue(false)
   geometry = installGeometry()
   useWorkspace.setState({ preferences: null, revision: 0, version: 0, savedVersion: 0, saveError: null, saveStatus: 'saved', search: '', sort: 'newest',readFilter:'all',favoriteFilter:'all', settingsOpen: false, settingsTab: 'appearance', paletteOpen: false, searchOpen: false, aiOpen: false, helpOpen:false,commandError:null })
   reader.get.mockResolvedValue({article_id:'a-0',html:'',text:'',mode:'feed',has_cached:false,has_original:false})
@@ -133,9 +134,21 @@ describe('Phase 1 阅读 Shell', () => {
   })
 
   it('Windows 菜单与全局右键菜单执行同一视图命令并阻止浏览器菜单', async()=>{
+    host.isWindows.mockReturnValue(true)
     setup()
     await screen.findByRole('heading',{name:'全部文章'})
     const menu=screen.getByRole('menubar',{name:'应用菜单栏'})
+    const bar = menu.closest('.application-menu') as HTMLElement
+    const toggle = within(bar).getByRole('button', { name: '折叠侧栏' })
+    await userEvent.click(toggle)
+    expect(toggle).toHaveAccessibleName('展开侧栏')
+    const controls = within(bar).getByRole('group', { name: '窗口控制' })
+    await userEvent.click(within(controls).getByRole('button', { name: '最小化窗口' }))
+    await userEvent.click(within(controls).getByRole('button', { name: '最大化或还原窗口' }))
+    await userEvent.click(within(controls).getByRole('button', { name: '关闭窗口' }))
+    expect(host.minimize).toHaveBeenCalledOnce()
+    expect(host.maximize).toHaveBeenCalledOnce()
+    expect(host.close).toHaveBeenCalledOnce()
     await userEvent.click(within(menu).getByRole('menuitem',{name:'显示'}))
     await userEvent.click(await screen.findByRole('menuitem',{name:'瀑布流视图'}))
     expect(useWorkspace.getState().preferences?.article_view_mode).toBe('masonry')

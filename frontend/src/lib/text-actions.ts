@@ -26,7 +26,14 @@ export async function editText(action:'copy'|'cut'|'paste'|'selectAll'|'undo'|'r
    field.dispatchEvent(new Event('input',{bubbles:true}))
   } else if(action==='selectAll') {
    if(field){field.focus();field.select()}
-   else {const selection=window.getSelection(), range=document.createRange();range.selectNodeContents(document.querySelector('.reader-content')??document.body);selection?.removeAllRanges();selection?.addRange(range)}
+   else {
+     const article = document.querySelector('.reader-content .reader-prose')
+     if (!article || article.querySelector('[role=alert]')) return
+     const selection = window.getSelection(), range = document.createRange()
+     range.selectNodeContents(article)
+     selection?.removeAllRanges()
+     selection?.addRange(range)
+   }
   } else {field?.focus();document.execCommand(action)}
  } catch {useWorkspace.setState({commandError:'文本操作未完成，请重试或使用系统编辑菜单。'})}
 }

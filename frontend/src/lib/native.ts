@@ -2,6 +2,7 @@ import { Application, Clipboard, Events, System, Window } from '@wailsio/runtime
 import '../../bindings/events'
 
 export const native = {
+  isWindows: () => System.IsWindows(),
   isMac: () => System.IsMac(),
   onCommand: (listener: (id: string) => void) => Events.On('fealdhord:command', event => listener(event.data.id)),
   copy: (text: string) => Clipboard.SetText(text),

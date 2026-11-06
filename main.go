@@ -181,6 +181,7 @@ func main() {
 	refreshService.StartScheduler()
 	desktopintegration.InstallMenu(desktop)
 	mainWindow = desktop.Window.NewWithOptions(desktopintegration.WindowOptions())
+	desktopintegration.ShowMainWindow(desktop, mainWindow)
 	installTray(desktop, mainWindow)
 	if err := desktop.Run(); err != nil {
 		stop()

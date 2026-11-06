@@ -21,3 +21,5 @@ Go全包test／vet、相关race，前端20文件80项／类型／lint通过；�
 应用已接入用户提供的折页图标和黑白托盘。标签发布工作流配置为构建 Windows x64、macOS 通用包与 Linux x64，构建齐全后生成带校验和的预发布。 详见[发布门禁](../07-quality/release-checklist.md)。
 
 [v0.1.0-alpha.2](https://github.com/coolerks/Fealdhord/releases/tag/v0.1.0-alpha.2) 已作为预发布上传 Windows x64 ZIP、macOS 通用 ZIP、Linux x64 DEB 和 SHA256SUMS.txt。三份摘要与 GitHub 资产记录一致。首轮 Alpha 构建因修正托盘图标而取消。macOS 使用临时签名，三平台安装与启动未做实机验收。
+
+主窗口按显示器工作区确定首次显示的尺寸。Windows 将侧栏开关和窗口控制放入与侧栏同色的应用菜单栏。三平台将文字选择限制在文章和编辑字段。

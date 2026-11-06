@@ -7,6 +7,7 @@ import { CircleAlert, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { LibraryEmpty } from '@/features/articles/LibraryEmpty'
 import { ApplicationMenu } from './ApplicationMenu'
 import { native } from '@/lib/native'
+import { captureTextTarget, editText } from '@/lib/text-actions'
 import { isCommand,runCommand } from '@/lib/commands'
 import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog'
 import { SemanticButton } from '@/components/semantic-button'
@@ -90,6 +91,14 @@ export function Shell() {
     const keyboard = (event: KeyboardEvent) => {
       if (event.isComposing || event.defaultPrevented) return
       if (!native.isMac() && (event.metaKey || event.ctrlKey) && event.key.toLowerCase()==='r') { event.preventDefault();runCommand('refresh',client);return }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a' &&
+        !(event.target instanceof Element && event.target.closest('input, textarea, [contenteditable=true]'))) {
+        event.preventDefault()
+        if (readerVisible && !useWorkspace.getState().settingsOpen && !useWorkspace.getState().paletteOpen) {
+          void editText('selectAll', captureTextTarget())
+        }
+        return
+      }
       if (useWorkspace.getState().settingsOpen) return
       if (!native.isMac() && event.key==='F10') {event.preventDefault();document.querySelector<HTMLElement>('[data-slot=menubar-trigger]')?.focus();return}
       if ((event.metaKey||event.ctrlKey) && !native.isMac()) {
@@ -122,14 +131,16 @@ export function Shell() {
   useEffect(()=>native.onCommand(id=>{if(isCommand(id))runCommand(id,client)}),[client])
 
   const emptySearch = search.trim() !== ''
+  const platform = native.isMac() ? 'mac' : native.isWindows() ? 'windows' : 'other'
+  const sidebarToggle = <SemanticButton id="sidebar-toggle" icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
+    label={sidebarCollapsed ? '展开侧栏' : '折叠侧栏'} meaning={sidebarCollapsed ? 'expand' : 'collapse'}
+    aria-expanded={!sidebarCollapsed} aria-controls="workspace-sidebar"
+    onClick={() => runCommand('sidebar', client)} />
   return <MotionConfig reducedMotion={mode === 'full' ? 'never' : 'always'} transition={{ duration: mode === 'off' ? 0 : mode === 'subtle' ? .1 : .22, ease: [.22, 1, .36, 1] }}>
-    <div className="desktop-shell" data-platform={native.isMac()?'mac':'other'}>{!native.isMac()&&<ApplicationMenu/>}<div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={sidebarCollapsed} data-sidebar-resizing={sidebarDraft !== null}>
-      <div className="sidebar-toggle">
-        <SemanticButton id="sidebar-toggle" icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
-          label={sidebarCollapsed ? '展开侧栏' : '折叠侧栏'} meaning={sidebarCollapsed ? 'expand' : 'collapse'}
-          aria-expanded={!sidebarCollapsed} aria-controls="workspace-sidebar"
-          onClick={() => runCommand('sidebar', client)} />
-      </div>
+    <div className="desktop-shell" data-platform={platform}>
+      {platform !== 'mac' && <ApplicationMenu windowsSidebarToggle={platform === 'windows' ? sidebarToggle : undefined} />}
+      <div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={sidebarCollapsed} data-sidebar-resizing={sidebarDraft !== null}>
+      {platform !== 'windows' && <div className="sidebar-toggle">{sidebarToggle}</div>}
       <div className="sidebar-track"><Sidebar motionMode={mode} /></div>
       {!preferences.sidebar_collapsed && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={280} onResize={setSidebarDraft} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
       <main className={cn('reading-workspace', !overlay && readerVisible && 'three-column')}>

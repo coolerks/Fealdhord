@@ -10,13 +10,13 @@ internal/desktop.WindowOptions／InstallMenu；事件 fealdhord:command={id:stri
 
 ## 3. 契约
 
-macOS 使用系统菜单栏：折栈／文件／编辑／显示／文章／窗口／帮助。编辑、隐藏、退出、全屏等采用原生 role，菜单快捷键遵守 Cmd；Windows／Linux 使用 Radix Menubar，自行实现文件／编辑／显示／文章／窗口／帮助，F10 可聚焦，系统窗口框架保留。OPML 已于 Phase 4 接入系统／应用文件菜单与命令面板，通过设置分区调用原生文件授权。
+macOS 使用系统菜单栏：折栈／文件／编辑／显示／文章／窗口／帮助。编辑、隐藏、退出、全屏等采用原生 role，菜单快捷键遵守 Cmd；Windows／Linux 使用 Radix Menubar，自行实现文件／编辑／显示／文章／窗口／帮助，F10 可聚焦。Windows 采用自绘窗口栏，侧栏开关在菜单栏左端，最小化、最大化或还原、关闭位于右端，空白区域可拖动。Linux 保留系统窗口框架。OPML 已于 Phase 4 接入系统／应用文件菜单与命令面板，通过设置分区调用原生文件授权。
 
 macOS HiddenInset 隐藏标题文字并保留原生控制，NSVisualEffectView 窗口材质＋透明 HTML／WebView＋侧栏半透明叠色，主内容不透明；不使用私有 API。其他系统默认不透明回退，不声称具备 macOS 材质。顶部预留 52px 控制／拖动区域。
 
 默认双栏浏览，选择文章后打开 Reader 聚焦面板；reader_pinned=false 为新增兼容字段，旧 JSON 缺字段安全默认为 false。设置允许显式启用宽窗口并排三栏。无文章不显示空 Reader 常驻栏。主题采用中性黑白灰。
 
-全局 Radix ContextMenu＋DefaultContextMenuDisabled 禁止原生浏览器右键。文章菜单按目标 ID 操作；文本选择／输入提供复制、剪切、粘贴、全选。剪贴板异步写回前检查输入快照未变，尊重只读和 maxLength；失败明确提示，不能把命令当成功。文本仍可选择。
+全局 Radix ContextMenu＋DefaultContextMenuDisabled 禁止原生浏览器右键。文章菜单按目标 ID 操作；文本选择／输入提供复制、剪切、粘贴、全选。剪贴板异步写回前检查输入快照未变，尊重只读和 maxLength；失败明确提示，不能把命令当成功。文章标题、来源和正文可选择，表单字段保留原生文本编辑。普通界面文本禁用选择，应用全选限制在正文或编辑字段。
 
 lucide-animated（MIT）官方 registry 源码按图标保存在 components/icons，并保留 LICENSE；原版轨迹不自创替换。AnimatedGlyph 从父按钮／菜单整行／键盘焦点触发，被动图标响应自身 Hover。播放完成后等待 normal／initial 归位再卸载，持续悬停不循环，移出不截断；同轮事件不重复启动、不排队。Full 才创建实例；Subtle／Off 静态，Provider 覆盖全局菜单。静态 SVG 由 npm run icons:generate 从同份库源生成，保持几何一致；正文与虚拟定位不受影响。
 
@@ -68,3 +68,5 @@ cmdk 可用项也输出 data-disabled=false，现排除该 false 值，保留真
 ## 紧凑窗口工具栏
 
 文章浏览与阅读面板共用 50px 顶部工具栏，操作贴近视图右上缘。全部、未读、收藏、精选、分类和订阅使用同一浏览工具栏，列表与瀑布流切换保持其位置。窄分栏让操作留在顶部，标题放到下方。侧栏展开时，折叠按钮位于侧栏右上角。收起时，导航整列隐藏，内容区铺满窗口，同一个按钮移到标题栏左侧，macOS 上紧邻原生窗口按钮。侧栏宽度、内容区和切换按钮同步过渡，并遵循动效偏好。浏览标题统一为 14px。可拖动区域避开交互按钮。设置各分区共用紧凑页头和右上角关闭入口。
+
+初始窗口按显示器工作区调整，目标尺寸上限为 1000 × 640，宽高分别最多占工作区的 90%。设置导航可独立滚动。

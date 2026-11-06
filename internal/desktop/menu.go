@@ -2,11 +2,21 @@
 package desktop
 
 import (
-	"github.com/wailsapp/wails/v3/pkg/application"
 	"runtime"
+	"sync"
+
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 const CommandEventName = "fealdhord:command"
+
+const (
+	defaultWidth  = 1000
+	defaultHeight = 640
+	minWidth      = 640
+	minHeight     = 400
+)
 
 type CommandEvent struct {
 	ID string `json:"id"`
@@ -14,7 +24,9 @@ type CommandEvent struct {
 
 func WindowOptions() application.WebviewWindowOptions {
 	options := application.WebviewWindowOptions{
-		Title: "折栈", Width: 1240, Height: 800, MinWidth: 900, MinHeight: 600, URL: "/",
+		Title: "折栈", Width: defaultWidth, Height: defaultHeight, MinWidth: minWidth, MinHeight: minHeight, URL: "/",
+		Hidden: true, InitialPosition: application.WindowCentered,
+		Frameless:        runtime.GOOS == "windows",
 		BackgroundType:   application.BackgroundTypeTranslucent,
 		BackgroundColour: application.NewRGBA(0, 0, 0, 0), DefaultContextMenuDisabled: true,
 		Mac: application.MacWindow{Backdrop: application.MacBackdropTranslucent, TitleBar: application.MacTitleBarHiddenInset, InvisibleTitleBarHeight: 52},
@@ -24,6 +36,30 @@ func WindowOptions() application.WebviewWindowOptions {
 		options.BackgroundColour = application.NewRGB(245, 245, 247)
 	}
 	return options
+}
+
+// ShowMainWindow fits the window to the active display before its first paint.
+func ShowMainWindow(app *application.App, window *application.WebviewWindow) {
+	var once sync.Once
+	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
+		once.Do(func() {
+			screen, _ := window.GetScreen()
+			if screen == nil || screen.WorkArea.Width <= 0 || screen.WorkArea.Height <= 0 {
+				screen = app.Screen.GetPrimary()
+			}
+			if screen != nil {
+				area := screen.WorkArea
+				if area.Width > 0 && area.Height > 0 {
+					width := min(defaultWidth, area.Width*9/10)
+					height := min(defaultHeight, area.Height*9/10)
+					window.SetMinSize(min(minWidth, width), min(minHeight, height))
+					window.SetSize(width, height)
+					window.SetPosition(area.X+(area.Width-width)/2, area.Y+(area.Height-height)/2)
+				}
+			}
+			window.Show()
+		})
+	})
 }
 
 func InstallMenu(app *application.App) {
