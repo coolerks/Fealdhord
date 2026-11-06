@@ -71,14 +71,12 @@
   --sidebar-selection: rgb(0 0 0 / .105);
   --sidebar-press: rgb(0 0 0 / .15);
   --sidebar-control-tint: rgb(255 255 255 / .24);
-  --sidebar-control-outline: rgb(0 0 0 / .12);
 }
 .dark [data-platform=mac] {
   --sidebar-hover: rgb(255 255 255 / .075);
   --sidebar-selection: rgb(255 255 255 / .14);
   --sidebar-press: rgb(255 255 255 / .19);
   --sidebar-control-tint: rgb(255 255 255 / .065);
-  --sidebar-control-outline: rgb(255 255 255 / .15);
 }
 
 [data-platform=mac] .glass-sidebar {
@@ -104,9 +102,6 @@
 [data-platform=mac] .sidebar-toggle button {
   background: var(--sidebar-control-tint);
   color: var(--sidebar-foreground);
-}
-[data-platform=mac] .sidebar-toggle button:not(:focus-visible) {
-  border-color: var(--sidebar-control-outline);
 }
 
 .fold-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; color: var(--primary-foreground); background: var(--primary); box-shadow: inset 0 1px color-mix(in srgb,var(--glass-highlight) 20%,transparent); }
