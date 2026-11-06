@@ -90,10 +90,11 @@ jobs:
           CGO_ENABLED: '1'
         run: |
           for arch in arm64 amd64; do
-            GOARCH="$arch" go build -tags production -trimpath -ldflags="-s -w" -o "bin/Fealdhord-$arch" .
+            GOARCH="$arch" go build -tags production -trimpath -ldflags="-s -w -extldflags=-mmacosx-version-min=13.0" -o "bin/Fealdhord-$arch" .
           done
           lipo -create bin/Fealdhord-arm64 bin/Fealdhord-amd64 -output bin/Fealdhord
-          lipo -verify_arch arm64 x86_64 bin/Fealdhord
+          architectures=" $(lipo -archs bin/Fealdhord) "
+          [[ "$architectures" == *" arm64 "* && "$architectures" == *" x86_64 "* ]]
           "$(go env GOPATH)/bin/wails3" task bundle:mac
           ditto -c -k --keepParent bin/Fealdhord.app "bin/release/Fealdhord-${VERSION}-macos-universal.zip"
       - uses: actions/upload-artifact@v4
