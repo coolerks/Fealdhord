@@ -33,7 +33,8 @@ export function ModelCatalogField({ provider, value, excluded, disabled, onSelec
     <div className="flex items-center gap-1">
       <FieldLabel htmlFor="ai-model-catalog">服务模型</FieldLabel>
       <SemanticButton icon={RefreshCw} meaning="refresh" label="刷新服务模型"
-        size="icon-xs" disabled={disabled || catalog.isFetching} aria-busy={catalog.isFetching}
+        size="icon-xs" className="text-muted-foreground [&_.animated-glyph]:size-3 [&_.animated-glyph_svg]:size-3"
+        disabled={disabled || catalog.isFetching} aria-busy={catalog.isFetching}
         onClick={() => void catalog.refetch()} />
     </div>
     <SearchableSelect id="ai-model-catalog" label="服务模型" className="w-full" matchTriggerWidth
