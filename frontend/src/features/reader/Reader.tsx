@@ -67,7 +67,7 @@ function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnc
  }
  return <motion.aside className="reader-pane" aria-label="阅读面板" data-article-id={articleID} initial={false} animate={{opacity:1}} transition={{duration:.18}}>
   <Tabs.Root className="reader-tabs" value={view} onValueChange={changeView} activationMode="manual">
-  <header className="reader-toolbar">
+  <header className="workspace-toolbar reader-toolbar">
    <div className="toolbar-start"><SemanticButton icon={ChevronLeft} meaning="chevron-left" label={overlay?'返回文章浏览':'收起阅读面板'} onClick={onClose}/></div>
    <div className="toolbar-actions">
     {article&&<ArticleCategories articleID={article.id}/>}
