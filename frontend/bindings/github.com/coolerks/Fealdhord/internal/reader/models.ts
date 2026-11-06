@@ -12,6 +12,7 @@ export interface Detail {
     "mode": string;
     "has_cached": boolean;
     "has_original": boolean;
+    "original_url"?: string;
 }
 
 export interface LinkRequest {

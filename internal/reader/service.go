@@ -54,6 +54,7 @@ type Detail struct {
 	Mode        string `json:"mode"`
 	HasCached   bool   `json:"has_cached"`
 	HasOriginal bool   `json:"has_original"`
+	OriginalURL string `json:"original_url,omitempty"`
 }
 type Result struct {
 	OK        bool          `json:"ok"`
@@ -136,7 +137,8 @@ func (s *Service) Get(ctx context.Context, request Request) Result {
 	if err = s.repository.RegisterReaderResources(ctx, article.ID, article.Hash, request.Mode, resources); err != nil {
 		return failed(err)
 	}
-	return Result{OK: true, RequestID: rand.Text(), Data: &Detail{ArticleID: article.ID, HTML: display, Text: text, Mode: request.Mode, HasCached: hasCached, HasOriginal: article.URL != ""}}
+	originalURL, _ := netpolicy.NormalizeURL(article.URL)
+	return Result{OK: true, RequestID: rand.Text(), Data: &Detail{ArticleID: article.ID, HTML: display, Text: text, Mode: request.Mode, HasCached: hasCached, HasOriginal: originalURL != "", OriginalURL: originalURL}}
 }
 func (s *Service) Extract(ctx context.Context, request Request) (out Result) {
 	// 解析器只操作有界字节；局部恢复第三方异常，不允许把堆栈返回界面。

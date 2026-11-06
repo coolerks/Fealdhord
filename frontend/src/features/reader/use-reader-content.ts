@@ -15,7 +15,7 @@ export function useReaderContent(article:Article|undefined,preferences:Preferenc
   if(mode==='reader' && query.error && 'code' in query.error && query.error.code==='NotFound'){setMode('feed');setError('文章已更新，已返回订阅正文。')}
  },[mode,query.error])
  async function extract(){
-  if(!id||extracting)return
+  if(!id||controller.current)return
   const request=new AbortController(),version=++generation.current
   controller.current=request;setExtracting(true);setError('')
   try{
@@ -28,6 +28,17 @@ export function useReaderContent(article:Article|undefined,preferences:Preferenc
   finally{if(generation.current===version){controller.current=null;setExtracting(false)}}
  }
  function cancel(){controller.current?.abort();generation.current++;controller.current=null;setExtracting(false);setError('提取已取消，当前正文已保留。')}
- function toggle(){if(extracting)return;if(mode==='reader')setMode('feed');else if(query.data?.has_cached)setMode('reader');else void extract()}
- return {query,mode,extracting,error,extract,cancel,toggle,text:article?.contentText||query.data?.text||'',html:article?.contentText?'':query.data?.html||''}
+ function enter(){
+  if(query.data?.has_cached){setError('');setMode('reader')}
+  else void extract()
+ }
+ function leave(){
+  controller.current?.abort()
+  generation.current++
+  controller.current=null
+  setExtracting(false)
+  setError('')
+  setMode('feed')
+ }
+ return {query,mode,extracting,error,extract,cancel,enter,leave,text:article?.contentText||query.data?.text||'',html:article?.contentText?'':query.data?.html||''}
 }

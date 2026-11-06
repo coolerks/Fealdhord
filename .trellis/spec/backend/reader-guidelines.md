@@ -2,11 +2,11 @@
 
 ## 1. 范围与触发条件
 
-修改 Reader、订阅 HTML 清理、网页提取、正文图片／链接或自动已读设置时。正文和资源不得让远程 HTML 在有 Wails 绑定的 WebView 内执行或导航。
+修改 Reader、订阅 HTML 清理、网页提取、正文图片／链接或自动已读设置时。正文和资源仅渲染清理后的 HTML。独立原网页视图使用不继承应用源的沙箱 iframe，外站不能进入应用主文档或桌面绑定。
 
 ## 2. 签名
 
-reader.Service.Get{article_id,mode:feed|reader}、Extract{article_id,mode} → Detail{article_id,html,text,mode,has_cached,has_original}；OpenLink{article_id,resource_id?} → ok／error／request_id。空 resource_id 表示原文。媒体路由 `/media/inline/{64位hexID}`，只读取已登记 image；链接 ID 不可当图片使用。
+reader.Service.Get{article_id,mode:feed|reader}、Extract{article_id,mode} → Detail{article_id,html,text,mode,has_cached,has_original,original_url?}；OpenLink{article_id,resource_id?} → ok／error／request_id。空 resource_id 表示原文。媒体路由 `/media/inline/{64位hexID}`，只读取已登记 image；链接 ID 不可当图片使用。
 
 ## 3. 契约
 
@@ -31,3 +31,7 @@ reader.Service.Get{article_id,mode:feed|reader}、Extract{article_id,mode} → D
 错误：把数据库中含远程资源的中间 HTML 直接传给 dangerouslySetInnerHTML，或使用 Readability.FromURL 绕过网关。正确：仅暴露 prepareHTML 的本地ID产物；UI正文 Query 绑定 ArticleSummary.revision，更新时取消旧提取并重建正文子树。自动已读意图在同篇外层持有，不能因revision重挂载又覆盖用户手动未读；默认可关闭。
 
 清理器会把空片段 `href="#"` 规范化为空并移除；登记链接使用非空本地片段 `#reader-link`，并测试最终Go输出的真实href，确保键盘能聚焦和激活，不能只在组件mock里手写一个可用链接。
+
+## 原始网页边界
+
+Detail.original_url 仅从当前文章保存的 HTTP(S) 地址规范化产生，缺失或非法时省略。前端只在原始网页视图使用此地址，拒绝应用自身 origin。iframe 保留 opaque origin，禁止给脚本框架增加 allow-same-origin。应用运行时中间件先于 Wails 路由，要求 POST、JSON 及 Wails 客户端头，拒绝 null 或跨源 Origin 和跨源 Fetch Metadata。Wails 桌面桥也拦截子帧消息。原始网页由 WebView 直接导航，遵守站点嵌入策略，正文提取和媒体仍走受控网关。

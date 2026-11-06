@@ -117,6 +117,20 @@ func TestLegacyValuesNormalizeIndividually(t *testing.T) {
 	if !got.OK || got.Data.Preferences.Theme != "dark" || got.Data.Preferences.ArticleViewMode != "list" || got.Data.Preferences.SidebarWidth != 248 || got.Data.Preferences.ReaderFontSize != 19 {
 		t.Fatalf("旧值恢复错误：%+v", got)
 	}
+	if got.Data.Preferences.ReaderOpenMode != "feed" || got.Data.Preferences.ReaderFullMode != "reader" {
+		t.Fatal("旧偏好应继续打开订阅预览")
+	}
+	prefs := got.Data.Preferences
+	prefs.ReaderOpenMode, prefs.ReaderFullMode = "full", "web"
+	service := NewService(store)
+	saved := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: got.Data.Revision})
+	if !saved.OK {
+		t.Fatalf("保存阅读方式失败：%+v", saved.Error)
+	}
+	loaded := service.Get(ctx)
+	if !loaded.OK || loaded.Data.Preferences.ReaderOpenMode != "full" || loaded.Data.Preferences.ReaderFullMode != "web" {
+		t.Fatal("阅读方式没有持久化")
+	}
 	b, err := json.Marshal(got)
 	if err != nil {
 		t.Fatal(err)

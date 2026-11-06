@@ -165,7 +165,7 @@ func main() {
 			application.NewService(feedService), application.NewService(refresh.NewAPI(refreshService)),
 			application.NewServiceWithOptions(media.NewAPI(mediaService), application.ServiceOptions{Route: "/media/"}),
 		},
-		Assets: application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
+		Assets: application.AssetOptions{Handler: application.AssetFileServerFS(assets), Middleware: desktopintegration.GuardRuntime},
 		Mac:    application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
 	})
 	desktop.OnShutdown(func() {

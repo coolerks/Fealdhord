@@ -31,6 +31,8 @@ type Preferences struct {
 	SelectedScope            string                  `json:"selected_scope"`
 	SelectedArticleID        string                  `json:"selected_article_id"`
 	ScrollAnchors            map[string]ScrollAnchor `json:"scroll_anchors"`
+	ReaderOpenMode           string                  `json:"reader_open_mode"`
+	ReaderFullMode           string                  `json:"reader_full_mode"`
 	ReaderAutoRead           bool                    `json:"reader_auto_read"`
 	ReaderFontFamily         string                  `json:"reader_font_family"`
 	ReaderFontSize           int                     `json:"reader_font_size"`
@@ -39,7 +41,7 @@ type Preferences struct {
 }
 
 func Defaults() Preferences {
-	return Preferences{ReaderAutoRead: true, ReaderFontFamily: "sans", RemoteImages: "subscriptions", MediaCacheEnabled: true,
+	return Preferences{ReaderOpenMode: "feed", ReaderFullMode: "reader", ReaderAutoRead: true, ReaderFontFamily: "sans", RemoteImages: "subscriptions", MediaCacheEnabled: true,
 		Theme: "system", ArticleViewMode: "list", ListDensity: "compact", ListThumbnail: "none",
 		MasonryImageMode: "original_ratio", Animation: "full", FollowSystemReduceMotion: true,
 		SidebarWidth: 248, ListWidth: 360, ReaderOpen: false, SelectedScope: "all",
@@ -57,6 +59,9 @@ func oneOf(value string, choices ...string) bool {
 }
 
 func (p Preferences) Validate() error {
+	if !oneOf(p.ReaderOpenMode, "feed", "full") || !oneOf(p.ReaderFullMode, "web", "reader") {
+		return errors.New("文章打开方式无效。")
+	}
 	if !oneOf(p.ReaderFontFamily, "sans", "serif", "monospace") {
 		return errors.New("阅读字体选项无效。")
 	}
@@ -84,6 +89,12 @@ func (p Preferences) Validate() error {
 // normalize 只用于读取旧设置；非法字段分别回退，保留其他有效偏好。
 func (p *Preferences) normalize() {
 	d := Defaults()
+	if !oneOf(p.ReaderOpenMode, "feed", "full") {
+		p.ReaderOpenMode = d.ReaderOpenMode
+	}
+	if !oneOf(p.ReaderFullMode, "web", "reader") {
+		p.ReaderFullMode = d.ReaderFullMode
+	}
 	if !oneOf(p.ReaderFontFamily, "sans", "serif", "monospace") {
 		p.ReaderFontFamily = d.ReaderFontFamily
 	}
