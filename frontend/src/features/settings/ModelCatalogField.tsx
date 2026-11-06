@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { Button } from '@/components/ui/button'
+import { RefreshCw } from 'lucide-react'
+import { SemanticButton } from '@/components/semantic-button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { FetchModels } from '../../../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/api'
@@ -29,21 +30,23 @@ export function ModelCatalogField({ provider, value, excluded, disabled, onSelec
   })
   const items = (catalog.data ?? []).filter(item => !excluded.includes(item.id))
   return <Field>
-    <FieldLabel htmlFor="ai-model-catalog">服务模型</FieldLabel>
-    <div className="flex flex-wrap gap-2">
-      <SearchableSelect id="ai-model-catalog" label="服务模型" className="max-w-full"
-        value={value} disabled={disabled || !items.length}
-        placeholder={catalog.isFetching ? '正在获取模型…' : '从服务选择模型'}
-        options={items.map(item => ({
-          value: item.id,
-          label: item.displayName && item.displayName !== item.id ? `${item.displayName} · ${item.id}` : item.id,
-        }))}
-        onValueChange={id => {
-          const item = items.find(entry => entry.id === id)
-          if (item) onSelect(item.id, item.displayName)
-        }} />
-      <Button type="button" size="sm" variant="outline" disabled={disabled || catalog.isFetching} onClick={() => void catalog.refetch()}>刷新列表</Button>
+    <div className="flex items-center gap-1">
+      <FieldLabel htmlFor="ai-model-catalog">服务模型</FieldLabel>
+      <SemanticButton icon={RefreshCw} meaning="refresh" label="刷新服务模型"
+        size="icon-xs" disabled={disabled || catalog.isFetching} aria-busy={catalog.isFetching}
+        onClick={() => void catalog.refetch()} />
     </div>
+    <SearchableSelect id="ai-model-catalog" label="服务模型" className="w-full" matchTriggerWidth
+      value={value} disabled={disabled || !items.length}
+      placeholder={catalog.isFetching ? '正在获取模型…' : '从服务选择模型'}
+      options={items.map(item => ({
+        value: item.id,
+        label: item.displayName && item.displayName !== item.id ? `${item.displayName} · ${item.id}` : item.id,
+      }))}
+      onValueChange={id => {
+        const item = items.find(entry => entry.id === id)
+        if (item) onSelect(item.id, item.displayName)
+      }} />
     {catalog.isError && <p role="status" className="text-muted-foreground">
       {String(catalog.error).includes('AuthenticationError') ? '获取模型失败，请检查服务密钥。' : '无法获取服务模型列表，可以手动填写。'}
     </p>}

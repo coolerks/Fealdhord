@@ -13,7 +13,7 @@ type Option = {
 }
 
 export function SearchableSelect({
-  id, label, options, value, onValueChange, disabled, className, placeholder = '请选择',
+  id, label, options, value, onValueChange, disabled, className, matchTriggerWidth = false, placeholder = '请选择',
 }: {
   id?: string
   label: string
@@ -22,6 +22,7 @@ export function SearchableSelect({
   onValueChange: (value: string) => void
   disabled?: boolean
   className?: string
+  matchTriggerWidth?: boolean
   placeholder?: string
 }) {
   const [open, setOpen] = useState(false)
@@ -39,7 +40,9 @@ export function SearchableSelect({
     </Popover.Trigger>
     <Popover.Portal>
       <Popover.Content align="start" sideOffset={4} aria-label={label}
-        className="z-50 w-[min(var(--radix-popover-content-available-width),24rem)] rounded-xl border bg-popover shadow-md"
+        className={cn('z-50 rounded-xl border bg-popover shadow-md', matchTriggerWidth
+          ? 'w-[min(var(--radix-popover-trigger-width),var(--radix-popover-content-available-width))]'
+          : 'w-[min(var(--radix-popover-content-available-width),24rem)]')}
         onOpenAutoFocus={event => {
           if (input.current) {
             event.preventDefault()
@@ -58,7 +61,7 @@ export function SearchableSelect({
                   onValueChange(option.value)
                   if (!multiple) setOpen(false)
                 }}>
-                <span className="min-w-0 truncate">{option.label}</span>
+                <span className={cn('min-w-0', matchTriggerWidth ? 'wrap-anywhere whitespace-normal' : 'truncate')}>{option.label}</span>
               </CommandItem>)}
             </CommandGroup>
           </CommandList>
