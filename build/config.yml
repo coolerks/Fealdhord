@@ -17,14 +17,11 @@ dev_mode:
     watched_extension: ['*.go']
     git_ignore: true
   executes:
-    - cmd: wails3 build DEV=true
+    - cmd: wails3 build DEV=true OUTPUT_DIR=bin/dev
       type: blocking
-    - cmd: wails3 task dev:frontend
+    # Wails 根据 FRONTEND_DEVSERVER_URL 自动等待标准前端任务就绪。
+    - cmd: wails3 task common:dev:frontend
       type: background
-      readiness:
-        http: http://127.0.0.1:9245/
-        timeout: 30s
-        interval: 200ms
-    - cmd: wails3 task run
+    - cmd: wails3 task run OUTPUT_DIR=bin/dev
       type: primary
       exit_policy: shutdown

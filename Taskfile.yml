@@ -2,6 +2,7 @@ version: '3'
 
 vars:
   APP_NAME: Fealdhord
+  OUTPUT_DIR: bin/local
 
 tasks:
   bindings:
@@ -28,7 +29,7 @@ tasks:
     cmds:
       - task: bindings
       - task: frontend
-      - go build {{if ne .DEV "true"}}-tags production{{end}} -o bin/{{.APP_NAME}}{{exeExt}} .
+      - go build {{if ne .DEV "true"}}-tags production{{end}} -o {{.OUTPUT_DIR}}/{{.APP_NAME}}{{exeExt}} .
     env:
       MACOSX_DEPLOYMENT_TARGET: '{{if eq OS "darwin"}}13.0{{end}}'
       CGO_CFLAGS: '{{if eq OS "darwin"}}-mmacosx-version-min=13.0{{end}}'
@@ -39,38 +40,42 @@ tasks:
     summary: 运行已构建的桌面应用
     cmds:
       - task: '{{if eq OS "darwin"}}run:mac{{else}}run:binary{{end}}'
+        vars:
+          OUTPUT_DIR: '{{.OUTPUT_DIR}}'
 
   bundle:mac:
     summary: 创建本机调试用 macOS 应用包，不代表发布签名
     platforms: [darwin]
     cmds:
       - task: icons
-      - mkdir -p bin/{{.APP_NAME}}.app/Contents/MacOS bin/{{.APP_NAME}}.app/Contents/Resources
-      - cp bin/icons/Fealdhord.icns bin/{{.APP_NAME}}.app/Contents/Resources/Fealdhord.icns
+      - mkdir -p {{.OUTPUT_DIR}}/{{.APP_NAME}}.app/Contents/MacOS {{.OUTPUT_DIR}}/{{.APP_NAME}}.app/Contents/Resources
+      - cp bin/icons/Fealdhord.icns {{.OUTPUT_DIR}}/{{.APP_NAME}}.app/Contents/Resources/Fealdhord.icns
       # 替换已签名可执行文件时使用新 inode，避免原位覆盖后的签名缓存失效。
-      - rm -f bin/{{.APP_NAME}}.app/Contents/MacOS/{{.APP_NAME}}
-      - cp bin/{{.APP_NAME}} bin/{{.APP_NAME}}.app/Contents/MacOS/{{.APP_NAME}}
-      - cp build/darwin/Info.plist bin/{{.APP_NAME}}.app/Contents/Info.plist
-      - codesign --force --deep --sign - bin/{{.APP_NAME}}.app
-      - codesign --verify --deep --strict bin/{{.APP_NAME}}.app
+      - rm -f {{.OUTPUT_DIR}}/{{.APP_NAME}}.app/Contents/MacOS/{{.APP_NAME}}
+      - cp {{.OUTPUT_DIR}}/{{.APP_NAME}} {{.OUTPUT_DIR}}/{{.APP_NAME}}.app/Contents/MacOS/{{.APP_NAME}}
+      - cp build/darwin/Info.plist {{.OUTPUT_DIR}}/{{.APP_NAME}}.app/Contents/Info.plist
+      - codesign --force --deep --sign - {{.OUTPUT_DIR}}/{{.APP_NAME}}.app
+      - codesign --verify --deep --strict {{.OUTPUT_DIR}}/{{.APP_NAME}}.app
 
   run:mac:
     internal: true
     cmds:
       - task: bundle:mac
-      - ./bin/{{.APP_NAME}}.app/Contents/MacOS/{{.APP_NAME}}
+        vars:
+          OUTPUT_DIR: '{{.OUTPUT_DIR}}'
+      - ./{{.OUTPUT_DIR}}/{{.APP_NAME}}.app/Contents/MacOS/{{.APP_NAME}}
 
   run:binary:
     internal: true
     cmds:
-      - ./bin/{{.APP_NAME}}{{exeExt}}
+      - ./{{.OUTPUT_DIR}}/{{.APP_NAME}}{{exeExt}}
 
   dev:
     summary: 启动桌面应用与前端热更新
     cmds:
-      - wails3 dev -config ./build/config.yml -port 9245
+      - wails3 dev -config ./build/config.yml
 
-  dev:frontend:
+  common:dev:frontend:
     summary: 启动前端开发服务器
     dir: frontend
     cmds:

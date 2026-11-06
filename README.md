@@ -20,9 +20,9 @@ wails3 build
 wails3 task run
 ```
 
-本机 macOS arm64 已验证。构建输出 bin/Fealdhord；macOS run 创建带 ad-hoc 签名的 bin/Fealdhord.app，窗口是真实原生 WebView。尚不提供正式安装包／签名公证或其他平台通过承诺。当前 macOS 编译目标 13.0，最低版本实机未测。
+本机 macOS arm64 已验证。构建输出到 `bin/local`，macOS run 创建带 ad-hoc 签名的 `bin/local/Fealdhord.app`，窗口是真实原生 WebView。尚不提供正式安装包／签名公证或其他平台通过承诺。当前 macOS 编译目标 13.0，最低版本实机未测。
 
-开发热更新入口：`wails3 task dev`，Vite 监听 127.0.0.1:9245；该配置已建立，热更新交互尚未单独验收。纯浏览器访问没有 Go 绑定，不能作为桌面运行替代。
+通过 `wails3 task dev` 启动热更新，开发产物写入 `bin/dev`。默认端口是 9245。若已被其他进程占用，可以运行 `wails3 dev -port 9246`。纯浏览器访问没有 Go 绑定，不能作为桌面运行替代。
 
 ## 测试
 

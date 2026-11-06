@@ -95,7 +95,7 @@ jobs:
           lipo -create bin/Fealdhord-arm64 bin/Fealdhord-amd64 -output bin/Fealdhord
           architectures=" $(lipo -archs bin/Fealdhord) "
           [[ "$architectures" == *" arm64 "* && "$architectures" == *" x86_64 "* ]]
-          "$(go env GOPATH)/bin/wails3" task bundle:mac
+          "$(go env GOPATH)/bin/wails3" task bundle:mac OUTPUT_DIR=bin
           ditto -c -k --keepParent bin/Fealdhord.app "bin/release/Fealdhord-${VERSION}-macos-universal.zip"
       - uses: actions/upload-artifact@v4
         with:
