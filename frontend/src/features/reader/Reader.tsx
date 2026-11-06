@@ -1,6 +1,6 @@
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { ArticleCategories } from '@/features/categories/ArticleCategories'
-import { BookOpen,BookText,CheckCheck,ChevronLeft,PanelRightOpen,ScanText,Sparkles,Star } from 'lucide-react'
+import { BookOpen,BookText,CheckCheck,ChevronLeft,Earth,ScanText,Sparkles,Star } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { motion } from 'motion/react'
@@ -79,7 +79,7 @@ function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnc
     <SemanticButton icon={Sparkles} meaning="ai" label="文章 AI 助手" onClick={()=>showSettings('ai')}/>
     {article&&<div className="reader-view-actions" role="group" aria-label="文章显示方式">
      <SemanticButton icon={BookText} meaning="book-text" label="订阅预览" active={view==='feed'} variant={view==='feed'?'secondary':'ghost'} aria-pressed={view==='feed'} onClick={()=>{body.leave();setView('feed')}}/>
-     <SemanticButton icon={PanelRightOpen} meaning="panel-right-open" label="原始网页" active={view==='web'} variant={view==='web'?'secondary':'ghost'} aria-pressed={view==='web'} onClick={()=>{body.leave();setView('web')}}/>
+     <SemanticButton icon={Earth} meaning="earth" label="原始网页" active={view==='web'} variant={view==='web'?'secondary':'ghost'} aria-pressed={view==='web'} onClick={()=>{body.leave();setView('web')}}/>
      <SemanticButton icon={ScanText} meaning="scan-text" label="阅读模式" active={view==='reader'} variant={view==='reader'?'secondary':'ghost'} aria-pressed={view==='reader'} onClick={()=>setView('reader')}/>
     </div>}
     <Button variant="ghost" size="sm" aria-label="在浏览器打开原文" disabled={!article?.url&&!body.query.data?.has_original} onClick={()=>openLink()}>原文</Button>
