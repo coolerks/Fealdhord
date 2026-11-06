@@ -46,10 +46,10 @@
       <stop offset="1" stop-color="#E3EEFF" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="upperLeaf" x1="465" y1="300" x2="616" y2="661" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset=".52" stop-color="#FFFFFF"/>
-      <stop offset=".85" stop-color="#F9FAFE"/>
-      <stop offset="1" stop-color="#F2F5FD"/>
+      <stop offset="0" stop-color="#81A9E0"/>
+      <stop offset=".52" stop-color="#A2C2EF"/>
+      <stop offset=".85" stop-color="#B3CEF3"/>
+      <stop offset="1" stop-color="#A1BFE8"/>
     </linearGradient>
     <linearGradient id="upperEdge" x1="860" y1="255" x2="748" y2="450" gradientUnits="userSpaceOnUse">
       <stop stop-color="#D9DFED" stop-opacity=".72"/>
@@ -84,6 +84,6 @@
     </g>
     <!-- Very fine crescent along the upper fold edge: intentional, not a dark outline. -->
     <path d="M868 254 C830 313 787 389 748 451" stroke="url(#upperEdge)" stroke-width="1.25" fill="none" stroke-linecap="round"/>
-    <path d="M268 753 C282 641 324 535 387 446 C477 322 652 281 868 254" fill="none" stroke="#EBEEF6" stroke-width="1.1" stroke-opacity=".72"/>
+    <path d="M268 753 C282 641 324 535 387 446 C477 322 652 281 868 254" fill="none" stroke="#577FB6" stroke-width="1.1" stroke-opacity=".72"/>
   </g>
 </svg>

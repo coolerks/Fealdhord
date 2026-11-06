@@ -23,4 +23,4 @@
 | macOS 通用 ZIP | macOS 13 及以上，包含 Apple Silicon 和 Intel 架构，使用临时签名 |
 | Linux x64 DEB | Ubuntu 24.04 或具有相应运行库的兼容系统，安装时解析 GTK 4 和 WebKitGTK 6 依赖 |
 
-应用图标源文件在 `build/appicon.svg`。更新对应的 1024px PNG 后，可运行 `wails3 task icons` 派生 ICNS 和 ICO。托盘源文件在 `build/tray.svg` 与 `build/tray-contrast.svg`。更新时同步导出 64px 透明 PNG。macOS 使用模板着色，Windows 和 Linux 使用黑白描边，Linux 托盘显示取决于桌面环境是否支持 StatusNotifierItem。
+应用图标源文件在 `build/appicon.svg`。以透明背景导出对应的 1024px PNG，检查圆角外的四角为完全透明，再运行 `wails3 task icons` 派生 ICNS 和 ICO。托盘源文件在 `build/tray.svg` 与 `build/tray-contrast.svg`。更新时同步导出 64px 透明 PNG。菜单栏模板只包含三瓣折页的透明遮罩。macOS 使用模板着色，Windows 和 Linux 使用黑白描边，Linux 托盘显示取决于桌面环境是否支持 StatusNotifierItem。
