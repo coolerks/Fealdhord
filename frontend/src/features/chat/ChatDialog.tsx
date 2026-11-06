@@ -19,6 +19,15 @@ const statusLabels: Record<string, string> = {
   interrupted: '上次回复已中断',
 }
 
+const toolStatusLabels: Record<string, string> = {
+  running: '正在读取文章',
+  completed: '已读取授权文章',
+  denied: '已拒绝未授权的文章读取',
+  failed: '文章读取失败',
+  cancelled: '已取消文章读取',
+  interrupted: '文章读取已中断',
+}
+
 const errorLabels: Record<string, string> = {
   ContextUnavailable: '有已选文章无法读取，请重新选择。',
   ConfigurationError: '请先分配聊天模型。',
@@ -133,6 +142,9 @@ function ChatSession({ target, close }: { target: NonNullable<ReturnType<typeof 
       {messages.data?.map(message => <section key={message.id} className={message.role === 'user' ? 'ml-auto w-fit max-w-[90%] rounded-xl bg-muted p-3' : 'mr-3 rounded-xl border p-3'}>
         <p className="text-xs text-muted-foreground">{message.role === 'user' ? '你' : message.modelName}</p>
         <p className="whitespace-pre-wrap break-words">{message.text}</p>
+        {!!message.tools?.length && <ul className="mt-2 text-xs text-muted-foreground" aria-label="工具活动">
+          {message.tools.map(tool => <li key={tool.id}>{toolStatusLabels[tool.status] ?? '文章工具状态未知'}</li>)}
+        </ul>}
         {statusLabels[message.status] && <p className="mt-1 text-sm text-muted-foreground">
           {statusLabels[message.status]}{errorLabels[message.errorCode] && ` · ${errorLabels[message.errorCode]}`}
         </p>}

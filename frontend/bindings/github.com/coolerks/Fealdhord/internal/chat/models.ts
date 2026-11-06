@@ -13,6 +13,7 @@ export interface Message {
     "status": string;
     "errorCode": string;
     "modelName": string;
+    "tools"?: ToolActivity[] | null;
 }
 
 export interface Scope {
@@ -27,4 +28,11 @@ export interface SendInput {
     "selection": string;
     "articleIds": string[] | null;
     "allowArticleReads": boolean;
+}
+
+export interface ToolActivity {
+    "id": string;
+    "name": string;
+    "status": string;
+    "errorCode": string;
 }

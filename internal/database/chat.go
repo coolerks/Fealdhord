@@ -29,3 +29,13 @@ func (s *Store) AppendChatTurn(ctx context.Context, user, assistant sqlc.AppendC
 	}
 	return message, tx.Commit()
 }
+
+// InterruptChat recovers persisted active messages and tool reads together.
+func (s *Store) InterruptChat(ctx context.Context, now int64) error {
+	return s.transaction(ctx, func(q *sqlc.Queries) error {
+		if err := q.InterruptChatMessages(ctx); err != nil {
+			return err
+		}
+		return q.InterruptChatToolAudit(ctx, nullTime(&now))
+	})
+}

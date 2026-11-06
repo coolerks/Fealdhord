@@ -3,7 +3,6 @@ package agentrun
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"time"
 
@@ -19,7 +18,7 @@ const (
 
 type ReadTool struct {
 	Definition ai.ToolDefinition
-	Read       func(context.Context, json.RawMessage) string
+	Read       func(context.Context, ai.ToolCall) (string, error)
 }
 
 // Stream retains the one-turn event contract. Only the final model turn ends the message.
@@ -106,7 +105,11 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 			}
 			record, exists := executed[call.ID]
 			if !exists {
-				record = previousCall{call: call, result: allowed[call.Name].Read(ctx, json.RawMessage(call.ArgumentsJSON))}
+				result, err := allowed[call.Name].Read(ctx, call)
+				if err != nil {
+					return err
+				}
+				record = previousCall{call: call, result: result}
 				if len(record.result) > maxToolReplyBytes {
 					return failure("AgentLimitExceeded")
 				}

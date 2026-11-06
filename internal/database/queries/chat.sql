@@ -36,3 +36,21 @@ UPDATE messages SET content=? WHERE id=? AND status='running';
 
 -- name: ChatArticleContext :one
 SELECT title, summary FROM articles WHERE id=?;
+
+-- name: StartChatToolAudit :exec
+INSERT INTO chat_tool_audit(message_id,call_id,tool_name,status,started_at)
+VALUES(?,?,?,'running',?);
+
+-- name: FinishChatToolAudit :exec
+UPDATE chat_tool_audit SET status=?,error_code=?,finished_at=?
+WHERE message_id=? AND call_id=? AND status='running';
+
+-- name: InterruptChatToolAudit :exec
+UPDATE chat_tool_audit SET status='interrupted',error_code='Interrupted',finished_at=?
+WHERE status='running';
+
+-- name: ListChatToolAudit :many
+SELECT a.* FROM chat_tool_audit a JOIN (
+ SELECT id FROM messages WHERE conversation_id=? ORDER BY position DESC LIMIT 100
+) recent ON recent.id=a.message_id
+ORDER BY a.rowid;

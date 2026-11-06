@@ -169,6 +169,16 @@ type Category struct {
 	Revision       int64          `json:"revision"`
 }
 
+type ChatToolAudit struct {
+	MessageID  string        `json:"message_id"`
+	CallID     string        `json:"call_id"`
+	ToolName   string        `json:"tool_name"`
+	Status     string        `json:"status"`
+	ErrorCode  string        `json:"error_code"`
+	StartedAt  int64         `json:"started_at"`
+	FinishedAt sql.NullInt64 `json:"finished_at"`
+}
+
 type Conversation struct {
 	ID        string `json:"id"`
 	ScopeType string `json:"scope_type"`

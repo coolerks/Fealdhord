@@ -2,7 +2,6 @@ package agentrun
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"testing"
 
@@ -31,9 +30,9 @@ func modelEvents(events ...ai.ModelEvent) <-chan ai.ModelEvent {
 func TestToolLoopWaitsForTerminalAndReusesPriorResult(t *testing.T) {
 	reads, turn := 0, 0
 	call := ai.ToolCall{ID: "call", Name: "read", ArgumentsJSON: "{}"}
-	tool := ReadTool{Definition: ai.ToolDefinition{Name: "read"}, Read: func(context.Context, json.RawMessage) string {
+	tool := ReadTool{Definition: ai.ToolDefinition{Name: "read"}, Read: func(context.Context, ai.ToolCall) (string, error) {
 		reads++
-		return "approved text"
+		return "approved text", nil
 	}}
 	model := streamModel(func(_ context.Context, req *ai.ModelRequest) (<-chan ai.ModelEvent, error) {
 		turn++
@@ -75,12 +74,12 @@ func TestToolLoopStopsBeforeUnsafeCalls(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			reads, turns := 0, 0
-			tool := ReadTool{Definition: ai.ToolDefinition{Name: "read"}, Read: func(context.Context, json.RawMessage) string {
+			tool := ReadTool{Definition: ai.ToolDefinition{Name: "read"}, Read: func(context.Context, ai.ToolCall) (string, error) {
 				reads++
 				if tc.name == "cancel" {
 					cancel()
 				}
-				return "content"
+				return "content", nil
 			}}
 			model := streamModel(func(_ context.Context, _ *ai.ModelRequest) (<-chan ai.ModelEvent, error) {
 				turns++

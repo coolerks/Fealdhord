@@ -13,6 +13,7 @@ sql:
       - migrations/00010_chat.sql
       - migrations/00011_article_intelligence.sql
       - migrations/00012_article_ai_controls.sql
+      - migrations/00013_chat_tool_audit.sql
     queries: internal/database/queries
     gen:
       go:

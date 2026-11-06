@@ -10,5 +10,6 @@ export type {
     Conversation,
     Message,
     Scope,
-    SendInput
+    SendInput,
+    ToolActivity
 } from "./models.js";

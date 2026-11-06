@@ -7,6 +7,7 @@ package sqlc
 
 import (
 	"context"
+	"database/sql"
 )
 
 const appendChatMessage = `-- name: AppendChatMessage :one
@@ -171,6 +172,30 @@ func (q *Queries) FinishChatMessage(ctx context.Context, arg FinishChatMessagePa
 	return result.RowsAffected()
 }
 
+const finishChatToolAudit = `-- name: FinishChatToolAudit :exec
+UPDATE chat_tool_audit SET status=?,error_code=?,finished_at=?
+WHERE message_id=? AND call_id=? AND status='running'
+`
+
+type FinishChatToolAuditParams struct {
+	Status     string        `json:"status"`
+	ErrorCode  string        `json:"error_code"`
+	FinishedAt sql.NullInt64 `json:"finished_at"`
+	MessageID  string        `json:"message_id"`
+	CallID     string        `json:"call_id"`
+}
+
+func (q *Queries) FinishChatToolAudit(ctx context.Context, arg FinishChatToolAuditParams) error {
+	_, err := q.db.ExecContext(ctx, finishChatToolAudit,
+		arg.Status,
+		arg.ErrorCode,
+		arg.FinishedAt,
+		arg.MessageID,
+		arg.CallID,
+	)
+	return err
+}
+
 const getConversation = `-- name: GetConversation :one
 SELECT id, scope_type, scope_id, title, created_at, updated_at FROM conversations WHERE id=?
 `
@@ -196,6 +221,54 @@ UPDATE messages SET status='interrupted' WHERE status='running'
 func (q *Queries) InterruptChatMessages(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, interruptChatMessages)
 	return err
+}
+
+const interruptChatToolAudit = `-- name: InterruptChatToolAudit :exec
+UPDATE chat_tool_audit SET status='interrupted',error_code='Interrupted',finished_at=?
+WHERE status='running'
+`
+
+func (q *Queries) InterruptChatToolAudit(ctx context.Context, finishedAt sql.NullInt64) error {
+	_, err := q.db.ExecContext(ctx, interruptChatToolAudit, finishedAt)
+	return err
+}
+
+const listChatToolAudit = `-- name: ListChatToolAudit :many
+SELECT a.message_id, a.call_id, a.tool_name, a.status, a.error_code, a.started_at, a.finished_at FROM chat_tool_audit a JOIN (
+ SELECT id FROM messages WHERE conversation_id=? ORDER BY position DESC LIMIT 100
+) recent ON recent.id=a.message_id
+ORDER BY a.rowid
+`
+
+func (q *Queries) ListChatToolAudit(ctx context.Context, conversationID string) ([]ChatToolAudit, error) {
+	rows, err := q.db.QueryContext(ctx, listChatToolAudit, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatToolAudit
+	for rows.Next() {
+		var i ChatToolAudit
+		if err := rows.Scan(
+			&i.MessageID,
+			&i.CallID,
+			&i.ToolName,
+			&i.Status,
+			&i.ErrorCode,
+			&i.StartedAt,
+			&i.FinishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listConversationMessages = `-- name: ListConversationMessages :many
@@ -271,6 +344,28 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 		return nil, err
 	}
 	return items, nil
+}
+
+const startChatToolAudit = `-- name: StartChatToolAudit :exec
+INSERT INTO chat_tool_audit(message_id,call_id,tool_name,status,started_at)
+VALUES(?,?,?,'running',?)
+`
+
+type StartChatToolAuditParams struct {
+	MessageID string `json:"message_id"`
+	CallID    string `json:"call_id"`
+	ToolName  string `json:"tool_name"`
+	StartedAt int64  `json:"started_at"`
+}
+
+func (q *Queries) StartChatToolAudit(ctx context.Context, arg StartChatToolAuditParams) error {
+	_, err := q.db.ExecContext(ctx, startChatToolAudit,
+		arg.MessageID,
+		arg.CallID,
+		arg.ToolName,
+		arg.StartedAt,
+	)
+	return err
 }
 
 const touchConversation = `-- name: TouchConversation :exec

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -109,14 +110,20 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	if _, err := db.ChatQueries().AppendChatMessage(ctx, sqlc.AppendChatMessageParams{ID: "stale", ConversationID: conversation.ID, Role: "assistant", Status: "running", Content: "重启前保存"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := db.ChatQueries().StartChatToolAudit(ctx, sqlc.StartChatToolAuditParams{MessageID: "stale", CallID: "stale-call", ToolName: "read_article", StartedAt: 1}); err != nil {
+		t.Fatal(err)
+	}
 	reopened, err := New(ctx, db, config)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer reopened.Close()
 	messages, err := reopened.Messages(ctx, conversation.ID)
-	if err != nil || len(messages) != 5 || messages[3] != cancelled || messages[4].Status != "interrupted" || messages[4].Text != "重启前保存" {
+	if err != nil || len(messages) != 5 || !reflect.DeepEqual(messages[3], cancelled) || messages[4].Status != "interrupted" || messages[4].Text != "重启前保存" {
 		t.Fatalf("restored messages = %+v, %v", messages, err)
+	}
+	if len(messages[4].Tools) != 1 || messages[4].Tools[0].Status != "interrupted" {
+		t.Fatalf("audit recovery = %+v", messages[4].Tools)
 	}
 	if list, err := reopened.List(ctx, Scope{Kind: "global"}); err != nil || len(list) != 0 {
 		t.Fatalf("scope leaked: %+v, %v", list, err)
@@ -154,7 +161,10 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	if err := reopened.Send(ctx, SendInput{ConversationID: global.ID, Text: "测试授权工具", ArticleIDs: []string{selected}, AllowArticleReads: true}); err != nil {
 		t.Fatal(err)
 	}
-	waitMessage(t, reopened, global.ID, 4, "complete")
+	withTools := waitMessage(t, reopened, global.ID, 4, "complete")
+	if len(withTools.Tools) != 2 || withTools.Tools[0].Status != "completed" || withTools.Tools[1].Status != "denied" {
+		t.Fatalf("audit = %+v", withTools.Tools)
+	}
 	initial, next := <-requests, <-requests
 	if !strings.Contains(initial, `"name":"read_article"`) || strings.Contains(initial, "不应发送的全文") {
 		t.Fatalf("bad initial tool request: %s", initial)
