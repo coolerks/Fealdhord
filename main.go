@@ -25,6 +25,7 @@ import (
 
 	"github.com/coolerks/Fealdhord/internal/aiconfig"
 	fealdhord "github.com/coolerks/Fealdhord/internal/app"
+	"github.com/coolerks/Fealdhord/internal/articleai"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
@@ -56,6 +57,13 @@ func main() {
 	var feedRepository feed.Repository
 	var refreshRepository refresh.Repository
 	var mediaRepository media.Repository
+	var sequence atomic.Uint64
+	changed := func() {
+		if desktop != nil {
+			desktop.Event.Emit("fealdhord:library-changed", LibraryChanged{Sequence: sequence.Add(1)})
+		}
+	}
+	var articleAIService *articleai.Service
 	var aiConfig *aiconfig.Service
 	var chatService *chat.Service
 	dataDir, pathErr := os.UserConfigDir()
@@ -86,15 +94,10 @@ func main() {
 			} else {
 				defer chatService.Close()
 			}
+			articleAIService = articleai.New(store, aiConfig, changed)
 		}
 	} else {
 		slog.Error("无法定位用户数据目录", "error", pathErr)
-	}
-	var sequence atomic.Uint64
-	changed := func() {
-		if desktop != nil {
-			desktop.Event.Emit("fealdhord:library-changed", LibraryChanged{Sequence: sequence.Add(1)})
-		}
 	}
 	client := netpolicy.New()
 	var mediaService *media.Service
@@ -173,6 +176,7 @@ func main() {
 			application.NewService(readerService),
 			application.NewService(aiconfig.NewAPI(aiConfig)),
 			application.NewService(chat.NewAPI(chatService)),
+			application.NewService(articleai.NewAPI(articleAIService)),
 			application.NewService(transfer.NewAPI(transferService)),
 			application.NewService(navigation.NewService(navigationRepository, changed)),
 			application.NewService(library.NewService(libraryRepository, func(ctx context.Context) bool { return policy(ctx).RemoteImages != "never" })),
@@ -193,6 +197,9 @@ func main() {
 	})
 	refreshService.StartScheduler()
 	desktopintegration.InstallMenu(desktop)
+	if articleAIService != nil {
+		defer articleAIService.Start(context.Background())()
+	}
 	mainWindow = desktop.Window.NewWithOptions(desktopintegration.WindowOptions())
 	desktopintegration.ShowMainWindow(desktop, mainWindow)
 	installTray(desktop, mainWindow)

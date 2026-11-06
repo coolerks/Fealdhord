@@ -1,3 +1,5 @@
+import { invalidateRSS } from '@/lib/refresh'
+import { ArticleAISettings } from '@/features/article-ai/ArticleAISettings'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
@@ -42,6 +44,7 @@ export function AISettings() {
   const mutation = useMutation({
     mutationFn: async (save: () => Promise<unknown>) => { await save() },
     onSettled: async () => { await cache.invalidateQueries({ queryKey }) },
+    onSuccess: () => invalidateRSS(cache),
   })
   const [provider, setProvider] = useState<Provider | null>(null)
   const [model, setModel] = useState<Model | null>(null)
@@ -115,6 +118,7 @@ export function AISettings() {
         setProviderError('')
         void api.SaveProvider({ ...provider, apiKey: clearKey ? '' : key || null }).then(async () => {
           editProvider(null)
+          invalidateRSS(cache)
           await cache.invalidateQueries({ queryKey })
         }).catch(error => setProviderError(configError(error))).finally(() => setSavingProvider(false))
       }}>
@@ -196,5 +200,7 @@ export function AISettings() {
       })}
     </section>
     {mutation.isError && <p role="alert">{configError(mutation.error)}</p>}
+    <Separator />
+    <ArticleAISettings />
   </FieldGroup>
 }

@@ -1,3 +1,4 @@
+import { useArticleAISettings } from '@/features/article-ai/settings-query'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { CircleAlert, Rss, Search, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -16,10 +17,11 @@ type Props = {
 
 export function LibraryEmpty({ scope, searching, loading, failed, incomplete=false, onRetry, onClearSearch, onSettings }: Props) {
   const featured = scope === 'featured'
+  const settings = useArticleAISettings(featured)
   let title = '暂无文章'
   if (scope === 'favorites') title = '暂无收藏'
   if (scope === 'unread') title = '没有未读文章'
-  if (featured) title = '精选尚未开放'
+  if (featured) title = settings.data?.featured ? '暂无符合条件的精选文章' : '精选尚未启用'
   if (searching) title = incomplete ? '当前页没有匹配文章' : '没有找到匹配文章'
   if (loading) title = '正在读取文章…'
   if (failed) title = '暂时无法读取文章'

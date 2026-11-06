@@ -38,13 +38,15 @@ type QueryPage struct {
 	SearchLimited          bool
 }
 type queryCursor struct {
-	Hash       string  `json:"q"`
-	Upper      int64   `json:"u"`
-	Generation int64   `json:"g"`
-	At         int64   `json:"a"`
-	ID         string  `json:"i"`
-	Rank       float64 `json:"r"`
-	Expires    int64   `json:"e"`
+	Hash           string  `json:"q"`
+	Upper          int64   `json:"u"`
+	Generation     int64   `json:"g"`
+	At             int64   `json:"a"`
+	ID             string  `json:"i"`
+	Rank           float64 `json:"r"`
+	Since          int64   `json:"since,omitempty"`
+	FeatureProfile string  `json:"feature_profile,omitempty"`
+	Expires        int64   `json:"e"`
 }
 
 func NormalizeArticleQuery(query ArticleQuery) (ArticleQuery, error) {
@@ -147,10 +149,28 @@ func (s *Store) QueryArticles(ctx context.Context, raw ArticleQuery) (QueryPage,
 	if err = tx.QueryRowContext(ctx, "SELECT COALESCE(MAX(rowid),0) FROM articles").Scan(&upper); err != nil {
 		return out, err
 	}
-	cursor := queryCursor{Hash: queryHash(query), Upper: upper, Generation: generation, Expires: time.Now().Add(30 * time.Minute).Unix()}
+	featured := query.Scope.Kind == "featured"
+	var featureProfile string
+	if featured {
+		profile, err := loadArticleAISnapshot(ctx, s.queries.WithTx(tx), "", "featured", false)
+		if errors.Is(err, ErrArticleAIDisabled) || errors.Is(err, ErrArticleAIModel) {
+			if query.Cursor != "" {
+				return out, ErrCursorExpired
+			}
+			return out, nil
+		}
+		if err != nil {
+			return out, err
+		}
+		featureProfile = profile.ProfileKey
+	}
+	cursor := queryCursor{Hash: queryHash(query), Upper: upper, Generation: generation, FeatureProfile: featureProfile, Expires: time.Now().Add(30 * time.Minute).Unix()}
+	if featured {
+		cursor.Since = time.Now().Add(-7 * 24 * time.Hour).UnixMilli()
+	}
 	if query.Cursor != "" {
 		cursor, err = s.decodeCursor(query.Cursor)
-		if err != nil || cursor.Hash != queryHash(query) || (query.Search != "" && cursor.Generation != generation) {
+		if err != nil || cursor.Hash != queryHash(query) || cursor.FeatureProfile != featureProfile || ((query.Search != "" || featured) && cursor.Generation != generation) {
 			return out, ErrCursorExpired
 		}
 	}
@@ -173,8 +193,9 @@ func (s *Store) QueryArticles(ctx context.Context, raw ArticleQuery) (QueryPage,
 		conditions = append(conditions, "EXISTS(SELECT 1 FROM effective_article_categories ec WHERE ec.article_id=a.id AND ec.category_id=?)")
 		args = append(args, query.Scope.ID)
 	}
-	if query.Scope.Kind == "featured" {
-		conditions = append(conditions, "0")
+	if featured {
+		conditions = append(conditions, "f.archived_at IS NULL", "a.sort_at>=?", "ar.profile_key=?", "ar.importance>=0.7", "ar.relevance>=0.6")
+		args = append(args, cursor.Since, featureProfile)
 	}
 	if query.Scope.Kind == "unread" || query.Read == "unread" {
 		conditions = append(conditions, "COALESCE(r.is_read,0)=0")
@@ -196,19 +217,27 @@ func (s *Store) QueryArticles(ctx context.Context, raw ArticleQuery) (QueryPage,
 		score = "article_fts.rank"
 		content = "a.title || char(10) || a.author || char(10) || a.summary || char(10) || a.content_text"
 	}
+	if featured {
+		join += ` JOIN article_ai_results ar ON ar.article_id=a.id AND ar.task='featured' AND ar.content_hash=a.content_hash
+ JOIN article_ai_settings ai_settings ON ai_settings.id=1 AND ai_settings.featured=1 AND ai_settings.revision=ar.settings_revision
+ JOIN model_assignments ma ON ma.task_type='featured' AND ma.model_id=ar.model_id
+ JOIN ai_models am ON am.id=ma.model_id AND am.enabled=1 AND am.revision=ar.model_revision
+ JOIN ai_providers ap ON ap.id=am.provider_id AND ap.enabled=1 AND ap.revision=ar.provider_revision `
+		score = "-(0.6*ar.importance+0.4*ar.relevance)"
+	}
 	order := "a.sort_at DESC,a.id DESC"
 	if query.Sort == "published_asc" {
 		order = "a.sort_at ASC,a.id ASC"
 	}
-	if query.Sort == "relevance" {
+	if query.Sort == "relevance" || featured {
 		order = score + " ASC,a.sort_at DESC,a.id DESC"
 	}
 	if query.Cursor != "" {
-		switch query.Sort {
-		case "relevance":
+		switch {
+		case query.Sort == "relevance" || featured:
 			conditions = append(conditions, "("+score+">? OR ("+score+"=? AND (a.sort_at<? OR (a.sort_at=? AND a.id<?))))")
 			args = append(args, cursor.Rank, cursor.Rank, cursor.At, cursor.At, cursor.ID)
-		case "published_asc":
+		case query.Sort == "published_asc":
 			conditions = append(conditions, "(a.sort_at,a.id)>(?,?)")
 			args = append(args, cursor.At, cursor.ID)
 		default:

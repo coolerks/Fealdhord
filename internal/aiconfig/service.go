@@ -263,6 +263,14 @@ func (s *Service) AssignedModel(ctx context.Context, task string) (Model, error)
 }
 
 func (s *Service) Resolve(ctx context.Context, task string) (Model, ai.Model, error) {
+	return s.resolve(ctx, task, "", 0, 0)
+}
+
+func (s *Service) ResolveArticleModel(ctx context.Context, task, id string, modelRevision, providerRevision int64) (Model, ai.Model, error) {
+	return s.resolve(ctx, task, id, modelRevision, providerRevision)
+}
+
+func (s *Service) resolve(ctx context.Context, task, id string, modelRevision, providerRevision int64) (Model, ai.Model, error) {
 	s.credentialMu.Lock()
 	defer s.credentialMu.Unlock()
 	row, err := s.db.ResolveModelAssignment(ctx, task)
@@ -271,6 +279,9 @@ func (s *Service) Resolve(ctx context.Context, task string) (Model, ai.Model, er
 	}
 	if err != nil {
 		return Model{}, nil, storageError(err)
+	}
+	if id != "" && (row.AiModel.ID != id || row.AiModel.Revision != modelRevision || row.AiProvider.Revision != providerRevision) {
+		return Model{}, nil, configError("Conflict")
 	}
 	return s.adapter(row.AiProvider, row.AiModel)
 }

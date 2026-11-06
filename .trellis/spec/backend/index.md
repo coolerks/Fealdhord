@@ -12,6 +12,7 @@
 | [全库文章查询与游标](article-query-guidelines.md) | 分页、FTS 版本、候选边界及纯文本命中范围 |
 | [受控网络与 Feed 解析](network-guidelines.md) | SSRF、压缩限额与三格式解析契约 |
 | [错误与取消](error-handling.md) | 对应行为与验证门禁 |
+| [文章 AI 评估](article-ai-guidelines.md) | 快照、预算、来源与精选游标 |
 | [日志与执行审计](logging-guidelines.md) | 对应行为与验证门禁 |
 | [后端质量与验证](quality-guidelines.md) | 对应行为与验证门禁 |
 

@@ -11,6 +11,7 @@ sql:
       - migrations/00008_repair_article_query_birth.sql
       - migrations/00009_ai_providers.sql
       - migrations/00010_chat.sql
+      - migrations/00011_article_intelligence.sql
     queries: internal/database/queries
     gen:
       go:

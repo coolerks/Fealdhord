@@ -61,6 +61,44 @@ type Article struct {
 	Revision      int64          `json:"revision"`
 }
 
+type ArticleAiAttempt struct {
+	ID              string `json:"id"`
+	StartedAt       int64  `json:"started_at"`
+	EstimatedTokens int64  `json:"estimated_tokens"`
+}
+
+type ArticleAiDeferral struct {
+	ArticleID string `json:"article_id"`
+	Task      string `json:"task"`
+	UntilAt   int64  `json:"until_at"`
+}
+
+type ArticleAiResult struct {
+	ArticleID        string        `json:"article_id"`
+	Task             string        `json:"task"`
+	InputKey         string        `json:"input_key"`
+	ProfileKey       string        `json:"profile_key"`
+	ContentHash      string        `json:"content_hash"`
+	ModelID          string        `json:"model_id"`
+	ModelRevision    int64         `json:"model_revision"`
+	ProviderRevision int64         `json:"provider_revision"`
+	SettingsRevision int64         `json:"settings_revision"`
+	Importance       float64       `json:"importance"`
+	Relevance        float64       `json:"relevance"`
+	Reason           string        `json:"reason"`
+	InputTokens      sql.NullInt64 `json:"input_tokens"`
+	OutputTokens     sql.NullInt64 `json:"output_tokens"`
+	EvaluatedAt      int64         `json:"evaluated_at"`
+}
+
+type ArticleAiSetting struct {
+	ID             int64  `json:"id"`
+	Classification int64  `json:"classification"`
+	Featured       int64  `json:"featured"`
+	Prompt         string `json:"prompt"`
+	Revision       int64  `json:"revision"`
+}
+
 type ArticleCategory struct {
 	ArticleID  string          `json:"article_id"`
 	CategoryID string          `json:"category_id"`
