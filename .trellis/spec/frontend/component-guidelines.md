@@ -66,3 +66,7 @@ transferAPI 是唯一文件调用边界，Go空items归一为数组；组件不�
 ## shadcn/ui 表单控件
 
 业务表单从 `@/components/ui` 导入 SearchableSelect、Switch、Checkbox、Input 和 Textarea。SearchableSelect 支持单选与多选，使用可访问名称关联搜索框，按选项名称和可选别名进行模糊搜索。展开后焦点进入搜索框，键盘可选择和关闭；清空或回到顶层使用独立非空选项值，在提交给业务层前映射为原有空字符串。服务与模型启用使用 Switch，清除密钥和选择导入项使用 Checkbox，确保显示状态、可访问名称与实际保存值一致。新增组件沿用 radix-nova 注册表及 AnimatedGlyph。系统文件对话框等原生能力按 AGENTS.md 的例外处理。
+
+## macOS 侧栏材质
+
+Wails 3.0.0 在 macOS 开发和发布构建中均需启用 `private_mac_apis`，否则 WebView 的不透明底色会盖住系统模糊。主窗口以 `MacBackdropTransparent` 创建，首次显示前用 AppKit 在 WebView 下放置 `NSVisualEffectMaterialSidebar`，混合模式为 `BehindWindow`。侧栏祖先保持透明，CSS 只叠加主题底色并处理对比度与减少透明度回退。阅读工作区保持不透明。验证时在 macOS 上用有纹理的窗后背景对比侧栏与正文。

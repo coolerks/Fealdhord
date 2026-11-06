@@ -90,7 +90,7 @@ jobs:
           CGO_ENABLED: '1'
         run: |
           for arch in arm64 amd64; do
-            GOARCH="$arch" go build -tags production -trimpath -ldflags="-s -w -extldflags=-mmacosx-version-min=13.0" -o "bin/Fealdhord-$arch" .
+            GOARCH="$arch" go build -tags production,private_mac_apis -trimpath -ldflags="-s -w -extldflags=-mmacosx-version-min=13.0" -o "bin/Fealdhord-$arch" .
           done
           lipo -create bin/Fealdhord-arm64 bin/Fealdhord-amd64 -output bin/Fealdhord
           architectures=" $(lipo -archs bin/Fealdhord) "
