@@ -70,13 +70,11 @@
   --sidebar-hover: rgb(0 0 0 / .06);
   --sidebar-selection: rgb(0 0 0 / .105);
   --sidebar-press: rgb(0 0 0 / .15);
-  --sidebar-control-tint: rgb(255 255 255 / .24);
 }
 .dark [data-platform=mac] {
   --sidebar-hover: rgb(255 255 255 / .075);
   --sidebar-selection: rgb(255 255 255 / .14);
   --sidebar-press: rgb(255 255 255 / .19);
-  --sidebar-control-tint: rgb(255 255 255 / .065);
 }
 
 [data-platform=mac] .glass-sidebar {
@@ -100,7 +98,7 @@
 .sidebar-toggle button { width: var(--sidebar-toggle-size); height: var(--sidebar-toggle-size); pointer-events: auto; --wails-draggable: no-drag; }
 [data-sidebar-collapsed=true] .sidebar-toggle { inset-inline-start: var(--window-controls-inset); }
 [data-platform=mac] .sidebar-toggle button {
-  background: var(--sidebar-control-tint);
+  background: transparent;
   color: var(--sidebar-foreground);
 }
 
