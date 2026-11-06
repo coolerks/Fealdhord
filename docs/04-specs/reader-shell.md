@@ -12,7 +12,7 @@ ArticleCollection 消费同一 Article[]、selectedID 和操作回调；TanStack
 
 ## 3. 契约
 
-- 用户后续修订为默认双栏浏览，Reader 聚焦面板；reader_pinned=true 时启用宽窗口三栏。侧栏 220–280px、列表 300–420px；折叠侧栏 64px。窗口≤1080px 或 Masonry 使用 Reader 抽屉；不为切换模式复制文章缓存。
+- 用户后续修订为默认双栏浏览，Reader 聚焦面板；reader_pinned=true 时启用宽窗口三栏。侧栏 220–360px、列表 300–420px；侧栏收起时隐藏整列导航。窗口≤1080px 或 Masonry 使用 Reader 抽屉；不为切换模式复制文章缓存。
 - List 支持紧凑／舒适、无／小缩略图；Masonry 原比例／裁剪、动态高度、极长图上限 320px。只渲染 /media/ 本地图片，失败回退文字；远程首图由后续安全媒体服务交付。
 - 浏览锚点键为 scope|search|sort|mode，值为 {article_id,offset}；Reader 使用 reader|article_id，offset 为 Reader 内部滚动距离。共用最多 32 项。恢复和尺寸重算期间不把顶部测量覆盖到已保存锚点；180ms 防抖，卸载／切换时冲刷最后值。
 - J／K 切换并同步列表焦点，F 收藏，M 切换已读，/ 搜索，Cmd／Ctrl+K 命令面板，Escape 关闭 Reader；表单、菜单、对话框、输入法合成期间不抢单键。分隔条 Arrow±8px、Shift±20px、Home／End 到边界。

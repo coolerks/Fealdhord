@@ -72,3 +72,5 @@ transferAPI 是唯一文件调用边界，Go空items归一为数组；组件不�
 Wails 3.0.0 在 macOS 开发和发布构建中均需启用 `private_mac_apis`，否则 WebView 的不透明底色会盖住系统模糊。主窗口以 `MacBackdropTransparent` 创建，首次显示前用 AppKit 在 WebView 下放置 `NSVisualEffectMaterialSidebar`，混合模式为 `BehindWindow`。侧栏祖先保持透明，CSS 只叠加主题底色并处理对比度与减少透明度回退。阅读工作区保持不透明。验证时在 macOS 上用有纹理的窗后背景对比侧栏与正文。
 
 macOS 侧栏交互使用半透明状态色。以 `aria-current=page` 统一阅读视图、分类和订阅的选中强度。阅读视图的 Motion 背景继承同一个填充色，避免同时绘制两层。折叠按钮保留 shadcn 的键盘焦点样式。
+
+侧栏分隔条通过 `Splitter.onCollapse` 启用拖过下限收起，保留上次保存的宽度。前端宽度 220–360px 与 Go 偏好校验及读回范围保持一致。分隔条取消拖动时只清除临时宽度。

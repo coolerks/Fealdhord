@@ -107,11 +107,29 @@ describe('Phase 1 阅读 Shell', () => {
     fireEvent.keyDown(separator, { key: 'ArrowRight' })
     expect(useWorkspace.getState().preferences?.sidebar_width).toBe(256)
     fireEvent.keyDown(separator, { key: 'End' })
-    expect(useWorkspace.getState().preferences?.sidebar_width).toBe(280)
+    expect(useWorkspace.getState().preferences?.sidebar_width).toBe(360)
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
     expect(await screen.findByRole('dialog', { name: '命令面板' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('option', { name: '打开设置' }))
     expect(await screen.findByRole('dialog', { name: '设置' })).toBeInTheDocument()
+  })
+
+  it('侧栏拖到最小宽度后继续向左可收起，取消拖动不保存', async () => {
+    setup()
+    const separator = await screen.findByRole('separator', { name: '调整侧栏宽度' })
+    const start = { pointerId: 1, button: 0, clientX: 248 }
+    fireEvent.pointerDown(separator, start)
+    fireEvent.pointerMove(separator, { pointerId: 1, clientX: 220 })
+    expect(separator).toHaveAttribute('aria-valuenow', '220')
+    fireEvent.pointerCancel(separator, { pointerId: 1 })
+    expect(separator).toHaveAttribute('aria-valuenow', '248')
+    fireEvent.pointerDown(separator, start)
+    fireEvent.pointerMove(separator, { pointerId: 1, clientX: 185 })
+    fireEvent.pointerUp(separator, { pointerId: 1, clientX: 185 })
+    expect(screen.getByRole('button', { name: '展开侧栏' })).toHaveFocus()
+    expect(useWorkspace.getState().preferences?.sidebar_width).toBe(248)
+    await userEvent.keyboard('{Enter}')
+    expect(screen.getByRole('separator', { name: '调整侧栏宽度' })).toHaveAttribute('aria-valuenow', '248')
   })
 
   it('Reader 保存滚动位置，抽屉搜索返回浏览区，J/K 同步焦点', async () => {

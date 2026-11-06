@@ -60,3 +60,5 @@ macOS 侧栏切换为 AppKit Sidebar 材质。通过 Wails 原生窗口句柄在
 macOS 的 Taskfile 与标签发布启用 Wails `private_mac_apis`，让 WebView 底色透明。
 
 macOS 侧栏的导航状态使用统一的半透明底色，折叠按钮改为圆形浅底及细描边。
+
+侧栏按钮恢复圆角方形。macOS 分隔条空闲时隐藏，保留拖动热区。侧栏宽度支持 220–360px，向左拖过下限 32px 后松手收起。

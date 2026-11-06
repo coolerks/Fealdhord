@@ -53,8 +53,8 @@
   kbd { font: 10px var(--font-sans); color: var(--muted-foreground); border: 1px solid var(--border); padding: 1px 4px; border-radius: 4px; }
 }
 .app-loading { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: var(--muted-foreground); }
-.app-shell { --workspace-toolbar-height: 50px; --sidebar-toggle-size: 32px; --sidebar-toggle-gap: 8px; --window-controls-inset: 14px; --collapsed-toolbar-inset: calc(var(--window-controls-inset) + var(--sidebar-toggle-size) + var(--sidebar-toggle-gap)); isolation: isolate; position: relative; display: grid; grid-template-columns: var(--sidebar-width) 4px minmax(0,1fr); height: 100%; overflow: hidden; background: transparent; }
-[data-platform=mac] .app-shell { --window-controls-inset: 92px; }
+.app-shell { --workspace-toolbar-height: 50px; --sidebar-toggle-size: 32px; --sidebar-toggle-gap: 8px; --window-controls-inset: 14px; --collapsed-toolbar-inset: calc(var(--window-controls-inset) + var(--sidebar-toggle-size) + var(--sidebar-toggle-gap)); isolation: isolate; position: relative; display: grid; grid-template-columns: var(--sidebar-width) var(--sidebar-divider-width, 4px) minmax(0,1fr); height: 100%; overflow: hidden; background: transparent; }
+[data-platform=mac] .app-shell { --window-controls-inset: 92px; --sidebar-divider-width: 0px; }
 [data-platform=mac] .reading-workspace { background: var(--background); }
 .app-shell { transition: grid-template-columns var(--duration-normal) var(--ease-standard); }
 .app-shell[data-sidebar-collapsed=true] { grid-template-columns: 0px 0px minmax(0,1fr); }
@@ -84,6 +84,7 @@
 [data-platform=mac] .glass-sidebar {
   background: rgba(245, 245, 247, .38);
   backdrop-filter: none;
+  border-inline-end: 0;
   --muted-foreground: #5e5e64;
 }
 .dark [data-platform=mac] .glass-sidebar {
@@ -102,7 +103,6 @@
 [data-sidebar-collapsed=true] .sidebar-toggle { inset-inline-start: var(--window-controls-inset); }
 [data-platform=mac] .sidebar-toggle button {
   background: var(--sidebar-control-tint);
-  border-radius: 50%;
   color: var(--sidebar-foreground);
 }
 [data-platform=mac] .sidebar-toggle button:not(:focus-visible) {
@@ -136,6 +136,19 @@
 .splitter { position: relative; min-width: 4px; height: 100%; cursor: col-resize; touch-action: none; background: transparent; transition: background var(--duration-fast); }
 .splitter::after { content: ''; position: absolute; inset: 0 -3px; }
 .splitter:hover, .splitter.is-dragging, .splitter:focus-visible { background: var(--ring); outline-offset: 0; }
+[data-platform=mac] .app-shell > .splitter {
+  min-width: 0;
+  z-index: 1;
+}
+[data-platform=mac] .app-shell > .splitter::after { inset-inline: -5px; }
+[data-platform=mac] .app-shell > .splitter:is(:hover, .is-dragging, :focus-visible)::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 0 -1px;
+  background: var(--ring);
+  pointer-events: none;
+}
+
 .reading-workspace { position: relative; display: grid; grid-template-columns: minmax(0,1fr); min-width: 0; min-height: 0; overflow: hidden; }
 .reading-workspace.three-column { grid-template-columns: var(--list-width) 4px minmax(0,1fr); }
 .article-pane, .reader-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; overflow: hidden; }

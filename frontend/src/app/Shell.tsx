@@ -145,7 +145,11 @@ export function Shell() {
       <div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={sidebarCollapsed} data-sidebar-resizing={sidebarDraft !== null}>
       {platform !== 'windows' && <div className="sidebar-toggle">{sidebarToggle}</div>}
       <div className="sidebar-track"><Sidebar motionMode={mode} /></div>
-      {!preferences.sidebar_collapsed && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={280} onResize={setSidebarDraft} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
+      {!preferences.sidebar_collapsed && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={360} onResize={setSidebarDraft}
+        onCollapse={() => {
+          patch({ sidebar_collapsed: true })
+          document.getElementById('sidebar-toggle')?.focus()
+        }} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
       <main className={cn('reading-workspace', !overlay && readerVisible && 'three-column')}>
         <section className="article-pane" aria-label="文章浏览"><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />{!settingsOpen && <RefreshStatus />}
           {articles.length > 0 ? <ArticleCollection articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} incomplete={library.hasNextPage} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}

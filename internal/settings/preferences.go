@@ -69,7 +69,7 @@ func (p Preferences) Validate() error {
 		!oneOf(p.MasonryImageMode, "original_ratio", "cropped") || !oneOf(p.Animation, "full", "subtle", "off") {
 		return errors.New("外观设置选项无效。")
 	}
-	if p.SidebarWidth < 220 || p.SidebarWidth > 280 || p.ListWidth < 300 || p.ListWidth > 420 ||
+	if p.SidebarWidth < 220 || p.SidebarWidth > 360 || p.ListWidth < 300 || p.ListWidth > 420 ||
 		p.ReaderFontSize < 14 || p.ReaderFontSize > 24 || p.ReaderWidth < 680 || p.ReaderWidth > 760 ||
 		math.IsNaN(p.ReaderLineHeight) || p.ReaderLineHeight < 1.4 || p.ReaderLineHeight > 2 {
 		return errors.New("布局或阅读尺寸超出允许范围。")
@@ -115,7 +115,7 @@ func (p *Preferences) normalize() {
 	if !oneOf(p.Animation, "full", "subtle", "off") {
 		p.Animation = d.Animation
 	}
-	if p.SidebarWidth < 220 || p.SidebarWidth > 280 {
+	if p.SidebarWidth < 220 || p.SidebarWidth > 360 {
 		p.SidebarWidth = d.SidebarWidth
 	}
 	if p.ListWidth < 300 || p.ListWidth > 420 {

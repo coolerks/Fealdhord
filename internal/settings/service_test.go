@@ -40,7 +40,7 @@ func TestPreferencesPersistAndReopen(t *testing.T) {
 	prefs := got.Data.Preferences
 	prefs.Theme = "dark"
 	prefs.ArticleViewMode = "masonry"
-	prefs.SidebarWidth = 270
+	prefs.SidebarWidth = 340
 	prefs.ScrollAnchors["all:masonry"] = ScrollAnchor{ArticleID: "article-7", Offset: 18}
 	saved := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: 0})
 	if !saved.OK || saved.Data.Revision != 1 {
@@ -51,7 +51,7 @@ func TestPreferencesPersistAndReopen(t *testing.T) {
 	}
 	reopened := openTestStore(t, filename)
 	snapshot := NewService(reopened).Get(ctx)
-	if !snapshot.OK || snapshot.Data.Preferences.Theme != "dark" || snapshot.Data.Preferences.ScrollAnchors["all:masonry"].ArticleID != "article-7" {
+	if !snapshot.OK || snapshot.Data.Preferences.Theme != "dark" || snapshot.Data.Preferences.SidebarWidth != 340 || snapshot.Data.Preferences.ScrollAnchors["all:masonry"].ArticleID != "article-7" {
 		t.Fatalf("重开丢失设置：%+v", snapshot)
 	}
 }
