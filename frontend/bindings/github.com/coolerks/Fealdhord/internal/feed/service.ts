@@ -25,6 +25,13 @@ export function List(request: $models.ListRequest): $CancellablePromise<$models.
     return $Call.ByID(1711953144, request);
 }
 
+/**
+ * PreviewIcon returns an empty string when a subscription has no usable favicon.
+ */
+export function PreviewIcon(request: $models.URLRequest): $CancellablePromise<string> {
+    return $Call.ByID(80144213, request);
+}
+
 export function Remove(request: $models.RevisionRequest): $CancellablePromise<$models.Result> {
     return $Call.ByID(3500121592, request);
 }

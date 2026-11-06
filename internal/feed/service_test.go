@@ -39,7 +39,7 @@ func TestSubscriptionServiceRealStorageLifecycle(t *testing.T) {
 			t.Fatal("媒体钩子早于文章提交")
 		}
 		media++
-	})
+	}, func(context.Context) bool { return false })
 	result := service.Add(ctx, AddRequest{URL: "https://example.test/feed", Title: "自定义名称", CategoryIDs: []string{category}})
 	if !result.OK {
 		t.Fatal(result.Error)
@@ -95,8 +95,75 @@ func TestSubscriptionServiceRealStorageLifecycle(t *testing.T) {
 	}
 }
 func TestSubscriptionErrorDoesNotLeakURLCredentials(t *testing.T) {
-	result := NewService(nil, nil, nil, nil).Discover(context.Background(), URLRequest{URL: "https://secret:password@example.test/feed?token=hidden"})
+	result := NewService(nil, nil, nil, nil, func(context.Context) bool { return false }).Discover(context.Background(), URLRequest{URL: "https://secret:password@example.test/feed?token=hidden"})
 	if result.OK || result.Error == nil || strings.Contains(result.Error.Message, "secret") || strings.Contains(result.Error.Message, "hidden") {
 		t.Fatal(result)
+	}
+}
+
+type faviconFetcher struct {
+	iconRequests int
+	missing      bool
+}
+
+func (f *faviconFetcher) Fetch(_ context.Context, url string, options netpolicy.Request) (netpolicy.Response, error) {
+	response := netpolicy.Response{URL: url, Status: http.StatusOK}
+	if strings.HasSuffix(url, "/favicon.ico") {
+		f.iconRequests++
+		if url != "https://site.test/favicon.ico" || options.MaxBytes != faviconLimit {
+			return netpolicy.Response{}, netpolicy.ErrBlocked
+		}
+		if f.missing {
+			response.Status = http.StatusNotFound
+			return response, nil
+		}
+		// ICO with one bounded directory entry.
+		response.Body = []byte{0, 0, 1, 0, 1, 0, 16, 16, 0, 0, 1, 0, 32, 0, 1, 0, 0, 0, 22, 0, 0, 0, 1}
+		return response, nil
+	}
+	response.Body = []byte(`<rss version="2.0"><channel><title>订阅</title><link>https://site.test/blog</link></channel></rss>`)
+	return response, nil
+}
+
+func TestSubscriptionFaviconChoice(t *testing.T) {
+	ctx := context.Background()
+	store, err := database.Open(ctx, filepath.Join(t.TempDir(), "icon.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	fetcher := &faviconFetcher{}
+	allowed := true
+	service := NewService(store, fetcher, nil, nil, func(context.Context) bool { return allowed })
+	feedURL := "https://feeds.test/rss"
+	preview := service.PreviewIcon(ctx, URLRequest{URL: feedURL})
+	if !strings.HasPrefix(preview, "data:image/x-icon;base64,") {
+		t.Fatalf("网站图标预览：%q", preview)
+	}
+	added := service.Add(ctx, AddRequest{URL: feedURL})
+	if !added.OK || added.Data.IconData != preview {
+		t.Fatalf("添加未保存预览图标：%+v", added)
+	}
+	nav, err := store.Navigation(ctx)
+	if err != nil || len(nav.Feeds) != 1 || nav.Feeds[0].IconData != preview {
+		t.Fatalf("导航未返回保存的图标：%+v，%v", nav, err)
+	}
+	useDefault := true
+	updated := service.Update(ctx, UpdateRequest{ID: added.Data.ID, Revision: added.Data.Revision, Title: added.Data.Title, UseDefaultIcon: &useDefault})
+	if !updated.OK || updated.Data.IconData != "" || fetcher.iconRequests != 2 {
+		t.Fatalf("切换默认图标未清除数据或触发了额外请求：%+v，请求数 %d", updated, fetcher.iconRequests)
+	}
+	explicit := service.Add(ctx, AddRequest{URL: "https://feeds.test/explicit", UseDefaultIcon: true})
+	if !explicit.OK || explicit.Data.IconData != "" || fetcher.iconRequests != 2 {
+		t.Fatalf("手动选择默认图标仍请求网站图标：%+v，请求数 %d", explicit, fetcher.iconRequests)
+	}
+	fetcher.missing = true
+	missing := service.Add(ctx, AddRequest{URL: "https://feeds.test/missing"})
+	if !missing.OK || missing.Data.IconData != "" || fetcher.iconRequests != 3 {
+		t.Fatalf("网站图标缺失影响添加：%+v，请求数 %d", missing, fetcher.iconRequests)
+	}
+	allowed = false
+	if value := service.PreviewIcon(ctx, URLRequest{URL: feedURL}); value != "" || fetcher.iconRequests != 3 {
+		t.Fatal("禁止远程图片时仍请求网站图标")
 	}
 }

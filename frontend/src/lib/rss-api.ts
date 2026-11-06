@@ -12,6 +12,13 @@ export const feedsQueryKey = ['rss', 'feeds'] as const
 export const rssAPI = {
   async list() { return unwrap(await FeedService.List({include_archived:true})) },
   async discover(url:string) { return unwrap(await FeedService.Discover({url})).candidates ?? [] },
+  async previewIcon(url:string, signal:AbortSignal) {
+    const call = FeedService.PreviewIcon({url})
+    const cancel = () => call.cancel()
+    if (signal.aborted) cancel()
+    signal.addEventListener('abort', cancel, {once:true})
+    try { return await call } finally { signal.removeEventListener('abort', cancel) }
+  },
   async add(request:AddRequest) { return unwrap(await FeedService.Add(request)) },
   async update(request:UpdateRequest,signal?:AbortSignal) {
     const call=FeedService.Update(request),cancel=()=>call.cancel()

@@ -9,6 +9,7 @@ import * as app$0 from "../app/models.js";
 import * as database$0 from "../database/models.js";
 
 export interface AddRequest {
+    "use_default_icon"?: boolean;
     "url": string;
     "title": string;
     "category_ids": string[] | null;
@@ -36,6 +37,7 @@ export interface Feed {
     "title": string;
     "url": string;
     "site_url": string;
+    "icon_data"?: string;
     "description": string;
     "revision": number;
     "archived": boolean;
@@ -81,6 +83,7 @@ export interface URLRequest {
 }
 
 export interface UpdateRequest {
+    "use_default_icon"?: boolean | null;
     "apply_existing"?: boolean | null;
     "id": string;
     "revision": number;

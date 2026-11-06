@@ -22,15 +22,16 @@ type Repository interface {
 	Categories(context.Context) ([]database.CategorySummary, error)
 }
 type Service struct {
-	repository  Repository
-	fetcher     netpolicy.Fetcher
-	now         func() time.Time
-	onChange    func()
-	afterCommit func(context.Context, string, *Document)
+	repository   Repository
+	fetcher      netpolicy.Fetcher
+	now          func() time.Time
+	onChange     func()
+	iconsAllowed func(context.Context) bool
+	afterCommit  func(context.Context, string, *Document)
 }
 
-func NewService(repository Repository, fetcher netpolicy.Fetcher, onChange func(), afterCommit func(context.Context, string, *Document)) *Service {
-	return &Service{repository: repository, fetcher: fetcher, now: time.Now, onChange: onChange, afterCommit: afterCommit}
+func NewService(repository Repository, fetcher netpolicy.Fetcher, onChange func(), afterCommit func(context.Context, string, *Document), iconsAllowed func(context.Context) bool) *Service {
+	return &Service{repository: repository, fetcher: fetcher, now: time.Now, onChange: onChange, afterCommit: afterCommit, iconsAllowed: iconsAllowed}
 }
 
 type Feed struct {
@@ -38,6 +39,7 @@ type Feed struct {
 	Title       string   `json:"title"`
 	URL         string   `json:"url"`
 	SiteURL     string   `json:"site_url"`
+	IconData    string   `json:"icon_data,omitempty"`
 	Description string   `json:"description"`
 	Revision    int64    `json:"revision"`
 	Archived    bool     `json:"archived"`
@@ -63,17 +65,19 @@ type RevisionRequest struct {
 	Revision int64  `json:"revision"`
 }
 type AddRequest struct {
-	URL         string   `json:"url"`
-	Title       string   `json:"title"`
-	CategoryIDs []string `json:"category_ids"`
+	UseDefaultIcon bool     `json:"use_default_icon,omitempty"`
+	URL            string   `json:"url"`
+	Title          string   `json:"title"`
+	CategoryIDs    []string `json:"category_ids"`
 }
 type UpdateRequest struct {
-	ApplyExisting *bool    `json:"apply_existing,omitempty"`
-	ID            string   `json:"id"`
-	Revision      int64    `json:"revision"`
-	URL           string   `json:"url"`
-	Title         string   `json:"title"`
-	CategoryIDs   []string `json:"category_ids"`
+	UseDefaultIcon *bool    `json:"use_default_icon,omitempty"`
+	ApplyExisting  *bool    `json:"apply_existing,omitempty"`
+	ID             string   `json:"id"`
+	Revision       int64    `json:"revision"`
+	URL            string   `json:"url"`
+	Title          string   `json:"title"`
+	CategoryIDs    []string `json:"category_ids"`
 }
 type Result struct {
 	OK        bool          `json:"ok"`
@@ -130,7 +134,7 @@ func DataError(err error) *app.AppError {
 	return safe
 }
 func wire(row database.Subscription) Feed {
-	result := Feed{ID: row.ID, Title: row.Title, URL: row.URL, SiteURL: row.SiteURL, Description: row.Description, Revision: row.Revision, Archived: row.Archived, LastError: row.LastError, CategoryIDs: row.CategoryIDs}
+	result := Feed{ID: row.ID, Title: row.Title, URL: row.URL, SiteURL: row.SiteURL, IconData: row.IconData, Description: row.Description, Revision: row.Revision, Archived: row.Archived, LastError: row.LastError, CategoryIDs: row.CategoryIDs}
 	if row.NextCheckAt != nil {
 		value := time.UnixMilli(*row.NextCheckAt).UTC().Format(time.RFC3339Nano)
 		result.NextCheckAt = &value
@@ -198,6 +202,19 @@ func (s *Service) Discover(ctx context.Context, request URLRequest) DiscoverResu
 	out.Data = &DiscoverData{Candidates: candidates}
 	return out
 }
+
+// PreviewIcon returns an empty string when a subscription has no usable favicon.
+func (s *Service) PreviewIcon(ctx context.Context, request URLRequest) string {
+	if s.fetcher == nil || !s.iconsAllowed(ctx) {
+		return ""
+	}
+	document, response, err := FetchDocument(ctx, s.fetcher, request.URL, netpolicy.Request{Timeout: 5 * time.Second})
+	if err != nil {
+		return ""
+	}
+	return s.favicon(ctx, document.SiteURL, response.URL)
+}
+
 func FetchDocument(ctx context.Context, fetcher netpolicy.Fetcher, raw string, options netpolicy.Request) (*Document, netpolicy.Response, error) {
 	response, err := fetcher.Fetch(ctx, raw, options)
 	if err != nil {
@@ -232,8 +249,12 @@ func (s *Service) Add(ctx context.Context, request AddRequest) Result {
 	if title == "" {
 		title = document.Title
 	}
+	icon := ""
+	if !request.UseDefaultIcon {
+		icon = s.favicon(ctx, document.SiteURL, response.URL)
+	}
 	now := s.now().UTC().UnixMilli()
-	id, err := s.repository.AddSubscription(ctx, database.SubscriptionInput{URL: canonical, Title: title, SiteURL: document.SiteURL, Description: document.Description, CategoryIDs: request.CategoryIDs}, ArticleInputs(document), database.FeedCheck{At: now, Next: now + int64(30*time.Minute/time.Millisecond), ETag: response.Header.Get("ETag"), LastModified: response.Header.Get("Last-Modified")})
+	id, err := s.repository.AddSubscription(ctx, database.SubscriptionInput{URL: canonical, Title: title, SiteURL: document.SiteURL, IconData: &icon, Description: document.Description, CategoryIDs: request.CategoryIDs}, ArticleInputs(document), database.FeedCheck{At: now, Next: now + int64(30*time.Minute/time.Millisecond), ETag: response.Header.Get("ETag"), LastModified: response.Header.Get("Last-Modified")})
 	if err != nil {
 		return Result{RequestID: rand.Text(), Error: DataError(err)}
 	}
@@ -263,16 +284,31 @@ func (s *Service) Update(ctx context.Context, request UpdateRequest) Result {
 			return Result{RequestID: rand.Text(), Error: SafeError(err)}
 		}
 	}
+	iconBase := old.URL
 	if input.URL != old.URL {
 		if s.fetcher == nil {
 			return Result{RequestID: rand.Text(), Error: SafeError(database.ErrInvalidInput)}
 		}
-		document, _, err := FetchDocument(ctx, s.fetcher, input.URL, netpolicy.Request{})
+		document, response, err := FetchDocument(ctx, s.fetcher, input.URL, netpolicy.Request{})
 		if err != nil {
 			return Result{RequestID: rand.Text(), Error: SafeError(err)}
 		}
 		input.SiteURL = document.SiteURL
 		input.Description = document.Description
+		iconBase = response.URL
+	}
+	if request.UseDefaultIcon != nil || input.URL != old.URL {
+		icon := old.IconData
+		switch {
+		case request.UseDefaultIcon != nil && *request.UseDefaultIcon:
+			icon = ""
+		case request.UseDefaultIcon == nil:
+			// For old callers, changing the address clears an icon from the old site.
+			icon = ""
+		case icon == "" || input.URL != old.URL:
+			icon = s.favicon(ctx, input.SiteURL, iconBase)
+		}
+		input.IconData = &icon
 	}
 	if err = s.repository.UpdateSubscription(ctx, request.ID, request.Revision, input); err != nil {
 		return Result{RequestID: rand.Text(), Error: DataError(err)}

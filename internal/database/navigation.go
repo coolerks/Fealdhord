@@ -26,10 +26,11 @@ type CategoryInfo struct {
 	Unread       int64  `json:"unread"`
 }
 type NavFeed struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	Total  int64  `json:"total"`
-	Unread int64  `json:"unread"`
+	IconData string `json:"icon_data,omitempty"`
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Total    int64  `json:"total"`
+	Unread   int64  `json:"unread"`
 }
 type NavTotals struct {
 	Total     int64 `json:"total"`
@@ -96,13 +97,13 @@ func (s *Store) Navigation(ctx context.Context) (Navigation, error) {
 	}
 	rows.Close()
 	rows, err = tx.QueryContext(ctx, `WITH counts AS(SELECT a.feed_id,COUNT(*) AS total,SUM(CASE WHEN COALESCE(r.is_read,0)=0 THEN 1 ELSE 0 END) AS unread FROM articles a LEFT JOIN reading_states r ON r.article_id=a.id GROUP BY a.feed_id)
- SELECT f.id,f.title,COALESCE(n.total,0),COALESCE(n.unread,0) FROM feeds f LEFT JOIN counts n ON n.feed_id=f.id WHERE f.archived_at IS NULL ORDER BY f.sort_position,f.title,f.id`)
+ SELECT f.id,f.title,f.icon_url,COALESCE(n.total,0),COALESCE(n.unread,0) FROM feeds f LEFT JOIN counts n ON n.feed_id=f.id WHERE f.archived_at IS NULL ORDER BY f.sort_position,f.title,f.id`)
 	if err != nil {
 		return out, err
 	}
 	for rows.Next() {
 		var item NavFeed
-		if err = rows.Scan(&item.ID, &item.Title, &item.Total, &item.Unread); err != nil {
+		if err = rows.Scan(&item.ID, &item.Title, &item.IconData, &item.Total, &item.Unread); err != nil {
 			rows.Close()
 			return out, err
 		}

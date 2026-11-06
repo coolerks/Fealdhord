@@ -131,7 +131,7 @@ func main() {
 		if mediaService != nil {
 			mediaService.Ingest(ctx, id, document, nil)
 		}
-	})
+	}, func(ctx context.Context) bool { return policy(ctx).RemoteImages != "never" })
 	refreshService := refresh.NewService(context.Background(), refreshRepository, client, func(event refresh.Event) {
 		if desktop != nil {
 			desktop.Event.Emit(refresh.EventName, event)

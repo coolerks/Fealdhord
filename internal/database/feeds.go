@@ -12,6 +12,7 @@ import (
 
 type Subscription struct {
 	ID, Title, URL, SiteURL, Description, ETag, LastModified, LastError, LastErrorCode string
+	IconData                                                                           string
 	Revision, ErrorCount                                                               int64
 	Archived                                                                           bool
 	CheckedAt, SuccessAt, NextCheckAt                                                  *int64
@@ -19,6 +20,7 @@ type Subscription struct {
 }
 type SubscriptionInput struct {
 	ApplyExisting                    *bool
+	IconData                         *string
 	URL, Title, SiteURL, Description string
 	CategoryIDs                      []string
 }
@@ -36,7 +38,7 @@ func intPointer(n sql.NullInt64) *int64 {
 	return &v
 }
 func subscription(row sqlc.Feed) Subscription {
-	return Subscription{ID: row.ID, Title: row.Title, URL: row.NormalizedUrl, SiteURL: row.SiteUrl, Description: row.Description, ETag: row.Etag, LastModified: row.LastModified, LastError: row.LastError, LastErrorCode: row.LastErrorCode, Revision: row.Revision, ErrorCount: row.ErrorCount, Archived: row.ArchivedAt.Valid, CheckedAt: intPointer(row.LastCheckedAt), SuccessAt: intPointer(row.LastSuccessAt), NextCheckAt: intPointer(row.NextCheckAt)}
+	return Subscription{ID: row.ID, Title: row.Title, URL: row.NormalizedUrl, SiteURL: row.SiteUrl, IconData: row.IconUrl, Description: row.Description, ETag: row.Etag, LastModified: row.LastModified, LastError: row.LastError, LastErrorCode: row.LastErrorCode, Revision: row.Revision, ErrorCount: row.ErrorCount, Archived: row.ArchivedAt.Valid, CheckedAt: intPointer(row.LastCheckedAt), SuccessAt: intPointer(row.LastSuccessAt), NextCheckAt: intPointer(row.NextCheckAt)}
 }
 func (s *Store) GetSubscription(ctx context.Context, id string) (Subscription, error) {
 	row, err := s.queries.GetFeed(ctx, id)
@@ -121,7 +123,11 @@ func setCategories(ctx context.Context, q *sqlc.Queries, id string, categories [
 	return nil
 }
 func saveDetails(ctx context.Context, q *sqlc.Queries, id string, revision int64, input SubscriptionInput) error {
-	rows, err := q.SaveFeedDetails(ctx, sqlc.SaveFeedDetailsParams{ID: id, Revision: revision, Title: input.Title, Url: input.URL, NormalizedUrl: input.URL, SiteUrl: input.SiteURL, Description: input.Description, UpdatedAt: time.Now().UTC().UnixMilli(), NormalizedUrl_2: input.URL, NormalizedUrl_3: input.URL, NormalizedUrl_4: input.URL})
+	var icon sql.NullString
+	if input.IconData != nil {
+		icon = sql.NullString{String: *input.IconData, Valid: true}
+	}
+	rows, err := q.SaveFeedDetails(ctx, sqlc.SaveFeedDetailsParams{ID: id, Revision: revision, Title: input.Title, Url: input.URL, NormalizedUrl: input.URL, SiteUrl: input.SiteURL, IconData: icon, Description: input.Description, UpdatedAt: time.Now().UTC().UnixMilli()})
 	if err != nil {
 		return err
 	}

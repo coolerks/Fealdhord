@@ -5,7 +5,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { preferencesFixture } from '@/test/fixtures'
 import { useWorkspace } from '@/stores/workspace'
 import type { Feed } from '@/lib/rss-api'
-const api=vi.hoisted(()=>({list:vi.fn(),discover:vi.fn(),add:vi.fn(),update:vi.fn(),archive:vi.fn(),restore:vi.fn(),clearCache:vi.fn(),start:vi.fn()}))
+const api=vi.hoisted(()=>({list:vi.fn(),discover:vi.fn(),previewIcon:vi.fn(),add:vi.fn(),update:vi.fn(),archive:vi.fn(),restore:vi.fn(),clearCache:vi.fn(),start:vi.fn()}))
 vi.mock('@/lib/rss-api',()=>({rssAPI:api,feedsQueryKey:['rss','feeds']}))
 vi.mock('@/lib/preferences',()=>({preferencesAPI:{update:vi.fn()}}))
 vi.mock('@/lib/navigation-api',()=>({navigationQueryKey:['navigation'],navigationAPI:{list:vi.fn(async()=>({feeds:[],categories:[],totals:{total:0,unread:0,favorites:0}}))}}))
@@ -15,6 +15,7 @@ function setup() { return render(<QueryClientProvider client={new QueryClient({d
 beforeEach(()=>{
   vi.resetAllMocks();useWorkspace.setState({preferences:preferencesFixture()})
   api.list.mockResolvedValue({items:[feed],categories:[]})
+  api.previewIcon.mockResolvedValue('')
 })
 it('网页发现多个源后必须选择，再添加；失败保留输入供重试',async()=>{
   api.discover.mockResolvedValue([{title:'全文',url:'https://example.test/full',type:'rss'},{title:'摘要',url:'https://example.test/short',type:'atom'}])
@@ -51,4 +52,18 @@ it('归档先确认并保留文章，归档源可以恢复',async()=>{
   await userEvent.click(screen.getByRole('switch',{name:'显示已归档订阅'}))
   await userEvent.click(await screen.findByRole('button',{name:'恢复订阅'}))
   await waitFor(()=>expect(api.restore).toHaveBeenCalledWith({id:'one',revision:5}))
+})
+
+it('有网站图标时默认选中，用户仍可改用默认图标',async()=>{
+  api.discover.mockResolvedValue([{title:'测试源',url:feed.url,type:'rss'}])
+  api.previewIcon.mockResolvedValue('data:image/x-icon;base64,AA==')
+  api.add.mockResolvedValue(feed)
+  setup()
+  await userEvent.type(screen.getByRole('textbox',{name:'订阅或网页地址'}),feed.url)
+  await userEvent.click(screen.getByRole('button',{name:'查找订阅'}))
+  const website=await screen.findByRole('radio',{name:'网站图标'})
+  await waitFor(()=>expect(website).toHaveAttribute('aria-checked','true'))
+  await userEvent.click(screen.getByRole('radio',{name:'默认图标'}))
+  await userEvent.click(screen.getByRole('button',{name:'添加订阅'}))
+  await waitFor(()=>expect(api.add).toHaveBeenCalledWith(expect.objectContaining({use_default_icon:true})))
 })

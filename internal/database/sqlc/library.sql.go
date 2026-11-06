@@ -1036,25 +1036,25 @@ func (q *Queries) SaveCategory(ctx context.Context, arg SaveCategoryParams) (int
 }
 
 const saveFeedDetails = `-- name: SaveFeedDetails :execrows
-UPDATE feeds SET title=?,url=?,normalized_url=?,site_url=?,description=?,updated_at=?,revision=revision+1,
- etag=CASE WHEN normalized_url<>? THEN '' ELSE etag END,
- last_modified=CASE WHEN normalized_url<>? THEN '' ELSE last_modified END,
- next_check_at=CASE WHEN normalized_url<>? THEN NULL ELSE next_check_at END
-WHERE id=? AND revision=?
+UPDATE feeds SET title=?1,url=?2,normalized_url=?3,
+ site_url=?4,description=?5,
+ icon_url=COALESCE(?6,icon_url),updated_at=?7,revision=revision+1,
+ etag=CASE WHEN normalized_url<>?3 THEN '' ELSE etag END,
+ last_modified=CASE WHEN normalized_url<>?3 THEN '' ELSE last_modified END,
+ next_check_at=CASE WHEN normalized_url<>?3 THEN NULL ELSE next_check_at END
+WHERE id=?8 AND revision=?9
 `
 
 type SaveFeedDetailsParams struct {
-	Title           string `json:"title"`
-	Url             string `json:"url"`
-	NormalizedUrl   string `json:"normalized_url"`
-	SiteUrl         string `json:"site_url"`
-	Description     string `json:"description"`
-	UpdatedAt       int64  `json:"updated_at"`
-	NormalizedUrl_2 string `json:"normalized_url_2"`
-	NormalizedUrl_3 string `json:"normalized_url_3"`
-	NormalizedUrl_4 string `json:"normalized_url_4"`
-	ID              string `json:"id"`
-	Revision        int64  `json:"revision"`
+	Title         string         `json:"title"`
+	Url           string         `json:"url"`
+	NormalizedUrl string         `json:"normalized_url"`
+	SiteUrl       string         `json:"site_url"`
+	Description   string         `json:"description"`
+	IconData      sql.NullString `json:"icon_data"`
+	UpdatedAt     int64          `json:"updated_at"`
+	ID            string         `json:"id"`
+	Revision      int64          `json:"revision"`
 }
 
 func (q *Queries) SaveFeedDetails(ctx context.Context, arg SaveFeedDetailsParams) (int64, error) {
@@ -1064,10 +1064,8 @@ func (q *Queries) SaveFeedDetails(ctx context.Context, arg SaveFeedDetailsParams
 		arg.NormalizedUrl,
 		arg.SiteUrl,
 		arg.Description,
+		arg.IconData,
 		arg.UpdatedAt,
-		arg.NormalizedUrl_2,
-		arg.NormalizedUrl_3,
-		arg.NormalizedUrl_4,
 		arg.ID,
 		arg.Revision,
 	)

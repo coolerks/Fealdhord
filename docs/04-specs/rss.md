@@ -2,6 +2,8 @@
 
 范围：订阅 CRUD、发现、RSS／Atom／JSON Feed、更新、去重和首图；Phase 3 交付。媒体细则见 [媒体设计](../02-design/article-media.md)。
 
+新增订阅时预览并优先使用网站根路径的 `favicon.ico`。用户可选择现有默认图标，编辑订阅时可更改。网站图标不可用或远程图片设为「从不加载」时，侧栏显示默认图标。已保存的网站图标从本地读取。
+
 ## 行为
 
 输入 Feed URL 时先受控抓取并解析，确认后提交；输入网页 URL 时解析 link rel=alternate，列出多个候选供选择，支持 RSS／Atom 与 application/feed+json。无候选明确提示，不静默添加网页。规范化 scheme／host／默认端口与 fragment，不改写可能有意义的 query。重复 URL 返回已有订阅；已归档则可恢复。

@@ -98,6 +98,7 @@ export interface MembershipInfo {
 }
 
 export interface NavFeed {
+    "icon_data"?: string;
     "id": string;
     "title": string;
     "total": number;
