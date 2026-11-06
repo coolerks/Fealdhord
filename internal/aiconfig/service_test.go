@@ -158,3 +158,66 @@ func TestConnectionUsesConfiguredModel(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestFetchModelsUsesSavedProviderAndCatalogFallback(t *testing.T) {
+	ctx := context.Background()
+	for _, test := range []struct {
+		protocol string
+		basePath string
+		paths    []string
+	}{
+		{"responses", "", []string{"/v1/models", "/api/v1/models"}},
+		{"messages", "/api/v1", []string{"/api/v1/models"}},
+	} {
+		t.Run(test.protocol, func(t *testing.T) {
+			requests := make(chan string, 4)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				requests <- req.URL.Path
+				if req.Method != http.MethodGet {
+					t.Errorf("method = %s", req.Method)
+				}
+				if test.protocol == "messages" {
+					if req.Header.Get("x-api-key") != "test-key" || req.Header.Get("anthropic-version") != "2023-06-01" {
+						t.Error("missing Messages authentication")
+					}
+				} else if req.Header.Get("Authorization") != "Bearer test-key" {
+					t.Error("missing Bearer authentication")
+				}
+				if req.URL.Path == "/v1/models" {
+					http.NotFound(w, req)
+					return
+				}
+				fmt.Fprint(w, `{"data":[{"id":"model-1","display_name":"Model One"},{"id":"model-1"},{"id":""},{"id":"model-2","name":"Model Two"}]}`)
+			}))
+			defer server.Close()
+			db, err := database.Open(ctx, filepath.Join(t.TempDir(), "models.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+			s := New(db.AIProviderQueries(), testCredentials{})
+			key := "test-key"
+			p, err := s.SaveProvider(ctx, ProviderInput{Provider: Provider{Name: "test", Protocol: test.protocol, BaseURL: server.URL + test.basePath}, APIKey: &key})
+			if err != nil {
+				t.Fatal(err)
+			}
+			models, err := NewAPI(s).FetchModels(ctx, p.ID)
+			if err != nil || len(models) != 2 || models[0].ID != "model-1" || models[0].DisplayName != "Model One" || models[1].DisplayName != "Model Two" {
+				t.Fatalf("models = %+v, error = %v", models, err)
+			}
+			close(requests)
+			for _, path := range test.paths {
+				if got := <-requests; got != path {
+					t.Fatalf("path = %q, want %q", got, path)
+				}
+			}
+			if len(requests) != 0 {
+				t.Fatal("unexpected catalog request")
+			}
+			snapshot, err := s.List(ctx)
+			if err != nil || len(snapshot.Models) != 0 {
+				t.Fatalf("fetch should not save models: %+v, %v", snapshot.Models, err)
+			}
+		})
+	}
+}

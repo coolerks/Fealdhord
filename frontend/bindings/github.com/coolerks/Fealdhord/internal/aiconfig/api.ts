@@ -12,6 +12,10 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as ai$0 from "../ai/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
 export function Assign(task: string, modelID: string): $CancellablePromise<void> {
@@ -24,6 +28,10 @@ export function DeleteModel(id: string, revision: number): $CancellablePromise<v
 
 export function DeleteProvider(id: string, revision: number): $CancellablePromise<void> {
     return $Call.ByID(1030264039, id, revision);
+}
+
+export function FetchModels(providerID: string): $CancellablePromise<ai$0.CatalogModel[] | null> {
+    return $Call.ByID(2788861225, providerID);
 }
 
 export function List(): $CancellablePromise<$models.Snapshot> {

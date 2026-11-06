@@ -4,7 +4,7 @@ Phase 5。Provider 字段 id、name、protocol、base_url、credential_ref、ena
 
 添加服务默认仅显示名称、API 类型、Base URL 和 Key 输入；高级选项折叠：Custom Headers、Endpoint Path、Query Parameters、Extra Body、Timeout、禁用参数。UI 帮助明确三种 endpoint；永不出现旧 `/v1/completions`。
 
-测试连接是用户显式发起的最小请求，预先说明可能产生费用；模型列表 endpoint 不统一，允许手动填模型，不能因 `/models` 不存在判定整个服务不可用。能力探测可选，标注 unknown／检测值／手动覆盖，不能偷偷探测收费工具。测试请求可取消，错误脱敏。
+测试连接是用户显式发起的最小请求，预先说明可能产生费用；打开添加或编辑模型表单时自动查询已保存服务的 `GET {Base URL}/models`。标准 `/v1/models` 返回 404 或 405 时，在同源尝试 `/api/v1/models`。候选选择只填充模型 ID 与显示名称，用户仍可手动编辑并保存。模型目录不可用时可继续手动配置。能力探测可选，标注 unknown／检测值／手动覆盖，不能偷偷探测收费工具。测试请求可取消，错误脱敏。
 
 Key 提交后进入 CredentialStore；配置回显只返回 has_credential，不回传实际密钥。保存新 key 后先写新引用，DB 提交再回收旧引用，失败补偿。删除 Provider 需提示受影响模型分配和历史引用；历史保留显示名快照，新的运行要求重新配置。
 

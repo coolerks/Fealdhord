@@ -312,13 +312,9 @@ func (s *Service) enabledModel(ctx context.Context, id string) (Model, ai.Model,
 }
 
 func (s *Service) adapter(p sqlc.AiProvider, model sqlc.AiModel) (Model, ai.Model, error) {
-	var err error
-	var key string
-	if p.CredentialRef != "" {
-		key, err = s.credentials.Get(p.CredentialRef)
-		if err != nil {
-			return Model{}, nil, configError("CredentialError")
-		}
+	key, err := s.providerKey(p)
+	if err != nil {
+		return Model{}, nil, err
 	}
 	var adapter ai.Model
 	switch p.Protocol {
@@ -332,6 +328,18 @@ func (s *Service) adapter(p sqlc.AiProvider, model sqlc.AiModel) (Model, ai.Mode
 		err = configError("ConfigurationError")
 	}
 	return publicModel(model), adapter, err
+}
+
+// providerKey requires credentialMu while reading a saved provider.
+func (s *Service) providerKey(p sqlc.AiProvider) (string, error) {
+	if p.CredentialRef == "" {
+		return "", nil
+	}
+	key, err := s.credentials.Get(p.CredentialRef)
+	if err != nil {
+		return "", configError("CredentialError")
+	}
+	return key, nil
 }
 
 func configError(code string) error { return &ai.ModelError{Code: code} }

@@ -132,6 +132,18 @@ func (c *modelClient) post(ctx context.Context, payload any, anthropic bool) (*h
 		return nil, &ModelError{Code: "ValidationError"}
 	}
 	request.Header.Set("Content-Type", "application/json")
+	response, err := c.do(request, anthropic)
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		response.Body.Close()
+		return nil, chatStatusError(response)
+	}
+	return response, nil
+}
+
+func (c *modelClient) do(request *http.Request, anthropic bool) (*http.Response, error) {
 	if anthropic {
 		request.Header.Set("anthropic-version", "2023-06-01")
 		request.Header.Set("x-api-key", c.apiKey)
@@ -141,10 +153,6 @@ func (c *modelClient) post(ctx context.Context, payload any, anthropic bool) (*h
 	response, err := c.client.Do(request)
 	if err != nil {
 		return nil, modelIOError(err, "ProviderConnectionError")
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		response.Body.Close()
-		return nil, chatStatusError(response)
 	}
 	return response, nil
 }

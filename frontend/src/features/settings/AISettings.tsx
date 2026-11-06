@@ -1,3 +1,4 @@
+import { ModelCatalogField } from './ModelCatalogField'
 import { invalidateRSS } from '@/lib/refresh'
 import { ArticleAISettings } from '@/features/article-ai/ArticleAISettings'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -88,6 +89,7 @@ export function AISettings() {
   }
   const providers = configuration.data?.providers ?? []
   const models = configuration.data?.models ?? []
+  const modelProvider = providers.find(item => item.id === model?.providerId)
   const activeModels = models.filter(item => item.enabled && providers.some(service => service.id === item.providerId && service.enabled))
   if (configuration.isPending) return <p role="status">正在读取 AI 设置…</p>
   if (configuration.isError) return <Button onClick={() => void configuration.refetch()}>重新读取 AI 设置</Button>
@@ -172,6 +174,9 @@ export function AISettings() {
           setModel(null)
         })
       }}>
+        {modelProvider && <ModelCatalogField provider={modelProvider} value={model.name} disabled={busy}
+          excluded={models.filter(item => item.providerId === model.providerId && item.id !== model.id).map(item => item.name)}
+          onSelect={(name, displayName) => setModel({ ...model, name, displayName })} />}
         <Field><FieldLabel htmlFor="ai-model-id">模型 ID</FieldLabel><Input id="ai-model-id" required value={model.name} onChange={event => setModel({ ...model, name: event.target.value })} /></Field>
         <Field><FieldLabel htmlFor="ai-model-display">显示名称</FieldLabel><Input id="ai-model-display" value={model.displayName} onChange={event => setModel({ ...model, displayName: event.target.value })} /></Field>
         <Field orientation="horizontal"><Switch id="ai-model-enabled" checked={model.enabled} disabled={busy} onCheckedChange={enabled => setModel({ ...model, enabled })} /><FieldLabel htmlFor="ai-model-enabled">启用模型</FieldLabel></Field>

@@ -112,3 +112,5 @@ transfer.API 的 Choose 返回 token／name／cancelled；Preview 返回 preview
 `articleai.API.Settings` 返回启用位、分类提示词、每小时预算、精选阈值与 revision；`Save` 按 revision 条件写入。 `Evaluate` 接收 `{articleId, task, preview}`，task 为 classification 或 featured。preview 返回评估而不写文章结果，且仍占用调用预算。成功返回命中分类、评分或缓存标志，已缓存时不重新请求。并发运行、预算、模型输出异常分别返回 Busy、BudgetExceeded、InvalidModelOutput。详情见 [自动分类](../04-specs/ai-classification.md)。
 
 `Chat.Send` 的 `allowArticleReads` 默认 false。启用时，文章对话只允许读取会话当前文章，全局对话只允许读取该次请求的已选文章。其他范围返回校验错误。授权仅用于本轮。
+
+模型目录通过 `aiconfig.API.FetchModels(providerID)` 查询。返回服务当前响应中去重后的 `{id, displayName}`，保存仍使用既有模型写入接口。密钥由后端从已保存的服务配置读取，列表查询有 15 秒总时限并拒绝重定向。
