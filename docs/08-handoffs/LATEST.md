@@ -9,3 +9,5 @@ Go全包test／vet、相关race，前端20文件80项／类型／lint通过；�
 [当前状态](../01-status/CURRENT.md)是唯一实际状态权威。原始无关未跟踪Trellis／平台目录保留，不加入功能提交。
 
 2026-11-06 修复公开订阅误拒。混合 DNS 仅拨号通过校验的地址，三个用户示例均经真实网络发现并入库。Go 全包、vet、网络与 Feed 相关 race 和 macOS 调试包严格签名检查通过。[回归记录](history/2026-11-06-rss-public-feed-regression.md)
+
+2026-11-06 修复旧开发库已记账迁移 00006 却缺分页表的问题。00008 通过常规启动升级补表与回填。当前窗口已显示订阅文章，真实 Wails 查询覆盖全部 55 篇及三个订阅。[回归记录](history/2026-11-06-article-list-upgrade-repair.md)

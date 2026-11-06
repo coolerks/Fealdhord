@@ -4,6 +4,8 @@
 
 - 2026-11-06 修复公开 RSS／Atom 在混合 DNS 下被拒。用户提供的三个地址均通过生产订阅服务发现、添加和临时库文章查询。详见[回归记录](../08-handoffs/history/2026-11-06-rss-public-feed-regression.md)。
 
+- 2026-11-06 修复旧库文章列表读取失败。迁移 00008 自动补齐分页出生表和写入触发器。真实 Wails 查询读到全部 55 篇，三个订阅分别读到 10、25、20 篇。当前窗口已显示文章列表。[回归记录](../08-handoffs/history/2026-11-06-article-list-upgrade-repair.md)
+
 - 最新完成：[Phase 4 基础阅读器](../09-research/phase4-validation.md)：全库分页／搜索、分类与订阅导航、安全 HTML／Reader 提取、OPML 导入导出均已接线并通过相关检查；暂停 UI 视觉调整。
 
 - 前阶段完成：[Phase 3 RSS 订阅与文章同步](../09-research/phase3-validation.md)：安全抓取、三格式解析与发现、订阅管理、原子刷新／取消／调度、受控首图及界面接线均已完成检查；暂停 UI 视觉调整。
