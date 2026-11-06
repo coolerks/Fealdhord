@@ -26,4 +26,5 @@ export interface SendInput {
     "includeContext": boolean;
     "selection": string;
     "articleIds": string[] | null;
+    "allowArticleReads": boolean;
 }

@@ -12,7 +12,7 @@
 | Phase 4 | 完整基础阅读器 | Phase 3 | 虚拟双视图、Reader、FTS、分类、状态、OPML、快捷键 | 已实现并通过相关检查（性能／其他平台实测待验收） |
 | Phase 5 | AI 服务与基础 Chat | Phase 4 | 三协议流式与非流式契约、模型分配、系统凭据与基础 Chat | 基础功能已实现，验收进行中 |
 | Phase 6 | 自动分类与精选 | Phase 5 | Prompt 测试、缓存、手动覆盖、预算和 Smart View | 基础功能已实现，扩展验收进行中 |
-| Phase 7 | Runtime | Phase 5–6 | 有限工具循环、Context、审批、审计、取消与恢复 | 未开始 |
+| Phase 7 | Runtime | Phase 5–6 | 有限工具循环、Context、审批、审计、取消与恢复 | 已接通只读工具，继续实施 |
 | Phase 8 | 内置工具 | Phase 7 | 25 个工具 Schema、权限与真实副作用验证 | 未开始 |
 | Phase 9 | Skills | Phase 8 | 声明式文件、CRUD、allowlist、版本与路径安全 | 未开始 |
 | Phase 10 | MCP Client | Phase 8–9 | 两 transport、工具／资源／Prompt、权限、互操作 | 未开始 |

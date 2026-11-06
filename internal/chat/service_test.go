@@ -19,6 +19,7 @@ import (
 func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	ctx := context.Background()
 	requests := make(chan string, 2)
+	toolIDs := make(chan [2]string, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload json.RawMessage
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -26,6 +27,18 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 		}
 		requests <- string(payload)
 		w.Header().Set("Content-Type", "text/event-stream")
+		if strings.Contains(string(payload), "测试授权工具") && !strings.Contains(string(payload), `"role":"tool"`) {
+			ids := <-toolIDs
+			calls := make([]map[string]any, 0, len(ids))
+			for index, id := range ids {
+				arguments, _ := json.Marshal(map[string]string{"id": id})
+				calls = append(calls, map[string]any{"index": index, "id": fmt.Sprintf("read-%d", index), "type": "function",
+					"function": map[string]string{"name": "read_article", "arguments": string(arguments)}})
+			}
+			delta, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"index": 0, "delta": map[string]any{"tool_calls": calls}}}})
+			fmt.Fprintf(w, "data: %s\n\ndata: {\"choices\":[{\"index\":0,\"finish_reason\":\"tool_calls\"}]}\n\ndata: [DONE]\n\n", delta)
+			return
+		}
 		fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"部分回复\"}}]}\n\n")
 		w.(http.Flusher).Flush()
 		if strings.Contains(string(payload), "取消这次") {
@@ -123,7 +136,8 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.UpsertArticle(ctx, database.ArticleInput{FeedID: feed, GUID: "other", Title: "未选文章", Summary: "不应发送的其他摘要", FetchedAt: 2}); err != nil {
+	foreign, err := db.UpsertArticle(ctx, database.ArticleInput{FeedID: feed, GUID: "other", Title: "未选文章", Summary: "不应发送的其他摘要", Text: "不可外传的正文", FetchedAt: 2})
+	if err != nil {
 		t.Fatal(err)
 	}
 	if err := reopened.Send(ctx, SendInput{ConversationID: global.ID, Text: "先验证无效引用", ArticleIDs: []string{"missing"}}); err == nil || err.Error() != "ContextUnavailable" {
@@ -135,6 +149,18 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	waitMessage(t, reopened, global.ID, 2, "complete")
 	if request := <-requests; !strings.Contains(request, "公开摘要") || strings.Contains(request, "不应发送") {
 		t.Fatalf("wrong source scope: %s", request)
+	}
+	toolIDs <- [2]string{selected, foreign}
+	if err := reopened.Send(ctx, SendInput{ConversationID: global.ID, Text: "测试授权工具", ArticleIDs: []string{selected}, AllowArticleReads: true}); err != nil {
+		t.Fatal(err)
+	}
+	waitMessage(t, reopened, global.ID, 4, "complete")
+	initial, next := <-requests, <-requests
+	if !strings.Contains(initial, `"name":"read_article"`) || strings.Contains(initial, "不应发送的全文") {
+		t.Fatalf("bad initial tool request: %s", initial)
+	}
+	if !strings.Contains(next, "不应发送的全文") || !strings.Contains(next, "PermissionError") || strings.Contains(next, "不可外传的正文") {
+		t.Fatalf("bad tool results: %s", next)
 	}
 
 }

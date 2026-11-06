@@ -28,6 +28,9 @@ const errorLabels: Record<string, string> = {
   Conflict: '当前对话还有一条回复正在进行。',
   StorageError: '无法保存对话。',
   Timeout: '模型回复超时。',
+  AgentLimitExceeded: '已达到本轮工具调用上限，已保留部分回复。',
+  ToolNotAllowed: '模型请求了未授权的工具。',
+  ToolCallConflict: '模型重复使用了工具调用编号。',
   ResponseLimit: '回复超过长度限制，已保留部分内容。',
   IncompleteResponse: '服务提前结束，已保留部分内容。',
   ValidationError: '请检查消息及附加内容的长度。',
@@ -54,6 +57,7 @@ function ChatSession({ target, close }: { target: NonNullable<ReturnType<typeof 
   const [chosen, setChosen] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [includeContext, setIncludeContext] = useState(false)
+  const [allowArticleReads, setAllowArticleReads] = useState(false)
   const [selection, setSelection] = useState(target.selection ?? '')
   const [sources, setSources] = useState<Article[]>([])
   const [picking, setPicking] = useState(false)
@@ -82,7 +86,7 @@ function ChatSession({ target, close }: { target: NonNullable<ReturnType<typeof 
         setChosen(id)
         void cache.invalidateQueries({ queryKey: listKey })
       }
-      await api.Send({ conversationId: id, text: draft, includeContext, selection, articleIds: sources.map(article => article.id) })
+      await api.Send({ conversationId: id, text: draft, includeContext, selection, allowArticleReads, articleIds: sources.map(article => article.id) })
       await cache.invalidateQueries({ queryKey: ['chat', 'messages', id] })
     },
     onSuccess: () => {
@@ -92,6 +96,7 @@ function ChatSession({ target, close }: { target: NonNullable<ReturnType<typeof 
       setSources([])
       setPicking(false)
       setIncludeContext(false)
+      setAllowArticleReads(false)
     },
   })
   const cancel = useMutation({
@@ -137,14 +142,23 @@ function ChatSession({ target, close }: { target: NonNullable<ReturnType<typeof 
       <Button size="sm" variant="outline" aria-expanded={picking} disabled={send.isPending} onClick={() => setPicking(!picking)}>附加文章</Button>
       {sources.map(article => <div key={article.id} className="flex items-center justify-between gap-2">
         <span className="truncate" title={article.title}>{article.title}</span>
-        <Button size="sm" variant="ghost" aria-label={`移除 ${article.title}`} disabled={send.isPending} onClick={() => setSources(sources.filter(item => item.id !== article.id))}>移除</Button>
+        <Button size="sm" variant="ghost" aria-label={`移除 ${article.title}`} disabled={send.isPending} onClick={() => { setSources(sources.filter(item => item.id !== article.id)); setAllowArticleReads(false) }}>移除</Button>
       </div>)}
-      {picking && <ArticlePicker selected={sources} disabled={send.isPending} onPick={article => setSources(items => items.length < 3 && !items.some(item => item.id === article.id) ? [...items, article] : items)} />}
+      {picking && <ArticlePicker selected={sources} disabled={send.isPending} onPick={article => {
+        setSources(items => items.length < 3 && !items.some(item => item.id === article.id) ? [...items, article] : items)
+        setAllowArticleReads(false)
+      }} />}
     </div>}
     {target.kind !== 'global' && <label htmlFor="chat-include-context" className="flex items-center gap-2 text-sm">
       <Checkbox id="chat-include-context" checked={includeContext} disabled={send.isPending} onCheckedChange={value => setIncludeContext(value === true)} />
       {target.kind === 'article' ? '附加订阅正文（最多 24 KiB）' : '附加当前分类最近 5 篇文章的摘要'}
     </label>}
+    {(target.kind === 'article' || (target.kind === 'global' && sources.length > 0)) &&
+      <label htmlFor="chat-allow-article-reads" className="flex items-center gap-2 text-sm">
+        <Checkbox id="chat-allow-article-reads" checked={allowArticleReads} disabled={send.isPending}
+          onCheckedChange={value => setAllowArticleReads(value === true)} />
+        {target.kind === 'article' ? '允许模型读取当前文章正文' : '允许模型读取已选文章正文'}
+      </label>}
     {selection && <div className="flex items-center gap-2 text-sm">
       <span className="truncate" title={selection}>选段 · {selection}</span>
       <Button size="sm" variant="ghost" disabled={send.isPending} onClick={() => setSelection('')}>移除</Button>
