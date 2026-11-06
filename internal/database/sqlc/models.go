@@ -126,6 +126,15 @@ type Category struct {
 	Revision       int64          `json:"revision"`
 }
 
+type Conversation struct {
+	ID        string `json:"id"`
+	ScopeType string `json:"scope_type"`
+	ScopeID   string `json:"scope_id"`
+	Title     string `json:"title"`
+	CreatedAt int64  `json:"created_at"`
+	UpdatedAt int64  `json:"updated_at"`
+}
+
 type EffectiveArticleCategory struct {
 	ArticleID  string `json:"article_id"`
 	CategoryID string `json:"category_id"`
@@ -163,6 +172,17 @@ type FeedCategory struct {
 	FeedID     string `json:"feed_id"`
 	CategoryID string `json:"category_id"`
 	CreatedAt  int64  `json:"created_at"`
+}
+
+type Message struct {
+	ID             string `json:"id"`
+	ConversationID string `json:"conversation_id"`
+	Position       int64  `json:"position"`
+	Role           string `json:"role"`
+	Content        string `json:"content"`
+	Status         string `json:"status"`
+	ErrorCode      string `json:"error_code"`
+	ModelName      string `json:"model_name"`
 }
 
 type ModelAssignment struct {

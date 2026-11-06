@@ -1,4 +1,5 @@
-import { ArrowDownWideNarrow, LayoutGrid, List, PanelRightClose, PanelRightOpen, RefreshCw, Search, SlidersHorizontal, X } from 'lucide-react'
+import { openChat } from '@/features/chat/chat-scope'
+import { ArrowDownWideNarrow, LayoutGrid, List, PanelRightClose, PanelRightOpen, RefreshCw, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { Button } from '@/components/ui/button'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -23,6 +24,7 @@ export function Toolbar({ count, overlay, hasSelection }: { count: number; overl
   const showSettings = useWorkspace(state => state.showSettings)
   const title = preferences.selected_scope==='feed' ? navigation.data?.feeds?.find(feed=>feed.id===preferences.selected_scope_id)?.title ?? '订阅' : preferences.selected_scope==='category' ? navigation.data?.categories?.find(category=>category.id===preferences.selected_scope_id)?.name ?? '分类' : scopes.find(scope=>scope.id===preferences.selected_scope)?.title ?? '全部文章'
   return <><header className="workspace-toolbar articles-toolbar"><div className="articles-heading"><h1>{title}</h1><span>{count} 篇</span></div><div className="toolbar-actions" role="group" aria-label="文章操作">
+    {preferences.selected_scope === 'category' && <SemanticButton icon={Sparkles} meaning="ai" label="分类 AI 助手" onClick={() => openChat({kind:'category', id:preferences.selected_scope_id, label:title})}/>}
     <SemanticButton icon={RefreshCw} label="刷新所有订阅" meaning="refresh" onClick={()=>runCommand('refresh',client)} />
     <SemanticButton icon={Search} label="搜索文章" meaning="search" active={searchOpen} onClick={() => {if(searchOpen)useWorkspace.setState({searchOpen:false});else runCommand('search',client)}} />
     <SemanticButton id="reader-toggle" disabled={overlay && !hasSelection} icon={preferences.reader_open ? PanelRightClose : PanelRightOpen} label={overlay && !hasSelection ? '选择文章后打开阅读面板' : preferences.reader_open ? '收起阅读面板' : '展开阅读面板'} meaning="panel-right-open" onClick={() => patch({ reader_open: !preferences.reader_open })} />

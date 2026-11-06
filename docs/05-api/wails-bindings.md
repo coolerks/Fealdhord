@@ -102,3 +102,7 @@ transfer.API 的 Choose 返回 token／name／cancelled；Preview 返回 preview
 ## AI 设置
 
 `aiconfig.API` 提供 `List`、`SaveProvider`、`DeleteProvider`、`SaveModel`、`DeleteModel`、`Assign`、`TestConnection`。密钥仅通过 `SaveProvider` 的 `apiKey` 进入 Go，`null` 保留，空字符串清除。读取和保存结果只包含 `hasCredential`。测试连接仅接收已保存的模型 ID，取消沿绑定的请求上下文传递。详细行为见 [Provider 与模型设置规格](../04-specs/providers.md)。
+
+## 基础 Chat
+
+`chat.API` 提供 `List`、`Create`、`Messages`、`Model`、`Send` 与 `Cancel`。`Send` 在本地事务提交后启动后台流，`Messages` 返回当前文本及运行状态。会话固定在全局、分类或文章范围，附加上下文只用于当前发送。详见 [Chat 与上下文规格](../04-specs/chat.md)。

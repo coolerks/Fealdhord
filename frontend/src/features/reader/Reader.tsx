@@ -1,3 +1,4 @@
+import { openChat } from '@/features/chat/chat-scope'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { ArticleCategories } from '@/features/categories/ArticleCategories'
 import { BookOpen,BookText,CheckCheck,ChevronLeft,ExternalLink,ScanText,Sparkles,Star } from 'lucide-react'
@@ -39,7 +40,7 @@ function ArticleHTML({ html }: { html: string }) {
 
 function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnchor,markedRef}:ReaderProps&{markedRef:RefObject<string>}){
  const content=useRef<HTMLDivElement>(null),timer=useRef<ReturnType<typeof setTimeout>|null>(null),pending=useRef<number|null>(null),save=useRef(onAnchor),title=useRef<HTMLHeadingElement>(null)
- const showSettings=useWorkspace(state=>state.showSettings),articleID=article?.id
+ const articleID=article?.id
  const body=useReaderContent(article,preferences)
  const [view,setView]=useState<ArticleView>(preferences.reader_open_mode==='full'?'reader':'feed')
  function changeView(next:string){
@@ -88,7 +89,14 @@ function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnc
     {article&&<ArticleCategories articleID={article.id}/>}
     <SemanticButton icon={Star} meaning="favorite" label="收藏当前文章" active={article?.isFavorite} disabled={!article} onClick={()=>article&&onFavorite(article.id)}/>
     <SemanticButton icon={CheckCheck} meaning="read" label="切换当前文章已读状态" disabled={!article} onClick={()=>article&&onRead(article.id)}/>
-    <SemanticButton icon={Sparkles} meaning="ai" label="文章 AI 助手" onClick={()=>showSettings('ai')}/>
+    <SemanticButton icon={Sparkles} meaning="ai" label="文章 AI 助手" disabled={!article} onMouseDown={event => { if (event.button === 0 && !window.getSelection()?.isCollapsed) event.preventDefault() }} onClick={() => {
+      if (!article) return
+      const selection = window.getSelection()
+      const text = selection?.anchorNode && selection.focusNode &&
+        content.current?.contains(selection.anchorNode) && content.current.contains(selection.focusNode)
+        ? Array.from(selection.toString()).slice(0, 6000).join('') : ''
+      openChat({ kind:'article', id:article.id, label:article.title, selection:text })
+    }}/>
     {article&&<Tabs.List className="reader-view-actions" aria-label="文章显示方式">
      <Tabs.Trigger className="reader-view-tab" value="feed" aria-label="订阅预览" title="订阅预览"><AnimatedGlyph icon={BookText} meaning="book-text"/></Tabs.Trigger>
      <Tabs.Trigger className="reader-view-tab" value="reader" aria-label="阅读模式" title="阅读模式"><AnimatedGlyph icon={ScanText} meaning="scan-text"/></Tabs.Trigger>

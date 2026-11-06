@@ -10,6 +10,7 @@ sql:
       - migrations/00007_reader_resources.sql
       - migrations/00008_repair_article_query_birth.sql
       - migrations/00009_ai_providers.sql
+      - migrations/00010_chat.sql
     queries: internal/database/queries
     gen:
       go:

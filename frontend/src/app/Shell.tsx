@@ -1,3 +1,4 @@
+import { useChatTarget } from '@/features/chat/chat-scope'
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -23,6 +24,7 @@ import { Sidebar } from './Sidebar'
 import { Toolbar } from './Toolbar'
 import { cn } from '@/lib/utils'
 
+const ChatDialog = lazy(() => import('@/features/chat/ChatDialog').then(module => ({ default: module.ChatDialog })))
 const SettingsDialog = lazy(() => import('@/features/settings/SettingsDialog').then(module => ({ default: module.SettingsDialog })))
 const CommandPalette = lazy(() => import('./CommandPalette').then(module => ({ default: module.CommandPalette })))
 
@@ -32,6 +34,7 @@ import { RefreshStatus } from '@/features/feeds/RefreshStatus'
 
 export function Shell() {
   useRSSSync()
+  const chatOpen = useChatTarget(state => Boolean(state.target))
   const preferences = useWorkspace(state => state.preferences)!
   const patch = useWorkspace(state => state.patch)
   const search = useWorkspace(state => state.search)
@@ -155,7 +158,7 @@ export function Shell() {
         {!overlay && readerVisible && <><Splitter label="调整文章列表宽度" value={listDraft ?? preferences.list_width} min={300} max={420} onResize={setListDraft} onCommit={value => { patch({ list_width: value }); setListDraft(null) }} /><Reader key={selected?.id} article={selected} preferences={preferences} overlay={false} onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></>}
         <AnimatePresence>{overlay && readerVisible && <motion.div className="reader-drawer" transition={mode === 'full' ? { type: 'spring', stiffness: 380, damping: 38 } : { duration: mode === 'off' ? 0 : .1 }} initial={mode === 'full' ? { x: 64, opacity: 0 } : { opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={mode === 'full' ? { x: 16, opacity: 0 } : { opacity: 0 }}><Reader key={selected?.id} article={selected} preferences={preferences} overlay onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></motion.div>}</AnimatePresence>
       </main>
-      <Suspense fallback={null}>{settingsOpen && <SettingsDialog />}{paletteOpen && <CommandPalette />}</Suspense>
+      <Suspense fallback={null}>{settingsOpen && <SettingsDialog />}{paletteOpen && <CommandPalette />}{chatOpen && <ChatDialog />}</Suspense>
       <div className="sr-only" aria-live="polite">{preferences.article_view_mode === 'masonry' ? '已切换到瀑布流视图' : '已切换到列表视图'}</div>
       {saveStatus === 'error' && <div className="save-warning" role="status"><AnimatedGlyph icon={CircleAlert} meaning="badge-alert"/><span>偏好保存失败</span><Button size="sm" variant="ghost" onClick={() => showSettings()}>查看</Button></div>}
       <Dialog open={helpOpen} onOpenChange={open=>useWorkspace.setState({helpOpen:open})}><DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>键盘快捷键</DialogTitle></DialogHeader><dl className="shortcut-list"><dt>下一篇／上一篇</dt><dd>J ／ K</dd><dt>收藏／切换已读</dt><dd>F ／ M</dd><dt>搜索文章</dt><dd>/</dd><dt>搜索与命令</dt><dd>⌘ ／ Ctrl + K</dd><dt>设置</dt><dd>⌘ ／ Ctrl + ,</dd><dt>刷新订阅</dt><dd>⌘ ／ Ctrl + R</dd><dt>返回浏览</dt><dd>Esc</dd><dt>Windows 菜单栏</dt><dd>F10</dd></dl></DialogContent></Dialog>

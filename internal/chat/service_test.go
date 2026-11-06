@@ -1,0 +1,130 @@
+package chat
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/coolerks/Fealdhord/internal/aiconfig"
+	"github.com/coolerks/Fealdhord/internal/database"
+	"github.com/coolerks/Fealdhord/internal/database/sqlc"
+)
+
+func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
+	ctx := context.Background()
+	requests := make(chan string, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Error(err)
+		}
+		requests <- string(payload)
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"部分回复\"}}]}\n\n")
+		w.(http.Flusher).Flush()
+		if strings.Contains(string(payload), "取消这次") {
+			<-r.Context().Done()
+			return
+		}
+		fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+	}))
+	defer server.Close()
+	db, err := database.Open(ctx, filepath.Join(t.TempDir(), "chat.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	config := aiconfig.New(db.AIProviderQueries(), nil)
+	service, err := New(ctx, db, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	scope := Scope{Kind: "article", ID: "local-article"}
+	conversation, err := service.Create(ctx, scope, "测试历史")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Send(ctx, SendInput{ConversationID: conversation.ID, Text: "未配置"}); err == nil || err.Error() != "ConfigurationError" {
+		t.Fatalf("missing model error: %v", err)
+	}
+	p, err := config.SaveProvider(ctx, aiconfig.ProviderInput{Provider: aiconfig.Provider{Name: "Mock", Protocol: "chat_completions", BaseURL: server.URL, Enabled: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := config.SaveModel(ctx, aiconfig.Model{ProviderID: p.ID, Name: "mock-model", Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := config.Assign(ctx, "chat", m.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Send(ctx, SendInput{ConversationID: conversation.ID, Text: "第一个问题", Selection: "仅本轮选段"}); err != nil {
+		t.Fatal(err)
+	}
+	waitMessage(t, service, conversation.ID, 2, "complete")
+	if request := <-requests; !strings.Contains(request, "仅本轮选段") {
+		t.Fatalf("missing explicit selection: %s", request)
+	}
+	if err := service.Send(ctx, SendInput{ConversationID: conversation.ID, Text: "取消这次"}); err != nil {
+		t.Fatal(err)
+	}
+	running := waitMessage(t, service, conversation.ID, 4, "running")
+	if running.Text != "部分回复" {
+		t.Fatalf("live reply = %+v", running)
+	}
+	if request := <-requests; strings.Contains(request, "仅本轮选段") || !strings.Contains(request, "第一个问题") {
+		t.Fatalf("unexpected history: %s", request)
+	}
+	if err := service.Send(ctx, SendInput{ConversationID: conversation.ID, Text: "重复发送"}); err == nil || err.Error() != "Conflict" {
+		t.Fatalf("reentry = %v", err)
+	}
+	if err := service.Cancel(ctx, conversation.ID); err != nil {
+		t.Fatal(err)
+	}
+	cancelled := waitMessage(t, service, conversation.ID, 4, "cancelled")
+	if cancelled.Text != "部分回复" {
+		t.Fatalf("lost partial output: %+v", cancelled)
+	}
+	service.Close()
+	if _, err := db.ChatQueries().AppendChatMessage(ctx, sqlc.AppendChatMessageParams{ID: "stale", ConversationID: conversation.ID, Role: "assistant", Status: "running", Content: "重启前保存"}); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := New(ctx, db, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	messages, err := reopened.Messages(ctx, conversation.ID)
+	if err != nil || len(messages) != 5 || messages[3] != cancelled || messages[4].Status != "interrupted" || messages[4].Text != "重启前保存" {
+		t.Fatalf("restored messages = %+v, %v", messages, err)
+	}
+	if list, err := reopened.List(ctx, Scope{Kind: "global"}); err != nil || len(list) != 0 {
+		t.Fatalf("scope leaked: %+v, %v", list, err)
+	}
+	if list, err := reopened.List(ctx, scope); err != nil || len(list) != 1 || list[0].ID != conversation.ID {
+		t.Fatalf("missing history: %+v, %v", list, err)
+	}
+}
+
+func waitMessage(t *testing.T, service *Service, id string, count int, status string) Message {
+	t.Helper()
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); {
+		rows, err := service.Messages(context.Background(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) == count && rows[count-1].Status == status && rows[count-1].Text != "" {
+			return rows[count-1]
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s", status)
+	return Message{}
+}

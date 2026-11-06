@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coolerks/Fealdhord/internal/chat"
 	"github.com/coolerks/Fealdhord/internal/database"
 	desktopintegration "github.com/coolerks/Fealdhord/internal/desktop"
 	"github.com/coolerks/Fealdhord/internal/library"
@@ -56,6 +57,7 @@ func main() {
 	var refreshRepository refresh.Repository
 	var mediaRepository media.Repository
 	var aiConfig *aiconfig.Service
+	var chatService *chat.Service
 	dataDir, pathErr := os.UserConfigDir()
 	if pathErr == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -78,6 +80,12 @@ func main() {
 					slog.Error("关闭设置数据库失败", "error", err)
 				}
 			}()
+			chatService, err = chat.New(context.Background(), store, aiConfig)
+			if err != nil {
+				slog.Error("本地对话初始化失败")
+			} else {
+				defer chatService.Close()
+			}
 		}
 	} else {
 		slog.Error("无法定位用户数据目录", "error", pathErr)
@@ -164,6 +172,7 @@ func main() {
 			application.NewService(service), application.NewService(settingsService),
 			application.NewService(readerService),
 			application.NewService(aiconfig.NewAPI(aiConfig)),
+			application.NewService(chat.NewAPI(chatService)),
 			application.NewService(transfer.NewAPI(transferService)),
 			application.NewService(navigation.NewService(navigationRepository, changed)),
 			application.NewService(library.NewService(libraryRepository, func(ctx context.Context) bool { return policy(ctx).RemoteImages != "never" })),

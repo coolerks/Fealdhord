@@ -251,6 +251,17 @@ func (s *Service) Assign(ctx context.Context, task, modelID string) error {
 	return nil
 }
 
+func (s *Service) AssignedModel(ctx context.Context, task string) (Model, error) {
+	row, err := s.db.ResolveModelAssignment(ctx, task)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Model{}, configError("ConfigurationError")
+	}
+	if err != nil {
+		return Model{}, storageError(err)
+	}
+	return publicModel(row.AiModel), nil
+}
+
 func (s *Service) Resolve(ctx context.Context, task string) (Model, ai.Model, error) {
 	s.credentialMu.Lock()
 	defer s.credentialMu.Unlock()

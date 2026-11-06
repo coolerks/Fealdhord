@@ -1,3 +1,4 @@
+import { openChat } from '@/features/chat/chat-scope'
 import { useMemo,useState } from 'react'
 import type { KeyboardEvent,ReactNode } from 'react'
 import { useNavigation } from '@/features/categories/use-navigation'
@@ -57,7 +58,7 @@ export function Sidebar({ motionMode }: { motionMode: 'full' | 'subtle' | 'off' 
     <Separator />
     <div className="sidebar-organize"><Section title="分类" onAdd={() => showSettings('categories')}><nav aria-label="分类导航" onKeyDown={keyboard}>{tree('',0)}</nav></Section><Section title="订阅" onAdd={() => showSettings('feeds')}><nav aria-label="订阅导航" onKeyDown={keyboard}>{navigation.data?.feeds?.map(feed=><Button key={feed.id} data-navigation={feed.id} variant={preferences.selected_scope==='feed'&&preferences.selected_scope_id===feed.id?'secondary':'ghost'} className="nav-item" aria-current={preferences.selected_scope==='feed'&&preferences.selected_scope_id===feed.id?'page':undefined} aria-label={`浏览订阅 ${feed.title}`} onClick={()=>patch({selected_scope:'feed',selected_scope_id:feed.id})}><AnimatedGlyph meaning="radio-tower"/><span>{feed.title}</span>{feed.unread>0&&<span className="nav-count">{feed.unread}</span>}</Button>)}</nav></Section></div>
     {navigation.isError && <Button variant="ghost" onClick={()=>{void navigation.refetch()}}>重试导航</Button>}
-    <footer className="sidebar-footer"><div className="sidebar-bottom"><Button variant="ghost" className="sidebar-ai" aria-label="AI 助手" onClick={() => showSettings('ai')}><AnimatedGlyph icon={Sparkles} meaning="ai"/>AI 助手</Button><SemanticButton id="open-settings" icon={Settings} label="打开设置" meaning="settings" onClick={() => showSettings()} /></div></footer>
+    <footer className="sidebar-footer"><div className="sidebar-bottom"><Button variant="ghost" className="sidebar-ai" aria-label="AI 助手" onClick={() => openChat({kind:'global', id:'', label:'全局对话'})}><AnimatedGlyph icon={Sparkles} meaning="ai"/>AI 助手</Button><SemanticButton id="open-settings" icon={Settings} label="打开设置" meaning="settings" onClick={() => showSettings()} /></div></footer>
   </aside>
   function tree(parentID:string,depth:number):ReactNode {
     if(depth>=5) return null
