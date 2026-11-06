@@ -2,7 +2,7 @@
 
 最后更新：2026-11-06（Asia/Singapore）。
 
-- 应用已接入用户提供的折页图标和黑白托盘。标签发布工作流配置为构建 Windows x64、macOS 通用包与 Linux x64，构建齐全后生成带校验和的预发布。
+- 应用已接入用户提供的折页图标和黑白托盘。标签发布工作流配置为构建 Windows x64、macOS 通用包与 Linux x64，构建齐全后生成带校验和的预发布。[v0.1.0-alpha.2](https://github.com/coolerks/Fealdhord/releases/tag/v0.1.0-alpha.2) 已作为预发布上传 Windows x64 ZIP、macOS 通用 ZIP、Linux x64 DEB 和 SHA256SUMS.txt。三份摘要与 GitHub 资产记录一致。首轮 Alpha 构建因修正托盘图标而取消。macOS 使用临时签名，三平台安装与启动未做实机验收。
 
 - 2026-11-06 侧栏收起时隐藏整列导航，内容延伸至窗口左边，侧栏按钮移至 macOS 原生窗口按钮旁。已在 macOS 开发窗口核对展开与收起布局，前端相关测试 18 项通过。实机出现偏好保存失败提示，跨重启持久化未验证。
 
