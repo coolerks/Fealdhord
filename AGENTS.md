@@ -67,6 +67,7 @@
 
 ## shadcn/ui 界面约束
 
-- 应用内新增或修改的交互控件必须使用 `frontend/src/components/ui/` 中的 shadcn/ui 组件。下拉选择使用 `Select`，布尔设置使用 `Switch`，多选及确认选项使用 `Checkbox`，输入使用 `Input` 或 `Textarea`。禁止在业务组件中直接渲染带系统默认外观的 `select`、复选框、单选框等表单控件。
+- 应用内新增或修改的交互控件必须使用 `frontend/src/components/ui/` 中的 shadcn/ui 组件。单选和多选下拉框统一使用 `SearchableSelect`，布尔设置使用 `Switch`，多选及确认选项使用 `Checkbox`，输入使用 `Input` 或 `Textarea`。禁止在业务组件中直接渲染带系统默认外观的 `select`、复选框、单选框等表单控件。
+- 所有下拉选择都必须支持输入文字模糊搜索。至少匹配选项名称，模型等同时匹配 ID 和适用的别名。展开后聚焦搜索框，支持键盘选择、Escape 关闭和无匹配提示。
 - 缺少对应组件时，按 `frontend/components.json` 选用同一风格的官方组件并集中放到 `components/ui`，沿用语义颜色和项目图标；业务代码复用组件，不局部复刻控件样式。文件选择、系统菜单等明确需要桌面原生行为的能力继续使用既有平台接口。
 - 提交前检查可访问名称、键盘操作和禁用态。主题及视觉状态由共享组件负责，避免同类控件在不同页面出现不同外观。

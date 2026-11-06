@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { FetchModels } from '../../../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/api'
 import type { Provider } from '../../../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/models'
 
@@ -31,20 +31,17 @@ export function ModelCatalogField({ provider, value, excluded, disabled, onSelec
   return <Field>
     <FieldLabel htmlFor="ai-model-catalog">服务模型</FieldLabel>
     <div className="flex flex-wrap gap-2">
-      <Select value={items.some(item => item.id === value) ? value : ''} disabled={disabled || !items.length}
+      <SearchableSelect id="ai-model-catalog" label="服务模型" className="max-w-full"
+        value={value} disabled={disabled || !items.length}
+        placeholder={catalog.isFetching ? '正在获取模型…' : '从服务选择模型'}
+        options={items.map(item => ({
+          value: item.id,
+          label: item.displayName && item.displayName !== item.id ? `${item.displayName} · ${item.id}` : item.id,
+        }))}
         onValueChange={id => {
           const item = items.find(entry => entry.id === id)
           if (item) onSelect(item.id, item.displayName)
-        }}>
-        <SelectTrigger id="ai-model-catalog" className="min-w-0 max-w-full">
-          <SelectValue placeholder={catalog.isFetching ? '正在获取模型…' : '从服务选择模型'} />
-        </SelectTrigger>
-        <SelectContent position="popper"><SelectGroup>
-          {items.map(item => <SelectItem key={item.id} value={item.id}>
-            {item.displayName && item.displayName !== item.id ? `${item.displayName} · ${item.id}` : item.id}
-          </SelectItem>)}
-        </SelectGroup></SelectContent>
-      </Select>
+        }} />
       <Button type="button" size="sm" variant="outline" disabled={disabled || catalog.isFetching} onClick={() => void catalog.refetch()}>刷新列表</Button>
     </div>
     {catalog.isError && <p role="status" className="text-muted-foreground">

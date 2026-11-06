@@ -65,4 +65,4 @@ transferAPI 是唯一文件调用边界，Go空items归一为数组；组件不�
 
 ## shadcn/ui 表单控件
 
-业务表单从 `@/components/ui` 导入 Select、Switch、Checkbox、Input 和 Textarea。SelectTrigger 持有标签关联 ID，选项放在 SelectGroup 内；清空或回到顶层使用独立非空选项值，在提交给业务层前映射为原有空字符串。服务与模型启用使用 Switch，清除密钥和选择导入项使用 Checkbox，确保显示状态、可访问名称与实际保存值一致。新增组件沿用 radix-nova 注册表及 AnimatedGlyph。系统文件对话框等原生能力按 AGENTS.md 的例外处理。
+业务表单从 `@/components/ui` 导入 SearchableSelect、Switch、Checkbox、Input 和 Textarea。SearchableSelect 支持单选与多选，使用可访问名称关联搜索框，按选项名称和可选别名进行模糊搜索。展开后焦点进入搜索框，键盘可选择和关闭；清空或回到顶层使用独立非空选项值，在提交给业务层前映射为原有空字符串。服务与模型启用使用 Switch，清除密钥和选择导入项使用 Checkbox，确保显示状态、可访问名称与实际保存值一致。新增组件沿用 radix-nova 注册表及 AnimatedGlyph。系统文件对话框等原生能力按 AGENTS.md 的例外处理。

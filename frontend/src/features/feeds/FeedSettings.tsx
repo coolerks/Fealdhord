@@ -6,7 +6,7 @@ import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { rssAPI, feedsQueryKey } from '@/lib/rss-api'
 import type { Candidate, Feed, UpdateRequest } from '@/lib/rss-api'
@@ -18,7 +18,10 @@ import type { CategorySummary } from '../../../bindings/github.com/coolerks/Feal
 
 function Categories({items, value, onChange, disabled}:{items:CategorySummary[];value:string[];onChange:(ids:string[])=>void;disabled:boolean}) {
   if(!items.length) return null
-  return <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="outline" disabled={disabled}>默认分类{value.length ? ` · ${value.length}` : ''}</Button></DropdownMenuTrigger><DropdownMenuContent><DropdownMenuGroup>{items.map(item=><DropdownMenuCheckboxItem key={item.id} checked={value.includes(item.id)} onSelect={event=>event.preventDefault()} onCheckedChange={checked=>onChange(checked ? [...value.filter(id=>id!==item.id),item.id] : value.filter(id=>id!==item.id))}>{item.name}</DropdownMenuCheckboxItem>)}</DropdownMenuGroup></DropdownMenuContent></DropdownMenu>
+  return <SearchableSelect label="默认分类" disabled={disabled} value={value}
+    placeholder={value.length ? `默认分类 · ${value.length}` : '默认分类'}
+    options={items.map(item => ({ value: item.id, label: item.name }))}
+    onValueChange={id => onChange(value.includes(id) ? value.filter(item => item !== id) : [...value, id])} />
 }
 export function FeedSettings() {
   const client=useQueryClient()

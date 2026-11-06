@@ -1,7 +1,7 @@
 import { ModelCatalogField } from './ModelCatalogField'
 import { invalidateRSS } from '@/lib/refresh'
 import { ArticleAISettings } from '@/features/article-ai/ArticleAISettings'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { useEffect, useRef, useState } from 'react'
@@ -125,10 +125,9 @@ export function AISettings() {
         }).catch(error => setProviderError(configError(error))).finally(() => setSavingProvider(false))
       }}>
         <Field><FieldLabel htmlFor="ai-provider-name">服务名称</FieldLabel><Input id="ai-provider-name" required value={provider.name} onChange={event => setProvider({ ...provider, name: event.target.value })} /></Field>
-        <Field><FieldLabel htmlFor="ai-protocol">API 类型</FieldLabel><Select value={provider.protocol} disabled={busy} onValueChange={protocol => setProvider({ ...provider, protocol })}>
-          <SelectTrigger id="ai-protocol" className="w-full"><SelectValue /></SelectTrigger>
-          <SelectContent position="popper"><SelectGroup>{protocols.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}</SelectGroup></SelectContent>
-        </Select></Field>
+        <Field><FieldLabel htmlFor="ai-protocol">API 类型</FieldLabel><SearchableSelect id="ai-protocol" label="API 类型" className="w-full" value={provider.protocol} disabled={busy}
+          onValueChange={protocol => setProvider({ ...provider, protocol })}
+          options={protocols.map(([value, label]) => ({ value, label }))} /></Field>
         <Field><FieldLabel htmlFor="ai-base-url">Base URL</FieldLabel><Input id="ai-base-url" type="url" required placeholder="https://api.example.com/v1" value={provider.baseUrl} onChange={event => setProvider({ ...provider, baseUrl: event.target.value })} /></Field>
         <Field><FieldLabel htmlFor="ai-key">API 密钥</FieldLabel><Input id="ai-key" type="password" autoComplete="off" disabled={clearKey} placeholder={provider.hasCredential ? '已保存' : undefined} value={key} onChange={event => setKey(event.target.value)} /></Field>
         {provider.hasCredential && <Field orientation="horizontal"><Checkbox id="ai-clear-key" checked={clearKey} disabled={busy} onCheckedChange={value => setClearKey(value === true)} /><FieldLabel htmlFor="ai-clear-key">清除已保存的密钥</FieldLabel></Field>}
@@ -191,16 +190,19 @@ export function AISettings() {
         const inactive = selected && !activeModels.some(item => item.id === selected)
         return <Field key={task} orientation="horizontal">
           <FieldLabel htmlFor={`ai-task-${task}`}>{label}</FieldLabel>
-          <Select disabled={busy} value={selected || 'unassigned'} onValueChange={value => {
-            mutation.mutate(() => api.Assign(task, value === 'unassigned' ? '' : value))
-          }}>
-            <SelectTrigger id={`ai-task-${task}`} className="min-w-0 max-w-[65%]"><SelectValue /></SelectTrigger>
-            <SelectContent position="popper"><SelectGroup>
-              <SelectItem value="unassigned">未分配</SelectItem>
-              {inactive && <SelectItem value={selected} disabled>{models.find(item => item.id === selected)?.displayName ?? '模型'}（已停用）</SelectItem>}
-              {activeModels.map(item => <SelectItem value={item.id} key={item.id}>{item.displayName} · {providers.find(service => service.id === item.providerId)?.name}</SelectItem>)}
-            </SelectGroup></SelectContent>
-          </Select>
+          <SearchableSelect id={`ai-task-${task}`} label={label} className="max-w-[65%]" disabled={busy}
+            value={selected || 'unassigned'} onValueChange={value => {
+              mutation.mutate(() => api.Assign(task, value === 'unassigned' ? '' : value))
+            }}
+            options={[
+              { value: 'unassigned', label: '未分配' },
+              ...(inactive ? [{ value: selected, label: `${models.find(item => item.id === selected)?.displayName ?? '模型'}（已停用）`, disabled: true }] : []),
+              ...activeModels.map(item => ({
+                value: item.id,
+                label: `${item.displayName} · ${providers.find(service => service.id === item.providerId)?.name ?? ''}`,
+                keywords: [item.name],
+              })),
+            ]} />
         </Field>
       })}
     </section>

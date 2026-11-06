@@ -1,4 +1,4 @@
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
@@ -28,13 +28,14 @@ export function CategoryManager(){
   {query.isSuccess && !query.data.categories?.length && <p>暂无分类</p>}
   <Dialog open={Boolean(draft)} onOpenChange={open=>{if(!open&&!busy)setDraft(null)}}><DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>{draft?.id?'编辑分类':'新建分类'}</DialogTitle></DialogHeader>{draft && <form className="feed-form" onSubmit={event=>{event.preventDefault();action.mutate(async()=>{await navigationAPI.save(draft);setDraft(null)})}}><FieldGroup>
    <Field><FieldLabel htmlFor="category-name">名称</FieldLabel><Input id="category-name" required maxLength={256} disabled={busy} value={draft.name} onChange={event=>setDraft({...draft,name:event.target.value})}/></Field>
-   <Field><FieldLabel htmlFor="category-parent">上级分类</FieldLabel><Select disabled={busy} value={draft.parent_id || 'root-category'} onValueChange={value => setDraft({...draft,parent_id:value === 'root-category' ? '' : value})}>
-     <SelectTrigger id="category-parent" className="w-full"><SelectValue /></SelectTrigger>
-     <SelectContent position="popper"><SelectGroup>
-       <SelectItem value="root-category">无上级</SelectItem>
-       {query.data?.categories?.filter(item=>item.id!==draft.id).map(item=><SelectItem key={item.id} value={item.id}>{categoryPath(item,query.data?.categories ?? [])}</SelectItem>)}
-     </SelectGroup></SelectContent>
-   </Select></Field>
+   <Field><FieldLabel htmlFor="category-parent">上级分类</FieldLabel><SearchableSelect id="category-parent" label="上级分类" className="w-full" disabled={busy}
+     value={draft.parent_id || 'root-category'} onValueChange={value => setDraft({...draft,parent_id:value === 'root-category' ? '' : value})}
+     options={[
+       { value: 'root-category', label: '无上级' },
+       ...(query.data?.categories ?? []).filter(item => item.id !== draft.id).map(item => ({
+         value: item.id, label: categoryPath(item, query.data?.categories ?? []),
+       })),
+     ]} /></Field>
    <Field><FieldLabel id="category-icon-label">图标</FieldLabel><ToggleGroup type="single" variant="outline" disabled={busy} value={draft.icon||'folder'} aria-labelledby="category-icon-label" onValueChange={value=>{if(value)setDraft({...draft,icon:value})}}>{categoryIcons.map(icon=><ToggleGroupItem key={icon} value={icon} aria-label={{folder:'文件夹',book:'图书','radio-tower':'订阅',favorite:'星标',ai:'星光'}[icon]}><AnimatedGlyph meaning={icon}/></ToggleGroupItem>)}</ToggleGroup></Field>
    <Field><FieldLabel htmlFor="category-color">颜色</FieldLabel><div className="feed-actions"><Input id="category-color" type="color" disabled={busy} value={draft.color||'#808080'} onChange={event=>setDraft({...draft,color:event.target.value})}/><Button type="button" disabled={busy} variant="ghost" onClick={()=>setDraft({...draft,color:''})}>使用默认颜色</Button></div></Field>
    <Field><FieldLabel htmlFor="category-description">描述</FieldLabel><Input id="category-description" disabled={busy} maxLength={2048} value={draft.description} onChange={event=>setDraft({...draft,description:event.target.value})}/></Field>

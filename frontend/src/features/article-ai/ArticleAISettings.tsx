@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { libraryAPI } from '@/lib/library-api'
@@ -132,23 +132,17 @@ export function ArticleAISettings() {
     {!showSamples ? <div><Button size="sm" variant="outline" onClick={() => setShowSamples(true)}>试跑一篇文章</Button></div> : <FieldGroup>
       <Field>
         <FieldLabel htmlFor="article-ai-sample">近期样本</FieldLabel>
-        <Select value={sample} onValueChange={value => { setSample(value); setResult(undefined); setError('') }} disabled={busy || !samples.data?.items.length}>
-          <SelectTrigger id="article-ai-sample" className="w-full"><SelectValue placeholder="选择文章" /></SelectTrigger>
-          <SelectContent position="popper"><SelectGroup>
-            {samples.data?.items.map(article => <SelectItem key={article.id} value={article.id}>{article.title || '无标题'}</SelectItem>)}
-          </SelectGroup></SelectContent>
-        </Select>
+        <SearchableSelect id="article-ai-sample" label="近期样本" className="w-full" placeholder="选择文章"
+          value={sample} onValueChange={value => { setSample(value); setResult(undefined); setError('') }}
+          disabled={busy || !samples.data?.items.length}
+          options={(samples.data?.items ?? []).map(article => ({ value: article.id, label: article.title || '无标题' }))} />
       </Field>
       {samples.isError && <Button variant="ghost" onClick={() => void samples.refetch()}>重新读取样本</Button>}
       <Field>
         <FieldLabel htmlFor="article-ai-task">评估用途</FieldLabel>
-        <Select value={task} onValueChange={value => { setTask(value); setResult(undefined); setError('') }} disabled={busy}>
-          <SelectTrigger id="article-ai-task"><SelectValue /></SelectTrigger>
-          <SelectContent position="popper"><SelectGroup>
-            <SelectItem value="classification">分类</SelectItem>
-            <SelectItem value="featured">精选</SelectItem>
-          </SelectGroup></SelectContent>
-        </Select>
+        <SearchableSelect id="article-ai-task" label="评估用途" value={task} disabled={busy}
+          onValueChange={value => { setTask(value); setResult(undefined); setError('') }}
+          options={[{ value: 'classification', label: '分类' }, { value: 'featured', label: '精选' }]} />
       </Field>
       <p className="text-muted-foreground">试跑使用已保存设置，发送同样的文章资料，不修改分类或精选。</p>
       <div className="flex flex-wrap gap-2">

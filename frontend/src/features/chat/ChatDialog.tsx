@@ -1,4 +1,4 @@
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { useLayoutEffect, useRef, useState } from 'react'
@@ -125,13 +125,12 @@ function ChatSession({ target, close }: { target: NonNullable<ReturnType<typeof 
       <span className="min-w-0 truncate" title={target.label}>{target.label}</span>
       {model.data ? <span className="text-muted-foreground">{model.data.displayName}</span> : model.isError &&
         <Button size="sm" variant="outline" onClick={() => { close(); useWorkspace.getState().showSettings('ai') }}>配置聊天模型</Button>}
-      <Select value={conversationId || 'new-conversation'} onValueChange={value => choose(value === 'new-conversation' ? '' : value)} disabled={send.isPending}>
-        <SelectTrigger aria-label="对话历史" className="min-w-0 max-w-full"><SelectValue /></SelectTrigger>
-        <SelectContent position="popper"><SelectGroup>
-          <SelectItem value="new-conversation">新对话</SelectItem>
-          {history.data?.map(item => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}
-        </SelectGroup></SelectContent>
-      </Select>
+      <SearchableSelect label="对话历史" className="max-w-full" value={conversationId || 'new-conversation'}
+        onValueChange={value => choose(value === 'new-conversation' ? '' : value)} disabled={send.isPending}
+        options={[
+          { value: 'new-conversation', label: '新对话' },
+          ...(history.data ?? []).map(item => ({ value: item.id, label: item.title })),
+        ]} />
       {history.isError && <Button size="sm" variant="ghost" onClick={() => void history.refetch()}>重新读取历史</Button>}
     </div>
     <div className="h-[min(40vh,400px)] min-h-20 space-y-3 overflow-y-auto" ref={timeline} aria-label="对话消息" onScroll={event => {
