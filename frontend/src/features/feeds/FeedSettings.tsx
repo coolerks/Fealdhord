@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { SearchableSelect } from '@/components/ui/searchable-select'
-import { FeedIconField } from './FeedIcon'
+import { FeedIcon, FeedIconField } from './FeedIcon'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { rssAPI, feedsQueryKey } from '@/lib/rss-api'
 import type { Candidate, Feed, UpdateRequest } from '@/lib/rss-api'
@@ -76,7 +76,12 @@ export function FeedSettings() {
     {query.isError && <div role="alert">订阅载入失败<Button variant="ghost" onClick={()=>{void query.refetch()}}>重试</Button></div>}
     {query.isSuccess && !(query.data.items ?? []).some(feed=>archived || !feed.archived) && <p>暂无订阅</p>}
     <ul className="feed-list">{(query.data?.items ?? []).filter(feed=>archived || !feed.archived).map(feed=><li key={feed.id}>
-      <div className="feed-details"><strong>{feed.title}</strong>{feed.archived && <span>已归档</span>}<small>{feed.url}</small>{feed.last_error && <p>{feed.last_error}{feed.next_check_at && ` · 下次尝试 ${new Date(feed.next_check_at).toLocaleString('zh-CN')}`}</p>}</div>
+      <div className="feed-details" data-animated-trigger>
+        <div className="flex min-w-0 items-center gap-2">
+          <FeedIcon data={allowIcons ? feed.icon_data : undefined}/>
+          <strong className="min-w-0 [overflow-wrap:anywhere]">{feed.title}</strong>
+        </div>
+        {feed.archived && <span>已归档</span>}<small>{feed.url}</small>{feed.last_error && <p>{feed.last_error}{feed.next_check_at && ` · 下次尝试 ${new Date(feed.next_check_at).toLocaleString('zh-CN')}`}</p>}</div>
       <div className="feed-actions">{feed.archived ? <Button size="sm" variant="outline" disabled={busy} onClick={()=>action.mutate(()=>rssAPI.restore({id:feed.id,revision:feed.revision}))}>恢复订阅</Button> : <>
         <Button size="sm" variant="ghost" disabled={busy || refreshPending} aria-label={`刷新 ${feed.title}`} onClick={()=>{void startRefresh(client,[feed.id])}}><AnimatedGlyph meaning="refresh"/>刷新</Button>
         <Button size="sm" variant="ghost" disabled={busy} aria-label={`编辑 ${feed.title}`} onClick={()=>{action.reset();setInitialCategories(feed.category_ids ?? []);setEditing({apply_existing:true,id:feed.id,revision:feed.revision,url:feed.url,title:feed.title,category_ids:feed.category_ids ?? []})}}>编辑</Button>
