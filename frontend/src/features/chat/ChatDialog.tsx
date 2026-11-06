@@ -42,6 +42,7 @@ const errorLabels: Record<string, string> = {
   ToolCallConflict: '模型重复使用了工具调用编号。',
   ResponseLimit: '回复超过长度限制，已保留部分内容。',
   IncompleteResponse: '服务提前结束，已保留部分内容。',
+  ProviderProtocolError: '服务返回的流式响应不完整或格式有误。',
   ValidationError: '请检查消息及附加内容的长度。',
 }
 

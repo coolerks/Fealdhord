@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -79,6 +80,36 @@ func TestChatStreamTerminalAndUsage(t *testing.T) {
 			if len(got) != 4 || got[0].Type != "message_start" || got[1].Text != "你好" ||
 				got[2].Usage == nil || *got[2].Usage.TotalTokens != 3 || got[3].Type != test.terminal {
 				t.Fatalf("流式事件不正确：%+v", got)
+			}
+		})
+	}
+}
+
+func TestChatStreamRepeatedFinishInUsageFrame(t *testing.T) {
+	for _, test := range []struct {
+		name, usageChoice string
+		wantError         bool
+	}{
+		{"用量帧", `{"index":0,"delta":{"content":"","role":"assistant"},"finish_reason":"stop"}`, false},
+		{"结束原因冲突", `{"index":0,"delta":{},"finish_reason":"length"}`, true},
+		{"结束后仍有正文", `{"index":0,"delta":{"content":"unexpected"},"finish_reason":"stop"}`, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			stream := "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"你好\"},\"finish_reason\":\"stop\"}]}\n\n" +
+				"data: {\"choices\":[" + test.usageChoice + "],\"usage\":{\"total_tokens\":3}}\n\ndata: [DONE]\n\n"
+			var events []ModelEvent
+			err := readChatStream(strings.NewReader(stream), nil, func(event ModelEvent) bool {
+				events = append(events, event)
+				return true
+			})
+			if test.wantError {
+				if err == nil || len(events) != 2 {
+					t.Fatalf("err = %v, events = %+v", err, events)
+				}
+				return
+			}
+			if err != nil || len(events) != 4 || events[2].Usage == nil || events[3].FinishReason != "stop" {
+				t.Fatalf("err = %v, events = %+v", err, events)
 			}
 		})
 	}

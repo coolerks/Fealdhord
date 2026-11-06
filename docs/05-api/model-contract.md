@@ -77,3 +77,5 @@ Responses 在配置的 API 基础路径追加 `responses`，用 `instructions` �
 Messages 追加 `messages`，使用 `x-api-key` 和 `anthropic-version: 2023-06-01`，缺省最大输出 4096 token。同角色连续消息合并，工具结果归入 user 块。流以块索引校验开始、增量和结束，消息用量按累计值覆盖，收到 `message_stop` 后输出最终用量。三种协议共用网络限制和错误映射。
 
 本轮测试覆盖两种新协议的本地 HTTP 路径、认证头、工具往返、文本与工具流、累计用量和缺失终态。尚待完整验收矩阵及真实模型验证。推理签名续传、服务端工具和协议私有状态仍待后续实现。
+
+Chat Completions 兼容 OpenRouter 的尾部用量统计帧。已收到结束原因后，单 choice 帧仅在索引为 0、结束原因一致、无正文或工具增量且包含 usage 时作为统计处理。仍以 `[DONE]` 确认流完整。 [OpenRouter 流式协议](https://openrouter.ai/docs/api_reference/streaming)

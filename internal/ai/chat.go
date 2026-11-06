@@ -343,8 +343,21 @@ func readChatStream(body io.Reader, offered map[string]bool, send func(ModelEven
 		}
 		if len(chunk.Choices) == 1 {
 			choice := chunk.Choices[0]
-			if choice.Index != 0 || finish != "" {
+			if choice.Index != 0 {
 				return false, protocolError()
+			}
+			if finish != "" {
+				// OpenRouter repeats the finish reason in its final usage frame.
+				// Accept accounting only; content and tool calls must already be complete.
+				usage := chunk.usage()
+				if usage == nil || choice.FinishReason != finish || choice.Delta.Content != "" ||
+					choice.Delta.Refusal != "" || len(choice.Delta.ToolCalls) != 0 {
+					return false, protocolError()
+				}
+				if !send(ModelEvent{Type: "usage", Usage: usage}) {
+					return false, context.Canceled
+				}
+				return false, nil
 			}
 			refused = refused || choice.Delta.Refusal != ""
 			if delta := choice.Delta.Content + choice.Delta.Refusal; delta != "" && !send(ModelEvent{Type: "text_delta", Text: delta}) {
