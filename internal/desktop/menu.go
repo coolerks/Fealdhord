@@ -14,6 +14,8 @@ const CommandEventName = "fealdhord:command"
 const (
 	defaultWidth  = 1000
 	defaultHeight = 640
+	macWidth      = 1240
+	macHeight     = 800
 	minWidth      = 640
 	minHeight     = 400
 )
@@ -23,8 +25,9 @@ type CommandEvent struct {
 }
 
 func WindowOptions() application.WebviewWindowOptions {
+	width, height := initialWindowSize()
 	options := application.WebviewWindowOptions{
-		Title: "折栈", Width: defaultWidth, Height: defaultHeight, MinWidth: minWidth, MinHeight: minHeight, URL: "/",
+		Title: "折栈", Width: width, Height: height, MinWidth: minWidth, MinHeight: minHeight, URL: "/",
 		Hidden: true, InitialPosition: application.WindowCentered,
 		Frameless:        runtime.GOOS == "windows",
 		BackgroundType:   application.BackgroundTypeTranslucent,
@@ -36,6 +39,13 @@ func WindowOptions() application.WebviewWindowOptions {
 		options.BackgroundColour = application.NewRGB(245, 245, 247)
 	}
 	return options
+}
+
+func initialWindowSize() (int, int) {
+	if runtime.GOOS == "darwin" {
+		return macWidth, macHeight
+	}
+	return defaultWidth, defaultHeight
 }
 
 // ShowMainWindow fits the window to the active display before its first paint.
@@ -50,11 +60,17 @@ func ShowMainWindow(app *application.App, window *application.WebviewWindow) {
 			if screen != nil {
 				area := screen.WorkArea
 				if area.Width > 0 && area.Height > 0 {
-					width := min(defaultWidth, area.Width*9/10)
-					height := min(defaultHeight, area.Height*9/10)
+					targetWidth, targetHeight := initialWindowSize()
+					width := min(targetWidth, area.Width*9/10)
+					height := min(targetHeight, area.Height*9/10)
 					window.SetMinSize(min(minWidth, width), min(minHeight, height))
 					window.SetSize(width, height)
-					window.SetPosition(area.X+(area.Width-width)/2, area.Y+(area.Height-height)/2)
+					if runtime.GOOS == "darwin" {
+						// AppKit centers in the selected screen's visible frame in points.
+						window.SetScreen(screen)
+					} else {
+						window.SetPosition(area.X+(area.Width-width)/2, area.Y+(area.Height-height)/2)
+					}
 				}
 			}
 			window.Show()
