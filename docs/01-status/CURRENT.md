@@ -2,7 +2,7 @@
 
 最后更新：2026-11-06（Asia/Singapore）。
 
-- Phase 5 的 Chat Completions 适配器已支持工具声明、指定工具、非流式工具调用、流式参数交错拼接和工具结果续轮。本地 HTTP 测试覆盖完整调用、缺失终态、未闭合参数和错误的结果引用。 Responses、Messages、Provider 设置和桌面 Chat 待实现。
+- Phase 5 已实现三种单轮模型适配器，支持文本、流式事件、用量与函数工具调用。本地 HTTP 测试覆盖 Responses 和 Messages 的协议字段、工具往返与断流。Provider 设置和桌面 Chat 尚未接线。
 
 - Windows 标题栏使用横线、方框和重叠方框，并同步窗口状态。输入框和文本域打开右键菜单时保留选区提示。订阅预览与阅读模式共用文章排版，代码高亮按需加载，语言标记通过受限的 HTML 清洗规则保留。
 
@@ -46,4 +46,4 @@
 
 Phase 4提交：c1a3960（查询）、a034025（分类）、47e695a（安全阅读）、af5589e（OPML）；6cf26d3修复macOS调试打包签名缓存。后续按路线图推进AI基础能力，尚未宣称实现。
 
-[Phase 5 AI 服务与基础 Chat](active/phase5-ai-chat.md)已建立任务与验收计划，处于规划阶段。
+[Phase 5 AI 服务与基础 Chat](active/phase5-ai-chat.md)正在实施。

@@ -43,7 +43,10 @@ func jsonObject(value string) bool {
 }
 
 func offeredChatTools(req *ModelRequest) map[string]bool {
-	names := make(map[string]bool, len(req.Tools))
+	names := make(map[string]bool)
+	if req == nil {
+		return nil
+	}
 	for _, tool := range req.Tools {
 		if req.ToolChoice.Mode != "none" && (req.ToolChoice.Mode != "function" || req.ToolChoice.Name == tool.Name) {
 			names[tool.Name] = true

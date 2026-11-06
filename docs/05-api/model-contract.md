@@ -2,7 +2,7 @@
 
 ## 1. 范围与触发条件
 
-三种 Protocol Adapter、Runtime 和 Chat 之间的稳定边界；完整契约仍在实施。当前代码位于 `internal/ai`，已实现 Chat Completions 单轮文本请求、SSE 文本事件、用量归一化和工具调用。
+三种 Protocol Adapter、Runtime 和 Chat 之间的稳定边界；完整契约仍在实施。当前代码位于 `internal/ai`，已实现 Chat Completions、Responses 与 Messages 的单轮文本请求、SSE、用量归一化和函数工具调用。
 
 ## 2. 签名
 
@@ -71,3 +71,9 @@ SSE 事件与工具参数有独立大小上限，UTF-8 和跨分包边界正确�
 Chat Completions 当前以配置的 API 基础路径追加 `chat/completions`，请求使用标准库 HTTP 并禁止重定向。响应上限为 8 MiB，单个 SSE 事件上限为 256 KiB，请求总时限为两分钟。已取消且无人继续消费的事件通道会直接关闭。
 
 Chat Completions 的流式调用以工具索引累积参数，单轮最多 128 项，单项参数最多 64 KiB。收到 `tool_calls` 结束原因和 `[DONE]`，且整批调用 ID、工具名和 JSON 对象均验证通过后，才发出各项 `tool_call_end`。调用方应等到 `message_end` 再进入 Runtime 的参数 Schema 校验和审批。续轮按 `assistant.tool_calls` 和对应的 `role=tool` 消息编码，缺失、重复或无对应调用的结果在发请求前拒绝。
+
+Responses 在配置的 API 基础路径追加 `responses`，用 `instructions` 传顶层提示，关闭服务端响应存储，使用本地历史传回函数调用与结果。工具片段按输出项 ID 归并，成功结束时与终态输出逐项核对。Responses 不支持 `stop`，在请求前返回 CapabilityError。
+
+Messages 追加 `messages`，使用 `x-api-key` 和 `anthropic-version: 2023-06-01`，缺省最大输出 4096 token。同角色连续消息合并，工具结果归入 user 块。流以块索引校验开始、增量和结束，消息用量按累计值覆盖，收到 `message_stop` 后输出最终用量。三种协议共用网络限制和错误映射。
+
+本轮测试覆盖两种新协议的本地 HTTP 路径、认证头、工具往返、文本与工具流、累计用量和缺失终态。尚待完整验收矩阵及真实模型验证。推理签名续传、服务端工具和协议私有状态仍待后续实现。

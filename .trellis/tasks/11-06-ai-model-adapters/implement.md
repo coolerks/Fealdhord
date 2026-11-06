@@ -13,3 +13,7 @@ Phase 5 已接入 Chat Completions 的单轮文本适配器，支持非流式响
 Chat Completions 适配器已支持工具声明、指定工具、非流式工具调用、流式参数交错拼接和工具结果续轮。本地 HTTP 测试覆盖完整调用、缺失终态、未闭合参数和错误的结果引用。 适配器不执行工具。
 
 下一步分别实现 Responses 和 Messages。
+
+## Responses 与 Messages
+
+已实现两种原生请求、非流式归一化、工具结果续轮、SSE 文本和参数增量及终态校验。新增本地 HTTP 测试验证路径、认证头、工具结构、用量与 EOF。AI 包 race 与 vet 通过。完整 MODEL-01 矩阵及真实服务联调仍待执行。

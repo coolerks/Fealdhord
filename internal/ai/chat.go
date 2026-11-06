@@ -21,7 +21,9 @@ const (
 	modelTimeout     = 2 * time.Minute
 )
 
-type ChatCompletions struct {
+type ChatCompletions struct{ *modelClient }
+
+type modelClient struct {
 	endpoint string
 	apiKey   string
 	client   http.Client
@@ -31,6 +33,14 @@ var _ Model = (*ChatCompletions)(nil)
 
 // NewChatCompletions accepts the configured API base, including any version prefix.
 func NewChatCompletions(baseURL, apiKey string, client *http.Client) (*ChatCompletions, error) {
+	transport, err := newModelClient(baseURL, apiKey, "chat/completions", client)
+	if err != nil {
+		return nil, err
+	}
+	return &ChatCompletions{transport}, nil
+}
+
+func newModelClient(baseURL, apiKey, path string, client *http.Client) (*modelClient, error) {
 	base, err := url.Parse(baseURL)
 	if err != nil || base.Hostname() == "" || (base.Scheme != "http" && base.Scheme != "https") ||
 		base.User != nil || base.Fragment != "" || strings.ContainsAny(apiKey, "\r\n") {
@@ -39,8 +49,8 @@ func NewChatCompletions(baseURL, apiKey string, client *http.Client) (*ChatCompl
 	if client == nil {
 		client = http.DefaultClient
 	}
-	return &ChatCompletions{
-		endpoint: base.JoinPath("chat/completions").String(),
+	return &modelClient{
+		endpoint: base.JoinPath(path).String(),
 		apiKey:   apiKey,
 		client: http.Client{
 			Transport: client.Transport,
@@ -109,6 +119,10 @@ func (c *ChatCompletions) request(ctx context.Context, req *ModelRequest, stream
 	if err := encodeChatHistory(&payload, req); err != nil {
 		return nil, err
 	}
+	return c.post(ctx, payload, false)
+}
+
+func (c *modelClient) post(ctx context.Context, payload any, anthropic bool) (*http.Response, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, &ModelError{Code: "ValidationError"}
@@ -118,7 +132,10 @@ func (c *ChatCompletions) request(ctx context.Context, req *ModelRequest, stream
 		return nil, &ModelError{Code: "ValidationError"}
 	}
 	request.Header.Set("Content-Type", "application/json")
-	if c.apiKey != "" {
+	if anthropic {
+		request.Header.Set("anthropic-version", "2023-06-01")
+		request.Header.Set("x-api-key", c.apiKey)
+	} else if c.apiKey != "" {
 		request.Header.Set("Authorization", "Bearer "+c.apiKey)
 	}
 	response, err := c.client.Do(request)
@@ -219,8 +236,17 @@ func chatFinish(reason string, refused bool, calls int) (string, error) {
 }
 
 func (c *ChatCompletions) Stream(ctx context.Context, req *ModelRequest) (<-chan ModelEvent, error) {
+	offered := offeredChatTools(req)
+	return modelStream(ctx, func(ctx context.Context) (*http.Response, error) {
+		return c.request(ctx, req, true)
+	}, func(body io.Reader, send func(ModelEvent) bool) error {
+		return readChatStream(body, offered, send)
+	})
+}
+
+func modelStream(ctx context.Context, open func(context.Context) (*http.Response, error), read func(io.Reader, func(ModelEvent) bool) error) (<-chan ModelEvent, error) {
 	streamContext, cancel := context.WithTimeout(ctx, modelTimeout)
-	response, err := c.request(streamContext, req, true)
+	response, err := open(streamContext)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -232,7 +258,6 @@ func (c *ChatCompletions) Stream(ctx context.Context, req *ModelRequest) (<-chan
 		return nil, protocolError()
 	}
 
-	offered := offeredChatTools(req)
 	events := make(chan ModelEvent, 1)
 	go func() {
 		defer close(events)
@@ -256,7 +281,7 @@ func (c *ChatCompletions) Stream(ctx context.Context, req *ModelRequest) (<-chan
 				return false
 			}
 		}
-		if err := readChatStream(response.Body, offered, send); err != nil {
+		if err := read(response.Body, send); err != nil {
 			if streamContext.Err() != nil {
 				err = modelIOError(streamContext.Err(), "ProviderProtocolError")
 			}
@@ -267,10 +292,6 @@ func (c *ChatCompletions) Stream(ctx context.Context, req *ModelRequest) (<-chan
 }
 
 func readChatStream(body io.Reader, offered map[string]bool, send func(ModelEvent) bool) error {
-	const maxEventBytes = 256 << 10
-	scanner := bufio.NewScanner(io.LimitReader(body, maxResponseBytes))
-	scanner.Buffer(make([]byte, 4096), maxEventBytes)
-	var data strings.Builder
 	var finish string
 	var refused bool
 	calls := make(map[int]*pendingChatCall)
@@ -278,6 +299,68 @@ func readChatStream(body io.Reader, offered map[string]bool, send func(ModelEven
 		return context.Canceled
 	}
 
+	return readModelSSE(body, func(payload string) (bool, error) {
+		if payload == "[DONE]" {
+			if finish == "" {
+				return false, protocolError()
+			}
+			reason, err := chatFinish(finish, refused, len(calls))
+			if err != nil {
+				return false, err
+			}
+			// Validate the whole batch before emitting any completed call.
+			completed := make([]chatToolCall, len(calls))
+			for index, call := range calls {
+				if index >= len(completed) {
+					return false, protocolError()
+				}
+				completed[index] = call.wire
+				completed[index].Function.Arguments = call.arguments.String()
+			}
+			normalized, err := completeChatCalls(completed, offered)
+			if err != nil {
+				return false, err
+			}
+			for _, call := range normalized {
+				if !send(ModelEvent{Type: "tool_call_end", CallID: call.ID, ToolName: call.Name, ToolCall: &call}) {
+					return false, context.Canceled
+				}
+			}
+			send(ModelEvent{Type: "message_end", FinishReason: reason})
+			return true, nil
+		}
+		var chunk chatResponse
+		if json.Unmarshal([]byte(payload), &chunk) != nil || hasChatError(chunk) || len(chunk.Choices) > 1 {
+			return false, protocolError()
+		}
+		if len(chunk.Choices) == 1 {
+			choice := chunk.Choices[0]
+			if choice.Index != 0 || finish != "" {
+				return false, protocolError()
+			}
+			refused = refused || choice.Delta.Refusal != ""
+			if delta := choice.Delta.Content + choice.Delta.Refusal; delta != "" && !send(ModelEvent{Type: "text_delta", Text: delta}) {
+				return false, context.Canceled
+			}
+			for _, delta := range choice.Delta.ToolCalls {
+				if err := appendChatToolDelta(calls, delta, offered, send); err != nil {
+					return false, err
+				}
+			}
+			finish = choice.FinishReason
+		}
+		if usage := chunk.usage(); usage != nil && !send(ModelEvent{Type: "usage", Usage: usage}) {
+			return false, context.Canceled
+		}
+		return false, nil
+	})
+}
+
+func readModelSSE(body io.Reader, handle func(string) (bool, error)) error {
+	const maxEventBytes = 256 << 10
+	scanner := bufio.NewScanner(io.LimitReader(body, maxResponseBytes))
+	scanner.Buffer(make([]byte, 4096), maxEventBytes)
+	var data strings.Builder
 	for scanner.Scan() {
 		line := scanner.Text()
 		if value, ok := strings.CutPrefix(line, "data:"); ok {
@@ -295,57 +378,9 @@ func readChatStream(body io.Reader, offered map[string]bool, send func(ModelEven
 		}
 		payload := data.String()
 		data.Reset()
-		if payload == "[DONE]" {
-			if finish == "" {
-				return protocolError()
-			}
-			reason, err := chatFinish(finish, refused, len(calls))
-			if err != nil {
-				return err
-			}
-			// Validate the whole batch before emitting any completed call.
-			completed := make([]chatToolCall, len(calls))
-			for index, call := range calls {
-				if index >= len(completed) {
-					return protocolError()
-				}
-				completed[index] = call.wire
-				completed[index].Function.Arguments = call.arguments.String()
-			}
-			normalized, err := completeChatCalls(completed, offered)
-			if err != nil {
-				return err
-			}
-			for _, call := range normalized {
-				if !send(ModelEvent{Type: "tool_call_end", CallID: call.ID, ToolName: call.Name, ToolCall: &call}) {
-					return context.Canceled
-				}
-			}
-			send(ModelEvent{Type: "message_end", FinishReason: reason})
-			return nil
-		}
-		var chunk chatResponse
-		if json.Unmarshal([]byte(payload), &chunk) != nil || hasChatError(chunk) || len(chunk.Choices) > 1 {
-			return protocolError()
-		}
-		if len(chunk.Choices) == 1 {
-			choice := chunk.Choices[0]
-			if choice.Index != 0 || finish != "" {
-				return protocolError()
-			}
-			refused = refused || choice.Delta.Refusal != ""
-			if delta := choice.Delta.Content + choice.Delta.Refusal; delta != "" && !send(ModelEvent{Type: "text_delta", Text: delta}) {
-				return context.Canceled
-			}
-			for _, delta := range choice.Delta.ToolCalls {
-				if err := appendChatToolDelta(calls, delta, offered, send); err != nil {
-					return err
-				}
-			}
-			finish = choice.FinishReason
-		}
-		if usage := chunk.usage(); usage != nil && !send(ModelEvent{Type: "usage", Usage: usage}) {
-			return context.Canceled
+		done, err := handle(payload)
+		if done || err != nil {
+			return err
 		}
 	}
 	return modelIOError(scanner.Err(), "ProviderProtocolError")
