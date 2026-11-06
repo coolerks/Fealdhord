@@ -239,6 +239,8 @@ html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion
 .animated-glyph>div,.animated-glyph>.icon-still { display:contents; }
 .animated-glyph svg { width:20px;height:20px;stroke-width:1.7; }
 .animated-glyph svg { transition:none; }
+.model-catalog-refresh .animated-glyph,
+.model-catalog-refresh .animated-glyph svg { width:10px;height:10px; }
 .semantic-button:active { background:var(--accent); }
 .shortcut-list { display:grid;grid-template-columns:1fr auto;gap:16px;font-size:13px;margin:12px 0; }
 .shortcut-list dd { color:var(--muted-foreground);margin:0; }
