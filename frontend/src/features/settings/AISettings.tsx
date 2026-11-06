@@ -1,3 +1,6 @@
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
@@ -116,11 +119,14 @@ export function AISettings() {
         }).catch(error => setProviderError(configError(error))).finally(() => setSavingProvider(false))
       }}>
         <Field><FieldLabel htmlFor="ai-provider-name">服务名称</FieldLabel><Input id="ai-provider-name" required value={provider.name} onChange={event => setProvider({ ...provider, name: event.target.value })} /></Field>
-        <Field><FieldLabel htmlFor="ai-protocol">API 类型</FieldLabel><select id="ai-protocol" value={provider.protocol} onChange={event => setProvider({ ...provider, protocol: event.target.value })}>{protocols.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></Field>
+        <Field><FieldLabel htmlFor="ai-protocol">API 类型</FieldLabel><Select value={provider.protocol} disabled={busy} onValueChange={protocol => setProvider({ ...provider, protocol })}>
+          <SelectTrigger id="ai-protocol" className="w-full"><SelectValue /></SelectTrigger>
+          <SelectContent position="popper"><SelectGroup>{protocols.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}</SelectGroup></SelectContent>
+        </Select></Field>
         <Field><FieldLabel htmlFor="ai-base-url">Base URL</FieldLabel><Input id="ai-base-url" type="url" required placeholder="https://api.example.com/v1" value={provider.baseUrl} onChange={event => setProvider({ ...provider, baseUrl: event.target.value })} /></Field>
         <Field><FieldLabel htmlFor="ai-key">API 密钥</FieldLabel><Input id="ai-key" type="password" autoComplete="off" disabled={clearKey} placeholder={provider.hasCredential ? '已保存' : undefined} value={key} onChange={event => setKey(event.target.value)} /></Field>
-        {provider.hasCredential && <label className="flex gap-2"><input type="checkbox" checked={clearKey} onChange={event => setClearKey(event.target.checked)} />清除已保存的密钥</label>}
-        <label className="flex gap-2"><input type="checkbox" checked={provider.enabled} onChange={event => setProvider({ ...provider, enabled: event.target.checked })} />启用服务</label>
+        {provider.hasCredential && <Field orientation="horizontal"><Checkbox id="ai-clear-key" checked={clearKey} disabled={busy} onCheckedChange={value => setClearKey(value === true)} /><FieldLabel htmlFor="ai-clear-key">清除已保存的密钥</FieldLabel></Field>}
+        <Field orientation="horizontal"><Switch id="ai-provider-enabled" checked={provider.enabled} disabled={busy} onCheckedChange={enabled => setProvider({ ...provider, enabled })} /><FieldLabel htmlFor="ai-provider-enabled">启用服务</FieldLabel></Field>
         {providerError && <p role="alert">{providerError}</p>}
         <div className="flex gap-2"><Button size="sm" type="submit" disabled={busy}>保存服务</Button><Button size="sm" type="button" variant="ghost" disabled={busy} onClick={() => editProvider(null)}>取消</Button></div>
       </form>}
@@ -164,7 +170,7 @@ export function AISettings() {
       }}>
         <Field><FieldLabel htmlFor="ai-model-id">模型 ID</FieldLabel><Input id="ai-model-id" required value={model.name} onChange={event => setModel({ ...model, name: event.target.value })} /></Field>
         <Field><FieldLabel htmlFor="ai-model-display">显示名称</FieldLabel><Input id="ai-model-display" value={model.displayName} onChange={event => setModel({ ...model, displayName: event.target.value })} /></Field>
-        <label className="flex gap-2"><input type="checkbox" checked={model.enabled} onChange={event => setModel({ ...model, enabled: event.target.checked })} />启用模型</label>
+        <Field orientation="horizontal"><Switch id="ai-model-enabled" checked={model.enabled} disabled={busy} onCheckedChange={enabled => setModel({ ...model, enabled })} /><FieldLabel htmlFor="ai-model-enabled">启用模型</FieldLabel></Field>
         <div className="flex gap-2"><Button size="sm" type="submit" disabled={busy}>保存模型</Button><Button size="sm" type="button" variant="ghost" disabled={busy} onClick={() => setModel(null)}>取消</Button></div>
       </form>}
     </section>
@@ -176,14 +182,16 @@ export function AISettings() {
         const inactive = selected && !activeModels.some(item => item.id === selected)
         return <Field key={task} orientation="horizontal">
           <FieldLabel htmlFor={`ai-task-${task}`}>{label}</FieldLabel>
-          <select id={`ai-task-${task}`} disabled={busy} value={selected} onChange={event => {
-            const value = event.target.value
-            mutation.mutate(() => api.Assign(task, value))
+          <Select disabled={busy} value={selected || 'unassigned'} onValueChange={value => {
+            mutation.mutate(() => api.Assign(task, value === 'unassigned' ? '' : value))
           }}>
-            <option value="">未分配</option>
-            {inactive && <option value={selected} disabled>{models.find(item => item.id === selected)?.displayName ?? '模型'}（已停用）</option>}
-            {activeModels.map(item => <option value={item.id} key={item.id}>{item.displayName} · {providers.find(service => service.id === item.providerId)?.name}</option>)}
-          </select>
+            <SelectTrigger id={`ai-task-${task}`} className="min-w-0 max-w-[65%]"><SelectValue /></SelectTrigger>
+            <SelectContent position="popper"><SelectGroup>
+              <SelectItem value="unassigned">未分配</SelectItem>
+              {inactive && <SelectItem value={selected} disabled>{models.find(item => item.id === selected)?.displayName ?? '模型'}（已停用）</SelectItem>}
+              {activeModels.map(item => <SelectItem value={item.id} key={item.id}>{item.displayName} · {providers.find(service => service.id === item.providerId)?.name}</SelectItem>)}
+            </SelectGroup></SelectContent>
+          </Select>
         </Field>
       })}
     </section>

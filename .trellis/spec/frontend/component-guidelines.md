@@ -62,3 +62,7 @@ Reader 的安全 HTML 仅来自 readerAPI，图片／链接均为登记 ID。当
 ## OPML 预览与原生授权
 
 transferAPI 是唯一文件调用边界，Go空items归一为数组；组件不拼宿主路径。Settings data分区持有短期预览和选择，Zustand仅保存一次性transferIntent；菜单早到意图仍用可取消微任务消费，StrictMode不得重复打开原生对话框。活动操作ref防重复提交、AbortSignal中止请求，卸载／旧授权返回后Discard能力；成功预览不能立即Discard其origin token，否则会误删同源私有预览。确认前零Import调用，取消在途提交提示检查列表，不能承诺已提交回滚。预览每页最多200行，跨页选择保留；标签使用data-animated-trigger供整行悬停及输入聚焦播放既有图标动画。
+
+## shadcn/ui 表单控件
+
+业务表单从 `@/components/ui` 导入 Select、Switch、Checkbox、Input 和 Textarea。SelectTrigger 持有标签关联 ID，选项放在 SelectGroup 内；清空或回到顶层使用独立非空选项值，在提交给业务层前映射为原有空字符串。服务与模型启用使用 Switch，清除密钥和选择导入项使用 Checkbox，确保显示状态、可访问名称与实际保存值一致。新增组件沿用 radix-nova 注册表及 AnimatedGlyph。系统文件对话框等原生能力按 AGENTS.md 的例外处理。

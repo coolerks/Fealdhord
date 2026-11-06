@@ -1,3 +1,6 @@
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Textarea } from '@/components/ui/textarea'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
@@ -108,10 +111,13 @@ function ChatSession({ target, close }: { target: NonNullable<ReturnType<typeof 
       <span className="min-w-0 truncate" title={target.label}>{target.label}</span>
       {model.data ? <span className="text-muted-foreground">{model.data.displayName}</span> : model.isError &&
         <Button size="sm" variant="outline" onClick={() => { close(); useWorkspace.getState().showSettings('ai') }}>配置聊天模型</Button>}
-      <select aria-label="对话历史" value={conversationId} onChange={event => choose(event.target.value)} disabled={send.isPending}>
-        <option value="">新对话</option>
-        {history.data?.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}
-      </select>
+      <Select value={conversationId || 'new-conversation'} onValueChange={value => choose(value === 'new-conversation' ? '' : value)} disabled={send.isPending}>
+        <SelectTrigger aria-label="对话历史" className="min-w-0 max-w-full"><SelectValue /></SelectTrigger>
+        <SelectContent position="popper"><SelectGroup>
+          <SelectItem value="new-conversation">新对话</SelectItem>
+          {history.data?.map(item => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}
+        </SelectGroup></SelectContent>
+      </Select>
       {history.isError && <Button size="sm" variant="ghost" onClick={() => void history.refetch()}>重新读取历史</Button>}
     </div>
     <div className="h-[min(40vh,400px)] min-h-20 space-y-3 overflow-y-auto" ref={timeline} aria-label="对话消息" onScroll={event => {
@@ -135,8 +141,8 @@ function ChatSession({ target, close }: { target: NonNullable<ReturnType<typeof 
       </div>)}
       {picking && <ArticlePicker selected={sources} disabled={send.isPending} onPick={article => setSources(items => items.length < 3 && !items.some(item => item.id === article.id) ? [...items, article] : items)} />}
     </div>}
-    {target.kind !== 'global' && <label className="flex gap-2 text-sm">
-      <input type="checkbox" checked={includeContext} disabled={send.isPending} onChange={event => setIncludeContext(event.target.checked)} />
+    {target.kind !== 'global' && <label htmlFor="chat-include-context" className="flex items-center gap-2 text-sm">
+      <Checkbox id="chat-include-context" checked={includeContext} disabled={send.isPending} onCheckedChange={value => setIncludeContext(value === true)} />
       {target.kind === 'article' ? '附加订阅正文（最多 24 KiB）' : '附加当前分类最近 5 篇文章的摘要'}
     </label>}
     {selection && <div className="flex items-center gap-2 text-sm">
@@ -147,7 +153,7 @@ function ChatSession({ target, close }: { target: NonNullable<ReturnType<typeof 
       event.preventDefault()
       if (!active && draft.trim() && model.data && !send.isPending) send.mutate()
     }}>
-      <textarea className="min-h-16 w-full resize-y rounded-md border bg-background p-2" aria-label="消息" placeholder="输入消息…" value={draft} onChange={event => setDraft(event.target.value)} maxLength={2700} disabled={send.isPending} />
+      <Textarea className="max-h-40 resize-y" aria-label="消息" placeholder="输入消息…" value={draft} onChange={event => setDraft(event.target.value)} maxLength={2700} disabled={send.isPending} />
       {active ? <Button type="button" variant="outline" disabled={cancel.isPending} onClick={() => cancel.mutate()}>停止回复</Button> :
         <Button type="submit" disabled={!draft.trim() || !model.data || send.isPending || history.isPending || (Boolean(conversationId) && messages.isPending)}>发送</Button>}
     </form>

@@ -281,7 +281,6 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 .refresh-status { padding:8px 20px; border-bottom:1px solid var(--border); font-size:13px; }
 .refresh-status progress { width:80px; margin-inline:12px; }
 
-.category-select { border:1px solid var(--border); border-radius:6px; padding:8px; background:var(--background); width:100%; }
 .category-membership { display:grid; gap:8px; }
 .category-manager { display:grid; gap:12px; }
 .nav-tree { list-style:none; padding:0; margin:0; }
@@ -295,7 +294,7 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 .transfer-items { list-style: none; padding: 0; margin-block: 12px; }
 .transfer-items li { border-bottom: 1px solid var(--border); padding-block: 8px; }
 .transfer-items label { display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
-.transfer-items label span { flex: 1; min-width: 0; }
+.transfer-items label > span { flex: 1; min-width: 0; }
 .transfer-items small { color: var(--muted-foreground); white-space: nowrap; }
 .transfer-items p { font-size: 12px; color: var(--muted-foreground); }
 .transfer-option { display: flex; align-items: center; gap: 8px; margin-block: 12px; }
