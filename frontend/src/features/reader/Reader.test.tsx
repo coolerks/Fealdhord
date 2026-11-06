@@ -13,7 +13,7 @@ vi.mock('@/lib/preferences',()=>({preferencesAPI:{get:vi.fn(),update:vi.fn()}}))
 vi.mock('@/lib/navigation-api',()=>({navigationQueryKey:['navigation'],navigationAPI:{list:vi.fn(async()=>({categories:[],feeds:[],totals:{total:0,unread:0,favorites:0}}))}}))
 import { Reader } from './Reader'
 const link='a'.repeat(64)
-const feed:Detail={article_id:'a-0',mode:'feed',html:`<p>订阅正文 <a href="#" data-reader-link="${link}">正文链接</a></p><pre><code>const value = 1;</code></pre><table><tbody><tr><td>表格</td></tr></tbody></table>`,text:'订阅正文',has_cached:false,has_original:true,original_url:'https://example.test/article'}
+const feed:Detail={article_id:'a-0',mode:'feed',html:`<p>订阅正文 <a href="#" data-reader-link="${link}">正文链接</a></p><pre><code>const value = 1;</code></pre><table><tbody><tr><td>表格</td></tr></tbody></table>`,text:'订阅正文',has_cached:false,has_original:true}
 const extracted:Detail={...feed,mode:'reader',html:'<p>提取后的正文</p>',text:'提取后的正文',has_cached:true}
 beforeEach(()=>{vi.resetAllMocks();api.get.mockResolvedValue(feed);api.open.mockResolvedValue(undefined);useWorkspace.setState({preferences:preferencesFixture(),readerModeRequestID:null})})
 function setup(patch:Parameters<typeof preferencesFixture>[0]={}){
@@ -37,7 +37,7 @@ it('取消提取保留订阅正文，迟到响应不能切换当前内容',async
  let release:(value:Detail)=>void=()=>{};let signal:AbortSignal|undefined
  api.extract.mockImplementation((_id:string,next:AbortSignal)=>{signal=next;return new Promise(resolve=>{release=resolve})})
  setup();await screen.findByText('订阅正文')
- await userEvent.click(screen.getByRole('button',{name:'阅读模式'}))
+ await userEvent.click(screen.getByRole('tab',{name:'阅读模式'}))
  expect(screen.getByText('订阅正文')).toBeInTheDocument()
  await userEvent.click(screen.getByRole('button',{name:'取消提取'}));expect(signal?.aborted).toBe(true)
  await act(async()=>release(extracted))
@@ -47,9 +47,9 @@ it('取消提取保留订阅正文，迟到响应不能切换当前内容',async
 it('提取成功缓存两种模式，往返切换不重复访问原网页',async()=>{
  api.extract.mockResolvedValue(extracted)
  setup();await screen.findByText('订阅正文')
- const toggle=screen.getByRole('button',{name:'阅读模式'})
+ const toggle=screen.getByRole('tab',{name:'阅读模式'})
  await userEvent.click(toggle);expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
- await userEvent.click(screen.getByRole('button',{name:'订阅预览'}));expect(await screen.findByText('订阅正文')).toBeInTheDocument()
+ await userEvent.click(screen.getByRole('tab',{name:'订阅预览'}));expect(await screen.findByText('订阅正文')).toBeInTheDocument()
  await userEvent.click(toggle);expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
  expect(api.extract).toHaveBeenCalledTimes(1)
 })
@@ -73,10 +73,10 @@ it('已显示文章更新时取消旧提取，不遗留忙碌状态或再次覆�
  let release:(value:Detail)=>void=()=>{};let signal:AbortSignal|undefined
  api.extract.mockImplementation((_id:string,next:AbortSignal)=>{signal=next;return new Promise(resolve=>{release=resolve})})
  const {rerender,renderTree,onRead}=setup();await screen.findByText('订阅正文')
- await userEvent.click(screen.getByRole('button',{name:'阅读模式'}))
+ await userEvent.click(screen.getByRole('tab',{name:'阅读模式'}))
  api.get.mockResolvedValue({...feed,html:'<p>更新后的订阅正文</p>',text:'更新后的订阅正文'})
  rerender(renderTree(2));await screen.findByText('更新后的订阅正文')
- expect(signal?.aborted).toBe(true);expect(screen.getByRole('button',{name:'阅读模式'})).toBeEnabled()
+ expect(signal?.aborted).toBe(true);expect(screen.getByRole('tab',{name:'阅读模式'})).toBeEnabled()
  await act(async()=>release(extracted))
  expect(screen.queryByText('提取后的正文')).not.toBeInTheDocument()
  expect(onRead).toHaveBeenCalledTimes(1)
@@ -87,32 +87,27 @@ it('菜单请求在Reader挂载前到达也只执行一次',async()=>{
  expect(api.extract).toHaveBeenCalledTimes(1);expect(useWorkspace.getState().readerModeRequestID).toBeNull()
 })
 
-it('全文可默认显示原始网页，在右上角切换到阅读模式并仍可外部打开',async()=>{
+it('只有两个阅读标签页，键盘切换后仍可在浏览器打开原文',async()=>{
  api.extract.mockResolvedValue(extracted)
- const {onRead}=setup({reader_open_mode:'full',reader_full_mode:'web'})
- const frame=await screen.findByTitle(/原始网页/)
- expect(frame).toHaveAttribute('src','https://example.test/article')
- expect(frame).toHaveAttribute('sandbox','allow-scripts')
- expect(frame).toHaveAttribute('referrerpolicy','no-referrer')
- expect(api.extract).not.toHaveBeenCalled()
- expect(onRead).not.toHaveBeenCalled()
- await userEvent.click(screen.getByRole('button',{name:'阅读模式'}))
+ setup()
+ await screen.findByText('订阅正文')
+ expect(screen.getAllByRole('tab')).toHaveLength(2)
+ const preview=screen.getByRole('tab',{name:'订阅预览'})
+ await userEvent.click(preview)
+ expect(preview).toHaveAttribute('aria-selected','true')
+ await userEvent.keyboard('{ArrowRight}{Enter}')
  expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
- expect(screen.queryByTitle(/原始网页/)).not.toBeInTheDocument()
- await userEvent.click(screen.getByRole('button',{name:'在浏览器打开原文'}))
+ expect(screen.getByRole('tab',{name:'阅读模式'})).toHaveAttribute('aria-selected','true')
+ expect(screen.getByRole('tabpanel')).toHaveAccessibleName('阅读模式')
+ const external=screen.getByRole('button',{name:'在浏览器打开原文'})
+ expect(external).toHaveTextContent(/^$/)
+ await userEvent.click(external)
  expect(api.open).toHaveBeenCalledWith('a-0','')
 })
 
 it('全文默认阅读模式时自动提取，严格模式只发一次请求',async()=>{
  api.extract.mockResolvedValue(extracted)
- setup({reader_open_mode:'full',reader_full_mode:'reader'})
+ setup({reader_open_mode:'full'})
  expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
  expect(api.extract).toHaveBeenCalledTimes(1)
-})
-
-it('关闭远程图片时原始网页不会发起网络导航，仍可读订阅内容',async()=>{
- setup({reader_open_mode:'full',reader_full_mode:'web',remote_images:'never'})
- expect(await screen.findByText('订阅正文')).toBeInTheDocument()
- expect(screen.queryByTitle(/原始网页/)).not.toBeInTheDocument()
- expect(screen.getByRole('status')).toHaveTextContent('已阻止原始网页')
 })

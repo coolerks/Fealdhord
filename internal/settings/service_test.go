@@ -109,7 +109,7 @@ func TestInvalidInputsAndUnavailableStoreDoNotWrite(t *testing.T) {
 func TestLegacyValuesNormalizeIndividually(t *testing.T) {
 	ctx := context.Background()
 	store := openTestStore(t, filepath.Join(t.TempDir(), "prefs.db"))
-	raw := `{"theme":"dark","article_view_mode":"old-grid","sidebar_width":9999,"reader_font_size":19}`
+	raw := `{"theme":"dark","article_view_mode":"old-grid","sidebar_width":9999,"reader_font_size":19,"reader_full_mode":"web"}`
 	if ok, err := store.SavePreferences(ctx, raw, 0, 0); err != nil || !ok {
 		t.Fatal(err)
 	}
@@ -117,18 +117,18 @@ func TestLegacyValuesNormalizeIndividually(t *testing.T) {
 	if !got.OK || got.Data.Preferences.Theme != "dark" || got.Data.Preferences.ArticleViewMode != "list" || got.Data.Preferences.SidebarWidth != 248 || got.Data.Preferences.ReaderFontSize != 19 {
 		t.Fatalf("旧值恢复错误：%+v", got)
 	}
-	if got.Data.Preferences.ReaderOpenMode != "feed" || got.Data.Preferences.ReaderFullMode != "reader" {
+	if got.Data.Preferences.ReaderOpenMode != "feed" {
 		t.Fatal("旧偏好应继续打开订阅预览")
 	}
 	prefs := got.Data.Preferences
-	prefs.ReaderOpenMode, prefs.ReaderFullMode = "full", "web"
+	prefs.ReaderOpenMode = "full"
 	service := NewService(store)
 	saved := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: got.Data.Revision})
 	if !saved.OK {
 		t.Fatalf("保存阅读方式失败：%+v", saved.Error)
 	}
 	loaded := service.Get(ctx)
-	if !loaded.OK || loaded.Data.Preferences.ReaderOpenMode != "full" || loaded.Data.Preferences.ReaderFullMode != "web" {
+	if !loaded.OK || loaded.Data.Preferences.ReaderOpenMode != "full" {
 		t.Fatal("阅读方式没有持久化")
 	}
 	b, err := json.Marshal(got)

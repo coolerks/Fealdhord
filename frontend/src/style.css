@@ -301,6 +301,10 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 .transfer-items p { font-size: 12px; color: var(--muted-foreground); }
 .transfer-option { display: flex; align-items: center; gap: 8px; margin-block: 12px; }
 
-.reader-webpage { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--reader-background); }
-.reader-view-actions { display: flex; align-items: center; flex-wrap: wrap; }
+.reader-tabs { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.reader-view-actions { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 9px; }
+.reader-view-tab { display: grid; place-items: center; width: 32px; height: 30px; border-radius: 6px; }
+.reader-view-tab:hover { color: var(--foreground); }
+.reader-view-tab[data-state=active] { background: var(--accent); color: var(--foreground); }
+.reader-view-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .reader-toolbar .toolbar-actions { flex-wrap: wrap; min-width: 0; }

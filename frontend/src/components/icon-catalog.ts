@@ -14,7 +14,7 @@ import { CircleHelpIcon } from './icons/circle-help'
 import { ClipboardCheckIcon } from './icons/clipboard-check'
 import { CopyIcon } from './icons/copy'
 import { DeleteIcon } from './icons/delete'
-import { EarthIcon } from './icons/earth'
+import { ExternalLinkIcon } from './icons/external-link'
 import { FolderOpenIcon } from './icons/folder-open'
 import { LayersIcon } from './icons/layers'
 import { LayoutGridIcon } from './icons/layout-grid'
@@ -55,7 +55,7 @@ export const animatedIcons = {
   'clipboard-check': ClipboardCheckIcon,
   'copy': CopyIcon,
   'delete': DeleteIcon,
-  'earth': EarthIcon,
+  'external-link': ExternalLinkIcon,
   'folder-open': FolderOpenIcon,
   'layers': LayersIcon,
   'layout-grid': LayoutGridIcon,

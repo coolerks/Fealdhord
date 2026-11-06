@@ -97,4 +97,4 @@ transfer.API 的 Choose 返回 token／name／cancelled；Preview 返回 preview
 
 刷新Snapshot增加 success_count／cancelled_count／skipped_count／failed_count及results_truncated。运行中事件最多每200ms广播一次，明细最近100项；终态立即广播，Get／Current保留完整结果。累计数与截断明细独立，UI不能仅据明细判断无失败；每次操作最多10000目标，网络并发仍4／每站点2。
 
-Reader Detail 新增可选 original_url，只返回当前文章规范化的 HTTP(S) 原文地址，供隔离网页视图使用。设置 JSON 新增 reader_open_mode（feed／full）和 reader_full_mode（web／reader），旧记录默认 feed 和 reader。
+阅读默认方式沿用 reader_open_mode（feed／full），分别打开订阅预览和阅读模式。旧设置中的 reader_full_mode 读取时忽略。

@@ -46,8 +46,8 @@ func TestSafeHTMLAndVersionedRegisteredResources(t *testing.T) {
 	if !result.OK {
 		t.Fatal(result)
 	}
-	if !result.Data.HasOriginal || result.Data.OriginalURL != "https://example.test/article" {
-		t.Fatal("原始网页地址与当前文章不匹配")
+	if !result.Data.HasOriginal {
+		t.Fatal("当前文章应保留外部原文入口")
 	}
 	body := result.Data.HTML
 	for _, blocked := range []string{"onerror", "attack()", "<script", "iframe", "style=", "https://"} {

@@ -10,7 +10,7 @@ export const IconMotionContext = createContext<'full' | 'subtle' | 'off'>('off')
 export type IconHandle = { cancelAnimation: () => void; startAnimation: () => Promise<unknown>; stopAnimation: () => Promise<unknown> }
 const aliases = { favorite: 'bookmark', folder: 'folder-open', grid: 'layout-grid', ai: 'sparkles', collapse: 'panel-left-close', expand: 'panel-left-open', read: 'check-check', book: 'book-text', list: 'layers', refresh: 'refresh-cw', add: 'plus', unread: 'circle-dashed' } as const
 export type IconMeaning = AnimatedIconName | keyof typeof aliases
-const triggerSelector = 'button,[role=radio],[role=menuitem],[role=menuitemradio],[role=menuitemcheckbox],[role=option],[data-animated-trigger]'
+const triggerSelector = 'button,[role=radio],[role=tab],[role=menuitem],[role=menuitemradio],[role=menuitemcheckbox],[role=option],[data-animated-trigger]'
 
 type Props = Omit<HTMLAttributes<HTMLSpanElement>, 'children'> & { icon?: LucideIcon; meaning?: IconMeaning }
 /** 仅交互时挂载库动画；静态 SVG 由相同库源生成，避免首次悬停换形。 */
