@@ -54,7 +54,7 @@
 }
 .app-loading { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: var(--muted-foreground); }
 .app-shell { --workspace-toolbar-height: 50px; --sidebar-toggle-size: 32px; --sidebar-toggle-gap: 8px; --window-controls-inset: 14px; --collapsed-toolbar-inset: calc(var(--window-controls-inset) + var(--sidebar-toggle-size) + var(--sidebar-toggle-gap)); isolation: isolate; position: relative; display: grid; grid-template-columns: var(--sidebar-width) var(--sidebar-divider-width, 4px) minmax(0,1fr); height: 100%; overflow: hidden; background: transparent; }
-[data-platform=mac] .app-shell { --window-controls-inset: 92px; --sidebar-divider-width: 0px; }
+[data-platform=mac] .app-shell { --workspace-toolbar-height: 54px; --window-controls-inset: 92px; --sidebar-divider-width: 0px; }
 [data-platform=mac] .reading-workspace { background: var(--background); }
 .app-shell { transition: grid-template-columns var(--duration-normal) var(--ease-standard); }
 .app-shell[data-sidebar-collapsed=true] { grid-template-columns: 0px 0px minmax(0,1fr); }
@@ -336,6 +336,21 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
  [data-sidebar-collapsed=true] .articles-toolbar { padding-inline-start: 14px; }
  [data-sidebar-collapsed=true] .articles-toolbar .toolbar-actions { grid-row: 2; }
  [data-sidebar-collapsed=true] .articles-heading { grid-row: 1; min-height: calc(var(--workspace-toolbar-height) - 12px); align-items: center; padding-inline-start: calc(var(--collapsed-toolbar-inset) - 14px); }
+}
+
+/* Center the title block and controls on the native window buttons. */
+[data-platform=mac] .articles-heading {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+}
+[data-platform=mac] .articles-heading h1 { max-width: 100%; }
+[data-platform=mac] .articles-heading > span { font-size: 11px; line-height: 14px; }
+@container (max-width:460px) {
+  [data-platform=mac] .articles-toolbar {
+    grid-template-rows: minmax(calc(var(--workspace-toolbar-height) - 12px), auto) auto;
+  }
 }
 
 .action-menu { min-width:240px; }
