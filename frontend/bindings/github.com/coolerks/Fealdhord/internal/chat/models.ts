@@ -25,4 +25,5 @@ export interface SendInput {
     "text": string;
     "includeContext": boolean;
     "selection": string;
+    "articleIds": string[] | null;
 }

@@ -111,6 +111,32 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	if list, err := reopened.List(ctx, scope); err != nil || len(list) != 1 || list[0].ID != conversation.ID {
 		t.Fatalf("missing history: %+v, %v", list, err)
 	}
+	global, err := reopened.Create(ctx, Scope{Kind: "global"}, "来源选择")
+	if err != nil {
+		t.Fatal(err)
+	}
+	feed, err := db.EnsureFeed(ctx, "https://example.test/feed", "来源")
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected, err := db.UpsertArticle(ctx, database.ArticleInput{FeedID: feed, GUID: "selected", Title: "已选文章", Summary: "公开摘要", Text: "不应发送的全文", FetchedAt: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertArticle(ctx, database.ArticleInput{FeedID: feed, GUID: "other", Title: "未选文章", Summary: "不应发送的其他摘要", FetchedAt: 2}); err != nil {
+		t.Fatal(err)
+	}
+	if err := reopened.Send(ctx, SendInput{ConversationID: global.ID, Text: "先验证无效引用", ArticleIDs: []string{"missing"}}); err == nil || err.Error() != "ContextUnavailable" {
+		t.Fatalf("missing context: %v", err)
+	}
+	if err := reopened.Send(ctx, SendInput{ConversationID: global.ID, Text: "请比较来源", ArticleIDs: []string{selected}}); err != nil {
+		t.Fatal(err)
+	}
+	waitMessage(t, reopened, global.ID, 2, "complete")
+	if request := <-requests; !strings.Contains(request, "公开摘要") || strings.Contains(request, "不应发送") {
+		t.Fatalf("wrong source scope: %s", request)
+	}
+
 }
 
 func waitMessage(t *testing.T, service *Service, id string, count int, status string) Message {

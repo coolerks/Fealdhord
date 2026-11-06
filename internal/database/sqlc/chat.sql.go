@@ -48,6 +48,22 @@ func (q *Queries) AppendChatMessage(ctx context.Context, arg AppendChatMessagePa
 	return i, err
 }
 
+const chatArticleContext = `-- name: ChatArticleContext :one
+SELECT title, summary FROM articles WHERE id=?
+`
+
+type ChatArticleContextRow struct {
+	Title   string `json:"title"`
+	Summary string `json:"summary"`
+}
+
+func (q *Queries) ChatArticleContext(ctx context.Context, id string) (ChatArticleContextRow, error) {
+	row := q.db.QueryRowContext(ctx, chatArticleContext, id)
+	var i ChatArticleContextRow
+	err := row.Scan(&i.Title, &i.Summary)
+	return i, err
+}
+
 const chatCategoryContext = `-- name: ChatCategoryContext :many
 SELECT a.title, a.summary FROM effective_article_categories e
 JOIN articles a ON a.id=e.article_id

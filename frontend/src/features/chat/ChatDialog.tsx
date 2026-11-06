@@ -1,6 +1,9 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { libraryAPI } from '@/lib/library-api'
+import type { Article } from '@/lib/library'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useWorkspace } from '@/stores/workspace'
 import { useChatTarget } from './chat-scope'
@@ -14,6 +17,7 @@ const statusLabels: Record<string, string> = {
 }
 
 const errorLabels: Record<string, string> = {
+  ContextUnavailable: '有已选文章无法读取，请重新选择。',
   ConfigurationError: '请先分配聊天模型。',
   CredentialError: '请检查服务的 API 密钥。',
   AuthenticationError: '服务拒绝了当前密钥。',
@@ -35,7 +39,7 @@ export function ChatDialog() {
   const target = useChatTarget(state => state.target)
   const close = () => useChatTarget.setState({ target: null })
   return <Dialog open={Boolean(target)} onOpenChange={value => { if (!value) close() }}>
-    {target && <DialogContent aria-describedby={undefined} className="max-h-[85dvh] w-[min(92vw,760px)] sm:max-w-none">
+    {target && <DialogContent aria-describedby={undefined} className="max-h-[85dvh] overflow-y-auto w-[min(92vw,760px)] sm:max-w-none">
       <DialogHeader><DialogTitle>AI 助手</DialogTitle></DialogHeader>
       <ChatSession key={`${target.kind}:${target.id}`} target={target} close={close} />
     </DialogContent>}
@@ -48,6 +52,8 @@ function ChatSession({ target, close }: { target: NonNullable<ReturnType<typeof 
   const [draft, setDraft] = useState('')
   const [includeContext, setIncludeContext] = useState(false)
   const [selection, setSelection] = useState(target.selection ?? '')
+  const [sources, setSources] = useState<Article[]>([])
+  const [picking, setPicking] = useState(false)
   const timeline = useRef<HTMLDivElement>(null)
   const follow = useRef(true)
   const scope = { kind: target.kind, id: target.id }
@@ -73,13 +79,15 @@ function ChatSession({ target, close }: { target: NonNullable<ReturnType<typeof 
         setChosen(id)
         void cache.invalidateQueries({ queryKey: listKey })
       }
-      await api.Send({ conversationId: id, text: draft, includeContext, selection })
+      await api.Send({ conversationId: id, text: draft, includeContext, selection, articleIds: sources.map(article => article.id) })
       await cache.invalidateQueries({ queryKey: ['chat', 'messages', id] })
     },
     onSuccess: () => {
       follow.current = true
       setDraft('')
       setSelection('')
+      setSources([])
+      setPicking(false)
       setIncludeContext(false)
     },
   })
@@ -119,6 +127,14 @@ function ChatSession({ target, close }: { target: NonNullable<ReturnType<typeof 
         </p>}
       </section>)}
     </div>
+    {target.kind === 'global' && <div className="space-y-2">
+      <Button size="sm" variant="outline" aria-expanded={picking} disabled={send.isPending} onClick={() => setPicking(!picking)}>附加文章</Button>
+      {sources.map(article => <div key={article.id} className="flex items-center justify-between gap-2">
+        <span className="truncate" title={article.title}>{article.title}</span>
+        <Button size="sm" variant="ghost" aria-label={`移除 ${article.title}`} disabled={send.isPending} onClick={() => setSources(sources.filter(item => item.id !== article.id))}>移除</Button>
+      </div>)}
+      {picking && <ArticlePicker selected={sources} disabled={send.isPending} onPick={article => setSources(items => items.length < 3 && !items.some(item => item.id === article.id) ? [...items, article] : items)} />}
+    </div>}
     {target.kind !== 'global' && <label className="flex gap-2 text-sm">
       <input type="checkbox" checked={includeContext} disabled={send.isPending} onChange={event => setIncludeContext(event.target.checked)} />
       {target.kind === 'article' ? '附加订阅正文（最多 24 KiB）' : '附加当前分类最近 5 篇文章的摘要'}
@@ -136,5 +152,37 @@ function ChatSession({ target, close }: { target: NonNullable<ReturnType<typeof 
         <Button type="submit" disabled={!draft.trim() || !model.data || send.isPending || history.isPending || (Boolean(conversationId) && messages.isPending)}>发送</Button>}
     </form>
     {(send.isError || cancel.isError) && <p role="alert">{errorText(send.error ?? cancel.error)}</p>}
+  </div>
+}
+
+function ArticlePicker({ selected, disabled, onPick }: { selected: Article[]; disabled: boolean; onPick: (article: Article) => void }) {
+  const [draft, setDraft] = useState('')
+  const [term, setTerm] = useState('')
+  const results = useQuery({
+    queryKey: ['chat', 'articles', term],
+    queryFn: ({ signal }) => libraryAPI.list({ scope: { kind: 'all' }, search: term, sort: 'relevance', limit: 8 }, signal),
+    enabled: Boolean(term),
+    retry: false,
+  })
+  return <div className="space-y-2">
+    <form className="flex gap-2" onSubmit={event => {
+      event.preventDefault()
+      const value = draft.trim()
+      if (value && value === term) void results.refetch()
+      else setTerm(value)
+    }}>
+      <Input aria-label="搜索本地文章" placeholder="搜索本地文章…" value={draft} maxLength={128} onChange={event => setDraft(event.target.value)} />
+      <Button size="sm" type="submit" variant="outline" disabled={!draft.trim() || disabled}>搜索</Button>
+    </form>
+    {term && results.isFetching && <p role="status">正在搜索…</p>}
+    {results.isError && <p role="alert">无法搜索文章，请重试。</p>}
+    {results.data?.items.length === 0 && <p role="status">没有匹配的文章。</p>}
+    <ul className="max-h-28 space-y-1 overflow-y-auto">
+      {results.data?.items.map(article => <li className="flex items-center justify-between gap-2" key={article.id}>
+        <span className="truncate" title={article.title}>{article.title}</span>
+        <Button size="sm" variant="ghost" aria-label={`附加 ${article.title} 的摘要`} disabled={disabled || selected.length >= 3 || selected.some(item => item.id === article.id)} onClick={() => onPick(article)}>附加摘要</Button>
+      </li>)}
+    </ul>
+    {selected.length >= 3 && <p role="status">已选 3 篇文章。</p>}
   </div>
 }

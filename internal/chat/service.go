@@ -4,6 +4,7 @@ package chat
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"errors"
 	"strings"
 	"sync"
@@ -29,10 +30,11 @@ type Scope struct {
 }
 
 type SendInput struct {
-	ConversationID string `json:"conversationId"`
-	Text           string `json:"text"`
-	IncludeContext bool   `json:"includeContext"`
-	Selection      string `json:"selection"`
+	ConversationID string   `json:"conversationId"`
+	Text           string   `json:"text"`
+	IncludeContext bool     `json:"includeContext"`
+	Selection      string   `json:"selection"`
+	ArticleIDs     []string `json:"articleIds"`
 }
 
 type Conversation struct {
@@ -139,7 +141,7 @@ func (s *Service) Model(ctx context.Context) (aiconfig.Model, error) {
 
 func (s *Service) Send(ctx context.Context, input SendInput) error {
 	input.Text = strings.TrimSpace(input.Text)
-	if input.Text == "" || len(input.Text) > maxQuestionBytes || len(input.Selection) > maxContextBytes {
+	if input.Text == "" || len(input.Text) > maxQuestionBytes || len(input.Selection) > maxContextBytes || len(input.ArticleIDs) > 3 {
 		return modelError("ValidationError")
 	}
 	s.mu.Lock()
@@ -155,7 +157,8 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 	if err != nil {
 		return modelError("StorageError")
 	}
-	if (input.Selection != "" && conversation.ScopeType != "article") || (input.IncludeContext && conversation.ScopeType == "global") {
+	if (input.Selection != "" && conversation.ScopeType != "article") || (input.IncludeContext && conversation.ScopeType == "global") ||
+		(len(input.ArticleIDs) > 0 && conversation.ScopeType != "global") {
 		return modelError("ValidationError")
 	}
 	model, adapter, err := s.config.Resolve(ctx, "chat")
@@ -188,6 +191,28 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 			contextText.WriteString("\n\n")
 		}
 		input.Text += "\n\n[当前分类的近期文章摘要]\n" + contextText.String()
+	}
+	if len(input.ArticleIDs) > 0 {
+		var sources strings.Builder
+		seen := make(map[string]bool, len(input.ArticleIDs))
+		for _, id := range input.ArticleIDs {
+			if id == "" || len(id) > 128 || seen[id] {
+				return modelError("ValidationError")
+			}
+			seen[id] = true
+			article, err := q.ChatArticleContext(ctx, id)
+			if errors.Is(err, sql.ErrNoRows) {
+				return modelError("ContextUnavailable")
+			}
+			if err != nil {
+				return modelError("StorageError")
+			}
+			sources.WriteString(boundedText(article.Title, 256))
+			sources.WriteByte('\n')
+			sources.WriteString(boundedText(article.Summary, 3000))
+			sources.WriteString("\n\n")
+		}
+		input.Text += "\n\n[用户选择的本地文章摘要]\n" + sources.String()
 	}
 	if input.Selection != "" {
 		input.Text += "\n\n[用户选段]\n" + input.Selection

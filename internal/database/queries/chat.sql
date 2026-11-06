@@ -33,3 +33,6 @@ WHERE e.category_id=? ORDER BY a.sort_at DESC,a.id LIMIT 5;
 
 -- name: CheckpointChatMessage :exec
 UPDATE messages SET content=? WHERE id=? AND status='running';
+
+-- name: ChatArticleContext :one
+SELECT title, summary FROM articles WHERE id=?;
