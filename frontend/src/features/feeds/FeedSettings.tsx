@@ -34,12 +34,13 @@ export function FeedSettings() {
   const [candidates,setCandidates]=useState<Candidate[]>([]), [selected,setSelected]=useState('')
   const [archived,setArchived]=useState(false), [removing,setRemoving]=useState<Feed|null>(null)
   const [useDefaultIcon,setUseDefaultIcon]=useState(false)
+  const [customIconURL,setCustomIconURL]=useState<string>()
   const [editing,setEditing]=useState<UpdateRequest|null>(null)
   const [cacheMessage,setCacheMessage]=useState('')
   const prefs=useWorkspace(state=>state.preferences)!, patch=useWorkspace(state=>state.patch)
   const originalFeed=query.data?.items?.find(feed=>feed.id===editing?.id)
   const editURLChanged=Boolean(editing && originalFeed && editing.url!==originalFeed.url)
-  const storedIcon=originalFeed?.icon_data
+  const storedIcon=originalFeed?.custom_icon_url ? undefined : originalFeed?.icon_data
   const previewURL=editing ? (!editURLChanged && !storedIcon ? editing.url : '') : selected
   const allowIcons=prefs.remote_images!=='never'
   const iconQuery=useQuery({
@@ -55,7 +56,7 @@ export function FeedSettings() {
   const discovery=useMutation({mutationFn:rssAPI.discover,onSuccess:items=>{setCandidates(items);setSelected(items.length===1?items[0].url:'');setTitle(items.length===1?items[0].title:'')}})
   const busy=action.isPending || discovery.isPending
   const categories=query.data?.categories ?? []
-  function discover() { setUseDefaultIcon(false);setCandidates([]);setSelected('');action.reset();discovery.mutate(url.trim()) }
+  function discover() { setCustomIconURL(undefined);setUseDefaultIcon(false);setCandidates([]);setSelected('');action.reset();discovery.mutate(url.trim()) }
   return <div className="feed-settings"><FieldGroup>
     <form className="feed-form" onSubmit={event=>{event.preventDefault();discover()}}>
       <Field><FieldLabel htmlFor="feed-url">订阅或网页地址</FieldLabel><Input id="feed-url" type="url" required maxLength={4096} disabled={busy} value={url} onChange={event=>{setURL(event.target.value);setCandidates([]);setSelected('');discovery.reset()}} /></Field>
@@ -63,11 +64,13 @@ export function FeedSettings() {
     </form>
     {discovery.error && <p role="alert">{discovery.error.message}</p>}
     {discovery.isSuccess && !candidates.length && <p role="status">没有找到订阅</p>}
-    {candidates.length>0 && <form className="feed-form" onSubmit={event=>{event.preventDefault();if(selected)action.mutate(async()=>{await rssAPI.add({url:selected,title,category_ids:ids,...(useDefaultIcon ? {use_default_icon:true} : {})});setURL('');setCandidates([]);setSelected('');setTitle('');setIDs([])})}}>
-      <Field><FieldLabel id="feed-candidates-label">选择订阅</FieldLabel><ToggleGroup type="single" variant="outline" aria-labelledby="feed-candidates-label" value={selected} disabled={busy} onValueChange={value=>{setUseDefaultIcon(false);setSelected(value);setTitle(candidates.find(item=>item.url===value)?.title ?? '')}}>{candidates.map(item=><ToggleGroupItem key={item.url} value={item.url} className="feed-candidate"><span>{item.title || item.type}</span><small>{item.url}</small></ToggleGroupItem>)}</ToggleGroup></Field>
+    {candidates.length>0 && <form className="feed-form" onSubmit={event=>{event.preventDefault();if(selected)action.mutate(async()=>{await rssAPI.add({url:selected,title,category_ids:ids,...(allowIcons && customIconURL ? {custom_icon_url:customIconURL} : useDefaultIcon ? {use_default_icon:true} : {})});setURL('');setCandidates([]);setSelected('');setTitle('');setIDs([])})}}>
+      <Field><FieldLabel id="feed-candidates-label">选择订阅</FieldLabel><ToggleGroup type="single" variant="outline" aria-labelledby="feed-candidates-label" value={selected} disabled={busy} onValueChange={value=>{setCustomIconURL(undefined);setUseDefaultIcon(false);setSelected(value);setTitle(candidates.find(item=>item.url===value)?.title ?? '')}}>{candidates.map(item=><ToggleGroupItem key={item.url} value={item.url} className="feed-candidate"><span>{item.title || item.type}</span><small>{item.url}</small></ToggleGroupItem>)}</ToggleGroup></Field>
       <Field><FieldLabel htmlFor="feed-title">订阅名称</FieldLabel><Input id="feed-title" value={title} maxLength={512} disabled={busy} onChange={event=>setTitle(event.target.value)}/></Field>
       {selected && <FeedIconField data={previewIcon} useDefault={useDefaultIcon || !previewIcon}
-        onChange={setUseDefaultIcon} disabled={busy} siteAvailable={Boolean(previewIcon)}/>}
+        onChange={value=>{setCustomIconURL(undefined);setUseDefaultIcon(value)}} disabled={busy}
+        siteAvailable={Boolean(previewIcon)} customAllowed={allowIcons}
+        customURL={customIconURL} onCustomURLChange={setCustomIconURL}/>}
       <Categories items={categories} value={ids} onChange={setIDs} disabled={busy}/><Button type="submit" disabled={busy || !selected}><AnimatedGlyph meaning="plus"/>添加订阅</Button>
     </form>}
     {action.error && <p role="alert">{action.error.message}</p>}
@@ -84,7 +87,7 @@ export function FeedSettings() {
         {feed.archived && <span>已归档</span>}<small>{feed.url}</small>{feed.last_error && <p>{feed.last_error}{feed.next_check_at && ` · 下次尝试 ${new Date(feed.next_check_at).toLocaleString('zh-CN')}`}</p>}</div>
       <div className="feed-actions">{feed.archived ? <Button size="sm" variant="outline" disabled={busy} onClick={()=>action.mutate(()=>rssAPI.restore({id:feed.id,revision:feed.revision}))}>恢复订阅</Button> : <>
         <Button size="sm" variant="ghost" disabled={busy || refreshPending} aria-label={`刷新 ${feed.title}`} onClick={()=>{void startRefresh(client,[feed.id])}}><AnimatedGlyph meaning="refresh"/>刷新</Button>
-        <Button size="sm" variant="ghost" disabled={busy} aria-label={`编辑 ${feed.title}`} onClick={()=>{action.reset();setInitialCategories(feed.category_ids ?? []);setEditing({apply_existing:true,id:feed.id,revision:feed.revision,url:feed.url,title:feed.title,category_ids:feed.category_ids ?? []})}}>编辑</Button>
+        <Button size="sm" variant="ghost" disabled={busy} aria-label={`编辑 ${feed.title}`} onClick={()=>{action.reset();setInitialCategories(feed.category_ids ?? []);setEditing({apply_existing:true,id:feed.id,revision:feed.revision,url:feed.url,title:feed.title,custom_icon_url:feed.custom_icon_url,category_ids:feed.category_ids ?? []})}}>编辑</Button>
         <Button size="sm" variant="ghost" disabled={busy} aria-label={`归档 ${feed.title}`} onClick={()=>{action.reset();setRemoving(feed)}}>归档</Button>
       </>}</div>
     </li>)}</ul>
@@ -93,7 +96,7 @@ export function FeedSettings() {
     <Field orientation="horizontal"><FieldLabel htmlFor="media-cache">磁盘图片缓存</FieldLabel><Switch id="media-cache" checked={prefs.media_cache_enabled} onCheckedChange={value=>patch({media_cache_enabled:value})}/></Field>
     <Button variant="outline" disabled={busy} onClick={()=>{setCacheMessage('');action.mutate(async()=>{await rssAPI.clearCache();setCacheMessage('图片缓存已清理')})}}>清理图片缓存</Button>{cacheMessage && <p role="status">{cacheMessage}</p>}
   </FieldGroup>
-  <Dialog open={Boolean(editing)} onOpenChange={open=>{if(!open && !action.isPending)setEditing(null)}}><DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>编辑订阅</DialogTitle></DialogHeader>{editing && <form className="feed-form" onSubmit={event=>{event.preventDefault();action.mutate(async()=>{editController.current=new AbortController();try{await rssAPI.update(editURLChanged && editing.use_default_icon===undefined
+  <Dialog open={Boolean(editing)} onOpenChange={open=>{if(!open && !action.isPending)setEditing(null)}}><DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>编辑订阅</DialogTitle></DialogHeader>{editing && <form className="feed-form" onSubmit={event=>{event.preventDefault();action.mutate(async()=>{editController.current=new AbortController();try{await rssAPI.update(editURLChanged && editing.use_default_icon===undefined && !editing.custom_icon_url
       ? {...editing,use_default_icon:!storedIcon}
       : editing,editController.current.signal);setEditing(null)}catch(error){invalidateRSS(client);throw error}finally{editController.current=null}})}}>
     <Field><FieldLabel htmlFor="edit-feed-title">名称</FieldLabel><Input id="edit-feed-title" required maxLength={512} value={editing.title} disabled={busy} onChange={event=>setEditing({...editing,title:event.target.value})}/></Field>
@@ -101,7 +104,10 @@ export function FeedSettings() {
     <FeedIconField data={allowIcons && !editURLChanged ? storedIcon || previewIcon : undefined}
       useDefault={!allowIcons || (editing.use_default_icon ?? !storedIcon)}
       siteAvailable={allowIcons && Boolean(storedIcon || previewIcon || editURLChanged)}
-      disabled={busy} onChange={use_default_icon=>setEditing({...editing,use_default_icon})}/>
+      disabled={busy} onChange={use_default_icon=>setEditing({...editing,use_default_icon,custom_icon_url:undefined})}
+      customAllowed={allowIcons} customURL={editing.custom_icon_url}
+      customData={allowIcons && editing.custom_icon_url===originalFeed?.custom_icon_url && originalFeed?.custom_icon_url ? originalFeed.icon_data : undefined}
+      onCustomURLChange={custom_icon_url=>setEditing({...editing,custom_icon_url,use_default_icon:undefined})}/>
     <Categories items={categories} value={editing.category_ids ?? []} disabled={busy} onChange={category_ids=>setEditing({...editing,category_ids})}/>
     {JSON.stringify([...(editing.category_ids ?? [])].sort())!==JSON.stringify([...initialCategories].sort()) && <Field orientation="horizontal"><FieldLabel htmlFor="apply-existing-categories">应用到现有 {navigation.data?.feeds?.find(feed=>feed.id===editing.id)?.total ?? '…'} 篇文章</FieldLabel><Switch id="apply-existing-categories" checked={editing.apply_existing!==false} disabled={busy} onCheckedChange={value=>setEditing({...editing,apply_existing:value})}/></Field>}
     {action.isPending && editController.current && <Button type="button" variant="ghost" onClick={()=>editController.current?.abort()}>取消保存</Button>}

@@ -35,17 +35,18 @@ func NewService(repository Repository, fetcher netpolicy.Fetcher, onChange func(
 }
 
 type Feed struct {
-	ID          string   `json:"id"`
-	Title       string   `json:"title"`
-	URL         string   `json:"url"`
-	SiteURL     string   `json:"site_url"`
-	IconData    string   `json:"icon_data,omitempty"`
-	Description string   `json:"description"`
-	Revision    int64    `json:"revision"`
-	Archived    bool     `json:"archived"`
-	LastError   string   `json:"last_error"`
-	NextCheckAt *string  `json:"next_check_at,omitempty"`
-	CategoryIDs []string `json:"category_ids"`
+	CustomIconURL string   `json:"custom_icon_url,omitempty"`
+	ID            string   `json:"id"`
+	Title         string   `json:"title"`
+	URL           string   `json:"url"`
+	SiteURL       string   `json:"site_url"`
+	IconData      string   `json:"icon_data,omitempty"`
+	Description   string   `json:"description"`
+	Revision      int64    `json:"revision"`
+	Archived      bool     `json:"archived"`
+	LastError     string   `json:"last_error"`
+	NextCheckAt   *string  `json:"next_check_at,omitempty"`
+	CategoryIDs   []string `json:"category_ids"`
 }
 type Page struct {
 	Items      []Feed                     `json:"items"`
@@ -65,12 +66,14 @@ type RevisionRequest struct {
 	Revision int64  `json:"revision"`
 }
 type AddRequest struct {
+	CustomIconURL  string   `json:"custom_icon_url,omitempty"`
 	UseDefaultIcon bool     `json:"use_default_icon,omitempty"`
 	URL            string   `json:"url"`
 	Title          string   `json:"title"`
 	CategoryIDs    []string `json:"category_ids"`
 }
 type UpdateRequest struct {
+	CustomIconURL  string   `json:"custom_icon_url,omitempty"`
 	UseDefaultIcon *bool    `json:"use_default_icon,omitempty"`
 	ApplyExisting  *bool    `json:"apply_existing,omitempty"`
 	ID             string   `json:"id"`
@@ -110,6 +113,8 @@ func SafeError(err error) *app.AppError {
 		code, message, retry = "ValidationError", "网址或订阅参数无效。", false
 	case errors.Is(err, netpolicy.ErrTooLarge):
 		code, message, retry = "ValidationError", "远端内容超过安全大小限制。", false
+	case errors.Is(err, errCustomIcon):
+		code, message = "IconLoadError", "无法加载自定义图标，请检查图片地址、格式和远程图片设置。"
 	case errors.Is(err, ErrParse):
 		code, message, retry = "FeedParseError", "订阅内容无法解析，原数据已保留。", true
 	case errors.Is(err, ErrNoFeed):
@@ -134,7 +139,7 @@ func DataError(err error) *app.AppError {
 	return safe
 }
 func wire(row database.Subscription) Feed {
-	result := Feed{ID: row.ID, Title: row.Title, URL: row.URL, SiteURL: row.SiteURL, IconData: row.IconData, Description: row.Description, Revision: row.Revision, Archived: row.Archived, LastError: row.LastError, CategoryIDs: row.CategoryIDs}
+	result := Feed{ID: row.ID, Title: row.Title, URL: row.URL, SiteURL: row.SiteURL, IconData: row.IconData, CustomIconURL: row.CustomIconURL, Description: row.Description, Revision: row.Revision, Archived: row.Archived, LastError: row.LastError, CategoryIDs: row.CategoryIDs}
 	if row.NextCheckAt != nil {
 		value := time.UnixMilli(*row.NextCheckAt).UTC().Format(time.RFC3339Nano)
 		result.NextCheckAt = &value
@@ -249,12 +254,17 @@ func (s *Service) Add(ctx context.Context, request AddRequest) Result {
 	if title == "" {
 		title = document.Title
 	}
-	icon := ""
-	if !request.UseDefaultIcon {
+	icon, customURL := "", ""
+	if request.CustomIconURL != "" {
+		customURL, icon, err = s.customIcon(ctx, request.CustomIconURL)
+		if err != nil {
+			return Result{RequestID: rand.Text(), Error: SafeError(err)}
+		}
+	} else if !request.UseDefaultIcon {
 		icon = s.favicon(ctx, document.SiteURL, response.URL)
 	}
 	now := s.now().UTC().UnixMilli()
-	id, err := s.repository.AddSubscription(ctx, database.SubscriptionInput{URL: canonical, Title: title, SiteURL: document.SiteURL, IconData: &icon, Description: document.Description, CategoryIDs: request.CategoryIDs}, ArticleInputs(document), database.FeedCheck{At: now, Next: now + int64(30*time.Minute/time.Millisecond), ETag: response.Header.Get("ETag"), LastModified: response.Header.Get("Last-Modified")})
+	id, err := s.repository.AddSubscription(ctx, database.SubscriptionInput{URL: canonical, Title: title, SiteURL: document.SiteURL, IconData: &icon, CustomIconURL: customURL, Description: document.Description, CategoryIDs: request.CategoryIDs}, ArticleInputs(document), database.FeedCheck{At: now, Next: now + int64(30*time.Minute/time.Millisecond), ETag: response.Header.Get("ETag"), LastModified: response.Header.Get("Last-Modified")})
 	if err != nil {
 		return Result{RequestID: rand.Text(), Error: DataError(err)}
 	}
@@ -297,7 +307,15 @@ func (s *Service) Update(ctx context.Context, request UpdateRequest) Result {
 		input.Description = document.Description
 		iconBase = response.URL
 	}
-	if request.UseDefaultIcon != nil || input.URL != old.URL {
+	if request.CustomIconURL != "" {
+		if request.CustomIconURL != old.CustomIconURL || old.IconData == "" {
+			customURL, icon, err := s.customIcon(ctx, request.CustomIconURL)
+			if err != nil {
+				return Result{RequestID: rand.Text(), Error: SafeError(err)}
+			}
+			input.CustomIconURL, input.IconData = customURL, &icon
+		}
+	} else if request.UseDefaultIcon != nil || (input.URL != old.URL && old.CustomIconURL == "") {
 		icon := old.IconData
 		switch {
 		case request.UseDefaultIcon != nil && *request.UseDefaultIcon:
@@ -305,7 +323,7 @@ func (s *Service) Update(ctx context.Context, request UpdateRequest) Result {
 		case request.UseDefaultIcon == nil:
 			// For old callers, changing the address clears an icon from the old site.
 			icon = ""
-		case icon == "" || input.URL != old.URL:
+		case icon == "" || input.URL != old.URL || old.CustomIconURL != "":
 			icon = s.favicon(ctx, input.SiteURL, iconBase)
 		}
 		input.IconData = &icon

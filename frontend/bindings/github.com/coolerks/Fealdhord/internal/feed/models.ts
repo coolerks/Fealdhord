@@ -9,6 +9,7 @@ import * as app$0 from "../app/models.js";
 import * as database$0 from "../database/models.js";
 
 export interface AddRequest {
+    "custom_icon_url"?: string;
     "use_default_icon"?: boolean;
     "url": string;
     "title": string;
@@ -33,6 +34,7 @@ export interface DiscoverResult {
 }
 
 export interface Feed {
+    "custom_icon_url"?: string;
     "id": string;
     "title": string;
     "url": string;
@@ -83,6 +85,7 @@ export interface URLRequest {
 }
 
 export interface UpdateRequest {
+    "custom_icon_url"?: string;
     "use_default_icon"?: boolean | null;
     "apply_existing"?: boolean | null;
     "id": string;

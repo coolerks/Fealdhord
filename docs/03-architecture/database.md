@@ -12,7 +12,7 @@
 
 | 表 | 关键字段与约束 |
 | --- | --- |
-| feeds | id PK，title，url，normalized_url UNIQUE，site_url，description，icon_url，etag，last_modified，last_checked_at，last_success_at，next_check_at，error_count，last_error，created_at，updated_at，archived_at，sort_position，revision |
+| feeds | id PK，title，url，normalized_url UNIQUE，site_url，description，icon_url，custom_icon_url，etag，last_modified，last_checked_at，last_success_at，next_check_at，error_count，last_error，created_at，updated_at，archived_at，sort_position，revision |
 | articles | rowid INTEGER PK，id UNIQUE，feed_id FK，guid nullable，title，url，normalized_url nullable，author，summary，content_html，content_text，cjk_terms，published_at nullable，updated_at nullable，fetched_at，sort_at，content_hash，dedup_key，revision；UNIQUE(feed_id,dedup_key) |
 | article_identities | article_id FK，feed_id FK，kind，value；UNIQUE(feed_id,kind,value)；保留历次 GUID／URL 别名 |
 | categories | id PK，parent_id nullable FK，name，normalized_name，icon，color，description，ai_enabled，ai_prompt，ai_threshold，created_at，updated_at，sort_position，revision；同父级名称唯一，根级使用独立唯一索引 |

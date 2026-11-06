@@ -5,16 +5,20 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/coolerks/Fealdhord/internal/netpolicy"
 	_ "golang.org/x/image/webp"
 )
+
+var errCustomIcon = errors.New("无法加载自定义图标")
 
 const faviconLimit = 64 << 10
 
@@ -29,6 +33,29 @@ func (s *Service) favicon(ctx context.Context, siteURL, feedURL string) string {
 	if target == "" {
 		return ""
 	}
+	return s.fetchIcon(ctx, target)
+}
+
+func (s *Service) customIcon(ctx context.Context, raw string) (string, string, error) {
+	raw = strings.TrimSpace(raw)
+	if len(raw) > 4096 {
+		return "", "", netpolicy.ErrInvalidURL
+	}
+	target, err := netpolicy.NormalizeURL(raw)
+	if err != nil {
+		return "", "", err
+	}
+	if s.fetcher == nil || !s.iconsAllowed(ctx) {
+		return "", "", errCustomIcon
+	}
+	data := s.fetchIcon(ctx, target)
+	if data == "" {
+		return "", "", errCustomIcon
+	}
+	return target, data, nil
+}
+
+func (s *Service) fetchIcon(ctx context.Context, target string) string {
 	response, err := s.fetcher.Fetch(ctx, target, netpolicy.Request{
 		Accept: "image/*", MaxBytes: faviconLimit, Timeout: 3 * time.Second,
 	})

@@ -40,8 +40,11 @@ func TestUpgradeRepairsArticleQueryBirth(t *testing.T) {
 					old.Close()
 				}
 			}()
-			source, err := old.EnsureFeed(ctx, "https://example.test/feed", "订阅")
-			if err != nil {
+			const source = "旧订阅"
+			// 用旧库的字段造数据，避免当前 sqlc 查询要求新版字段。
+			if _, err := old.db.ExecContext(ctx, `INSERT INTO feeds
+				(id,title,url,normalized_url,created_at,updated_at) VALUES (?, ?, ?, ?, 1, 1)`,
+				source, "订阅", "https://example.test/feed", "https://example.test/feed"); err != nil {
 				t.Fatal(err)
 			}
 			first, err := old.UpsertArticle(ctx, ArticleInput{FeedID: source, GUID: "first", Title: "原有文章", FetchedAt: 1})
@@ -84,6 +87,10 @@ END;`)
 				t.Fatal(err)
 			}
 			defer store.Close()
+			feed, err := store.GetSubscription(ctx, source)
+			if err != nil || feed.CustomIconURL != "" {
+				t.Fatalf("旧订阅的自定义图标默认值错误：%+v %v", feed, err)
+			}
 			scope := ArticleScope{Kind: "feed", ID: source}
 			page, err := store.QueryArticles(ctx, ArticleQuery{Scope: scope, Limit: 1})
 			if err != nil || len(page.Items) != 1 || page.Items[0].ID != second || page.NextCursor == "" {

@@ -402,7 +402,7 @@ func (q *Queries) GetCategory(ctx context.Context, id string) (Category, error) 
 }
 
 const getFeed = `-- name: GetFeed :one
-SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code FROM feeds WHERE id=?
+SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code, custom_icon_url FROM feeds WHERE id=?
 `
 
 func (q *Queries) GetFeed(ctx context.Context, id string) (Feed, error) {
@@ -429,12 +429,13 @@ func (q *Queries) GetFeed(ctx context.Context, id string) (Feed, error) {
 		&i.SortPosition,
 		&i.Revision,
 		&i.LastErrorCode,
+		&i.CustomIconUrl,
 	)
 	return i, err
 }
 
 const getFeedByURL = `-- name: GetFeedByURL :one
-SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code FROM feeds WHERE normalized_url=?
+SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code, custom_icon_url FROM feeds WHERE normalized_url=?
 `
 
 func (q *Queries) GetFeedByURL(ctx context.Context, normalizedUrl string) (Feed, error) {
@@ -461,6 +462,7 @@ func (q *Queries) GetFeedByURL(ctx context.Context, normalizedUrl string) (Feed,
 		&i.SortPosition,
 		&i.Revision,
 		&i.LastErrorCode,
+		&i.CustomIconUrl,
 	)
 	return i, err
 }
@@ -575,7 +577,7 @@ func (q *Queries) ListAllFeedCategories(ctx context.Context) ([]ListAllFeedCateg
 }
 
 const listAllFeeds = `-- name: ListAllFeeds :many
-SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code FROM feeds ORDER BY sort_position,title,id
+SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code, custom_icon_url FROM feeds ORDER BY sort_position,title,id
 `
 
 func (q *Queries) ListAllFeeds(ctx context.Context) ([]Feed, error) {
@@ -608,6 +610,7 @@ func (q *Queries) ListAllFeeds(ctx context.Context) ([]Feed, error) {
 			&i.SortPosition,
 			&i.Revision,
 			&i.LastErrorCode,
+			&i.CustomIconUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -732,7 +735,7 @@ func (q *Queries) ListCategories(ctx context.Context) ([]Category, error) {
 }
 
 const listDueFeeds = `-- name: ListDueFeeds :many
-SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code FROM feeds WHERE archived_at IS NULL AND (next_check_at IS NULL OR next_check_at<=?) ORDER BY next_check_at,id LIMIT 500
+SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code, custom_icon_url FROM feeds WHERE archived_at IS NULL AND (next_check_at IS NULL OR next_check_at<=?) ORDER BY next_check_at,id LIMIT 500
 `
 
 func (q *Queries) ListDueFeeds(ctx context.Context, nextCheckAt sql.NullInt64) ([]Feed, error) {
@@ -765,6 +768,7 @@ func (q *Queries) ListDueFeeds(ctx context.Context, nextCheckAt sql.NullInt64) (
 			&i.SortPosition,
 			&i.Revision,
 			&i.LastErrorCode,
+			&i.CustomIconUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -807,7 +811,7 @@ func (q *Queries) ListFeedCategories(ctx context.Context, feedID string) ([]stri
 }
 
 const listFeeds = `-- name: ListFeeds :many
-SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code FROM feeds WHERE archived_at IS NULL ORDER BY sort_position,title,id
+SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code, custom_icon_url FROM feeds WHERE archived_at IS NULL ORDER BY sort_position,title,id
 `
 
 func (q *Queries) ListFeeds(ctx context.Context) ([]Feed, error) {
@@ -840,6 +844,7 @@ func (q *Queries) ListFeeds(ctx context.Context) ([]Feed, error) {
 			&i.SortPosition,
 			&i.Revision,
 			&i.LastErrorCode,
+			&i.CustomIconUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -1038,11 +1043,12 @@ func (q *Queries) SaveCategory(ctx context.Context, arg SaveCategoryParams) (int
 const saveFeedDetails = `-- name: SaveFeedDetails :execrows
 UPDATE feeds SET title=?1,url=?2,normalized_url=?3,
  site_url=?4,description=?5,
- icon_url=COALESCE(?6,icon_url),updated_at=?7,revision=revision+1,
+ icon_url=COALESCE(?6,icon_url),
+ custom_icon_url=CASE WHEN ?6 IS NULL THEN custom_icon_url ELSE ?7 END,updated_at=?8,revision=revision+1,
  etag=CASE WHEN normalized_url<>?3 THEN '' ELSE etag END,
  last_modified=CASE WHEN normalized_url<>?3 THEN '' ELSE last_modified END,
  next_check_at=CASE WHEN normalized_url<>?3 THEN NULL ELSE next_check_at END
-WHERE id=?8 AND revision=?9
+WHERE id=?9 AND revision=?10
 `
 
 type SaveFeedDetailsParams struct {
@@ -1052,6 +1058,7 @@ type SaveFeedDetailsParams struct {
 	SiteUrl       string         `json:"site_url"`
 	Description   string         `json:"description"`
 	IconData      sql.NullString `json:"icon_data"`
+	CustomIconUrl string         `json:"custom_icon_url"`
 	UpdatedAt     int64          `json:"updated_at"`
 	ID            string         `json:"id"`
 	Revision      int64          `json:"revision"`
@@ -1065,6 +1072,7 @@ func (q *Queries) SaveFeedDetails(ctx context.Context, arg SaveFeedDetailsParams
 		arg.SiteUrl,
 		arg.Description,
 		arg.IconData,
+		arg.CustomIconUrl,
 		arg.UpdatedAt,
 		arg.ID,
 		arg.Revision,

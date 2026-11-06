@@ -67,3 +67,20 @@ it('有网站图标时默认选中，用户仍可改用默认图标',async()=>{
   await userEvent.click(screen.getByRole('button',{name:'添加订阅'}))
   await waitFor(()=>expect(api.add).toHaveBeenCalledWith(expect.objectContaining({use_default_icon:true})))
 })
+
+it('编辑时回填自定义图标网址并提交更新后的地址',async()=>{
+  api.list.mockResolvedValue({items:[{...feed,custom_icon_url:'https://cdn.example.test/old.ico'}],categories:[]})
+  api.update.mockResolvedValue(feed)
+  setup()
+  await userEvent.click(await screen.findByRole('button',{name:'编辑 测试源'}))
+  const dialog=within(screen.getByRole('dialog',{name:'编辑订阅'}))
+  const iconURL=dialog.getByRole('textbox',{name:'图标网址'})
+  expect(iconURL).toHaveValue('https://cdn.example.test/old.ico')
+  await userEvent.clear(iconURL)
+  await userEvent.type(iconURL,'https://cdn.example.test/new.png')
+  await userEvent.click(dialog.getByRole('button',{name:'保存订阅'}))
+  await waitFor(()=>expect(api.update).toHaveBeenCalledWith(
+    expect.objectContaining({custom_icon_url:'https://cdn.example.test/new.png',revision:4}),
+    expect.any(AbortSignal),
+  ))
+})

@@ -76,7 +76,8 @@ SELECT * FROM feeds WHERE archived_at IS NULL AND (next_check_at IS NULL OR next
 -- name: SaveFeedDetails :execrows
 UPDATE feeds SET title=sqlc.arg(title),url=sqlc.arg(url),normalized_url=sqlc.arg(normalized_url),
  site_url=sqlc.arg(site_url),description=sqlc.arg(description),
- icon_url=COALESCE(sqlc.narg(icon_data),icon_url),updated_at=sqlc.arg(updated_at),revision=revision+1,
+ icon_url=COALESCE(sqlc.narg(icon_data),icon_url),
+ custom_icon_url=CASE WHEN sqlc.narg(icon_data) IS NULL THEN custom_icon_url ELSE sqlc.arg(custom_icon_url) END,updated_at=sqlc.arg(updated_at),revision=revision+1,
  etag=CASE WHEN normalized_url<>sqlc.arg(normalized_url) THEN '' ELSE etag END,
  last_modified=CASE WHEN normalized_url<>sqlc.arg(normalized_url) THEN '' ELSE last_modified END,
  next_check_at=CASE WHEN normalized_url<>sqlc.arg(normalized_url) THEN NULL ELSE next_check_at END

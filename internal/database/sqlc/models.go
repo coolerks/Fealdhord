@@ -219,6 +219,7 @@ type Feed struct {
 	SortPosition  int64         `json:"sort_position"`
 	Revision      int64         `json:"revision"`
 	LastErrorCode string        `json:"last_error_code"`
+	CustomIconUrl string        `json:"custom_icon_url"`
 }
 
 type FeedCategory struct {

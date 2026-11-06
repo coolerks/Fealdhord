@@ -108,9 +108,9 @@ type faviconFetcher struct {
 
 func (f *faviconFetcher) Fetch(_ context.Context, url string, options netpolicy.Request) (netpolicy.Response, error) {
 	response := netpolicy.Response{URL: url, Status: http.StatusOK}
-	if strings.HasSuffix(url, "/favicon.ico") {
+	if strings.HasSuffix(url, ".ico") {
 		f.iconRequests++
-		if url != "https://site.test/favicon.ico" || options.MaxBytes != faviconLimit {
+		if (url != "https://site.test/favicon.ico" && url != "https://cdn.test/brand.ico") || options.MaxBytes != faviconLimit {
 			return netpolicy.Response{}, netpolicy.ErrBlocked
 		}
 		if f.missing {
@@ -165,5 +165,42 @@ func TestSubscriptionFaviconChoice(t *testing.T) {
 	allowed = false
 	if value := service.PreviewIcon(ctx, URLRequest{URL: feedURL}); value != "" || fetcher.iconRequests != 3 {
 		t.Fatal("禁止远程图片时仍请求网站图标")
+	}
+}
+
+func TestSubscriptionCustomIcon(t *testing.T) {
+	ctx := context.Background()
+	store, err := database.Open(ctx, filepath.Join(t.TempDir(), "icon.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	fetcher := &faviconFetcher{}
+	service := NewService(store, fetcher, nil, nil, func(context.Context) bool { return true })
+	const custom = "https://cdn.test/brand.ico"
+	added := service.Add(ctx, AddRequest{URL: "https://feeds.test/rss", CustomIconURL: custom})
+	if !added.OK || added.Data.CustomIconURL != custom || added.Data.IconData == "" || fetcher.iconRequests != 1 {
+		t.Fatalf("添加没有保存自定义地址和图片：%+v，请求数 %d", added, fetcher.iconRequests)
+	}
+
+	edit := UpdateRequest{ID: added.Data.ID, Revision: added.Data.Revision, Title: "新名称", URL: "https://feeds.test/new", CustomIconURL: custom}
+	updated := service.Update(ctx, edit)
+	if !updated.OK || updated.Data.CustomIconURL != custom || updated.Data.IconData != added.Data.IconData || fetcher.iconRequests != 1 {
+		t.Fatalf("修改订阅地址时丢失或重复下载自定义图标：%+v", updated)
+	}
+	edit.Revision, edit.Title, edit.CustomIconURL = updated.Data.Revision, "不应保存", "https://cdn.test/missing.ico"
+	if failed := service.Update(ctx, edit); failed.OK || failed.Error.Code != "IconLoadError" {
+		t.Fatalf("无法加载的图标未拒绝：%+v", failed)
+	}
+	unchanged := service.Get(ctx, IDRequest{ID: edit.ID})
+	if unchanged.Data.Revision != edit.Revision || unchanged.Data.Title != "新名称" || unchanged.Data.CustomIconURL != custom {
+		t.Fatalf("失败修改影响了已保存数据：%+v", unchanged.Data)
+	}
+
+	useDefault := true
+	edit.Title, edit.CustomIconURL, edit.UseDefaultIcon = "新名称", "", &useDefault
+	defaultIcon := service.Update(ctx, edit)
+	if !defaultIcon.OK || defaultIcon.Data.CustomIconURL != "" || defaultIcon.Data.IconData != "" {
+		t.Fatalf("切换默认图标未清除自定义地址和图片：%+v", defaultIcon)
 	}
 }
