@@ -153,9 +153,11 @@ func NormalizeURL(raw string) (string, error) {
 	return u.String(), nil
 }
 
+var fakeIPRange = netip.MustParsePrefix("198.18.0.0/15")
+
 var reserved = []netip.Prefix{
 	netip.MustParsePrefix("0.0.0.0/8"), netip.MustParsePrefix("100.64.0.0/10"), netip.MustParsePrefix("192.0.0.0/24"),
-	netip.MustParsePrefix("192.0.2.0/24"), netip.MustParsePrefix("192.88.99.0/24"), netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("192.0.2.0/24"), netip.MustParsePrefix("192.88.99.0/24"), fakeIPRange,
 	netip.MustParsePrefix("198.51.100.0/24"), netip.MustParsePrefix("203.0.113.0/24"), netip.MustParsePrefix("240.0.0.0/4"),
 	netip.MustParsePrefix("::/96"), netip.MustParsePrefix("64:ff9b::/96"), netip.MustParsePrefix("64:ff9b:1::/48"),
 	netip.MustParsePrefix("100::/64"), netip.MustParsePrefix("2001::/23"), netip.MustParsePrefix("2001:db8::/32"), netip.MustParsePrefix("2002::/16"),
@@ -188,10 +190,10 @@ func resolve(ctx context.Context, lookup resolver, host string) ([]netip.Addr, e
 		return nil, err
 	}
 	// 系统 DNS 可以同时返回可用的公网地址和私有地址。
-	// 拨号只使用这里筛出的固定 IP，避免重新解析域名。
+	// 域名解析得到的 Fake-IP 交给本机代理处理。拨号使用筛出的固定 IP。
 	allowed := make([]netip.Addr, 0, len(ips))
 	for _, ip := range ips {
-		if publicIP(ip) {
+		if publicIP(ip) || fakeIPRange.Contains(ip.Unmap()) {
 			allowed = append(allowed, ip.Unmap())
 		}
 	}

@@ -10,7 +10,7 @@ internal/netpolicy.Fetcher.Fetch(ctx,rawURL,Request) 返回 Response{URL,Status,
 
 ## 3. 契约
 
-只允许无 userinfo 的 HTTP(S)，规范化 IDNA、默认端口和 fragment，保留 query。逐条校验 DNS 候选并剔除私网与保留地址，剩余为空时拒绝。Dial 只使用筛出的固定公网 IP，Transport 保留 Host／TLS SNI，禁止环境代理绕过；每次跳转重检，最多 5 跳。跨源不继承条件请求或敏感头。响应最多解压后 10MiB／20 秒，图片调用可收紧；原始字节同样受限，仅支持 identity／gzip。
+只允许无 userinfo 的 HTTP(S)，规范化 IDNA、默认端口和 fragment，保留 query。逐条校验 DNS 候选。域名解析返回的 `198.18.0.0/15` 可用于本机代理的 Fake-IP 路由。剔除其他私网与保留地址，剩余为空时拒绝。Dial 只使用筛出的固定 IP，Transport 保留 Host／TLS SNI，禁止环境代理绕过；每次跳转重检，最多 5 跳。跨源不继承条件请求或敏感头。响应最多解压后 10MiB／20 秒，图片调用可收紧；原始字节同样受限，仅支持 identity／gzip。
 
 Parser 仅消费网关字节，禁止 ParseURL；XML／JSON 检查深度、token 数、条目数及指令，拒绝 DTD。HTML 自定义 allowlist 清理，纯文本供现有 Reader，不返回可执行原文；JSON Feed 的 content_text 与 title 不能被误当 HTML。图片只登记候选，不在解析事务发请求。
 

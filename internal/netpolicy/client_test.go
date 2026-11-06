@@ -36,7 +36,7 @@ func localClient(t *testing.T, handler http.HandlerFunc) (*Client, *atomic.Int32
 	return c, calls
 }
 func TestBlockedTargets(t *testing.T) {
-	for _, raw := range []string{"file:///etc/passwd", "http://user:pass@example.com/", "http://127.0.0.1/", "http://[::ffff:127.0.0.1]/", "http://10.0.0.1/", "http://169.254.169.254/", "http://100.64.0.1/", "http://192.0.2.1/", "http://[2001:db8::1]/", "http://[64:ff9b::7f00:1]/", "http://local.local/", "http://localhost./", "http://example.com:0/"} {
+	for _, raw := range []string{"file:///etc/passwd", "http://user:pass@example.com/", "http://127.0.0.1/", "http://[::ffff:127.0.0.1]/", "http://10.0.0.1/", "http://169.254.169.254/", "http://100.64.0.1/", "http://192.0.2.1/", "http://198.18.0.42/", "http://[2001:db8::1]/", "http://[64:ff9b::7f00:1]/", "http://local.local/", "http://localhost./", "http://example.com:0/"} {
 		if _, err := NormalizeURL(raw); err == nil {
 			t.Errorf("危险目标未被拒绝：%s", raw)
 		}
@@ -65,6 +65,34 @@ func TestMixedDNSUsesOnlyPinnedPublicIP(t *testing.T) {
 		t.Fatalf("仅含私网的 DNS 未拒绝：%v", err)
 	}
 }
+func TestFakeIPDNSAllowsSubscriptionAndRedirect(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Host == "feed.example" {
+			http.Redirect(w, r, "http://other.example/feed", http.StatusFound)
+			return
+		}
+		if r.Host != "other.example" {
+			t.Errorf("Host 丢失：%s", r.Host)
+		}
+		io.WriteString(w, "feed")
+	}))
+	defer server.Close()
+
+	lookup := fixedResolver{[]netip.Addr{netip.MustParseAddr("198.18.0.42")}}
+	client := newClient(lookup, func(ctx context.Context, network, address string) (net.Conn, error) {
+		if address != "198.18.0.42:80" {
+			t.Errorf("未连接 DNS 返回的 Fake-IP：%s", address)
+		}
+		return (&net.Dialer{}).DialContext(ctx, network, server.Listener.Addr().String())
+	})
+	defer client.CloseIdleConnections()
+
+	response, err := client.Fetch(context.Background(), "http://feed.example/", Request{})
+	if err != nil || string(response.Body) != "feed" {
+		t.Fatalf("Fake-IP 抓取失败：%q %v", response.Body, err)
+	}
+}
+
 func TestRedirectsAndCrossOriginValidators(t *testing.T) {
 	c, _ := localClient(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
