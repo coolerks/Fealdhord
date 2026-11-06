@@ -3,12 +3,13 @@ import type { CSSProperties } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { AnimatedGlyph } from '@/components/animated-glyph'
-import { CircleAlert } from 'lucide-react'
+import { CircleAlert, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { LibraryEmpty } from '@/features/articles/LibraryEmpty'
 import { ApplicationMenu } from './ApplicationMenu'
 import { native } from '@/lib/native'
 import { isCommand,runCommand } from '@/lib/commands'
 import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog'
+import { SemanticButton } from '@/components/semantic-button'
 import { Button } from '@/components/ui/button'
 import { Splitter } from '@/components/splitter'
 import { ArticleCollection } from '@/features/articles/ArticleCollection'
@@ -51,7 +52,8 @@ export function Shell() {
   const readerVisible = preferences.reader_open && Boolean(selected)
   const [sidebarDraft, setSidebarDraft] = useState<number | null>(null)
   const [listDraft, setListDraft] = useState<number | null>(null)
-  const sidebarWidth = preferences.sidebar_collapsed ? 64 : sidebarDraft ?? preferences.sidebar_width
+  const sidebarCollapsed = preferences.sidebar_collapsed
+  const sidebarWidth = sidebarDraft ?? preferences.sidebar_width
   const listWidth = listDraft ?? preferences.list_width
   const queryKey = libraryAnchorKey(library.key)
 
@@ -121,7 +123,13 @@ export function Shell() {
 
   const emptySearch = search.trim() !== ''
   return <MotionConfig reducedMotion={mode === 'full' ? 'never' : 'always'} transition={{ duration: mode === 'off' ? 0 : mode === 'subtle' ? .1 : .22, ease: [.22, 1, .36, 1] }}>
-    <div className="desktop-shell" data-platform={native.isMac()?'mac':'other'}>{!native.isMac()&&<ApplicationMenu/>}<div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={preferences.sidebar_collapsed}>
+    <div className="desktop-shell" data-platform={native.isMac()?'mac':'other'}>{!native.isMac()&&<ApplicationMenu/>}<div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={sidebarCollapsed}>
+      <div className="sidebar-toggle">
+        <SemanticButton id="sidebar-toggle" icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
+          label={sidebarCollapsed ? '展开侧栏' : '折叠侧栏'} meaning={sidebarCollapsed ? 'expand' : 'collapse'}
+          aria-expanded={!sidebarCollapsed} aria-controls="workspace-sidebar"
+          onClick={() => runCommand('sidebar', client)} />
+      </div>
       <Sidebar motionMode={mode} />
       {!preferences.sidebar_collapsed && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={280} onResize={setSidebarDraft} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
       <main className={cn('reading-workspace', !overlay && readerVisible && 'three-column')}>

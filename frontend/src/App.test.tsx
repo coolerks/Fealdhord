@@ -88,6 +88,18 @@ describe('Phase 1 阅读 Shell', () => {
     await waitFor(() => { expect(trigger).toHaveFocus() })
   })
 
+  it('隐藏侧栏后保留标题栏按钮和键盘焦点', async () => {
+    setup()
+    const toggle = await screen.findByRole('button', { name: '折叠侧栏' })
+    await userEvent.click(toggle)
+    expect(screen.queryByRole('complementary', { name: '主导航' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '展开侧栏', expanded: false })).toBe(toggle)
+    expect(toggle).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    expect(screen.getByRole('complementary', { name: '主导航' })).toBeVisible()
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('分隔条可用键盘调整并保存，命令面板可打开设置', async () => {
     setup()
     const separator = await screen.findByRole('separator', { name: '调整侧栏宽度' })

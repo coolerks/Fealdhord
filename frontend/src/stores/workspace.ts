@@ -33,7 +33,9 @@ type Workspace = {
 let writer: PreferenceWriter | null = null
 let settingsFocusReturn: HTMLElement | null = null
 export function restoreSettingsFocus() {
-  const target = settingsFocusReturn?.isConnected ? settingsFocusReturn : document.getElementById('open-settings')
+  const fallbackID = useWorkspace.getState().preferences?.sidebar_collapsed ? 'sidebar-toggle' : 'open-settings'
+  const target = settingsFocusReturn?.isConnected && !settingsFocusReturn.closest('[hidden]')
+    ? settingsFocusReturn : document.getElementById(fallbackID)
   target?.focus()
   settingsFocusReturn = null
 }
