@@ -50,7 +50,10 @@ type Document struct {
 
 var cleanHTML = func() *bluemonday.Policy {
 	p := bluemonday.NewPolicy()
-	p.AllowElements("p", "br", "div", "span", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "code", "strong", "em", "b", "i", "u", "s", "ul", "ol", "li", "table", "thead", "tbody", "tr", "th", "td", "hr", "a", "img")
+	p.AllowElements("p", "br", "div", "span", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "code", "strong", "em", "b", "i", "u", "s", "ul", "ol", "li", "table", "thead", "tbody", "tr", "th", "td", "hr", "a", "img", "figure", "figcaption", "del", "sup", "sub", "kbd", "caption", "dl", "dt", "dd")
+	p.AllowAttrs("class").Matching(regexp.MustCompile(`^(hljs +)?(language|lang)-[a-zA-Z0-9_+-]{1,32}$`)).OnElements("pre", "code")
+	p.AllowAttrs("start").Matching(regexp.MustCompile(`^-?[0-9]{1,6}$`)).OnElements("ol")
+	p.AllowAttrs("colspan", "rowspan").Matching(regexp.MustCompile(`^[1-9][0-9]{0,1}$`)).OnElements("td", "th")
 	p.AllowAttrs("href").OnElements("a")
 	p.AllowAttrs("src", "alt").OnElements("img")
 	p.AllowAttrs("width", "height").Matching(regexp.MustCompile(`^[0-9]{1,5}$`)).OnElements("img")

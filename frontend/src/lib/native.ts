@@ -9,6 +9,12 @@ export const native = {
   paste: () => Clipboard.Text(),
   close: () => Window.Close(),
   minimize: () => Window.Minimise(),
+  isMaximized: () => Window.IsMaximised(),
+  onMaximizeChange: (listener: (maximized: boolean) => void) => {
+    const maximize = Events.On(Events.Types.Windows.WindowMaximise, () => listener(true))
+    const restore = Events.On(Events.Types.Windows.WindowRestore, () => listener(false))
+    return () => { maximize(); restore() }
+  },
   maximize: () => Window.ToggleMaximise(),
   fullscreen: () => Window.ToggleFullscreen(),
   quit: () => Application.Quit(),

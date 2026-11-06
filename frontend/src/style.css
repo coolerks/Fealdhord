@@ -170,8 +170,7 @@
 .reader-content { flex: 1; min-height: 0; overflow: auto; padding: 20px clamp(20px,5vw,64px) 48px; }
 .reader-content article { margin: 0 auto; overflow-wrap: anywhere; }
 .reader-byline { font-size: 12px; color: var(--muted-foreground); margin: 0 0 10px; }
-.reader-content h1 { font-size: 1.8em; line-height: 1.4; letter-spacing: -.025em; font-weight: 600; margin: 0 0 22px; outline: none; }
-.reader-prose p { white-space: pre-wrap; margin: 0 0 1.3em; }
+.reader-content article > h1 { font-size: 1.8em; line-height: 1.4; letter-spacing: -.025em; font-weight: 600; margin: 0 0 22px; outline: none; }
 .reader-drawer { position: absolute; inset: 0 0 0 auto; width: min(760px,85%); background: var(--reader-background); border-left: 1px solid var(--border); box-shadow: -12px 0 30px color-mix(in srgb,var(--foreground) 6%,transparent); }
 .settings-dialog { width: min(900px,calc(100vw - 48px)); max-width: min(900px,calc(100vw - 48px)); height: min(700px,calc(100vh - 64px)); top: clamp(44px, calc((100vh - 740px) / 2), 64px); translate: -50% 0; padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 12px; }
 .settings-dialog > [data-slot=dialog-header] { min-height: 26px; justify-content: center; padding-inline-end: 34px; }
@@ -291,12 +290,6 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 .nav-tree-row .nav-node-label { overflow:hidden; text-overflow:ellipsis; }
 .nav-section nav { margin-block:4px 12px; }
 
-.reader-prose pre,.reader-prose table { max-width:100%; overflow-x:auto; display:block; }
-.reader-prose pre { padding:16px; background:var(--muted); border-radius:6px; white-space:pre; }
-.reader-prose td,.reader-prose th { padding:6px 10px; border:1px solid var(--border); }
-.reader-prose img { display:block; max-width:100%; height:auto; margin:20px auto; }
-.reader-prose[data-images=blocked] img { display:none; }
-.reader-prose a { text-decoration:underline; text-underline-offset:3px; }
 .reader-operation { margin-block:12px; font-size:13px; }
 
 .transfer-items { list-style: none; padding: 0; margin-block: 12px; }
@@ -314,3 +307,13 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 .reader-view-tab[data-state=active] { background: var(--accent); color: var(--foreground); }
 .reader-view-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .reader-toolbar .toolbar-actions { flex-wrap: wrap; min-width: 0; }
+
+.window-controls svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1; }
+.field-selection {
+  position: fixed; z-index: 55; pointer-events: none; overflow: hidden;
+  color: transparent; border-color: transparent; white-space: pre-wrap; overflow-wrap: break-word;
+}
+.field-selection[data-single-line=true] { display: flex; align-items: center; white-space: pre; }
+.field-selection[data-single-line=true] > div { min-width: 100%; flex-shrink: 0; }
+.field-selection mark { color: transparent; background: color-mix(in srgb, Highlight 35%, transparent); }
+.global-context-menu { z-index: 60; }

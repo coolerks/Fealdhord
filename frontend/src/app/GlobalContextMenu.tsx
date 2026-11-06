@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuGroup, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu'
@@ -10,25 +10,29 @@ import { commandShortcut, textShortcut } from '@/lib/command-presentation'
 import type { TextAction } from '@/lib/command-presentation'
 import { native } from '@/lib/native'
 import { useWorkspace } from '@/stores/workspace'
+import { FieldSelection } from './FieldSelection'
 
 export function GlobalContextMenu({children}:{children:ReactNode}) {
  const client=useQueryClient()
- const text=useRef<ReturnType<typeof captureTextTarget>|null>(null)
+ const [open, setOpen] = useState(false)
  const selectedID=useWorkspace(state=>state.preferences?.selected_article_id)
- const [target,setTarget]=useState({articleID:'',editable:false,selection:false,readOnly:false})
+ const [target,setTarget]=useState<{articleID: string; text: ReturnType<typeof captureTextTarget> | null}>({articleID:'',text:null})
+ const field = target.text?.field
+ const hasSelection = Boolean(target.text?.text)
+ const readOnly = Boolean(field?.readOnly || field?.disabled)
  const targetMatches=target.articleID===selectedID
  useEffect(()=>{const block=(event:MouseEvent)=>event.preventDefault();document.addEventListener('contextmenu',block);return()=>document.removeEventListener('contextmenu',block)},[])
- const textItem=(action:TextAction,disabled=false)=><ContextMenuItem key={action} disabled={disabled} aria-keyshortcuts={textShortcut(action,native.isMac()).keys} onSelect={()=>{if(text.current)void editText(action,text.current)}}><TextActionPresentation action={action}/></ContextMenuItem>
+ const textItem=(action:TextAction,disabled=false)=><ContextMenuItem key={action} disabled={disabled} aria-keyshortcuts={textShortcut(action,native.isMac()).keys} onSelect={()=>{if(target.text)void editText(action,target.text)}}><TextActionPresentation action={action}/></ContextMenuItem>
  const commands=(ids:CommandID[],article=false)=>ids.map(id=><ContextMenuItem key={id} aria-keyshortcuts={commandShortcut(id,native.isMac(),!article||targetMatches)?.keys} onSelect={()=>runCommand(id,client,article?target.articleID:undefined)}><CommandPresentation id={id} articleTargetMatches={!article||targetMatches}/></ContextMenuItem>)
- return <ContextMenu><ContextMenuTrigger asChild><div className="application-root" onContextMenuCapture={event=>{
-  text.current=captureTextTarget(event.target)
+ return <ContextMenu onOpenChange={setOpen}><ContextMenuTrigger asChild><div className="application-root" onContextMenuCapture={event=>{
+  const text = captureTextTarget(event.target)
   const element=event.target instanceof Element?event.target:null
-  setTarget({articleID:element?.closest<HTMLElement>('[data-article-id]')?.dataset.articleId??'',editable:Boolean(text.current.field),selection:Boolean(text.current.text),readOnly:Boolean(text.current.field?.readOnly||text.current.field?.disabled)})
- }}>{children}</div></ContextMenuTrigger><ContextMenuContent className="action-menu" aria-label="阅读上下文菜单" onCloseAutoFocus={event=>{if(text.current?.field){event.preventDefault();text.current.field.focus({preventScroll:true})}}}>
- {(target.editable||target.selection)&&<><ContextMenuGroup aria-label="文本编辑">
- {target.editable&&textItem('cut',!target.selection||target.readOnly)}
- {textItem('copy',!target.selection)}
- {target.editable&&<>{textItem('paste',target.readOnly)}{textItem('selectAll')}</>}
+  setTarget({articleID:element?.closest<HTMLElement>('[data-article-id]')?.dataset.articleId??'',text})
+ }}>{children}</div></ContextMenuTrigger>{open && target.text && <FieldSelection target={target.text} />}<ContextMenuContent className="action-menu global-context-menu" aria-label="阅读上下文菜单" onCloseAutoFocus={event=>{if(field?.isConnected){event.preventDefault();field.focus({preventScroll:true})}}}>
+ {(field||hasSelection)&&<><ContextMenuGroup aria-label="文本编辑">
+ {field&&textItem('cut',!hasSelection||readOnly)}
+ {textItem('copy',!hasSelection)}
+ {field&&<>{textItem('paste',readOnly)}{textItem('selectAll')}</>}
  </ContextMenuGroup><ContextMenuSeparator/></>}
  {target.articleID&&<><ContextMenuGroup aria-label="文章操作">{commands(['favorite','read'],true)}</ContextMenuGroup><ContextMenuSeparator/></>}
  <ContextMenuGroup aria-label="视图">{commands(['search','list','masonry','sidebar'])}</ContextMenuGroup>

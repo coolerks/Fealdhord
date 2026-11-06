@@ -23,3 +23,5 @@ Go全包test／vet、相关race，前端20文件80项／类型／lint通过；�
 [v0.1.0-alpha.2](https://github.com/coolerks/Fealdhord/releases/tag/v0.1.0-alpha.2) 已作为预发布上传 Windows x64 ZIP、macOS 通用 ZIP、Linux x64 DEB 和 SHA256SUMS.txt。三份摘要与 GitHub 资产记录一致。首轮 Alpha 构建因修正托盘图标而取消。macOS 使用临时签名，三平台安装与启动未做实机验收。
 
 主窗口按显示器工作区确定首次显示的尺寸。Windows 将侧栏开关和窗口控制放入与侧栏同色的应用菜单栏。三平台将文字选择限制在文章和编辑字段。
+
+Windows 标题栏使用横线、方框和重叠方框，并同步窗口状态。输入框和文本域打开右键菜单时保留选区提示。订阅预览与阅读模式共用文章排版，代码高亮按需加载，语言标记通过受限的 HTML 清洗规则保留。

@@ -30,7 +30,7 @@ func fixture(t *testing.T) (*database.Store, string, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body := `<h2>中文标题</h2><pre><code>fmt.Println("栈")</code></pre><table><tr><th>列</th></tr><tr><td>值</td></tr></table><p>正文<a href="/relative">链接</a></p><img src="https://images.test/picture.png" width="800" onerror="attack()"><script>attack()</script><iframe src="https://bad.test"></iframe><div style="background:url(https://bad.test)">安全文字</div>`
+	body := `<h2>中文标题</h2><pre><code class="language-go" onclick="attack()">fmt.Println("栈")</code></pre><table><tr><th>列</th></tr><tr><td>值</td></tr></table><p>正文<a href="/relative">链接</a></p><img src="https://images.test/picture.png" width="800" onerror="attack()"><script>attack()</script><iframe src="https://bad.test"></iframe><div style="background:url(https://bad.test)">安全文字</div>`
 	id, err := store.UpsertArticle(ctx, database.ArticleInput{FeedID: f, GUID: "one", URL: "https://example.test/article", Title: "文章", HTML: body, Text: "原订阅正文"})
 	if err != nil {
 		t.Fatal(err)
@@ -50,12 +50,12 @@ func TestSafeHTMLAndVersionedRegisteredResources(t *testing.T) {
 		t.Fatal("当前文章应保留外部原文入口")
 	}
 	body := result.Data.HTML
-	for _, blocked := range []string{"onerror", "attack()", "<script", "iframe", "style=", "https://"} {
+	for _, blocked := range []string{"onerror", "onclick", "attack()", "<script", "iframe", "style=", "https://"} {
 		if strings.Contains(body, blocked) {
 			t.Fatal("危险资源穿透", blocked, body)
 		}
 	}
-	for _, expected := range []string{"<pre>", "<code>", "<table>", "/media/inline/", "data-reader-link=", `href="#reader-link"`} {
+	for _, expected := range []string{"<pre>", `<code class="language-go">`, "<table>", "/media/inline/", "data-reader-link=", `href="#reader-link"`} {
 		if !strings.Contains(body, expected) {
 			t.Fatal("排版或登记资源丢失", expected, body)
 		}

@@ -1,7 +1,6 @@
-import { Fragment, useRef } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Minus, Square, X } from 'lucide-react'
-import { SemanticButton } from '@/components/semantic-button'
+import { Button } from '@/components/ui/button'
 import { useQueryClient } from '@tanstack/react-query'
 import { Menubar, MenubarMenu, MenubarTrigger, MenubarContent, MenubarGroup, MenubarItem, MenubarSeparator } from '@/components/ui/menubar'
 import { runCommand } from '@/lib/commands'
@@ -35,13 +34,34 @@ export function ApplicationMenu({ windowsSidebarToggle }: { windowsSidebarToggle
  </Menubar>
  {windowsSidebarToggle && <>
    <div className="window-drag-area" onDoubleClick={() => runCommand('maximize',client)} />
-   <div className="window-controls" role="group" aria-label="窗口控制">
-     <SemanticButton icon={Minus} meaning="minimize" label="最小化窗口" onClick={() => runCommand('minimize',client)} />
-     <SemanticButton icon={Square} meaning="maximize" label="最大化或还原窗口" onClick={() => runCommand('maximize',client)} />
-     <SemanticButton icon={X} meaning="x" label="关闭窗口" className="window-close" onClick={() => runCommand('close',client)} />
-   </div>
+   <WindowControls />
  </>}
  </div>
  function textItem(action:Parameters<typeof editText>[0]) {return <MenubarItem key={action} aria-keyshortcuts={textShortcut(action,native.isMac()).keys} onSelect={()=>{void editText(action,text.current??captureTextTarget())}}><TextActionPresentation action={action}/></MenubarItem>}
  function renderGroup(group:typeof groups[number]) {return <MenubarMenu key={group.title}><MenubarTrigger>{group.title}</MenubarTrigger><MenubarContent className="action-menu">{group.sections.map((section,index)=><Fragment key={index}>{index>0&&<MenubarSeparator/>}<MenubarGroup>{section.map(command)}</MenubarGroup></Fragment>)}</MenubarContent></MenubarMenu>}
+}
+
+
+function WindowControls() {
+ const client = useQueryClient()
+ const [maximized, setMaximized] = useState(false)
+ useEffect(() => {
+   let current = true
+   const unsubscribe = native.onMaximizeChange(value => { current = false; setMaximized(value) })
+   void native.isMaximized().then(value => { if (current) setMaximized(value) }).catch(() => {})
+   return () => { current = false; unsubscribe() }
+ }, [])
+ return <div className="window-controls" role="group" aria-label="窗口控制">
+   <Button variant="ghost" size="icon" aria-label="最小化窗口" onClick={() => runCommand('minimize', client)}>
+     <svg aria-hidden="true" viewBox="0 0 12 12"><path d="M1 6h10" /></svg>
+   </Button>
+   <Button variant="ghost" size="icon" aria-label={maximized ? '还原窗口' : '最大化窗口'} onClick={() => runCommand('maximize', client)}>
+     <svg aria-hidden="true" viewBox="0 0 12 12">
+       {maximized ? <path d="M4 3.5v-2h6.5V8h-2M1.5 4h6.5v6.5H1.5z" /> : <path d="M1.5 1.5h9v9h-9z" />}
+     </svg>
+   </Button>
+   <Button variant="ghost" size="icon" className="window-close" aria-label="关闭窗口" onClick={() => runCommand('close', client)}>
+     <svg aria-hidden="true" viewBox="0 0 12 12"><path d="m1.5 1.5 9 9m0-9-9 9" /></svg>
+   </Button>
+ </div>
 }

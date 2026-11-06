@@ -9,7 +9,7 @@ import { initialLibraryData,libraryArticles } from '@/lib/library-query'
 import type { LibraryData } from '@/lib/library-query'
 import { articleQueryKey } from '@/lib/library'
 
-const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),isWindows:vi.fn(()=>false),onCommand:vi.fn(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(async()=>{}),minimize:vi.fn(async()=>{}),maximize:vi.fn(async()=>{}),fullscreen:vi.fn(),quit:vi.fn()}))
+const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),isWindows:vi.fn(()=>false),isMaximized:vi.fn(async()=>false),onMaximizeChange:vi.fn<(_listener: (value: boolean) => void) => () => void>(()=>()=>{}),onCommand:vi.fn(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(async()=>{}),minimize:vi.fn(async()=>{}),maximize:vi.fn(async()=>{}),fullscreen:vi.fn(),quit:vi.fn()}))
 vi.mock('@/lib/native',()=>({native:host}))
 const api = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn() }))
 vi.mock('@/lib/preferences', () => ({ preferencesAPI: api }))
@@ -144,10 +144,13 @@ describe('Phase 1 阅读 Shell', () => {
     expect(toggle).toHaveAccessibleName('展开侧栏')
     const controls = within(bar).getByRole('group', { name: '窗口控制' })
     await userEvent.click(within(controls).getByRole('button', { name: '最小化窗口' }))
-    await userEvent.click(within(controls).getByRole('button', { name: '最大化或还原窗口' }))
+    await userEvent.click(within(controls).getByRole('button', { name: '最大化窗口' }))
     await userEvent.click(within(controls).getByRole('button', { name: '关闭窗口' }))
     expect(host.minimize).toHaveBeenCalledOnce()
     expect(host.maximize).toHaveBeenCalledOnce()
+    const onMaximizeChange = host.onMaximizeChange.mock.calls[0]?.[0]
+    act(() => onMaximizeChange?.(true))
+    expect(within(controls).getByRole('button', { name: '还原窗口' })).toBeInTheDocument()
     expect(host.close).toHaveBeenCalledOnce()
     await userEvent.click(within(menu).getByRole('menuitem',{name:'显示'}))
     await userEvent.click(await screen.findByRole('menuitem',{name:'瀑布流视图'}))
@@ -182,11 +185,13 @@ describe('Phase 1 阅读 Shell', () => {
     await userEvent.type(field,'abcdef')
     field.setSelectionRange(1,3)
     await act(async()=>{fireEvent.contextMenu(field);await new Promise(resolve=>setTimeout(resolve,0))})
+    expect(document.querySelector('.field-selection mark')).toHaveTextContent('bc')
     let copied:()=>void=()=>{}
     host.copy.mockImplementationOnce(()=>new Promise<void>(resolve=>{copied=resolve}))
     await userEvent.click(await screen.findByRole('menuitem',{name:'剪切'}))
     await act(async()=>{copied();await new Promise(resolve=>setTimeout(resolve,0))})
     expect(host.copy).toHaveBeenCalledWith('bc')
+    expect(document.querySelector('.field-selection')).toBeNull()
     await waitFor(()=>expect(useWorkspace.getState().search).toBe('adef'))
     field.setSelectionRange(1,1)
     await act(async()=>{fireEvent.contextMenu(field);await new Promise(resolve=>setTimeout(resolve,0))})
@@ -206,10 +211,13 @@ describe('Phase 1 阅读 Shell', () => {
     expect(await screen.findByText('暂无文章')).toBeInTheDocument()
     const articles=articleFixtures(1).map(article=>({...article,contentText:''}))
     act(()=>client.setQueryData(articleQueryKey,initialLibraryData({items:articles,hasMore:false})))
-    reader.get.mockResolvedValueOnce({article_id:'a-0',html:'<p>按需读取的完整正文</p>',text:'按需读取的完整正文',mode:'feed',has_cached:false,has_original:false})
+    reader.get.mockResolvedValueOnce({article_id:'a-0',html:'<p>按需读取的完整正文</p><pre><code class="language-python">def hello(): return &quot;&lt;script&gt;&quot;</code></pre>',text:'按需读取的完整正文',mode:'feed',has_cached:false,has_original:false})
     await userEvent.click(await screen.findByRole('button',{name:'打开文章：测试文章 0'}))
     expect(await screen.findByText('按需读取的完整正文')).toBeInTheDocument()
     expect(reader.get).toHaveBeenCalledWith('a-0','feed',expect.any(AbortSignal))
+    await waitFor(() => expect(document.querySelector('code .hljs-keyword')).toHaveTextContent('def'))
+    expect(document.querySelector('code')).toHaveTextContent('<script>')
+    expect(document.querySelector('code script')).toBeNull()
   })
 
   it('命令面板名称与行为一致，精简设置仍保留功能状态和焦点', async()=>{

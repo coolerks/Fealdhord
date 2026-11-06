@@ -14,6 +14,7 @@ import { SemanticButton } from '@/components/semantic-button'
 import { Empty,EmptyHeader,EmptyMedia,EmptyTitle } from '@/components/ui/empty'
 import { useWorkspace } from '@/stores/workspace'
 import { useReaderContent } from './use-reader-content'
+import './reader-prose.css'
 
 type ArticleView = 'feed' | 'reader'
 
@@ -22,6 +23,20 @@ export function Reader(props:ReaderProps){
  const markedRef=useRef('')
  return <ReaderPane key={`${props.article?.id}:${props.article?.revision ?? 0}:${props.preferences.reader_open_mode}`} {...props} markedRef={markedRef}/>
 }
+function ArticleHTML({ html }: { html: string }) {
+ const container = useRef<HTMLDivElement>(null)
+ useEffect(() => {
+  const blocks = container.current?.querySelectorAll<HTMLElement>('pre > code:only-child, pre:not(:has(code))')
+  if (!blocks?.length) return
+  let current = true
+  void import('./highlight-code').then(({ highlightCode }) => {
+   if (current) highlightCode(blocks)
+  }).catch(() => { /* 原始代码仍可阅读。 */ })
+  return () => { current = false }
+ }, [html])
+ return <div ref={container} className="reader-html" dangerouslySetInnerHTML={{ __html: html }} />
+}
+
 function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnchor,markedRef}:ReaderProps&{markedRef:RefObject<string>}){
  const content=useRef<HTMLDivElement>(null),timer=useRef<ReturnType<typeof setTimeout>|null>(null),pending=useRef<number|null>(null),save=useRef(onAnchor),title=useRef<HTMLHeadingElement>(null)
  const showSettings=useWorkspace(state=>state.showSettings),articleID=article?.id
@@ -93,7 +108,7 @@ function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnc
     const link=event.target.closest<HTMLAnchorElement>('a[data-reader-link]')
     if(link&&event.currentTarget.contains(link)){event.preventDefault();openLink(link.dataset.readerLink)}
    }} onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)event.target.hidden=true}}>
-    {body.query.isError&&!hasContent?<div role="alert">正文读取失败。<Button variant="ghost" onClick={()=>{void body.query.refetch()}}>重试</Button></div>:body.query.isFetching&&!hasContent?<><Skeleton className="h-4 w-full"/><Skeleton className="h-4 w-3/4"/></>:body.html?<div dangerouslySetInnerHTML={{__html:body.html}}/>:body.text.split(/\n\n+/).map((paragraph,index)=><p key={index}>{paragraph}</p>)}
+    {body.query.isError&&!hasContent?<div role="alert">正文读取失败。<Button variant="ghost" onClick={()=>{void body.query.refetch()}}>重试</Button></div>:body.query.isFetching&&!hasContent?<><Skeleton className="h-4 w-full"/><Skeleton className="h-4 w-3/4"/></>:body.html?<ArticleHTML html={body.html} />:body.text.split(/\n\n+/).map((paragraph,index)=><p key={index}>{paragraph}</p>)}
    </div></article></div></Tabs.Content>:<Empty className="reader-empty"><EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={BookOpen} meaning="book"/></EmptyMedia><EmptyTitle>选择文章</EmptyTitle></EmptyHeader></Empty>}
   </Tabs.Root>
  </motion.aside>
