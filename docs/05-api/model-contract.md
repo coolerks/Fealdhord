@@ -2,7 +2,7 @@
 
 ## 1. 范围与触发条件
 
-三种 Protocol Adapter、Runtime 和 Chat 之间的稳定边界；本节为拟定契约。
+三种 Protocol Adapter、Runtime 和 Chat 之间的稳定边界；完整契约仍在实施。当前代码位于 `internal/ai`，已实现 Chat Completions 单轮文本请求、SSE 文本事件和用量归一化。
 
 ## 2. 签名
 
@@ -67,3 +67,5 @@ SSE 事件与工具参数有独立大小上限，UTF-8 和跨分包边界正确�
 错误：Messages 结果回传成 role=tool，或 Responses 借 Chat Adapter 模拟。正确：独立映射到各自原生结构，由统一契约测试保证用户结果一致。
 
 验收 MODEL-01：三 Adapter 独立通过本节所有 wire 用例，包括多工具交错、工具结果续轮、EOF 与 usage。
+
+Chat Completions 当前以配置的 API 基础路径追加 `chat/completions`，请求使用标准库 HTTP 并禁止重定向。响应上限为 8 MiB，单个 SSE 事件上限为 256 KiB，请求总时限为两分钟。已取消且无人继续消费的事件通道会直接关闭。
