@@ -374,8 +374,26 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 .category-membership { display:grid; gap:8px; }
 .category-manager { display:grid; gap:12px; }
 .nav-tree { list-style:none; padding:0; margin:0; }
-.nav-tree-row { display:flex; align-items:center; min-width:0; }
-.nav-tree-row .nav-item { flex:1; min-width:0; }
+.nav-tree-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  min-width: 0;
+  border-radius: 8px;
+}
+@media (hover: hover) {
+  .nav-tree-row:hover { background: var(--sidebar-hover, var(--muted)); }
+}
+.nav-tree-row:has(.nav-item[aria-current=page]) {
+  background: var(--sidebar-selection, var(--secondary));
+}
+.glass-sidebar .nav-tree-row > button[data-slot=button][data-variant] {
+  background: transparent;
+}
+.nav-tree-row .nav-tree-disclosure { grid-column: 1; width: 100%; }
+.nav-tree-row .nav-tree-disclosure svg { width: 14px; height: 14px; }
+.nav-tree-row .nav-item { grid-column: 2; min-width: 0; padding-inline-start: 0; }
+
 .nav-tree-row .nav-node-label { overflow:hidden; text-overflow:ellipsis; }
 .nav-section nav { margin-block:4px 12px; }
 

@@ -11,3 +11,5 @@ macOS 通过 Wails 创建透明窗口，由 AppKit 的 Sidebar 材质模糊窗�
 方向键在树中移动／展开，Enter 选择，Shift+F10 打开上下文菜单。选中态有指示条和 aria-current；未读由数字／圆点表达。焦点与 Hover 均能看到同样操作。折叠后 Tooltip 不能替代 accessible name。
 
 验收 SIDEBAR-01：Light／Dark／实色回退信息一致；键盘到达每个区域，未读数与共享 Query 一致，拖动可撤销或明确确认，不丢焦点。
+
+分类行的悬停与选中底色覆盖整行。展开箭头独立响应点击和键盘操作，同层分类对齐图标，每深入一级向内缩进 16px。
