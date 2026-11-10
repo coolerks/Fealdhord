@@ -1,10 +1,13 @@
 import { openChat } from '@/features/chat/chat-scope'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { ArticleCategories } from '@/features/categories/ArticleCategories'
-import { BookOpen,BookText,CheckCheck,ChevronLeft,ExternalLink,RefreshCw,ScanText,Sparkles,Star } from 'lucide-react'
+import { BookOpen,BookText,CalendarDays,CheckCheck,ChevronLeft,ExternalLink,RefreshCw,ScanText,Sparkles,Star } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Tabs } from 'radix-ui'
+import { useQuery } from '@tanstack/react-query'
+import { FeedIcon } from '@/features/feeds/FeedIcon'
+import { feedsQueryKey, rssAPI } from '@/lib/rss-api'
 import { motion } from 'motion/react'
 import { useEffect,useEffectEvent,useLayoutEffect,useRef,useState } from 'react'
 import type { RefObject } from 'react'
@@ -41,6 +44,14 @@ function ArticleHTML({ html }: { html: string }) {
 function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnchor,markedRef}:ReaderProps&{markedRef:RefObject<string>}){
  const content=useRef<HTMLDivElement>(null),timer=useRef<ReturnType<typeof setTimeout>|null>(null),pending=useRef<number|null>(null),save=useRef(onAnchor),title=useRef<HTMLHeadingElement>(null)
  const articleID=article?.id
+ const {data:feedIcon}=useQuery({
+  queryKey:feedsQueryKey,
+  queryFn:rssAPI.list,
+  enabled:Boolean(article?.feedID) && preferences.remote_images!=='never',
+  retry:false,
+  select:page=>page.items?.find(feed=>feed.id===article?.feedID)?.icon_data,
+ })
+ const publicationDate=article?.publishedAt.slice(0,10)
  const body=useReaderContent(article,preferences)
  const [showToolbarTitle,setShowToolbarTitle]=useState(false)
  const [view,setView]=useState<ArticleView>(preferences.reader_open_mode==='full'?'reader':'feed')
@@ -122,7 +133,10 @@ function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnc
    if(!articleID||!hasContent)return
    const offset=event.currentTarget.scrollTop;pending.current=offset;if(timer.current)clearTimeout(timer.current)
    timer.current=setTimeout(()=>{pending.current=null;save.current(`reader|${articleID}`,{article_id:articleID,offset})},180)
-  }}><article style={{maxWidth:preferences.reader_width,fontSize:preferences.reader_font_size,lineHeight:preferences.reader_line_height,fontFamily:preferences.reader_font_family==='serif'?'ui-serif, Georgia, "Songti SC", serif':preferences.reader_font_family==='monospace'?'ui-monospace, SFMono-Regular, monospace':undefined}}><p className="reader-byline">{article.feedTitle} · {article.publishedAt.slice(0,10)}</p><h1 ref={title} tabIndex={-1}>{article.title}</h1>
+  }}><article style={{maxWidth:preferences.reader_width,fontSize:preferences.reader_font_size,lineHeight:preferences.reader_line_height,fontFamily:preferences.reader_font_family==='serif'?'ui-serif, Georgia, "Songti SC", serif':preferences.reader_font_family==='monospace'?'ui-monospace, SFMono-Regular, monospace':undefined}}><p className="reader-byline">
+    <span><FeedIcon data={preferences.remote_images==='never' ? undefined : feedIcon}/>{article.feedTitle}</span>
+    {publicationDate && <time dateTime={publicationDate}><CalendarDays aria-hidden="true"/>{publicationDate}</time>}
+   </p><h1 ref={title} tabIndex={-1}>{article.title}</h1>
    {(body.extracting||body.error)&&<div className="reader-operation" role="status">{body.extracting?<><span>正在提取网页正文…</span><Button variant="ghost" size="sm" onClick={body.cancel}>取消提取</Button></>:<p role="alert">{body.error}</p>}</div>}
    <div className="reader-prose" data-images={preferences.remote_images==='never'?'blocked':'allowed'} onClick={event=>{
     if(!(event.target instanceof Element))return
