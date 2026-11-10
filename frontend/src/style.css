@@ -52,9 +52,12 @@
   button:disabled { cursor: default; }
   button, input, [tabindex] { -webkit-tap-highlight-color: transparent; }
   :focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
-  @media (forced-colors: none) {
+  @media not all and (forced-colors: active) {
     ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+    ::-webkit-scrollbar,
+    ::-webkit-scrollbar-track,
+    ::-webkit-scrollbar-track-piece,
+    ::-webkit-scrollbar-corner { background: transparent; }
     ::-webkit-scrollbar-thumb {
       border: 1px solid transparent;
       border-radius: 999px;
@@ -211,7 +214,7 @@
 .library-empty [data-slot=empty-header] { max-width: 260px; gap: 12px; }
 .library-empty [data-slot=empty-icon] { width: 48px; height: 48px; border-radius: 12px; margin-bottom: 6px; color: var(--primary); background: color-mix(in srgb,var(--sidebar-accent) 55%,transparent); }
 .library-empty [data-slot=empty-icon] svg { width: 22px; height: 22px; }
-.article-scroll { flex: 1; min-height: 0; overflow: auto; overflow-anchor: none; scrollbar-gutter: stable; }
+.article-scroll { flex: 1; min-height: 0; overflow: auto; overflow-anchor: none; }
 .masonry-scroll { padding: 16px; }
 .virtual-articles { position: relative; width: 100%; margin: 0; padding: 0; list-style: none; }
 .article-item { position: relative; color: var(--foreground); }
@@ -293,7 +296,7 @@ html[data-motion=subtle] .reader-toolbar-title { transform: none; }
 .reader-empty [data-slot=empty-header] { gap: 13px; max-width: 250px; }
 .reader-empty [data-slot=empty-icon] { width: 46px; height: 46px; border-radius: 11px; background: color-mix(in srgb,var(--muted) 65%,transparent); color: var(--muted-foreground); }
 .reader-empty [data-slot=empty-icon] svg { width: 22px; height: 22px; }
-.reader-content { flex: 1; min-height: 0; overflow: auto; padding: 20px clamp(20px,5vw,64px) 48px; }
+.reader-content { flex: 1; min-height: 0; overflow: auto; margin-inline-end: 2px; padding: 20px clamp(20px,5vw,64px) 48px; }
 .reader-content article { margin: 0 auto; overflow-wrap: anywhere; }
 .reader-byline { display:flex; flex-wrap:wrap; align-items:center; gap: 4px 12px; font-size: 12px; color: var(--muted-foreground); margin: 0 0 10px; }
 .reader-byline > :is(span, time) { display:inline-flex; align-items:center; gap:5px; }
