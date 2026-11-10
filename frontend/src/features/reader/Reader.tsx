@@ -42,6 +42,7 @@ function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnc
  const content=useRef<HTMLDivElement>(null),timer=useRef<ReturnType<typeof setTimeout>|null>(null),pending=useRef<number|null>(null),save=useRef(onAnchor),title=useRef<HTMLHeadingElement>(null)
  const articleID=article?.id
  const body=useReaderContent(article,preferences)
+ const [showToolbarTitle,setShowToolbarTitle]=useState(false)
  const [view,setView]=useState<ArticleView>(preferences.reader_open_mode==='full'?'reader':'feed')
  function changeView(next:string){
   if(next==='feed'){body.leave();setView('feed')}
@@ -70,6 +71,15 @@ function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnc
   })
   return ()=>{current=false}
  },[articleID,modeRequest])
+ useEffect(()=>{
+  const root=content.current, heading=title.current
+  if(!root||!heading||typeof IntersectionObserver==='undefined')return
+  const observer=new IntersectionObserver(([entry])=>{
+   if(entry?.rootBounds)setShowToolbarTitle(!entry.isIntersecting && entry.boundingClientRect.bottom<=entry.rootBounds.top)
+  },{root})
+  observer.observe(heading)
+  return ()=>observer.disconnect()
+ },[articleID,view])
  const hasContent=Boolean(body.text.trim()||body.html)
  useLayoutEffect(()=>{save.current=onAnchor},[onAnchor])
  useLayoutEffect(()=>{if(content.current&&articleID)content.current.scrollTop=useWorkspace.getState().preferences?.scroll_anchors?.[`reader|${articleID}`]?.offset ?? 0},[articleID,body.mode,view,hasContent])
@@ -84,7 +94,9 @@ function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnc
  return <motion.aside className="reader-pane" aria-label="阅读面板" data-article-id={articleID} initial={false} animate={{opacity:1}} transition={{duration:.18}}>
   <Tabs.Root className="reader-tabs" value={view} onValueChange={changeView} activationMode="manual">
   <header className="workspace-toolbar reader-toolbar">
-   <div className="toolbar-start"><SemanticButton icon={ChevronLeft} meaning="chevron-left" label={overlay?'返回文章浏览':'收起阅读面板'} onClick={onClose}/></div>
+   <div className="toolbar-start"><SemanticButton icon={ChevronLeft} meaning="chevron-left" label={overlay?'返回文章浏览':'收起阅读面板'} onClick={onClose}/>
+    {showToolbarTitle && article && <span className="reader-toolbar-title" title={article.title} aria-hidden="true">{article.title}</span>}
+   </div>
    <div className="toolbar-actions">
     {view==='reader' && <SemanticButton icon={RefreshCw} meaning="refresh" label="重新提取正文"
       disabled={!article || body.extracting} onClick={()=>{void body.extract()}}/>}

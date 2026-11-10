@@ -40,3 +40,5 @@ ArticleCollection 消费同一 Article[]、selectedID 和操作回调；TanStack
 错误：CSS columns 改变逻辑阅读顺序、两套文章状态、localStorage 保存第二套偏好、Off 全局删除 transform。正确：同一 Query 投影、虚拟 lanes 与稳定 ID、Go／SQLite 单一持久事实、只关闭装饰运动。
 
 阅读模式在工具栏提供重新提取图标，复用正文提取与取消机制。提取失败保留当前正文，可从工具栏重试。
+
+正文标题滚出阅读区上缘后，工具栏在返回按钮右侧显示标题。滚回标题可见位置时隐藏，长标题单行截断。
