@@ -216,6 +216,8 @@
 .library-empty [data-slot=empty-icon] svg { width: 22px; height: 22px; }
 .scroll-area { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .scroll-area-bar { display: flex; width: 10px; padding-inline: 2px; touch-action: none; user-select: none; }
+.article-scroll + .scroll-area-bar { padding-inline: 3px 1px; }
+.article-scroll.masonry-scroll + .scroll-area-bar { padding-inline: 1px 3px; }
 .scroll-area-thumb { flex: 1; border-radius: 999px; background: var(--scrollbar-thumb); }
 @media (forced-colors: active) {
   .scroll-area-thumb { background: CanvasText; forced-color-adjust: none; }
