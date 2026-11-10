@@ -428,8 +428,9 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 .field-selection mark { color: transparent; background: color-mix(in srgb, Highlight 35%, transparent); }
 .global-context-menu { z-index: 60; }
 
+[data-slot=segmented-control] { border-radius: 10px; }
 [data-slot=segmented-control] > [data-slot=toggle-group-item] {
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--muted-foreground);
 }
 [data-slot=segmented-control] .animated-glyph,
