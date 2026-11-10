@@ -5,6 +5,7 @@ import type { Preferences } from '@/lib/preferences'
 import { ArticleItem } from './ArticleItem'
 import { columnCount, coverHeight, findAnchor } from './layout'
 import { cn } from '@/lib/utils'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 type Anchor = { article_id: string; offset: number }
 type Props = {
@@ -99,15 +100,21 @@ export function ArticleCollection({ feedIcons, articles, preferences, queryKey, 
     if (last) onAnchorRef.current(last.key, last.anchor)
   }, [storageKey])
 
-  return <div ref={parent} className={cn('article-scroll', mode === 'masonry' && 'masonry-scroll')} data-density={preferences.list_density} aria-label={mode === 'masonry' ? '瀑布流文章' : '文章列表'} onScroll={() => {
-    if (restoring.current) return
-    capture()
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    const current = anchor.current
-    if (current) {
-      pending.current = { key: storageKey, anchor: current }
-      saveTimer.current = setTimeout(() => { pending.current = null; onAnchorRef.current(storageKey, current) }, 180)
-    }
+  return <ScrollArea viewportProps={{
+    ref: parent,
+    className: cn('article-scroll', mode === 'masonry' && 'masonry-scroll'),
+    'data-density': preferences.list_density,
+    'aria-label': mode === 'masonry' ? '瀑布流文章' : '文章列表',
+    onScroll: () => {
+      if (restoring.current) return
+      capture()
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+      const current = anchor.current
+      if (current) {
+        pending.current = { key: storageKey, anchor: current }
+        saveTimer.current = setTimeout(() => { pending.current = null; onAnchorRef.current(storageKey, current) }, 180)
+      }
+    },
   }}>
     <ol className="virtual-articles" aria-label="文章" style={{ height: virtualizer.getTotalSize() }}>
       {virtualizer.getVirtualItems().map(item => {
@@ -117,5 +124,5 @@ export function ArticleCollection({ feedIcons, articles, preferences, queryKey, 
         </li>
       })}
     </ol>
-  </div>
+  </ScrollArea>
 }

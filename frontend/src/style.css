@@ -214,7 +214,13 @@
 .library-empty [data-slot=empty-header] { max-width: 260px; gap: 12px; }
 .library-empty [data-slot=empty-icon] { width: 48px; height: 48px; border-radius: 12px; margin-bottom: 6px; color: var(--primary); background: color-mix(in srgb,var(--sidebar-accent) 55%,transparent); }
 .library-empty [data-slot=empty-icon] svg { width: 22px; height: 22px; }
-.article-scroll { flex: 1; min-height: 0; overflow: auto; overflow-anchor: none; }
+.scroll-area { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.scroll-area-bar { display: flex; width: 10px; padding-inline: 2px; touch-action: none; user-select: none; }
+.scroll-area-thumb { flex: 1; border-radius: 999px; background: var(--scrollbar-thumb); }
+@media (forced-colors: active) {
+  .scroll-area-thumb { background: CanvasText; forced-color-adjust: none; }
+}
+.article-scroll { height: 100%; margin-inline-end: 10px; overflow-anchor: none; }
 .masonry-scroll { padding: 16px; }
 .virtual-articles { position: relative; width: 100%; margin: 0; padding: 0; list-style: none; }
 .article-item { position: relative; color: var(--foreground); }
