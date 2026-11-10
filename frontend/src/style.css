@@ -105,6 +105,8 @@
 .fold-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; color: var(--primary-foreground); background: var(--primary); box-shadow: inset 0 1px color-mix(in srgb,var(--glass-highlight) 20%,transparent); }
 .fold-mark svg { width: 19px; height: 19px; }
 .glass-sidebar .nav-item.sidebar-search {
+  color: var(--muted-foreground);
+  font-weight: 400;
   background: color-mix(in srgb, var(--sidebar-foreground) 4%, transparent);
   box-shadow: none;
 }
@@ -116,7 +118,12 @@
     background: var(--sidebar-hover, var(--muted));
   }
 }
-.sidebar-search kbd { margin-inline-start: auto; }
+.sidebar-search kbd {
+  margin-inline-start: auto;
+  color: var(--sidebar-foreground);
+  font-weight: 600;
+  border-color: color-mix(in srgb, var(--sidebar-foreground) 18%, transparent);
+}
 .feed-nav { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 .system-nav { display: flex; flex-direction: column; gap: 4px; padding: 0 12px 20px; }
 .nav-item { position: relative; justify-content: start; width: 100%; gap: 12px; height: 36px; font-size: 13px; }
