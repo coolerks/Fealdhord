@@ -16,6 +16,7 @@ ArticleCollection 消费同一 Article[]、selectedID 和操作回调；TanStack
 - 文章列表与瀑布流使用 Radix Scroll Area 隐藏原生滚动条并绘制可拖动的细灰滑块。轨道和两端均透明，悬停和拖动期间也不显示底色。滑块距所在栏右缘分别为 1px 和 3px。虚拟列表继续在 Scroll Area 的 viewport 读取尺寸、滚动位置和锚点。阅读区的滚动容器距右边缘 2px。列表与阅读区以可拖动的 1px 竖线分隔。
 - 列表紧凑模式显示一行摘要，舒适模式显示两行摘要。列表复用瀑布流的文章首图并放在右侧，图片遵循远程图片策略，只渲染 /media/ 本地资源，无图或加载失败时文字占满可用宽度。瀑布流保留原比例／裁剪、动态高度和极长图上限 320px。
 - 列表与瀑布流的未读圆点位于订阅源图标左侧，使用低饱和度橙色，不占文字布局空间。文章按钮提供可访问的已读状态说明。
+- 文章区标题与操作优先共用顶部一行，长标题截断，空间不足时操作换行。列表的选中与悬停底色覆盖滑块下方，延伸到列表栏右缘。
 - 浏览锚点键为 scope|search|sort|mode，值为 {article_id,offset}；Reader 使用 reader|article_id，offset 为 Reader 内部滚动距离。共用最多 32 项。恢复和尺寸重算期间不把顶部测量覆盖到已保存锚点；180ms 防抖，卸载／切换时冲刷最后值。
 - J／K 切换并同步列表焦点，F 收藏，M 切换已读，/ 搜索，Cmd／Ctrl+K 命令面板，Escape 关闭 Reader；表单、菜单、对话框、输入法合成期间不抢单键。分隔条 Arrow±8px、Shift±20px、Home／End 到边界。
 - Theme=Light／Dark／System 即时生效；Animation=Off 优先，Follow System＋系统减少动态或 Subtle 使用减弱模式。Off 禁用装饰动画但保留虚拟条目的定位 transform；Subtle 去空间运动／弹簧，短淡入≤100ms。Full Reader 使用有界弹簧；静止空态不持续空转。
