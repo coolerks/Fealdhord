@@ -235,7 +235,19 @@
   color: var(--foreground);
   font-size: 14px;
   font-weight: 600;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(3px);
+  transition: opacity var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard),
+    visibility var(--duration-fast);
 }
+.reader-toolbar-title[data-visible=true] {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+html[data-motion=subtle] .reader-toolbar-title { transform: none; }
 .reader-empty { gap: 20px; }
 .reader-empty [data-slot=empty-header] { gap: 13px; max-width: 250px; }
 .reader-empty [data-slot=empty-icon] { width: 46px; height: 46px; border-radius: 11px; background: color-mix(in srgb,var(--muted) 65%,transparent); color: var(--muted-foreground); }

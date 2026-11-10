@@ -95,7 +95,7 @@ function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnc
   <Tabs.Root className="reader-tabs" value={view} onValueChange={changeView} activationMode="manual">
   <header className="workspace-toolbar reader-toolbar">
    <div className="toolbar-start"><SemanticButton icon={ChevronLeft} meaning="chevron-left" label={overlay?'返回文章浏览':'收起阅读面板'} onClick={onClose}/>
-    {showToolbarTitle && article && <span className="reader-toolbar-title" title={article.title} aria-hidden="true">{article.title}</span>}
+    {article && <span className="reader-toolbar-title" data-visible={showToolbarTitle} title={article.title} aria-hidden="true">{article.title}</span>}
    </div>
    <div className="toolbar-actions">
     {view==='reader' && <SemanticButton icon={RefreshCw} meaning="refresh" label="重新提取正文"
