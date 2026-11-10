@@ -125,8 +125,8 @@
 .glass-sidebar .nav-item.sidebar-search {
   color: var(--muted-foreground);
   font-weight: 400;
-  width: calc(100% - 8px);
-  margin-inline: 4px;
+  width: calc(100% - 2px);
+  margin-inline: 1px;
   padding-inline: 6px;
   background: color-mix(in srgb, var(--sidebar-foreground) 1.5%, transparent);
   box-shadow: none;
