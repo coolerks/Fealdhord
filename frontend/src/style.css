@@ -162,7 +162,7 @@
 }
 
 .reading-workspace { position: relative; display: grid; grid-template-columns: minmax(0,1fr); min-width: 0; min-height: 0; overflow: hidden; }
-.reading-workspace.three-column { grid-template-columns: var(--list-width) 4px minmax(0,1fr); }
+.reading-workspace.reader-columns { grid-template-columns: min(var(--list-width), 48%) 4px minmax(0,1fr); }
 .article-pane, .reader-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
 .article-pane { background: var(--background); }
 .workspace-toolbar { display: flex; flex: none; min-height: var(--workspace-toolbar-height); padding: 6px 14px; gap: 8px; align-items: center; justify-content: space-between; }
@@ -195,7 +195,10 @@
 .article-scroll[data-density=comfortable] .article-row { height: 100px; padding-top: 18px; padding-bottom: 18px; }
 .article-body { flex: 1; min-width: 0; }
 .article-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; line-height: 14px; color: var(--muted-foreground); font-size: 10px; margin-bottom: 5px; }
-.article-source { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.article-source, .article-meta time { display: inline-flex; align-items: center; gap: 4px; }
+.article-source { min-width: 0; }
+.article-source > span:last-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.article-meta :is(img, .animated-glyph, svg) { width: 12px; height: 12px; flex-shrink: 0; }
 .article-meta time { flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .article-row .article-meta time { margin-right: 16px; }
 .article-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: left; font-size: 13px; line-height: 18px; font-weight: 570; border: 0; padding: 0; background: transparent; color: inherit; }
@@ -248,7 +251,7 @@
   transform: none;
 }
 html[data-motion=subtle] .reader-toolbar-title { transform: none; }
-.reader-empty { gap: 20px; }
+.reader-empty { flex: 1; gap: 20px; }
 .reader-empty [data-slot=empty-header] { gap: 13px; max-width: 250px; }
 .reader-empty [data-slot=empty-icon] { width: 46px; height: 46px; border-radius: 11px; background: color-mix(in srgb,var(--muted) 65%,transparent); color: var(--muted-foreground); }
 .reader-empty [data-slot=empty-icon] svg { width: 22px; height: 22px; }

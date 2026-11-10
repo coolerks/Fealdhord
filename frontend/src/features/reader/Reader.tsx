@@ -5,9 +5,7 @@ import { BookOpen,BookText,CalendarDays,CheckCheck,ChevronLeft,ExternalLink,Refr
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Tabs } from 'radix-ui'
-import { useQuery } from '@tanstack/react-query'
 import { FeedIcon } from '@/features/feeds/FeedIcon'
-import { feedsQueryKey, rssAPI } from '@/lib/rss-api'
 import { motion } from 'motion/react'
 import { useEffect,useEffectEvent,useLayoutEffect,useRef,useState } from 'react'
 import type { RefObject } from 'react'
@@ -22,7 +20,7 @@ import './reader-prose.css'
 
 type ArticleView = 'feed' | 'reader'
 
-type ReaderProps={article?:Article;preferences:Preferences;overlay:boolean;onClose:()=>void;onFavorite:(id:string)=>void;onRead:(id:string)=>void;onAnchor:(key:string,anchor:{article_id:string;offset:number})=>void}
+type ReaderProps={feedIcon?:string;article?:Article;preferences:Preferences;overlay:boolean;onClose:()=>void;onFavorite:(id:string)=>void;onRead:(id:string)=>void;onAnchor:(key:string,anchor:{article_id:string;offset:number})=>void}
 export function Reader(props:ReaderProps){
  const markedRef=useRef('')
  return <ReaderPane key={`${props.article?.id}:${props.article?.revision ?? 0}:${props.preferences.reader_open_mode}`} {...props} markedRef={markedRef}/>
@@ -41,16 +39,9 @@ function ArticleHTML({ html }: { html: string }) {
  return <div ref={container} className="reader-html" dangerouslySetInnerHTML={{ __html: html }} />
 }
 
-function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnchor,markedRef}:ReaderProps&{markedRef:RefObject<string>}){
+function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onRead,onAnchor,markedRef}:ReaderProps&{markedRef:RefObject<string>}){
  const content=useRef<HTMLDivElement>(null),timer=useRef<ReturnType<typeof setTimeout>|null>(null),pending=useRef<number|null>(null),save=useRef(onAnchor),title=useRef<HTMLHeadingElement>(null)
  const articleID=article?.id
- const {data:feedIcon}=useQuery({
-  queryKey:feedsQueryKey,
-  queryFn:rssAPI.list,
-  enabled:Boolean(article?.feedID) && preferences.remote_images!=='never',
-  retry:false,
-  select:page=>page.items?.find(feed=>feed.id===article?.feedID)?.icon_data,
- })
  const publicationDate=article?.publishedAt.slice(0,10)
  const body=useReaderContent(article,preferences)
  const [showToolbarTitle,setShowToolbarTitle]=useState(false)
@@ -104,7 +95,7 @@ function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnc
  }
  return <motion.aside className="reader-pane" aria-label="阅读面板" data-article-id={articleID} initial={false} animate={{opacity:1}} transition={{duration:.18}}>
   <Tabs.Root className="reader-tabs" value={view} onValueChange={changeView} activationMode="manual">
-  <header className="workspace-toolbar reader-toolbar">
+  {article && <header className="workspace-toolbar reader-toolbar">
    <div className="toolbar-start"><SemanticButton icon={ChevronLeft} meaning="chevron-left" label={overlay?'返回文章浏览':'收起阅读面板'} onClick={onClose}/>
     {article && <span className="reader-toolbar-title" data-visible={showToolbarTitle} title={article.title} aria-hidden="true">{article.title}</span>}
    </div>
@@ -128,7 +119,7 @@ function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnc
     </Tabs.List>}
     <SemanticButton icon={ExternalLink} meaning="external-link" label="在浏览器打开原文" disabled={!article?.url&&!body.query.data?.has_original} onClick={()=>openLink()}/>
    </div>
-  </header>
+  </header>}
   {article?<Tabs.Content value={view} asChild><div ref={content} className="reader-content" onScroll={event=>{
    if(!articleID||!hasContent)return
    const offset=event.currentTarget.scrollTop;pending.current=offset;if(timer.current)clearTimeout(timer.current)

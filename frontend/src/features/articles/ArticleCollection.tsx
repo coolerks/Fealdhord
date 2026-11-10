@@ -8,14 +8,16 @@ import { cn } from '@/lib/utils'
 
 type Anchor = { article_id: string; offset: number }
 type Props = {
+  feedIcons?: ReadonlyMap<string, string | undefined>
   articles: Article[]; preferences: Preferences; queryKey: string; selectedID: string
   onOpen: (id: string) => void; onFavorite: (id: string) => void; onRead: (id: string) => void
   onAnchor: (key: string, anchor: Anchor) => void
 }
-export function ArticleCollection({ articles, preferences, queryKey, selectedID, onOpen, onFavorite, onRead, onAnchor }: Props) {
+export function ArticleCollection({ feedIcons, articles, preferences, queryKey, selectedID, onOpen, onFavorite, onRead, onAnchor }: Props) {
   'use no memo' // Virtualizer 是可变实例，不能由 React Compiler 自动缓存其方法结果。
   const parent = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(360)
+  const imagesAllowed = preferences.remote_images !== 'never'
   const mode = preferences.article_view_mode
   const lanes = columnCount(width, mode)
   const gap = mode === 'masonry' ? 12 : 0
@@ -110,7 +112,7 @@ export function ArticleCollection({ articles, preferences, queryKey, selectedID,
       {virtualizer.getVirtualItems().map(item => {
         const article = articles[item.index]
         return <li key={article.id} data-index={item.index} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: columnWidth, transform: `translate(${item.lane * (columnWidth + gap)}px, ${item.start}px)` }}>
-          <ArticleItem imagesAllowed={preferences.remote_images!=='never'} article={article} mode={mode} selected={article.id === selectedID} thumbnail={preferences.list_thumbnail} width={columnWidth} imageMode={preferences.masonry_image_mode} onOpen={onOpen} onFavorite={onFavorite} onRead={onRead} />
+          <ArticleItem imagesAllowed={imagesAllowed} feedIcon={imagesAllowed && article.feedID ? feedIcons?.get(article.feedID) : undefined} article={article} mode={mode} selected={article.id === selectedID} thumbnail={preferences.list_thumbnail} width={columnWidth} imageMode={preferences.masonry_image_mode} onOpen={onOpen} onFavorite={onFavorite} onRead={onRead} />
         </li>
       })}
     </ol>

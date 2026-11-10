@@ -14,14 +14,21 @@ afterEach(() => { geometry.cleanup(); vi.restoreAllMocks() })
 describe('真实虚拟双视图', () => {
   it('一万条数据仅挂载可见范围，切换多列后 DOM 仍为逻辑顺序', async () => {
     const articles = articleFixtures(10000)
+    articles[0].feedID = 'source'
+    const icon = 'data:image/png;base64,AA=='
+    const feedIcons = new Map([['source', icon]])
     const actions = { onOpen: vi.fn(), onFavorite: vi.fn(), onRead: vi.fn(), onAnchor: vi.fn() }
-    const { container, rerender } = render(<TooltipProvider><ArticleCollection articles={articles} preferences={preferencesFixture()} queryKey="all||newest" selectedID="" {...actions} /></TooltipProvider>)
+    const { container, rerender } = render(<TooltipProvider><ArticleCollection feedIcons={feedIcons} articles={articles} preferences={preferencesFixture()} queryKey="all||newest" selectedID="" {...actions} /></TooltipProvider>)
     await waitFor(() => { expect(container.querySelectorAll('li').length).toBeGreaterThan(0) })
+    expect(container.querySelector('[data-article-id="a-0"] .article-source img')).toHaveAttribute('src', icon)
+    expect(container.querySelector('[data-article-id="a-0"] .article-meta time svg')).toBeInTheDocument()
     expect(container.querySelectorAll('li').length).toBeLessThan(100)
-    await act(async () => { rerender(<TooltipProvider><ArticleCollection articles={articles} preferences={preferencesFixture({ article_view_mode: 'masonry' })} queryKey="all||newest" selectedID="a-0" {...actions} /></TooltipProvider>) })
+    await act(async () => { rerender(<TooltipProvider><ArticleCollection feedIcons={feedIcons} articles={articles} preferences={preferencesFixture({ article_view_mode: 'masonry' })} queryKey="all||newest" selectedID="a-0" {...actions} /></TooltipProvider>) })
     await waitFor(() => { expect(container.querySelector('.masonry-scroll')).toBeInTheDocument() })
     await act(async () => { geometry.resize() })
     await waitFor(() => { expect(Array.from(container.querySelectorAll('li')).some(item => !item.style.transform.startsWith('translate(0px,'))).toBe(true) })
+    expect(container.querySelector('[data-article-id="a-0"] .article-source img')).toHaveAttribute('src', icon)
+    expect(container.querySelector('[data-article-id="a-0"] .article-meta time svg')).toBeInTheDocument()
     const items = Array.from(container.querySelectorAll('li'))
     expect(items.length).toBeLessThan(100)
     const indexes = items.map(item => Number(item.dataset.index))
