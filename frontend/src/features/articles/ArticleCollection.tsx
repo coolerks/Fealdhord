@@ -19,6 +19,7 @@ export function ArticleCollection({ feedIcons, articles, preferences, queryKey, 
   const [width, setWidth] = useState(360)
   const imagesAllowed = preferences.remote_images !== 'never'
   const mode = preferences.article_view_mode
+  const rowHeight = preferences.list_density === 'compact' ? 96 : 120
   const lanes = columnCount(width, mode)
   const gap = mode === 'masonry' ? 12 : 0
   const columnWidth = Math.max(1, (width - (lanes - 1) * gap) / lanes)
@@ -33,7 +34,7 @@ export function ArticleCollection({ feedIcons, articles, preferences, queryKey, 
   const virtualizer = useVirtualizer({
     count: articles.length, getScrollElement: () => parent.current,
     getItemKey: index => articles[index].id,
-    estimateSize: index => mode === 'list' ? preferences.list_density === 'compact' ? 76 : 100 : 156 + coverHeight(articles[index], columnWidth, preferences.masonry_image_mode),
+    estimateSize: index => mode === 'list' ? rowHeight : 156 + coverHeight(articles[index], columnWidth, preferences.masonry_image_mode),
     overscan: 5, lanes, gap,
     initialRect: { width: 360, height: 600 },
   })
@@ -111,8 +112,8 @@ export function ArticleCollection({ feedIcons, articles, preferences, queryKey, 
     <ol className="virtual-articles" aria-label="文章" style={{ height: virtualizer.getTotalSize() }}>
       {virtualizer.getVirtualItems().map(item => {
         const article = articles[item.index]
-        return <li key={article.id} data-index={item.index} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: columnWidth, transform: `translate(${item.lane * (columnWidth + gap)}px, ${item.start}px)` }}>
-          <ArticleItem imagesAllowed={imagesAllowed} feedIcon={imagesAllowed && article.feedID ? feedIcons?.get(article.feedID) : undefined} article={article} mode={mode} selected={article.id === selectedID} thumbnail={preferences.list_thumbnail} width={columnWidth} imageMode={preferences.masonry_image_mode} onOpen={onOpen} onFavorite={onFavorite} onRead={onRead} />
+        return <li key={article.id} data-index={item.index} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: columnWidth, height: mode === 'list' ? rowHeight : undefined, transform: `translate(${item.lane * (columnWidth + gap)}px, ${item.start}px)` }}>
+          <ArticleItem imagesAllowed={imagesAllowed} feedIcon={imagesAllowed && article.feedID ? feedIcons?.get(article.feedID) : undefined} article={article} mode={mode} selected={article.id === selectedID} width={columnWidth} imageMode={preferences.masonry_image_mode} onOpen={onOpen} onFavorite={onFavorite} onRead={onRead} />
         </li>
       })}
     </ol>

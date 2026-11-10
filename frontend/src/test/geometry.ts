@@ -12,7 +12,7 @@ export function installGeometry() {
     if (this.classList.contains('article-scroll')) return 600
     if (this.tagName === 'LI') {
       const cover = this.querySelector<HTMLElement>('.article-cover')
-      return this.querySelector('.article-card') ? 150 + (parseFloat(cover?.style.height ?? '') || 0) : 76
+      return this.querySelector('.article-card') ? 150 + (parseFloat(cover?.style.height ?? '') || 0) : Number.parseFloat(this.style.height) || 96
     }
     return 32
   })

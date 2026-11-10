@@ -10,7 +10,7 @@ internal/desktop.WindowOptions／InstallMenu；事件 fealdhord:command={id:stri
 
 ## 3. 契约
 
-macOS 使用系统菜单栏：折栈／文件／编辑／显示／文章／窗口／帮助。编辑、隐藏、退出、全屏等采用原生 role，菜单快捷键遵守 Cmd；Windows／Linux 使用 Radix Menubar，自行实现文件／编辑／显示／文章／窗口／帮助，F10 可聚焦。Windows 采用自绘窗口栏，侧栏开关在菜单栏左端，最小化、最大化或还原、关闭位于右端，空白区域可拖动。Linux 保留系统窗口框架。OPML 已于 Phase 4 接入系统／应用文件菜单与命令面板，通过设置分区调用原生文件授权。
+macOS 使用系统菜单栏：折栈／文件／编辑／显示／文章／窗口／帮助。编辑、隐藏、退出、全屏等采用原生 role，菜单快捷键遵守 Cmd；Windows／Linux 使用 Radix Menubar，自行实现文件／编辑／显示／文章／窗口／帮助，F10 可聚焦。Windows 采用自绘窗口栏，侧栏开关在菜单栏左端，最小化、最大化或还原、关闭位于右端，空白区域可拖动。最小化、最大化或还原使用中性的悬停和按压底色，关闭使用红色反馈。Linux 保留系统窗口框架。OPML 已于 Phase 4 接入系统／应用文件菜单与命令面板，通过设置分区调用原生文件授权。
 
 macOS HiddenInset 隐藏标题文字并保留原生控制，NSVisualEffectView 窗口材质＋透明 HTML／WebView＋侧栏半透明叠色，主内容不透明；不使用私有 API。其他系统默认不透明回退，不声称具备 macOS 材质。顶部预留 52px 控制／拖动区域。
 

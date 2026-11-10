@@ -22,6 +22,9 @@ describe('真实虚拟双视图', () => {
     await waitFor(() => { expect(container.querySelectorAll('li').length).toBeGreaterThan(0) })
     expect(container.querySelector('[data-article-id="a-0"] .article-source img')).toHaveAttribute('src', icon)
     expect(container.querySelector('[data-article-id="a-0"] .article-meta time svg')).toBeInTheDocument()
+    const row = container.querySelector('[data-article-id="a-0"]')
+    expect(row?.querySelector('.article-summary')).toHaveTextContent(articles[0].summary)
+    expect(row?.querySelector('.article-body + .article-cover img')).toHaveAttribute('src', articles[0].cover?.url)
     expect(container.querySelectorAll('li').length).toBeLessThan(100)
     await act(async () => { rerender(<TooltipProvider><ArticleCollection feedIcons={feedIcons} articles={articles} preferences={preferencesFixture({ article_view_mode: 'masonry' })} queryKey="all||newest" selectedID="a-0" {...actions} /></TooltipProvider>) })
     await waitFor(() => { expect(container.querySelector('.masonry-scroll')).toBeInTheDocument() })
@@ -44,17 +47,17 @@ describe('真实虚拟双视图', () => {
     await waitFor(() => expect(container.querySelectorAll('li').length).toBeGreaterThan(0))
     await new Promise(resolve => setTimeout(resolve, 40))
     const scroller = container.querySelector<HTMLElement>('.article-scroll')!
-    act(() => { scroller.scrollTop = 780; fireEvent.scroll(scroller) })
+    act(() => { scroller.scrollTop = 980; fireEvent.scroll(scroller) })
     unmount()
     expect(actions.onAnchor).toHaveBeenCalledWith('all||newest|list', { article_id: 'a-10', offset: 20 })
     const restored = render(<TooltipProvider><ArticleCollection articles={articles} preferences={preferencesFixture({ scroll_anchors: { 'all||newest|list': { article_id: 'a-10', offset: 20 } } })} queryKey="all||newest" selectedID="" {...actions} /></TooltipProvider>)
-    await waitFor(() => expect(restored.container.querySelector('.article-scroll')?.scrollTop).toBe(780))
+    await waitFor(() => expect(restored.container.querySelector('.article-scroll')?.scrollTop).toBe(980))
   })
 
   it('坏图回退为文字卡，标题和操作仍可用', () => {
     const article = articleFixtures(1)[0]
     const onOpen = vi.fn()
-    render(<TooltipProvider><ArticleItem article={article} mode="masonry" selected={false} thumbnail="none" width={300} imageMode="original_ratio" onOpen={onOpen} onFavorite={vi.fn()} onRead={vi.fn()} /></TooltipProvider>)
+    render(<TooltipProvider><ArticleItem article={article} mode="masonry" selected={false} width={300} imageMode="original_ratio" onOpen={onOpen} onFavorite={vi.fn()} onRead={vi.fn()} /></TooltipProvider>)
     fireEvent.error(screen.getByRole('img',{name:'测试首图'}))
     expect(screen.queryByRole('img',{name:'测试首图'})).not.toBeInTheDocument()
     expect(screen.getByRole('img',{name:'已收藏'})).toBeInTheDocument()

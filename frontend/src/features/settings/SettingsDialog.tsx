@@ -59,7 +59,6 @@ export function SettingsDialog() {
           <Choice name="theme" label="主题" value={preferences.theme} choices={[["light", "浅色","sun"], ["dark", "深色","moon"], ["system", "跟随系统","monitor-cog"]]} onChange={value => set('theme', value)} />
           <Choice name="view" label="默认文章视图" value={preferences.article_view_mode} choices={[["list", "列表","list"], ["masonry", "瀑布流","grid"]]} onChange={value => set('article_view_mode', value)} />
           <Choice name="density" label="列表密度" value={preferences.list_density} choices={[["compact", "紧凑","minimize"], ["comfortable", "舒适","maximize"]]} onChange={value => set('list_density', value)} />
-          <Choice name="thumbnail" label="列表缩略图" value={preferences.list_thumbnail} choices={[["none", "不显示","x"], ["small", "小缩略图","grid"]]} onChange={value => set('list_thumbnail', value)} />
           <Choice name="ratio" label="瀑布流图片" value={preferences.masonry_image_mode} choices={[["original_ratio", "原始比例","maximize"], ["cropped", "统一裁剪","scan-text"]]} onChange={value => set('masonry_image_mode', value)} />
           <Separator />
           <Choice name="animation" label="动画" value={preferences.animation} choices={[["full", "完整","sparkles"], ["subtle", "轻微","circle-dashed"], ["off", "关闭","x"]]} onChange={value => set('animation', value)} />

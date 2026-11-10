@@ -365,7 +365,7 @@ describe('菜单图标与快捷键',()=>{
 
 
 it('从不加载图片时立即隐藏已有封面，不等待后端 Query 重取', async()=>{
-  const prefs=preferencesFixture();prefs.remote_images='never';prefs.list_thumbnail='small'
+  const prefs=preferencesFixture();prefs.remote_images='never'
   api.get.mockResolvedValue({preferences:prefs,revision:0})
   setup(true)
   await screen.findByRole('button',{name:'打开文章：测试文章 0'})
