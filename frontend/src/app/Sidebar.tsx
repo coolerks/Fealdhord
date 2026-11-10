@@ -5,7 +5,7 @@ import { useNavigation } from '@/features/categories/use-navigation'
 import { categoryPath } from '@/features/categories/category-path'
 import { categoryIcons } from '@/features/categories/category-icons'
 import type { CategoryInfo } from '@/lib/navigation-api'
-import { motion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { Circle, LibraryBig, Plus, Search, Settings, Sparkles, Star } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { runCommand } from '@/lib/commands'
@@ -42,7 +42,7 @@ export function Sidebar({ motionMode }: { motionMode: 'full' | 'subtle' | 'off' 
   const showSettings = useWorkspace(state => state.showSettings)
   const collapsed = preferences.sidebar_collapsed
   function keyboard(event: KeyboardEvent<HTMLElement>) {
-    const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[data-navigation]'))
+    const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[data-navigation]')).filter(button => !button.closest('[inert]'))
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
     if (index < 0) return
     let next: number
@@ -68,7 +68,16 @@ export function Sidebar({ motionMode }: { motionMode: 'full' | 'subtle' | 'off' 
       const active=preferences.selected_scope==='category'&&preferences.selected_scope_id===category.id
       const hasChildren=Boolean(children.get(category.id)?.length),open=expanded.has(category.id)
       const icon=categoryIcons.find(icon=>icon===category.icon) ?? 'folder'
-      return <li key={category.id}><div className="nav-tree-row" style={{paddingInlineStart:depth*16}}>{hasChildren && <Button variant="ghost" size="icon" className="nav-tree-disclosure" aria-label={`${open?'收起':'展开'}分类 ${category.name}`} aria-expanded={open} onClick={()=>setExpanded(current=>{const next=new Set(current);if(next.has(category.id))next.delete(category.id);else next.add(category.id);return next})}><span className="inline-flex" style={{rotate:open?'90deg':undefined}}><AnimatedGlyph meaning="chevron-right"/></span></Button>}<Button data-navigation={category.id} variant={active?'secondary':'ghost'} className="nav-item" aria-label={`浏览分类 ${categoryPath(category,navigation.data?.categories ?? [])}`} aria-current={active?'page':undefined} onClick={()=>patch({selected_scope:'category',selected_scope_id:category.id})}><span className="inline-flex shrink-0" style={{color:/^#[a-f0-9]{6}$/i.test(category.color)?category.color:undefined}}><AnimatedGlyph meaning={icon}/></span><span className="nav-node-label">{category.name}</span>{category.unread>0&&<span className="nav-count">{category.unread}</span>}</Button></div>{hasChildren&&open&&tree(category.id,depth+1)}</li>
+      return <li key={category.id}><div className="nav-tree-row" style={{paddingInlineStart:depth*16}}>{hasChildren && <Button variant="ghost" size="icon" className="nav-tree-disclosure" aria-label={`${open?'收起':'展开'}分类 ${category.name}`} aria-expanded={open} onClick={()=>setExpanded(current=>{const next=new Set(current);if(next.has(category.id))next.delete(category.id);else next.add(category.id);return next})}><span className="inline-flex" style={{rotate:open?'90deg':undefined}}><AnimatedGlyph meaning="chevron-right"/></span></Button>}<Button data-navigation={category.id} variant={active?'secondary':'ghost'} className="nav-item" aria-label={`浏览分类 ${categoryPath(category,navigation.data?.categories ?? [])}`} aria-current={active?'page':undefined} onClick={()=>patch({selected_scope:'category',selected_scope_id:category.id})}><span className="inline-flex shrink-0" style={{color:/^#[a-f0-9]{6}$/i.test(category.color)?category.color:undefined}}><AnimatedGlyph meaning={icon}/></span><span className="nav-node-label">{category.name}</span>{category.unread>0&&<span className="nav-count">{category.unread}</span>}</Button></div>{hasChildren && (motionMode === 'off' ? open && tree(category.id,depth+1) :
+        <div inert={!open} aria-hidden={!open || undefined}>
+          <AnimatePresence initial={false}>
+            {open && <motion.div key="children" className="overflow-hidden"
+              initial={{height:0}} animate={{height:'auto'}} exit={{height:0}}
+              transition={{duration:motionMode==='subtle'?.1:.2,ease:'easeInOut'}}>
+              {tree(category.id,depth+1)}
+            </motion.div>}
+          </AnimatePresence>
+        </div>)}</li>
     })}</ul>
   }
 

@@ -2,7 +2,8 @@ import { useId, useState } from 'react'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { Input } from '@/components/ui/input'
 import { Field, FieldLabel } from '@/components/ui/field'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { SegmentedControl } from '@/components/ui/segmented-control'
+import { ToggleGroupItem } from '@/components/ui/toggle-group'
 
 export function FeedIcon({ data }: { data?: string }) {
   const [failed, setFailed] = useState<string>()
@@ -31,19 +32,19 @@ export function FeedIconField({
   const mode = customURL !== undefined ? 'custom' : useDefault ? 'default' : 'site'
   return <Field>
     <FieldLabel id={label}>图标</FieldLabel>
-    <ToggleGroup className="flex-wrap" type="single" variant="outline" size="sm" aria-labelledby={label}
+    <SegmentedControl size="sm" aria-labelledby={label}
       disabled={disabled} value={mode} onValueChange={value => {
         if (value === 'custom') onCustomURLChange('')
         else if (value) onChange(value === 'default')
       }}>
       <ToggleGroupItem value="site" disabled={!siteAvailable}>
-        {data && <FeedIcon data={data} />}网站图标
+        {data ? <FeedIcon data={data} /> : <AnimatedGlyph meaning="external-link" />}网站图标
       </ToggleGroupItem>
       <ToggleGroupItem value="default" onClick={() => onChange(true)}><FeedIcon />默认图标</ToggleGroupItem>
       <ToggleGroupItem value="custom" disabled={!customAllowed}>
-        {customData && <FeedIcon data={customData} />}自定义图标
+        {customData ? <FeedIcon data={customData} /> : <AnimatedGlyph meaning="settings" />}自定义图标
       </ToggleGroupItem>
-    </ToggleGroup>
+    </SegmentedControl>
     {customURL !== undefined && <Field>
       <FieldLabel htmlFor={inputID}>图标网址</FieldLabel>
       <Input id={inputID} type="url" required maxLength={4096} disabled={disabled || !customAllowed}

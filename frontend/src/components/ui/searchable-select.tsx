@@ -51,17 +51,17 @@ export function SearchableSelect({
         }}>
         <Command label={`搜索${label}`}>
           <CommandInput ref={input} placeholder="输入文字搜索…" />
-          <CommandList className="max-h-[min(18rem,calc(var(--radix-popover-content-available-height)-3rem))]">
+          <CommandList showScrollbar className="max-h-[min(18rem,calc(var(--radix-popover-content-available-height)-3rem))] overflow-x-auto">
             <CommandEmpty>没有匹配项</CommandEmpty>
             <CommandGroup>
-              {options.map(option => <CommandItem key={option.value} value={option.value}
+              {options.map(option => <CommandItem className="w-max min-w-full" key={option.value} value={option.value}
                 keywords={[option.label, ...(option.keywords ?? [])]} disabled={option.disabled}
                 data-checked={checked(option.value)}
                 onSelect={() => {
                   onValueChange(option.value)
                   if (!multiple) setOpen(false)
                 }}>
-                <span className={cn('min-w-0', matchTriggerWidth ? 'wrap-anywhere whitespace-normal' : 'truncate')}>{option.label}</span>
+                <span className="shrink-0 whitespace-nowrap">{option.label}</span>
               </CommandItem>)}
             </CommandGroup>
           </CommandList>

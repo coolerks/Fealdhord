@@ -424,3 +424,16 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 .field-selection[data-single-line=true] > div { min-width: 100%; flex-shrink: 0; }
 .field-selection mark { color: transparent; background: color-mix(in srgb, Highlight 35%, transparent); }
 .global-context-menu { z-index: 60; }
+
+[data-slot=segmented-control] > [data-slot=toggle-group-item] {
+  border-radius: 6px;
+  color: var(--muted-foreground);
+}
+[data-slot=segmented-control] > [data-slot=toggle-group-item]:hover:not(:disabled) {
+  color: var(--foreground);
+}
+[data-slot=segmented-control] > [data-slot=toggle-group-item][data-state=on] {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 1px 3px rgb(0 0 0 / .14);
+}

@@ -1,3 +1,4 @@
+import { SegmentedControl } from '@/components/ui/segmented-control'
 import { useRef,useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
@@ -91,7 +92,7 @@ export function FeedSettings() {
         <Button size="sm" variant="ghost" disabled={busy} aria-label={`归档 ${feed.title}`} onClick={()=>{action.reset();setRemoving(feed)}}>归档</Button>
       </>}</div>
     </li>)}</ul>
-    <Field><FieldLabel id="remote-images-label">远程图片</FieldLabel><ToggleGroup type="single" variant="outline" aria-labelledby="remote-images-label" value={prefs.remote_images} onValueChange={value=>{if(value)patch({remote_images:value})}}>{[['always','总是允许'],['subscriptions','仅活动订阅'],['never','从不加载']].map(([value,label])=><ToggleGroupItem key={value} value={value}>{label}</ToggleGroupItem>)}</ToggleGroup></Field>
+    <Field><FieldLabel id="remote-images-label">远程图片</FieldLabel><SegmentedControl aria-labelledby="remote-images-label" value={prefs.remote_images} onValueChange={value=>{if(value)patch({remote_images:value})}}>{([['always','总是允许','check'],['subscriptions','仅活动订阅','radio-tower'],['never','从不加载','x']] as const).map(([value,label,icon])=><ToggleGroupItem key={value} value={value}><AnimatedGlyph meaning={icon}/>{label}</ToggleGroupItem>)}</SegmentedControl></Field>
     <Field orientation="horizontal"><FieldLabel htmlFor="web-image-fallback">从原文页面补充首图</FieldLabel><Switch id="web-image-fallback" checked={prefs.web_image_fallback} onCheckedChange={value=>patch({web_image_fallback:value})}/></Field>
     <Field orientation="horizontal"><FieldLabel htmlFor="media-cache">磁盘图片缓存</FieldLabel><Switch id="media-cache" checked={prefs.media_cache_enabled} onCheckedChange={value=>patch({media_cache_enabled:value})}/></Field>
     <Button variant="outline" disabled={busy} onClick={()=>{setCacheMessage('');action.mutate(async()=>{await rssAPI.clearCache();setCacheMessage('图片缓存已清理')})}}>清理图片缓存</Button>{cacheMessage && <p role="status">{cacheMessage}</p>}

@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field,FieldGroup,FieldLabel } from '@/components/ui/field'
 import { Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription } from '@/components/ui/dialog'
-import { ToggleGroup,ToggleGroupItem } from '@/components/ui/toggle-group'
+import { SegmentedControl } from '@/components/ui/segmented-control'
+import {ToggleGroupItem } from '@/components/ui/toggle-group'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { navigationAPI,navigationQueryKey } from '@/lib/navigation-api'
 import type { CategoryInput,CategoryDeletion } from '@/lib/navigation-api'
@@ -36,7 +37,7 @@ export function CategoryManager(){
          value: item.id, label: categoryPath(item, query.data?.categories ?? []),
        })),
      ]} /></Field>
-   <Field><FieldLabel id="category-icon-label">图标</FieldLabel><ToggleGroup type="single" variant="outline" disabled={busy} value={draft.icon||'folder'} aria-labelledby="category-icon-label" onValueChange={value=>{if(value)setDraft({...draft,icon:value})}}>{categoryIcons.map(icon=><ToggleGroupItem key={icon} value={icon} aria-label={{folder:'文件夹',book:'图书','radio-tower':'订阅',favorite:'星标',ai:'星光'}[icon]}><AnimatedGlyph meaning={icon}/></ToggleGroupItem>)}</ToggleGroup></Field>
+   <Field><FieldLabel id="category-icon-label">图标</FieldLabel><SegmentedControl disabled={busy} value={draft.icon||'folder'} aria-labelledby="category-icon-label" onValueChange={value=>{if(value)setDraft({...draft,icon:value})}}>{categoryIcons.map(icon=><ToggleGroupItem key={icon} value={icon} aria-label={{folder:'文件夹',book:'图书','radio-tower':'订阅',favorite:'星标',ai:'星光'}[icon]}><AnimatedGlyph meaning={icon}/></ToggleGroupItem>)}</SegmentedControl></Field>
    <Field><FieldLabel htmlFor="category-color">颜色</FieldLabel><div className="feed-actions"><Input id="category-color" type="color" disabled={busy} value={draft.color||'#808080'} onChange={event=>setDraft({...draft,color:event.target.value})}/><Button type="button" disabled={busy} variant="ghost" onClick={()=>setDraft({...draft,color:''})}>使用默认颜色</Button></div></Field>
    <Field><FieldLabel htmlFor="category-description">描述</FieldLabel><Input id="category-description" disabled={busy} maxLength={2048} value={draft.description} onChange={event=>setDraft({...draft,description:event.target.value})}/></Field>
    <Field><FieldLabel htmlFor="category-order">排序位置</FieldLabel><Input id="category-order" type="number" min={-1000000} max={1000000} disabled={busy} value={draft.sort_position} onChange={event=>{if(Number.isFinite(event.target.valueAsNumber))setDraft({...draft,sort_position:event.target.valueAsNumber})}}/></Field>
