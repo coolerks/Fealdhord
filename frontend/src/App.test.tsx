@@ -89,6 +89,20 @@ describe('Phase 1 阅读 Shell', () => {
     await waitFor(() => { expect(trigger).toHaveFocus() })
   })
 
+  it('阅读排版滑块具备名称，并按原步长响应方向键', async () => {
+    setup()
+    await userEvent.click(await screen.findByRole('button', { name: '打开设置' }))
+    await userEvent.click(screen.getByRole('button', { name: '阅读排版' }))
+    for (const [label, previous, next] of [
+      ['正文字号', '17', '18'], ['行高', '1.7', '1.8'], ['正文宽度', '720', '740'],
+    ]) {
+      const slider = screen.getByRole('slider', { name: label })
+      expect(slider).toHaveAttribute('aria-valuenow', previous)
+      fireEvent.keyDown(slider, { key: 'ArrowRight' })
+      expect(slider).toHaveAttribute('aria-valuenow', next)
+    }
+  })
+
   it('隐藏侧栏后保留标题栏按钮和键盘焦点', async () => {
     setup()
     const toggle = await screen.findByRole('button', { name: '折叠侧栏' })

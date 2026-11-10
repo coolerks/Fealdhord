@@ -7,7 +7,7 @@ import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Switch } from '@/components/ui/switch'
-import { Input } from '@/components/ui/input'
+import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { AISettings } from './AISettings'
@@ -25,7 +25,12 @@ function Choice({ name, label, value, choices, onChange }: { name: string; label
   return <Field><FieldLabel id={`${name}-label`}>{label}</FieldLabel><SegmentedControl value={value} onValueChange={next => { if (next) onChange(next) }} aria-labelledby={`${name}-label`}>{choices.map(([key, title, icon]) => <ToggleGroupItem key={key} value={key}><AnimatedGlyph meaning={icon}/>{title}</ToggleGroupItem>)}</SegmentedControl></Field>
 }
 function Range({ name, label, value, min, max, step = 1, unit = '', onChange }: { name: string; label: string; value: number; min: number; max: number; step?: number; unit?: string; onChange: (value: number) => void }) {
-  return <Field><FieldLabel htmlFor={name}>{label}<span className="range-value">{value}{unit}</span></FieldLabel><Input type="range" id={name} min={min} max={max} step={step} value={value} onChange={event => { const next = event.target.valueAsNumber; if (Number.isFinite(next)) onChange(next) }} /></Field>
+  return <Field>
+    <FieldLabel><span id={name}>{label}</span><span className="range-value">{value}{unit}</span></FieldLabel>
+    <Slider min={min} max={max} step={step} value={[value]}
+      thumbProps={{ 'aria-labelledby': name, 'aria-valuetext': unit ? `${value} ${unit}` : undefined }}
+      onValueChange={([next]) => { if (Number.isFinite(next)) onChange(next) }} />
+  </Field>
 }
 
 const sections: { id: SettingsTab; title: string; icon: typeof Palette; meaning:IconMeaning }[] = [
