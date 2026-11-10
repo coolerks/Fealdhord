@@ -432,6 +432,12 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
   border-radius: 6px;
   color: var(--muted-foreground);
 }
+[data-slot=segmented-control] .animated-glyph,
+[data-slot=segmented-control] .animated-glyph svg,
+[data-slot=segmented-control] [data-slot=toggle-group-item] > img {
+  width: 16px;
+  height: 16px;
+}
 [data-slot=segmented-control] > [data-slot=toggle-group-item]:hover:not(:disabled) {
   color: var(--foreground);
 }
