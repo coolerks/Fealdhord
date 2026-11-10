@@ -267,6 +267,7 @@ html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion
 .reader-prose [role=alert], .reader-prose button { -webkit-user-select:none; user-select:none; }
 .system-nav { gap:3px;padding-bottom:24px; }
 .nav-item { height:39px;font-size:14px;border-radius:8px; }
+[data-platform=mac] .nav-item { height: 32px; }
 .nav-item.is-current { background:transparent;color:var(--sidebar-accent-foreground); }
 .glass-sidebar { box-shadow:none; }
 .toolbar-actions { gap:4px; }
