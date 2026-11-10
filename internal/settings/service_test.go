@@ -109,7 +109,7 @@ func TestInvalidInputsAndUnavailableStoreDoNotWrite(t *testing.T) {
 func TestLegacyValuesNormalizeIndividually(t *testing.T) {
 	ctx := context.Background()
 	store := openTestStore(t, filepath.Join(t.TempDir(), "prefs.db"))
-	raw := `{"theme":"dark","article_view_mode":"old-grid","sidebar_width":9999,"reader_font_size":19,"reader_full_mode":"web"}`
+	raw := `{"theme":"dark","article_view_mode":"old-grid","sidebar_width":9999,"reader_font_size":19,"reader_full_mode":"web","reader_pinned":true}`
 	if ok, err := store.SavePreferences(ctx, raw, 0, 0); err != nil || !ok {
 		t.Fatal(err)
 	}
@@ -121,6 +121,10 @@ func TestLegacyValuesNormalizeIndividually(t *testing.T) {
 		t.Fatal("旧偏好应继续打开订阅预览")
 	}
 	prefs := got.Data.Preferences
+	if prefs.ReaderLayout != "split" {
+		t.Fatal("旧版并排偏好应保留")
+	}
+	prefs.ReaderLayout = "drawer"
 	prefs.ReaderOpenMode = "full"
 	service := NewService(store)
 	saved := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: got.Data.Revision})
@@ -128,7 +132,7 @@ func TestLegacyValuesNormalizeIndividually(t *testing.T) {
 		t.Fatalf("保存阅读方式失败：%+v", saved.Error)
 	}
 	loaded := service.Get(ctx)
-	if !loaded.OK || loaded.Data.Preferences.ReaderOpenMode != "full" {
+	if !loaded.OK || loaded.Data.Preferences.ReaderOpenMode != "full" || loaded.Data.Preferences.ReaderLayout != "drawer" || loaded.Data.Preferences.ReaderPinned {
 		t.Fatal("阅读方式没有持久化")
 	}
 	b, err := json.Marshal(got)

@@ -58,6 +58,7 @@ describe('Phase 1 阅读 Shell', () => {
   })
 
   it('视图切换保留选择与共享收藏状态，搜索不会标记文章已读', async () => {
+    api.get.mockResolvedValue({preferences:preferencesFixture({reader_layout:'split'}),revision:0})
     const { client } = setup(true)
     await screen.findByRole('button', { name: '打开文章：测试文章 0' })
     await userEvent.click(screen.getByRole('button', { name: '打开文章：测试文章 0' }))
@@ -147,6 +148,7 @@ describe('Phase 1 阅读 Shell', () => {
   })
 
   it('Reader 保存滚动位置，抽屉搜索返回浏览区，J/K 同步焦点', async () => {
+    api.get.mockResolvedValue({preferences:preferencesFixture({reader_layout:'split'}),revision:0})
     const { container } = setup(true)
     const first = await screen.findByRole('button', { name: '打开文章：测试文章 0' })
     await userEvent.click(first)
@@ -196,11 +198,14 @@ describe('Phase 1 阅读 Shell', () => {
 
   it('macOS 使用主机菜单事件，默认 Reader 为聚焦面板；图标只在完整动态交互时启动', async()=>{
     host.isMac.mockReturnValue(true)
-    api.get.mockResolvedValue({preferences:preferencesFixture({reader_pinned:false}),revision:0})
+    api.get.mockResolvedValue({preferences:preferencesFixture(),revision:0})
     const {container}=setup(true)
     const trigger=await screen.findByRole('button',{name:'打开文章：测试文章 0'})
     expect(screen.queryByRole('menubar')).not.toBeInTheDocument()
     await userEvent.click(trigger)
+    expect(container.querySelector('.reader-fill')).toBeInTheDocument()
+    expect(screen.queryByRole('region',{name:'文章浏览'})).not.toBeInTheDocument()
+    act(()=>useWorkspace.getState().patch({reader_layout:'drawer'}))
     expect(container.querySelector('.reader-drawer')).toBeInTheDocument()
     const settings=screen.getByRole('button',{name:'打开设置'})
     await userEvent.hover(settings)
@@ -208,6 +213,17 @@ describe('Phase 1 阅读 Shell', () => {
     act(()=>useWorkspace.getState().patch({animation:'off'}))
     expect(settings.querySelector('[data-animating=true]')).not.toBeInTheDocument()
     host.isMac.mockReturnValue(false)
+  })
+
+  it('阅读模式从工具栏重新提取正文', async () => {
+    reader.extract.mockResolvedValue({article_id:'a-0',html:'',text:'已提取正文',mode:'reader'})
+    setup(true)
+    await userEvent.click(await screen.findByRole('button',{name:'打开文章：测试文章 0'}))
+    await userEvent.click(screen.getByRole('tab',{name:'阅读模式'}))
+    await waitFor(()=>expect(reader.extract).toHaveBeenCalledTimes(1))
+    const refresh=within(screen.getByRole('complementary',{name:'阅读面板'})).getByRole('button',{name:'重新提取正文'})
+    await userEvent.click(refresh)
+    expect(reader.extract).toHaveBeenCalledTimes(2)
   })
 
   it('输入框右键保留剪切与粘贴，受控搜索状态随编辑更新', async()=>{

@@ -1,7 +1,7 @@
 import { openChat } from '@/features/chat/chat-scope'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { ArticleCategories } from '@/features/categories/ArticleCategories'
-import { BookOpen,BookText,CheckCheck,ChevronLeft,ExternalLink,ScanText,Sparkles,Star } from 'lucide-react'
+import { BookOpen,BookText,CheckCheck,ChevronLeft,ExternalLink,RefreshCw,ScanText,Sparkles,Star } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Tabs } from 'radix-ui'
@@ -86,6 +86,8 @@ function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnc
   <header className="workspace-toolbar reader-toolbar">
    <div className="toolbar-start"><SemanticButton icon={ChevronLeft} meaning="chevron-left" label={overlay?'返回文章浏览':'收起阅读面板'} onClick={onClose}/></div>
    <div className="toolbar-actions">
+    {view==='reader' && <SemanticButton icon={RefreshCw} meaning="refresh" label="重新提取正文"
+      disabled={!article || body.extracting} onClick={()=>{void body.extract()}}/>}
     {article&&<ArticleCategories articleID={article.id}/>}
     <SemanticButton icon={Star} meaning="favorite" label="收藏当前文章" active={article?.isFavorite} disabled={!article} onClick={()=>article&&onFavorite(article.id)}/>
     <SemanticButton icon={CheckCheck} meaning="read" label="切换当前文章已读状态" disabled={!article} onClick={()=>article&&onRead(article.id)}/>
@@ -109,8 +111,7 @@ function ReaderPane({article,preferences,overlay,onClose,onFavorite,onRead,onAnc
    const offset=event.currentTarget.scrollTop;pending.current=offset;if(timer.current)clearTimeout(timer.current)
    timer.current=setTimeout(()=>{pending.current=null;save.current(`reader|${articleID}`,{article_id:articleID,offset})},180)
   }}><article style={{maxWidth:preferences.reader_width,fontSize:preferences.reader_font_size,lineHeight:preferences.reader_line_height,fontFamily:preferences.reader_font_family==='serif'?'ui-serif, Georgia, "Songti SC", serif':preferences.reader_font_family==='monospace'?'ui-monospace, SFMono-Regular, monospace':undefined}}><p className="reader-byline">{article.feedTitle} · {article.publishedAt.slice(0,10)}</p><h1 ref={title} tabIndex={-1}>{article.title}</h1>
-   {(body.extracting||body.error)&&<div className="reader-operation" role="status">{body.extracting?<><span>正在提取网页正文…</span><Button variant="ghost" size="sm" onClick={body.cancel}>取消提取</Button></>:<><p role="alert">{body.error}</p><Button variant="ghost" size="sm" onClick={()=>{void body.extract()}}>重试提取</Button></>}</div>}
-   {body.mode==='reader'&&!body.extracting&&<Button variant="ghost" size="sm" onClick={()=>{void body.extract()}}>重新提取</Button>}
+   {(body.extracting||body.error)&&<div className="reader-operation" role="status">{body.extracting?<><span>正在提取网页正文…</span><Button variant="ghost" size="sm" onClick={body.cancel}>取消提取</Button></>:<p role="alert">{body.error}</p>}</div>}
    <div className="reader-prose" data-images={preferences.remote_images==='never'?'blocked':'allowed'} onClick={event=>{
     if(!(event.target instanceof Element))return
     const link=event.target.closest<HTMLAnchorElement>('a[data-reader-link]')

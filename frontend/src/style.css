@@ -172,7 +172,7 @@
 .articles-toolbar { transition: padding-inline-start var(--duration-normal) var(--ease-standard); }
 [data-sidebar-collapsed=true] .articles-toolbar { padding-inline-start: var(--collapsed-toolbar-inset); }
 .reading-workspace { container-type: inline-size; }
-[data-sidebar-collapsed=true] .reader-drawer .reader-toolbar { padding-inline-start: max(14px, calc(var(--collapsed-toolbar-inset) - (100cqi - 100%))); }
+[data-sidebar-collapsed=true] .reader-overlay .reader-toolbar { padding-inline-start: max(14px, calc(var(--collapsed-toolbar-inset) - (100cqi - 100%))); }
 .articles-heading { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .articles-heading h1 { font-size: 14px; font-weight: 600; letter-spacing: -.01em; line-height: 1.25; white-space: nowrap; margin: 0; }
 .articles-heading > span { font-size: 10px; color: var(--muted-foreground); white-space: nowrap; }
@@ -235,7 +235,9 @@
 .reader-content article { margin: 0 auto; overflow-wrap: anywhere; }
 .reader-byline { font-size: 12px; color: var(--muted-foreground); margin: 0 0 10px; }
 .reader-content article > h1 { font-size: 1.8em; line-height: 1.4; letter-spacing: -.025em; font-weight: 600; margin: 0 0 22px; outline: none; }
-.reader-drawer { position: absolute; inset: 0 0 0 auto; width: min(760px,85%); background: var(--reader-background); border-left: 1px solid var(--border); box-shadow: -12px 0 30px color-mix(in srgb,var(--foreground) 6%,transparent); }
+.reader-overlay { position: absolute; inset: 0 0 0 auto; background: var(--reader-background); }
+.reader-fill { inset: 0; }
+.reader-drawer { width: min(860px, 88%); border-left: 1px solid var(--border); box-shadow: -12px 0 30px color-mix(in srgb,var(--foreground) 6%,transparent); }
 .settings-dialog { width: min(900px,calc(100vw - 48px)); max-width: min(900px,calc(100vw - 48px)); height: min(700px,calc(100vh - 64px)); top: clamp(44px, calc((100vh - 740px) / 2), 64px); translate: -50% 0; padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 12px; }
 .settings-dialog > [data-slot=dialog-header] { min-height: 26px; justify-content: center; padding-inline-end: 34px; }
 .settings-layout { display: grid; grid-template-columns: 160px minmax(0,1fr); flex: 1; min-height: 0; gap: 18px; }
@@ -262,7 +264,7 @@
 .save-warning { position: absolute; right: 20px; bottom: 16px; display: flex; align-items: center; gap: 8px; background: var(--popover); color: var(--destructive); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; font-size: 12px; }
 .save-warning svg { width: 16px; height: 16px; }
 @media (hover:none) { .article-quick-actions { position: relative; opacity: 1; pointer-events: auto; right: auto; bottom: auto; margin: 6px; } .article-row .article-quick-actions { margin-left: auto; } }
-@media (max-width:1080px) { .reader-drawer { width: 100%; } }
+@container (max-width: 520px) { .reader-drawer { width: 100%; } }
 html[data-motion=off] *, html[data-motion=off] *::before, html[data-motion=off] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 html[data-motion=subtle] .semantic-button svg, html[data-motion=subtle] .nav-item svg, html[data-motion=subtle] .article-cover img, html[data-motion=subtle] .article-card { transform: none !important; animation: none !important; }
 html[data-motion=subtle] [data-slot=dialog-content], html[data-motion=subtle] [data-slot=dialog-overlay], html[data-motion=subtle] [data-slot=dropdown-menu-content], html[data-motion=subtle] .search-row { animation: none !important; }
@@ -301,7 +303,7 @@ html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion
 .masonry-scroll { padding:12px 36px 24px; }
 .article-row { padding-left:36px;padding-right:36px; }
 .article-card { border-radius:12px;border-color:color-mix(in srgb,var(--border) 70%,transparent); }
-.reader-drawer { width:min(860px,100%);box-shadow:-16px 0 64px #0000000a; }
+
 .animated-glyph { display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:20px;height:20px;line-height:0; }
 .animated-glyph>div,.animated-glyph>.icon-still { display:contents; }
 .animated-glyph svg { width:20px;height:20px;stroke-width:1.7; }

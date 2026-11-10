@@ -52,7 +52,9 @@ export function Shell() {
   const systemDark = useMediaQuery('(prefers-color-scheme: dark)')
   const systemReduced = useMediaQuery('(prefers-reduced-motion: reduce)')
   const mode = effectiveMotion(preferences, systemReduced)
-  const overlay = !preferences.reader_pinned || compact || preferences.article_view_mode === 'masonry'
+  const fillReader = preferences.reader_layout === 'fill'
+  const overlay = preferences.reader_layout !== 'split' || compact || preferences.article_view_mode === 'masonry'
+  const slideReader = mode === 'full' && !fillReader
   const readerVisible = preferences.reader_open && Boolean(selected)
   const [sidebarDraft, setSidebarDraft] = useState<number | null>(null)
   const [listDraft, setListDraft] = useState<number | null>(null)
@@ -151,7 +153,7 @@ export function Shell() {
           document.getElementById('sidebar-toggle')?.focus()
         }} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
       <main className={cn('reading-workspace', !overlay && readerVisible && 'three-column')}>
-        <section className="article-pane" aria-label="文章浏览"><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />{!settingsOpen && <RefreshStatus />}
+        <section className="article-pane" aria-label="文章浏览" inert={fillReader && readerVisible} aria-hidden={fillReader && readerVisible || undefined}><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />{!settingsOpen && <RefreshStatus />}
           {articles.length > 0 ? <ArticleCollection articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} incomplete={library.hasNextPage} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
           {library.isError && search.trim() && <div className="library-limit"><Button variant="ghost" disabled={library.repairing} onClick={()=>{void library.repairSearch()}}>{library.repairing?'正在重建索引…':'重建搜索索引'}</Button>{library.repairError && <p role="alert">{library.repairError}</p>}</div>}
           {library.searchLimited && <p className="library-limit" role="status">搜索候选较多，可继续载入或缩小范围。</p>}
@@ -160,7 +162,7 @@ export function Shell() {
           {library.hasNextPage && <div className="library-limit"><Button variant="ghost" disabled={library.isFetching} onClick={()=>{void library.fetchNextPage()}}>{library.isFetchingNextPage?'正在载入…':'载入更多文章'}</Button></div>}
         </section>
         {!overlay && readerVisible && <><Splitter label="调整文章列表宽度" value={listDraft ?? preferences.list_width} min={300} max={420} onResize={setListDraft} onCommit={value => { patch({ list_width: value }); setListDraft(null) }} /><Reader key={selected?.id} article={selected} preferences={preferences} overlay={false} onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></>}
-        <AnimatePresence>{overlay && readerVisible && <motion.div className="reader-drawer" transition={mode === 'full' ? { type: 'spring', stiffness: 380, damping: 38 } : { duration: mode === 'off' ? 0 : .1 }} initial={mode === 'full' ? { x: 64, opacity: 0 } : { opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={mode === 'full' ? { x: 16, opacity: 0 } : { opacity: 0 }}><Reader key={selected?.id} article={selected} preferences={preferences} overlay onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></motion.div>}</AnimatePresence>
+        <AnimatePresence>{overlay && readerVisible && <motion.div className={cn('reader-overlay', fillReader ? 'reader-fill' : 'reader-drawer')} transition={slideReader ? { type: 'spring', stiffness: 380, damping: 38 } : { duration: mode === 'off' ? 0 : .1 }} initial={slideReader ? { x: 64, opacity: 0 } : { opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={slideReader ? { x: 16, opacity: 0 } : { opacity: 0 }}><Reader key={selected?.id} article={selected} preferences={preferences} overlay onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></motion.div>}</AnimatePresence>
       </main>
       <Suspense fallback={null}>{settingsOpen && <SettingsDialog />}{paletteOpen && <CommandPalette />}{chatOpen && <ChatDialog />}</Suspense>
       <div className="sr-only" aria-live="polite">{preferences.article_view_mode === 'masonry' ? '已切换到瀑布流视图' : '已切换到列表视图'}</div>

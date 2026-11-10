@@ -12,7 +12,7 @@ Settings Service：Get(context.Context) Result；Update(context.Context, UpdateR
 
 migrations/00001_ui_preferences.sql 通过 goose 创建 app_settings，sqlc v1.30.0 生成读取与 CAS 更新。modernc SQLite v1.61.1、goose v3.28.0。数据文件在 os.UserConfigDir()/Fealdhord/fealdhord.db，单写连接，foreign_keys、WAL、busy_timeout=5000。启动失败不假装偏好已保存，Get 返回中文 DatabaseError。
 
-偏好覆盖 Theme、article_view_mode、list_density、list_thumbnail、masonry_image_mode、animation、follow_system_reduce_motion、sidebar_collapsed／width、list_width、reader_open／reader_pinned、selected_scope／article_id、scroll_anchors、Reader 字体／宽度。scroll_anchors 同时保存浏览 ID 锚点和 reader|article_id 的 Reader 垂直偏移，合计最多 32 项。当前只恢复四个系统 scope，后续 Feed／Category 导航再扩展。
+偏好覆盖 Theme、article_view_mode、list_density、list_thumbnail、masonry_image_mode、animation、follow_system_reduce_motion、sidebar_collapsed／width、list_width、reader_open／reader_layout、selected_scope／article_id、scroll_anchors、Reader 字体／宽度。scroll_anchors 同时保存浏览 ID 锚点和 reader|article_id 的 Reader 垂直偏移，合计最多 32 项。当前只恢复四个系统 scope，后续 Feed／Category 导航再扩展。
 
 ## 4. 错误
 
@@ -29,3 +29,5 @@ migrations/00001_ui_preferences.sql 通过 goose 创建 app_settings，sqlc v1.3
 ## 7. 实现约束
 
 错误：用 localStorage 另存一套持久事实，或用无 revision 的整对象覆盖。正确：SQLite 单一事实、Go 验证、串行保存最新偏好，冲突明确提示并恢复一致性。
+
+`reader_layout` 默认为 `fill`，可选 `drawer` 或 `split`。读取缺少该字段的旧记录时，仅将已开启 `reader_pinned` 的记录映射为 `split`。

@@ -62,6 +62,7 @@ func (s *Service) Get(ctx context.Context) Result {
 		return failure("ConfigurationError", "设置来自较新的应用版本，请更新应用。", false)
 	}
 	prefs := Defaults()
+	prefs.ReaderLayout = "" // 区分旧偏好缺字段与明确选择铺满。
 	if err := json.Unmarshal([]byte(record.JSON), &prefs); err != nil {
 		return failure("ConfigurationError", "本地设置格式损坏，请恢复备份。", false)
 	}
@@ -79,6 +80,7 @@ func (s *Service) Update(ctx context.Context, req UpdateRequest) Result {
 	if s.repository == nil {
 		return failure("DatabaseError", "本地设置暂时无法保存，请重新启动。", true)
 	}
+	req.Preferences.ReaderPinned = req.Preferences.ReaderLayout == "split"
 	encoded, err := json.Marshal(req.Preferences)
 	if err != nil || len(encoded) > 65536 {
 		return failure("ValidationError", "设置内容超出允许范围。", false)

@@ -25,6 +25,7 @@ type Preferences struct {
 	SidebarCollapsed         bool                    `json:"sidebar_collapsed"`
 	SidebarWidth             int                     `json:"sidebar_width"`
 	ListWidth                int                     `json:"list_width"`
+	ReaderLayout             string                  `json:"reader_layout"`
 	ReaderPinned             bool                    `json:"reader_pinned"`
 	ReaderOpen               bool                    `json:"reader_open"`
 	SelectedScopeID          string                  `json:"selected_scope_id"`
@@ -40,7 +41,7 @@ type Preferences struct {
 }
 
 func Defaults() Preferences {
-	return Preferences{ReaderOpenMode: "feed", ReaderAutoRead: true, ReaderFontFamily: "sans", RemoteImages: "subscriptions", MediaCacheEnabled: true,
+	return Preferences{ReaderLayout: "fill", ReaderOpenMode: "feed", ReaderAutoRead: true, ReaderFontFamily: "sans", RemoteImages: "subscriptions", MediaCacheEnabled: true,
 		Theme: "system", ArticleViewMode: "list", ListDensity: "compact", ListThumbnail: "none",
 		MasonryImageMode: "original_ratio", Animation: "full", FollowSystemReduceMotion: true,
 		SidebarWidth: 248, ListWidth: 360, ReaderOpen: false, SelectedScope: "all",
@@ -58,6 +59,9 @@ func oneOf(value string, choices ...string) bool {
 }
 
 func (p Preferences) Validate() error {
+	if !oneOf(p.ReaderLayout, "fill", "drawer", "split") {
+		return errors.New("阅读布局无效。")
+	}
 	if !oneOf(p.ReaderOpenMode, "feed", "full") {
 		return errors.New("文章打开方式无效。")
 	}
@@ -88,6 +92,12 @@ func (p Preferences) Validate() error {
 // normalize 只用于读取旧设置；非法字段分别回退，保留其他有效偏好。
 func (p *Preferences) normalize() {
 	d := Defaults()
+	if p.ReaderLayout == "" && p.ReaderPinned {
+		p.ReaderLayout = "split"
+	}
+	if !oneOf(p.ReaderLayout, "fill", "drawer", "split") {
+		p.ReaderLayout = d.ReaderLayout
+	}
 	if !oneOf(p.ReaderOpenMode, "feed", "full") {
 		p.ReaderOpenMode = d.ReaderOpenMode
 	}

@@ -19,6 +19,7 @@ export interface Preferences {
     "sidebar_collapsed": boolean;
     "sidebar_width": number;
     "list_width": number;
+    "reader_layout": string;
     "reader_pinned": boolean;
     "reader_open": boolean;
     "selected_scope_id": string;
