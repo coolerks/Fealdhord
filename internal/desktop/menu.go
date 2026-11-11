@@ -33,6 +33,8 @@ func WindowOptions() application.WebviewWindowOptions {
 		BackgroundType:   application.BackgroundTypeTransparent,
 		BackgroundColour: application.NewRGBA(0, 0, 0, 0), DefaultContextMenuDisabled: true,
 		Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, TitleBar: application.MacTitleBarHiddenInset, InvisibleTitleBarHeight: 52},
+		// 由宿主窗口先处理边缘缩放，再把客户区鼠标事件交给 WebView2。
+		Windows: application.WindowsWindow{WebView2CompositionHosting: true},
 	}
 	if runtime.GOOS != "darwin" {
 		options.BackgroundType = application.BackgroundTypeSolid
