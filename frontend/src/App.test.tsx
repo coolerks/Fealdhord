@@ -390,7 +390,14 @@ describe('菜单图标与快捷键',()=>{
   await user.click(settings.getByRole('button', { name: '检查更新' }))
   expect(await screen.findByText('检查更新暂未开放')).toBeInTheDocument()
   await user.click(settings.getByRole('button', { name: '访问官网' }))
-  expect(await screen.findByText('官网暂未开放')).toBeInTheDocument()
+  const websiteToast = (await screen.findByText('官网暂未开放')).closest<HTMLElement>('[data-slot="toast"]')!
+  // JSDOM 不加载应用样式，显式模拟 Toast 卡片的 pointer-events-auto。
+  websiteToast.style.pointerEvents = 'auto'
+  await user.hover(websiteToast)
+  await user.click(within(websiteToast).getByRole('button', { name: '关闭通知' }))
+  await waitFor(() => expect(screen.queryByText('官网暂未开放')).not.toBeInTheDocument())
+  expect(screen.getByRole('dialog', { name: '设置' })).toBeInTheDocument()
+  expect(screen.getByText('检查更新暂未开放')).toBeInTheDocument()
   expect(host.openURL).not.toHaveBeenCalled()
   await user.click(settings.getByRole('link', { name: '查看源码' }))
   expect(host.openURL).toHaveBeenCalledWith('https://github.com/coolerks/Fealdhord')
