@@ -73,7 +73,7 @@
 .app-loading { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: var(--muted-foreground); }
 .app-shell { --workspace-toolbar-height: 50px; --sidebar-toggle-size: 32px; --sidebar-toggle-gap: 8px; --window-controls-inset: 14px; --collapsed-toolbar-inset: calc(var(--window-controls-inset) + var(--sidebar-toggle-size) + var(--sidebar-toggle-gap)); isolation: isolate; position: relative; display: grid; grid-template-columns: var(--sidebar-width) var(--sidebar-divider-width, 4px) minmax(0,1fr); height: 100%; overflow: hidden; background: transparent; }
 [data-platform=mac] .app-shell { --workspace-toolbar-height: 54px; --window-controls-inset: 92px; --sidebar-divider-width: 0px; }
-[data-platform=mac] .reading-workspace { background: var(--background); }
+:is([data-platform=mac], [data-platform=windows]) .reading-workspace { background: var(--background); }
 .app-shell { transition: grid-template-columns var(--duration-normal) var(--ease-standard); }
 .app-shell[data-sidebar-collapsed=true] { grid-template-columns: 0px 0px minmax(0,1fr); }
 .sidebar-track { grid-column: 1; min-height: 0; overflow: clip; }
@@ -356,9 +356,26 @@ html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion
 .desktop-shell>.app-shell { flex:1;min-height:0; }
 .application-menu { flex-shrink:0;background:var(--background);border-bottom:1px solid var(--border);padding:2px 12px; }
 .application-menu [data-slot=menubar] { border:0;border-radius:0; }
-[data-platform=windows] .application-menu { display:flex; align-items:center; background:var(--sidebar); padding:0 0 0 4px; }
+/* DWM composites one backdrop behind the title bar and sidebar. */
+[data-platform=windows] { --window-chrome-surface: rgb(245 245 247 / .66); }
+.dark [data-platform=windows] { --window-chrome-surface: rgb(35 35 39 / .9); }
+[data-platform=windows] :is(.application-menu, .glass-sidebar) {
+  background: var(--window-chrome-surface);
+}
+[data-platform=windows] .application-menu { display:flex; align-items:center; padding:0 0 0 4px; }
+[data-platform=windows] .glass-sidebar { backdrop-filter: none; }
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  [data-platform=windows] { --window-chrome-surface: #f0f0f2; }
+  .dark [data-platform=windows] { --window-chrome-surface: #27272a; }
+}
+@media (forced-colors: active) {
+  [data-platform=windows] :is(.application-menu, .glass-sidebar) { background: Canvas; }
+}
 [data-platform=windows] .sidebar-titlebar { height: 4px; }
 [data-platform=windows] .app-shell { --collapsed-toolbar-inset: 14px; }
+[data-platform=windows] .app-shell > .splitter:not(:is(:hover, .is-dragging, :focus-visible)) {
+  background: var(--background);
+}
 .window-drag-area { flex:1; align-self:stretch; --wails-draggable: drag; }
 .window-controls { display:flex; flex:none; align-self:stretch; }
 .window-controls button { width:46px; height:100%; min-height:36px; border-radius:0; --wails-draggable: no-drag; }

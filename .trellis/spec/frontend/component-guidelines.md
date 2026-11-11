@@ -76,3 +76,7 @@ macOS 侧栏交互使用半透明状态色。以 `aria-current=page` 统一阅�
 侧栏分隔条通过 `Splitter.onCollapse` 启用拖过下限收起，保留上次保存的宽度。前端宽度 220–360px 与 Go 偏好校验及读回范围保持一致。分隔条取消拖动时只清除临时宽度。
 
 固定单选项使用 `SegmentedControl` 配合 `ToggleGroupItem`，保留单选键盘语义，每项带语义图标。下拉选项保持单行，菜单按内容取宽，受窗口限制时允许横向滚动。分类树展开与收起对分支高度做动画，离场分支立即退出键盘导航。关闭动画时直接显示或隐藏。
+
+### Windows 原生材质
+
+`[data-platform=windows]` 下，`.application-menu` 与 `.glass-sidebar` 共用 `--window-chrome-surface`。半透明颜色由 CSS 提供，桌面模糊由 DWM 提供。文章工作区使用实色背景，保留浮层的语义颜色。降低透明度或高对比度媒体查询命中时统一换成实色，强制颜色使用 `Canvas`。检查深浅主题、侧栏收起以及窗口按钮交互。

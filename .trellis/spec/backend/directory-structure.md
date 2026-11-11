@@ -38,4 +38,4 @@ internal/app 负责装配；feed/article/category/search/reader 负责领域；d
 
 ## 原生装配
 
-internal/desktop 负责窗口选项与系统菜单，main 注册 CommandEvent。不能让菜单重复持有文章／偏好事实；业务动作发白名单命令到同一前端执行器。macOS 材质必须让 WebView／HTML 背景透明，内容保持不透明；非 macOS 用不透明回退。
+internal/desktop 负责窗口选项与系统菜单，main 注册 CommandEvent。不能让菜单重复持有文章／偏好事实；业务动作发白名单命令到同一前端执行器。macOS 与 Windows 11 的窗口材质要求 WebView／HTML 允许透出原生背景，内容区保持不透明。Windows 由 `configureWindowsBackdrop(*application.WebviewWindowOptions)` 在创建窗口前调用 Wails 的 `w32.SupportsBackdropTypes()`。支持时设置 `BackgroundTypeTranslucent` 和 `Windows.BackdropType = application.Acrylic`，旧系统保留实色窗口，避免进入 Wails 的旧式模糊回退。继续启用 `WebView2CompositionHosting` 以保留窗口边缘缩放。变更需通过 Windows 交叉编译，原生材质与命中测试以 Windows 实机为准。

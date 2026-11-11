@@ -40,6 +40,7 @@ func WindowOptions() application.WebviewWindowOptions {
 		options.BackgroundType = application.BackgroundTypeSolid
 		options.BackgroundColour = application.NewRGB(245, 245, 247)
 	}
+	configureWindowsBackdrop(&options)
 	return options
 }
 
