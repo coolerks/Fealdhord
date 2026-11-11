@@ -544,3 +544,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 19: 关于页文字链接
+<!-- trellis-session: v=2 fp=5817ad8e3936a15d -->
+
+**Date**: 2026-11-11
+**Task**: 关于页文字链接
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+三个入口改为文字链接样式。源码打开系统浏览器，更新和官网显示暂未开放提示。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cd41cb3` | fix: 将关于页入口改为文字链接 |
+
+### Testing
+
+- [OK] App 相关测试 24 项通过，类型检查、lint 和前端构建通过。
+
+### Status
+
+[OK] **Completed**

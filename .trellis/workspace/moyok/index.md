@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 18
+- **Total Sessions**: 19
 - **Last Active**: 2026-11-11
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~546 | Active |
+| `journal-1.md` | ~572 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 19 | 2026-11-11 | 关于页文字链接 | `cd41cb3` | `codex/interface-clarity` |
 | 18 | 2026-11-11 | 关于页与开发者模式 | `878173d` | `codex/interface-clarity` |
 | 17 | 2026-11-11 | 独立通知设置与订阅 Toast | `1cdb617` | `codex/interface-clarity` |
 | 16 | 2026-11-11 | 精简阅读菜单文案 | `d9bdebc` | `codex/interface-clarity` |
