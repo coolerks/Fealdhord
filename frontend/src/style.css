@@ -356,12 +356,14 @@ html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion
 /* 原生阅读体验：窗口材质只在侧栏透出，内容面板保持可读。 */
 .application-root,.desktop-shell { height:100%; min-height:0; }
 .desktop-shell { display:flex;flex-direction:column; }
+/* 留出连续的窗口边缘，让 Wails 在关闭按钮和滚动条旁接收缩放手势。 */
+.desktop-shell[data-platform=windows] { --window-resize-inset: 12px; background: var(--background); }
 .desktop-shell>.app-shell { flex:1;min-height:0; }
 .application-menu { flex-shrink:0;background:var(--background);border-bottom:1px solid var(--border);padding:2px 12px; }
 .application-menu [data-slot=menubar] { border:0;border-radius:0; }
-[data-platform=windows] .application-menu { display:flex; align-items:center; background:var(--sidebar); padding:0 0 0 4px; }
+[data-platform=windows] .application-menu { display:flex; align-items:center; background:var(--sidebar); padding:0 0 0 4px; padding-inline-end: var(--window-resize-inset); }
 [data-platform=windows] .sidebar-titlebar { height: 4px; }
-[data-platform=windows] .app-shell { --collapsed-toolbar-inset: 14px; }
+[data-platform=windows] .app-shell { --collapsed-toolbar-inset: 14px; margin-inline-end: var(--window-resize-inset); }
 .window-drag-area { flex:1; align-self:stretch; --wails-draggable: drag; }
 .window-controls { display:flex; flex:none; align-self:stretch; }
 .window-controls button { width:46px; height:100%; min-height:36px; border-radius:0; --wails-draggable: no-drag; }
