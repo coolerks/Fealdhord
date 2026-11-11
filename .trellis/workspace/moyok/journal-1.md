@@ -391,3 +391,25 @@ Windows 11 22H2 起启用 DWM Acrylic 与透明 WebView2，自绘标题栏及侧
 ### Status
 
 [OK] **Completed**
+
+
+## Session 13: 侧栏与文章区同步平推
+<!-- trellis-session: v=2 fp=8fe6db2869c8434f -->
+
+**Date**: 2026-11-11
+**Task**: 侧栏与文章区同步平推
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变一次。前端 90 项测试及 Windows x64 交叉编译通过。Phase 7 仍在进行。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3882147` | fix: 恢复侧栏与文章区同步平推动画 |
+
+### Status
+
+[OK] **Completed**
