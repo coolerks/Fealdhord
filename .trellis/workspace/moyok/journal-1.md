@@ -491,3 +491,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 17: 独立通知设置与订阅 Toast
+<!-- trellis-session: v=2 fp=6df06fd39a41e340 -->
+
+**Date**: 2026-11-11
+**Task**: 独立通知设置与订阅 Toast
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+通知方式改用分段控件，订阅结果默认保留且支持独立设置自动收起。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1cdb617` | feat: 独立通知设置与订阅刷新通知保留 |
+
+### Testing
+
+- [OK] 前端 98 项测试、生产构建与 Go 设置持久化测试通过，Lint 只有既有 TanStack Virtual 警告。
+
+### Status
+
+[OK] **Completed**
