@@ -465,3 +465,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 16: 精简阅读菜单文案
+<!-- trellis-session: v=2 fp=6b2a9d039c66b71e -->
+
+**Date**: 2026-11-11
+**Task**: 精简阅读菜单文案
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+更多菜单使用简短动词和名称，已读操作根据当前状态显示下一步。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d9bdebc` | fix: 精简阅读工具栏菜单文案 |
+
+### Testing
+
+- [OK] 前端 94 项测试和生产构建通过，Lint 无错误。
+
+### Status
+
+[OK] **Completed**
