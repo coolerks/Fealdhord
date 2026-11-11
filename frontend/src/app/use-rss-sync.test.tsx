@@ -61,7 +61,7 @@ it('刷新终态通过通知报告累计失败数，同一批次只通知一次'
   const listener = api.subscribeRefresh.mock.calls[0][0]
   const completed = {...running, sequence:4, status:'partial', completed:2, failed_count:2, results_truncated:true}
   act(() => listener(completed))
-  expect(notify).toHaveBeenCalledWith('刷新结束', '2/2 个订阅 · 2 个失败', true)
+  expect(notify).toHaveBeenCalledWith('刷新结束', '2/2 个订阅 · 2 个失败', true, 'subscription-refresh')
   act(() => listener({...completed, sequence:5}))
   expect(notify).toHaveBeenCalledTimes(1)
 })

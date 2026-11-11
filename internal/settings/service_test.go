@@ -35,11 +35,12 @@ func TestPreferencesPersistAndReopen(t *testing.T) {
 	}
 	service := NewService(store)
 	got := service.Get(ctx)
-	if !got.OK || got.Data.Revision != 0 || got.Data.Preferences.Theme != "system" {
+	if !got.OK || got.Data.Revision != 0 || got.Data.Preferences.Theme != "system" || got.Data.Preferences.RefreshToastAutoDismiss {
 		t.Fatalf("初始偏好错误：%+v", got)
 	}
 	prefs := got.Data.Preferences
 	prefs.Theme = "dark"
+	prefs.RefreshToastAutoDismiss = true
 	prefs.ArticleViewMode = "masonry"
 	prefs.SidebarWidth = 340
 	prefs.ScrollAnchors["all:masonry"] = ScrollAnchor{ArticleID: "article-7", Offset: 18}
@@ -52,7 +53,7 @@ func TestPreferencesPersistAndReopen(t *testing.T) {
 	}
 	reopened := openTestStore(t, filename)
 	snapshot := NewService(reopened).Get(ctx)
-	if !snapshot.OK || snapshot.Data.Preferences.Theme != "dark" || snapshot.Data.Preferences.SidebarWidth != 340 || snapshot.Data.Preferences.ScrollAnchors["all:masonry"].ArticleID != "article-7" {
+	if !snapshot.OK || snapshot.Data.Preferences.Theme != "dark" || !snapshot.Data.Preferences.RefreshToastAutoDismiss || snapshot.Data.Preferences.SidebarWidth != 340 || snapshot.Data.Preferences.ScrollAnchors["all:masonry"].ArticleID != "article-7" {
 		t.Fatalf("重开丢失设置：%+v", snapshot)
 	}
 }
@@ -121,6 +122,10 @@ func TestLegacyValuesNormalizeIndividually(t *testing.T) {
 	if got.Data.Preferences.ReaderOpenMode != "feed" {
 		t.Fatal("旧偏好应继续打开订阅预览")
 	}
+	if got.Data.Preferences.RefreshToastAutoDismiss {
+		t.Fatal("旧设置的订阅刷新通知默认保留")
+	}
+
 	prefs := got.Data.Preferences
 	if prefs.ReaderLayout != "split" {
 		t.Fatal("旧版并排偏好应保留")

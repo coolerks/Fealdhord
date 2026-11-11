@@ -3,7 +3,7 @@ import { preferencesAPI } from '@/lib/preferences'
 import type { Preferences, Snapshot } from '@/lib/preferences'
 import { PreferenceWriter } from '@/lib/preference-writer'
 
-export type SettingsTab = 'appearance' | 'reader' | 'data' | 'categories' | 'feeds' | 'ai' | 'about'
+export type SettingsTab = 'appearance' | 'reader' | 'data' | 'categories' | 'feeds' | 'notifications' | 'ai' | 'about'
 type Workspace = {
   preferences: Preferences | null
   revision: number

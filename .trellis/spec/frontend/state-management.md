@@ -49,3 +49,5 @@ library Query 迁移为 InfiniteData<LibraryPage>；libraryKey 包含 scope／se
 ## 阅读工具栏常驻偏好
 
 `reader_toolbar_pinned` 通过既有 SettingsService 和 `workspace.patch` 持久化。偏好包含稳定操作 ID。空数组表示全部收进菜单。读取旧记录时，缺失或无效字段使用默认四项。字段定义、写入校验与测试见[偏好契约](../../../docs/04-specs/preferences.md)。
+
+通知方式和订阅结果 Toast 的自动收起开关由「通知」设置页通过 `workspace.patch` 独立保存。旧记录缺少 `refresh_toast_auto_dismiss` 时按 `false` 读取。Toast 超时是单条通知的参数，全局 Provider 默认值继续供其他通知使用。

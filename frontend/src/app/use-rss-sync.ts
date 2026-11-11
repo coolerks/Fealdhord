@@ -20,7 +20,7 @@ export function useRSSSync() {
     const cancelled = snapshot.cancelled_count ?? 0
     const title = snapshot.status === 'cancelled' ? '刷新已取消' : failed || skipped ? '刷新结束' : '刷新完成'
     const detail = [`${snapshot.completed}/${snapshot.total} 个订阅`, failed && `${failed} 个失败`, skipped && `${skipped} 个跳过`, cancelled && `${cancelled} 个取消`].filter(Boolean).join(' · ')
-    void notify(title, detail, failed > 0)
+    void notify(title, detail, failed > 0, 'subscription-refresh')
   }, [snapshot])
   const operationID = isRefreshing(snapshot) ? snapshot?.operation_id : undefined
   useEffect(() => {

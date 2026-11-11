@@ -1,8 +1,10 @@
 import { FeedPreferences } from './FeedPreferences'
+import { Authorize } from '../../../bindings/github.com/coolerks/Fealdhord/internal/desktop/notifier'
+import { toast } from '@/components/ui/toast-manager'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import type { IconMeaning } from '@/components/animated-glyph'
 import { useState } from 'react'
-import { Folder,Info, Palette, Rss, SlidersHorizontal, Sparkles } from 'lucide-react'
+import { BadgeAlert,Folder,Info, Palette, Rss, SlidersHorizontal, Sparkles } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { SegmentedControl } from '@/components/ui/segmented-control'
@@ -24,8 +26,8 @@ import { FeedSettings } from '@/features/feeds/FeedSettings'
 import { TransferPanel } from '@/features/transfer/TransferPanel'
 import DiagnosticPanel from './DiagnosticPanel'
 
-function Choice({ name, label, value, choices, onChange }: { name: string; label: string; value: string; choices: [string, string, IconMeaning][]; onChange: (value: string) => void }) {
-  return <Field><FieldLabel id={`${name}-label`}>{label}</FieldLabel><SegmentedControl value={value} onValueChange={next => { if (next) onChange(next) }} aria-labelledby={`${name}-label`}>{choices.map(([key, title, icon]) => <ToggleGroupItem key={key} value={key}><AnimatedGlyph meaning={icon}/>{title}</ToggleGroupItem>)}</SegmentedControl></Field>
+function Choice({ name, label, value, choices, onChange, disabled }: { name: string; label: string; value: string; choices: [string, string, IconMeaning][]; onChange: (value: string) => void; disabled?: boolean }) {
+  return <Field><FieldLabel id={`${name}-label`}>{label}</FieldLabel><SegmentedControl disabled={disabled} value={value} onValueChange={next => { if (next) onChange(next) }} aria-labelledby={`${name}-label`}>{choices.map(([key, title, icon]) => <ToggleGroupItem key={key} value={key}><AnimatedGlyph meaning={icon}/>{title}</ToggleGroupItem>)}</SegmentedControl></Field>
 }
 function Range({ name, label, value, min, max, step = 1, unit = '', onChange }: { name: string; label: string; value: number; min: number; max: number; step?: number; unit?: string; onChange: (value: number) => void }) {
   return <Field>
@@ -40,7 +42,9 @@ const sections: { id: SettingsTab; title: string; icon: typeof Palette; meaning:
   { id: 'appearance', title: '外观与浏览', icon: Palette, meaning:"palette" }, { id: 'reader', title: '阅读排版', icon: SlidersHorizontal, meaning:"sliders-horizontal" },
   {id:'data',title:'导入与导出',icon:Folder,meaning:'folder'},
   {id:'categories',title:'分类',icon:Folder,meaning:'folder'},
-  { id: 'feeds', title: '订阅', icon: Rss, meaning:"radio-tower" }, { id: 'ai', title: 'AI 与扩展', icon: Sparkles, meaning:"ai" }, { id: 'about', title: '关于与诊断', icon: Info, meaning:"circle-help" },
+  { id: 'feeds', title: '订阅', icon: Rss, meaning:"radio-tower" },
+  { id: 'notifications', title: '通知', icon: BadgeAlert, meaning: 'badge-alert' },
+  { id: 'ai', title: 'AI 与扩展', icon: Sparkles, meaning:"ai" }, { id: 'about', title: '关于与诊断', icon: Info, meaning:"circle-help" },
 ]
 
 export function SettingsDialog() {
@@ -81,6 +85,8 @@ export function SettingsDialog() {
           </Field>
           <Field orientation="horizontal"><FieldLabel htmlFor="reader-auto-read">正文呈现后标为已读</FieldLabel><Switch id="reader-auto-read" checked={preferences.reader_auto_read} onCheckedChange={value=>set('reader_auto_read',value)}/></Field><Choice name="reader-font" label="阅读字体" value={preferences.reader_font_family} choices={[["sans","系统无衬线","book-text"],["serif","衬线","book"],["monospace","等宽","layers"]]} onChange={value=>set('reader_font_family',value)}/><Choice name="reader-layout" label="瀑布流阅读布局" value={preferences.reader_layout === 'fill' ? 'fill' : 'drawer'} choices={[["fill","铺满","maximize"],["drawer","抽屉","panel-right-open"]]} onChange={value=>set('reader_layout',value)}/><Range name="font-size" label="正文字号" value={preferences.reader_font_size} min={14} max={24} unit="px" onChange={value => set('reader_font_size', value)} /><Range name="line-height" label="行高" value={preferences.reader_line_height} min={1.4} max={2} step={.1} onChange={value => set('reader_line_height', value)} /><Range name="reader-width" label="正文宽度" value={preferences.reader_width} min={680} max={760} step={20} unit="px" onChange={value => set('reader_width', value)} /></FieldGroup>}
         {tab === 'feeds' && <FieldGroup><FeedPreferences /><Separator /><FeedSettings /></FieldGroup>}
+        {tab === 'notifications' && <NotificationPreferences mode={preferences.notification_mode}
+          autoDismiss={preferences.refresh_toast_auto_dismiss} patch={patch} />}
         {tab==='data' && <TransferPanel/>}
         {tab==='categories' && <CategoryManager/>}
         {tab === 'ai' && <AISettings />}
@@ -89,4 +95,39 @@ export function SettingsDialog() {
     </div>
     <div className="settings-save" aria-live="polite"><span>{saveStatus === 'saving' ? '正在保存…' : saveStatus === 'error' ? '有未保存的更改' : '已保存'}</span>{saveError && <><p role="alert">{saveError}</p><Button size="sm" variant="outline" onClick={retrySave}>重试保存</Button><Button size="sm" variant="ghost" onClick={() => { void preferencesAPI.get().then(snapshot => { initialize(snapshot); setReloadError('') }).catch(() => setReloadError('重新载入失败，请稍后重试。')) }}>重新载入</Button></>}{reloadError && <p role="alert">{reloadError}</p>}</div>
   </DialogContent></Dialog>
+}
+
+function NotificationPreferences({ mode, autoDismiss, patch }: {
+  mode: string
+  autoDismiss: boolean
+  patch: (delta: Partial<Preferences>) => void
+}) {
+  const [authorizing, setAuthorizing] = useState(false)
+
+  async function selectMode(next: string) {
+    if (next === 'toast') {
+      patch({ notification_mode: next })
+    } else if (next === 'native') {
+      setAuthorizing(true)
+      try {
+        if (await Authorize()) patch({ notification_mode: next })
+        else toast.add({ title: '系统通知权限未开启', type: 'error' })
+      } catch {
+        toast.add({ title: '系统通知不可用', type: 'error' })
+      } finally {
+        setAuthorizing(false)
+      }
+    }
+  }
+
+  return <FieldGroup>
+    <Choice name="notification-mode" label="通知方式" value={mode} disabled={authorizing}
+      choices={[[ 'toast', '应用内通知', 'panel-right-open' ], [ 'native', '系统通知', 'monitor-cog' ]]}
+      onChange={next => { void selectMode(next) }} />
+    <Field orientation="horizontal">
+      <FieldLabel htmlFor="refresh-toast-auto-dismiss">自动收起应用内订阅更新通知</FieldLabel>
+      <Switch id="refresh-toast-auto-dismiss" checked={autoDismiss}
+        onCheckedChange={checked => patch({ refresh_toast_auto_dismiss: checked })} />
+    </Field>
+  </FieldGroup>
 }

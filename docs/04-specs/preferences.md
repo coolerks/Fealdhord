@@ -16,17 +16,19 @@ migrations/00001_ui_preferences.sql 通过 goose 创建 app_settings，sqlc v1.3
 
 `preferences.reader_toolbar_pinned` 保存阅读工具栏常驻操作 ID 数组。允许 `refresh`、`favorite`、`translate`、`ai`、`categories`、`read`、`view`、`original`。默认是前四项，`[]` 表示全部放入「更多」。设置只控制常驻项，排列顺序由界面统一定义。字段由既有 Get／Update 契约和 CAS 持久化，无需数据库迁移。
 
+通知方式 `preferences.notification_mode` 接受 `toast` 或 `native`，默认 `toast`。布尔值 `preferences.refresh_toast_auto_dismiss` 默认 `false`，旧记录缺少该字段时同样为 `false`。两个值由现有 Get／Update 契约和 CAS 保存，无需迁移。
+
 ## 4. 错误
 
-非法枚举／尺寸／超限锚点→ValidationError，零写入；旧 revision→Conflict，原子拒绝；未来 schema→ConfigurationError；I/O→DatabaseError。读取旧字段分别回退安全默认，不覆盖有效字段；未知未来 schema 不允许旧客户端写回。常驻项含未知 ID、重复 ID 或超过八项时拒绝写入，旧记录中的无效值和缺失值分别恢复默认。
+非法枚举／尺寸／超限锚点→ValidationError，零写入；旧 revision→Conflict，原子拒绝；未来 schema→ConfigurationError；I/O→DatabaseError。读取旧字段分别回退安全默认，不覆盖有效字段；未知未来 schema 不允许旧客户端写回。常驻项含未知 ID、重复 ID 或超过八项时拒绝写入，旧记录中的无效值和缺失值分别恢复默认。系统通知授权被拒或请求失败时保留当前方式，发送失败时回退到应用内通知。
 
 ## 5. 案例
 
-正常：保存 Dark＋Masonry，关闭数据库重开仍一致。基础：新库默认 System＋List。异常：两个窗口以同 revision 更新，只能一个成功，不静默覆盖。常驻项全部取消后重启，仍只显示「更多」。
+正常：保存 Dark＋Masonry，关闭数据库重开仍一致。基础：新库默认 System＋List。异常：两个窗口以同 revision 更新，只能一个成功，不静默覆盖。常驻项全部取消后重启，仍只显示「更多」。订阅刷新结果默认保留，开启自动收起后，新到达的结果采用普通 Toast 的 5 秒计时。
 
 ## 6. 测试
 
-临时真实 SQLite 测试重开、并发 CAS、非法输入、旧字段恢复与未来 schema 拒绝读写；使用 -race 检查，不访问用户数据目录，不执行 E2E。前端保存失败、快速连续更改和初次恢复需组件／单元验证。阅读工具栏覆盖默认项、搜索勾选、动作移动、CAS 保存、空数组读回和无效 ID 拒绝。
+临时真实 SQLite 测试重开、并发 CAS、非法输入、旧字段恢复与未来 schema 拒绝读写；使用 -race 检查，不访问用户数据目录，不执行 E2E。前端保存失败、快速连续更改和初次恢复需组件／单元验证。阅读工具栏覆盖默认项、搜索勾选、动作移动、CAS 保存、空数组读回和无效 ID 拒绝。通知覆盖设置保存与重开、旧记录默认值、订阅终态专用超时和系统发送失败回退。
 
 ## 7. 实现约束
 
@@ -37,4 +39,4 @@ migrations/00001_ui_preferences.sql 通过 goose 创建 app_settings，sqlc v1.3
 
 ## 订阅刷新与通知
 
-设置的「订阅」页保存自动刷新间隔 `refresh_interval_minutes` 和通知方式 `notification_mode`。旧配置读取时采用 30 分钟和应用内 Toast。系统通知选项调用 Wails 请求授权，发送失败时回退到应用内 Toast。刷新进度和可重试的表单错误仍显示在操作处。
+设置的「订阅」页保存自动刷新间隔 `refresh_interval_minutes`，默认为 30 分钟。「通知」页用分段控件切换应用内通知与系统通知，并提供独立的订阅更新通知自动收起开关。系统通知由 Wails 请求授权。刷新进度和可重试的表单错误仍显示在操作处。

@@ -11,6 +11,8 @@ import { articleQueryKey } from '@/lib/library'
 
 const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),isWindows:vi.fn(()=>false),isMaximized:vi.fn(async()=>false),onMaximizeChange:vi.fn<(_listener: (value: boolean) => void) => () => void>(()=>()=>{}),onCommand:vi.fn(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(async()=>{}),minimize:vi.fn(async()=>{}),maximize:vi.fn(async()=>{}),fullscreen:vi.fn(),quit:vi.fn()}))
 vi.mock('@/lib/native',()=>({native:host}))
+const authorize = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
+vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/desktop/notifier', () => ({ Authorize: authorize, Send: vi.fn() }))
 const api = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn() }))
 vi.mock('@/lib/preferences', () => ({ preferencesAPI: api }))
 const library=vi.hoisted(()=>({list:vi.fn(async()=>({items:[],hasMore:false})),text:vi.fn(async()=>''),setRead:vi.fn(async()=>{}),setFavorite:vi.fn(async()=>{})}))
@@ -242,6 +244,32 @@ describe('Phase 1 阅读 Shell', () => {
     expect(reader.extract).toHaveBeenCalledTimes(1)
     await userEvent.click(refresh)
     expect(reader.extract).toHaveBeenCalledTimes(2)
+  })
+
+  it('通知设置使用分段选择，授权通过后保存方式，独立保存订阅通知自动收起', async () => {
+    const user = userEvent.setup()
+    authorize.mockResolvedValue(true)
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    const dialog = within(screen.getByRole('dialog', { name: '设置' }))
+    await user.click(dialog.getByRole('button', { name: '通知' }))
+    const mode = within(dialog.getByRole('radiogroup', { name: '通知方式' }))
+    expect(mode.getByRole('radio', { name: '应用内通知' })).toBeChecked()
+    const autoDismiss = dialog.getByRole('switch', { name: '自动收起应用内订阅更新通知' })
+    expect(autoDismiss).not.toBeChecked()
+
+    await user.click(autoDismiss)
+    expect(autoDismiss).toBeChecked()
+    await user.click(mode.getByRole('radio', { name: '系统通知' }))
+    expect(authorize).toHaveBeenCalledTimes(1)
+    expect(mode.getByRole('radio', { name: '系统通知' })).toBeChecked()
+    await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      notification_mode: 'native',
+      refresh_toast_auto_dismiss: true,
+    }), expect.any(Number)))
+
+    await user.click(dialog.getByRole('button', { name: '订阅' }))
+    expect(dialog.queryByRole('radiogroup', { name: '通知方式' })).not.toBeInTheDocument()
   })
 
   it('通过更多打开工具栏设置，搜索并保存常驻操作', async () => {

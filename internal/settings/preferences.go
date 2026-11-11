@@ -14,6 +14,7 @@ type ScrollAnchor struct {
 type Preferences struct {
 	RefreshIntervalMinutes   int                     `json:"refresh_interval_minutes"`
 	NotificationMode         string                  `json:"notification_mode"`
+	RefreshToastAutoDismiss  bool                    `json:"refresh_toast_auto_dismiss"`
 	WebImageFallback         bool                    `json:"web_image_fallback"`
 	RemoteImages             string                  `json:"remote_images"`
 	MediaCacheEnabled        bool                    `json:"media_cache_enabled"`

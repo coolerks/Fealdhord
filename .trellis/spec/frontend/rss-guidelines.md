@@ -6,7 +6,7 @@
 
 ## 2. 签名
 
-`rssAPI` 适配生成 FeedService／refresh.API／media.API；`feedsQueryKey=['rss','feeds']`，文章复用现有 `articleQueryKey`。`startRefresh(client, ids=[])` 的空数组表示所有活动订阅，`cancelRefresh()` 使用当前 operation_id。`useRefresh.accept(Snapshot)` 比较 generation／sequence；快照不写入偏好。
+`rssAPI` 适配生成 FeedService／refresh.API／media.API；`feedsQueryKey=['rss','feeds']`，文章复用现有 `articleQueryKey`。`startRefresh(client, ids=[])` 的空数组表示所有活动订阅，`cancelRefresh()` 使用当前 operation_id。`useRefresh.accept(Snapshot)` 比较 generation／sequence；快照不写入偏好。终态通知使用 `notify(title, detail, error, "subscription-refresh")`。该类型共用一个 Toast ID，默认传入 `timeout: 0`，开启 `refresh_toast_auto_dismiss` 时使用 Provider 默认超时。系统通知失败后的 Toast 使用相同规则。
 
 ## 3. 契约
 
