@@ -413,3 +413,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 14: 阅读工具栏常驻操作
+<!-- trellis-session: v=2 fp=248a6ad44880a23e -->
+
+**Date**: 2026-11-11
+**Task**: 阅读工具栏常驻操作
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+列表和瀑布流阅读器共用可配置的常驻项与更多菜单。翻译以禁用占位呈现。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6d412dc` | feat: 支持自定义阅读工具栏常驻操作 |
+
+### Testing
+
+- [OK] 前端 92 项测试、生产构建与 Go 设置测试通过。Lint 有一项既有的 TanStack Virtual 警告。
+
+### Status
+
+[OK] **Completed**
