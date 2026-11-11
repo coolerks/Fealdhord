@@ -8,9 +8,9 @@ import { startRefresh } from './refresh'
 import { readerAPI } from './reader-api'
 import { native } from './native'
 
-export type CommandID = 'import-opml'|'export-opml'|'reader-mode'|'open-original'|'categories'|'refresh'|'settings'|'about'|'help'|'feeds'|'ai'|'search'|'palette'|'all'|'unread'|'favorites'|'featured'|'list'|'masonry'|'sidebar'|'reader'|'theme-system'|'theme-light'|'theme-dark'|'next'|'previous'|'favorite'|'read'|'close'|'minimize'|'maximize'|'fullscreen'|'quit'
+export type CommandID = 'import-opml'|'export-opml'|'reader-mode'|'open-original'|'categories'|'refresh'|'settings'|'about'|'diagnostics'|'devtools'|'help'|'feeds'|'ai'|'search'|'palette'|'all'|'unread'|'favorites'|'featured'|'list'|'masonry'|'sidebar'|'reader'|'theme-system'|'theme-light'|'theme-dark'|'next'|'previous'|'favorite'|'read'|'close'|'minimize'|'maximize'|'fullscreen'|'quit'
 export const commandLabels: Record<CommandID, string> = {
- 'import-opml':'导入 OPML…','export-opml':'导出 OPML…','reader-mode':'切换 Reader 模式','open-original':'在浏览器打开原文',categories:'分类管理…',refresh:'刷新订阅',settings:'设置…',about:'关于折栈',help:'键盘快捷键',feeds:'订阅管理…',ai:'AI 与扩展…',search:'搜索文章',palette:'命令面板…',all:'全部文章',unread:'未读文章',favorites:'收藏文章',featured:'精选',list:'列表视图',masonry:'瀑布流视图',sidebar:'显示／隐藏侧栏',reader:'显示／隐藏阅读面板','theme-system':'跟随系统外观','theme-light':'浅色外观','theme-dark':'深色外观',next:'下一篇',previous:'上一篇',favorite:'收藏／取消收藏',read:'切换已读状态',close:'关闭窗口',minimize:'最小化',maximize:'缩放窗口',fullscreen:'切换全屏',quit:'退出折栈',
+ 'import-opml':'导入 OPML…','export-opml':'导出 OPML…','reader-mode':'切换 Reader 模式','open-original':'在浏览器打开原文',categories:'分类管理…',refresh:'刷新订阅',settings:'设置…',about:'关于折栈',diagnostics:'连接诊断…',devtools:'开发者工具',help:'键盘快捷键',feeds:'订阅管理…',ai:'AI 与扩展…',search:'搜索文章',palette:'命令面板…',all:'全部文章',unread:'未读文章',favorites:'收藏文章',featured:'精选',list:'列表视图',masonry:'瀑布流视图',sidebar:'显示／隐藏侧栏',reader:'显示／隐藏阅读面板','theme-system':'跟随系统外观','theme-light':'浅色外观','theme-dark':'深色外观',next:'下一篇',previous:'上一篇',favorite:'收藏／取消收藏',read:'切换已读状态',close:'关闭窗口',minimize:'最小化',maximize:'缩放窗口',fullscreen:'切换全屏',quit:'退出折栈',
 }
 export function isCommand(id: string): id is CommandID { return Object.hasOwn(commandLabels,id) }
 export function runCommand(id: CommandID, client: QueryClient, articleID?: string) {
@@ -25,6 +25,10 @@ export function runCommand(id: CommandID, client: QueryClient, articleID?: strin
  case 'refresh':void startRefresh(client);break
  case 'settings':state.showSettings();break
  case 'about':state.showSettings('about');break
+ case 'diagnostics':useWorkspace.setState({ diagnosticsOpen:true });break
+ case 'devtools':
+  if (prefs.developer_mode) void native.openDevTools().catch(() => useWorkspace.setState({commandError:'无法打开开发者工具。'}))
+  break
  case 'help':useWorkspace.setState({ helpOpen:true });break
  case 'feeds':state.showSettings('feeds');break
  case 'ai':state.showSettings('ai');break

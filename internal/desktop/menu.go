@@ -28,7 +28,7 @@ func WindowOptions() application.WebviewWindowOptions {
 	width, height := initialWindowSize()
 	options := application.WebviewWindowOptions{
 		Title: "折栈", Width: width, Height: height, MinWidth: minWidth, MinHeight: minHeight, URL: "/",
-		Hidden: true, InitialPosition: application.WindowCentered,
+		Hidden: true, DevToolsEnabled: true, InitialPosition: application.WindowCentered,
 		Frameless:        runtime.GOOS == "windows",
 		BackgroundType:   application.BackgroundTypeTransparent,
 		BackgroundColour: application.NewRGBA(0, 0, 0, 0), DefaultContextMenuDisabled: true,
@@ -82,9 +82,9 @@ func ShowMainWindow(app *application.App, window *application.WebviewWindow) {
 	})
 }
 
-func InstallMenu(app *application.App) {
+func InstallMenu(app *application.App, developerMode bool, openDeveloperTools func()) func(bool, int64) {
 	if runtime.GOOS != "darwin" {
-		return
+		return nil
 	} // Windows／Linux 的菜单由前端 Menubar 实现。
 	menu := application.NewMenu()
 	add := func(target *application.Menu, label, id, key string) {
@@ -145,7 +145,9 @@ func InstallMenu(app *application.App) {
 	window.AddRole(application.Minimise).AddRole(application.Zoom)
 	help := menu.AddSubmenu("帮助")
 	add(help, "键盘快捷键与帮助", "help", "")
-	add(help, "诊断与版本信息", "about", "")
+	add(help, "关于折栈", "about", "")
+	add(help, "连接诊断…", "diagnostics", "")
+	developerItem := help.Add("开发者工具").SetHidden(!developerMode).OnClick(func(*application.Context) { openDeveloperTools() })
 
 	labels := map[application.Role]string{application.Undo: "撤销", application.Redo: "重做", application.Cut: "剪切", application.Copy: "复制", application.Paste: "粘贴", application.SelectAll: "全选", application.Quit: "退出折栈", application.Hide: "隐藏折栈", application.HideOthers: "隐藏其他", application.UnHide: "显示全部", application.ServicesMenu: "服务", application.CloseWindow: "关闭窗口", application.ToggleFullscreen: "切换全屏", application.Minimise: "最小化", application.Zoom: "缩放窗口"}
 	for role, label := range labels {
@@ -154,4 +156,13 @@ func InstallMenu(app *application.App) {
 		}
 	}
 	app.Menu.SetApplicationMenu(menu)
+	var latestRevision int64
+	return func(enabled bool, revision int64) {
+		application.InvokeSync(func() {
+			if revision > latestRevision {
+				latestRevision = revision
+				developerItem.SetHidden(!enabled)
+			}
+		})
+	}
 }

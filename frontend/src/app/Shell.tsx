@@ -25,6 +25,7 @@ import { Sidebar } from './Sidebar'
 import { Toolbar } from './Toolbar'
 import { cn } from '@/lib/utils'
 
+const DiagnosticPanel = lazy(() => import('@/features/settings/DiagnosticPanel'))
 const ChatDialog = lazy(() => import('@/features/chat/ChatDialog').then(module => ({ default: module.ChatDialog })))
 const SettingsDialog = lazy(() => import('@/features/settings/SettingsDialog').then(module => ({ default: module.SettingsDialog })))
 const CommandPalette = lazy(() => import('./CommandPalette').then(module => ({ default: module.CommandPalette })))
@@ -45,6 +46,7 @@ export function Shell() {
   const search = useWorkspace(state => state.search)
   const showSettings = useWorkspace(state => state.showSettings)
   const helpOpen=useWorkspace(state=>state.helpOpen)
+  const diagnosticsOpen = useWorkspace(state => state.diagnosticsOpen)
   const commandError=useWorkspace(state=>state.commandError)
   const settingsOpen = useWorkspace(state => state.settingsOpen)
   const paletteOpen = useWorkspace(state => state.paletteOpen)
@@ -184,6 +186,11 @@ export function Shell() {
       </main>
       <Suspense fallback={null}>{settingsOpen && <SettingsDialog />}{paletteOpen && <CommandPalette />}{chatOpen && <ChatDialog />}</Suspense>
       <div className="sr-only" aria-live="polite">{preferences.article_view_mode === 'masonry' ? '已切换到瀑布流视图' : '已切换到列表视图'}</div>
+      <Dialog open={diagnosticsOpen} onOpenChange={open => useWorkspace.setState({ diagnosticsOpen: open })}>
+        <DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>连接诊断</DialogTitle></DialogHeader>
+          <Suspense fallback={null}><DiagnosticPanel /></Suspense>
+        </DialogContent>
+      </Dialog>
       <Dialog open={helpOpen} onOpenChange={open=>useWorkspace.setState({helpOpen:open})}><DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>键盘快捷键</DialogTitle></DialogHeader><dl className="shortcut-list"><dt>下一篇／上一篇</dt><dd><ShortcutKeys keys="J" /> ／ <ShortcutKeys keys="K" /></dd><dt>收藏／切换已读</dt><dd><ShortcutKeys keys="F" /> ／ <ShortcutKeys keys="M" /></dd><dt>搜索文章</dt><dd><ShortcutKeys keys="/" /></dd><dt>搜索与命令</dt><dd><ShortcutKeys keys={native.isMac() ? "Meta+K" : "Control+K"} /></dd><dt>设置</dt><dd><ShortcutKeys keys={native.isMac() ? "Meta+," : "Control+,"} /></dd><dt>刷新订阅</dt><dd><ShortcutKeys keys={native.isMac() ? "Meta+R" : "Control+R"} /></dd><dt>返回浏览</dt><dd><ShortcutKeys keys="Escape" /></dd><dt>Windows 菜单栏</dt><dd><ShortcutKeys keys="F10" /></dd></dl></DialogContent></Dialog>
     </div></div>
   </MotionConfig>

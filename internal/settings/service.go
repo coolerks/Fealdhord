@@ -35,13 +35,18 @@ type Result struct {
 // Service 是设置的唯一绑定入口；所有写入由 revision 原子检查保护。
 type Service struct {
 	repository Repository
-	updated    func(context.Context, Preferences)
+	hooks      Hooks
 }
 
-func NewService(repository Repository, updated ...func(context.Context, Preferences)) *Service {
+type Hooks struct {
+	MediaChanged         func(context.Context, Preferences)
+	DeveloperModeChanged func(enabled bool, revision int64)
+}
+
+func NewService(repository Repository, hooks ...Hooks) *Service {
 	s := &Service{repository: repository}
-	if len(updated) > 0 {
-		s.updated = updated[0]
+	if len(hooks) > 0 {
+		s.hooks = hooks[0]
 	}
 	return s
 }
@@ -106,12 +111,16 @@ func (s *Service) Update(ctx context.Context, req UpdateRequest) Result {
 	if !ok {
 		return failure("Conflict", "设置已在其他窗口更新，请重新载入。", true)
 	}
-	if s.updated != nil {
+	if s.hooks.MediaChanged != nil || s.hooks.DeveloperModeChanged != nil {
 		previous := Defaults()
 		decodeErr := json.Unmarshal([]byte(record.JSON), &previous)
-		if decodeErr != nil || previous.RemoteImages != req.Preferences.RemoteImages || previous.MediaCacheEnabled != req.Preferences.MediaCacheEnabled || previous.WebImageFallback != req.Preferences.WebImageFallback {
-			s.updated(ctx, req.Preferences)
+		if s.hooks.MediaChanged != nil && (decodeErr != nil || previous.RemoteImages != req.Preferences.RemoteImages || previous.MediaCacheEnabled != req.Preferences.MediaCacheEnabled || previous.WebImageFallback != req.Preferences.WebImageFallback) {
+			s.hooks.MediaChanged(ctx, req.Preferences)
+		}
+		if s.hooks.DeveloperModeChanged != nil && (decodeErr != nil || previous.DeveloperMode != req.Preferences.DeveloperMode) {
+			s.hooks.DeveloperModeChanged(req.Preferences.DeveloperMode, req.Revision+1)
 		}
 	}
+
 	return Result{OK: true, Data: &Snapshot{Preferences: req.Preferences, Revision: req.Revision + 1}, RequestID: rand.Text()}
 }

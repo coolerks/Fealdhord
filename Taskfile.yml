@@ -30,7 +30,7 @@ tasks:
       - task: bindings
       - task: frontend
       - task: resources:windows
-      - go build {{if eq OS "darwin"}}-tags private_mac_apis{{if ne .DEV "true"}},production{{end}}{{else if ne .DEV "true"}}-tags production{{end}} -o {{.OUTPUT_DIR}}/{{.APP_NAME}}{{exeExt}} .
+      - go build {{if eq OS "darwin"}}-tags private_mac_apis{{if ne .DEV "true"}},production,devtools{{end}}{{else if ne .DEV "true"}}-tags production,devtools{{end}} -o {{.OUTPUT_DIR}}/{{.APP_NAME}}{{exeExt}} .
     env:
       MACOSX_DEPLOYMENT_TARGET: '{{if eq OS "darwin"}}13.0{{end}}'
       CGO_CFLAGS: '{{if eq OS "darwin"}}-mmacosx-version-min=13.0{{end}}'

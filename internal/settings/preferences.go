@@ -12,6 +12,7 @@ type ScrollAnchor struct {
 }
 
 type Preferences struct {
+	DeveloperMode            bool                    `json:"developer_mode"`
 	RefreshIntervalMinutes   int                     `json:"refresh_interval_minutes"`
 	NotificationMode         string                  `json:"notification_mode"`
 	RefreshToastAutoDismiss  bool                    `json:"refresh_toast_auto_dismiss"`

@@ -101,14 +101,19 @@ func main() {
 	}
 	client := netpolicy.New()
 	var mediaService *media.Service
-	settingsService := settings.NewService(settingsRepository, func(ctx context.Context, prefs settings.Preferences) {
+	var setDeveloperMenu func(bool, int64)
+	settingsService := settings.NewService(settingsRepository, settings.Hooks{MediaChanged: func(ctx context.Context, prefs settings.Preferences) {
 		if mediaService != nil {
 			if err := mediaService.PolicyChanged(ctx, media.Policy{RemoteImages: prefs.RemoteImages, CacheEnabled: prefs.MediaCacheEnabled, WebFallback: prefs.WebImageFallback}); err != nil {
 				slog.Warn("媒体偏好已保存，但缓存状态更新失败")
 			}
 		}
 		changed()
-	})
+	}, DeveloperModeChanged: func(enabled bool, revision int64) {
+		if setDeveloperMenu != nil {
+			setDeveloperMenu(enabled, revision)
+		}
+	}})
 	policy := func(ctx context.Context) media.Policy {
 		result := settingsService.Get(ctx)
 		if !result.OK || result.Data == nil {
@@ -204,11 +209,18 @@ func main() {
 		client.CloseIdleConnections()
 	})
 	refreshService.StartScheduler()
-	desktopintegration.InstallMenu(desktop)
 	if articleAIService != nil {
 		defer articleAIService.Start(context.Background())()
 	}
 	mainWindow = desktop.Window.NewWithOptions(desktopintegration.WindowOptions())
+	initialSettings := settingsService.Get(context.Background())
+	developerMode := initialSettings.OK && initialSettings.Data.Preferences.DeveloperMode
+	setDeveloperMenu = desktopintegration.InstallMenu(desktop, developerMode, func() {
+		result := settingsService.Get(context.Background())
+		if result.OK && result.Data.Preferences.DeveloperMode {
+			desktopintegration.OpenDeveloperTools(mainWindow)
+		}
+	})
 	desktopintegration.ShowMainWindow(desktop, mainWindow)
 	installTray(desktop, mainWindow)
 	if err := desktop.Run(); err != nil {

@@ -1,4 +1,4 @@
-import { Application, Clipboard, Events, System, Window } from '@wailsio/runtime'
+import { Application, Browser, Clipboard, Events, System, Window } from '@wailsio/runtime'
 import '../../bindings/events'
 
 export const native = {
@@ -17,5 +17,7 @@ export const native = {
   },
   maximize: () => Window.ToggleMaximise(),
   fullscreen: () => Window.ToggleFullscreen(),
+  openURL: (url: string) => Browser.OpenURL(url),
+  openDevTools: () => Window.OpenDevTools(),
   quit: () => Application.Quit(),
 }

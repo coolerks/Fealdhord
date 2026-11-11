@@ -24,7 +24,7 @@ import { RefreshStatus } from '@/features/feeds/RefreshStatus'
 import { CategoryManager } from '@/features/categories/CategoryManager'
 import { FeedSettings } from '@/features/feeds/FeedSettings'
 import { TransferPanel } from '@/features/transfer/TransferPanel'
-import DiagnosticPanel from './DiagnosticPanel'
+import { AboutPanel } from './AboutPanel'
 
 function Choice({ name, label, value, choices, onChange, disabled }: { name: string; label: string; value: string; choices: [string, string, IconMeaning][]; onChange: (value: string) => void; disabled?: boolean }) {
   return <Field><FieldLabel id={`${name}-label`}>{label}</FieldLabel><SegmentedControl disabled={disabled} value={value} onValueChange={next => { if (next) onChange(next) }} aria-labelledby={`${name}-label`}>{choices.map(([key, title, icon]) => <ToggleGroupItem key={key} value={key}><AnimatedGlyph meaning={icon}/>{title}</ToggleGroupItem>)}</SegmentedControl></Field>
@@ -44,7 +44,7 @@ const sections: { id: SettingsTab; title: string; icon: typeof Palette; meaning:
   {id:'categories',title:'分类',icon:Folder,meaning:'folder'},
   { id: 'feeds', title: '订阅', icon: Rss, meaning:"radio-tower" },
   { id: 'notifications', title: '通知', icon: BadgeAlert, meaning: 'badge-alert' },
-  { id: 'ai', title: 'AI 与扩展', icon: Sparkles, meaning:"ai" }, { id: 'about', title: '关于与诊断', icon: Info, meaning:"circle-help" },
+  { id: 'ai', title: 'AI 与扩展', icon: Sparkles, meaning:"ai" }, { id: 'about', title: '关于', icon: Info, meaning:"circle-help" },
 ]
 
 export function SettingsDialog() {
@@ -90,7 +90,8 @@ export function SettingsDialog() {
         {tab==='data' && <TransferPanel/>}
         {tab==='categories' && <CategoryManager/>}
         {tab === 'ai' && <AISettings />}
-        {tab === 'about' && <DiagnosticPanel />}
+        {tab === 'about' && <AboutPanel developerMode={preferences.developer_mode}
+          onDeveloperModeChange={enabled => set('developer_mode', enabled)} />}
       </section>
     </div>
     <div className="settings-save" aria-live="polite"><span>{saveStatus === 'saving' ? '正在保存…' : saveStatus === 'error' ? '有未保存的更改' : '已保存'}</span>{saveError && <><p role="alert">{saveError}</p><Button size="sm" variant="outline" onClick={retrySave}>重试保存</Button><Button size="sm" variant="ghost" onClick={() => { void preferencesAPI.get().then(snapshot => { initialize(snapshot); setReloadError('') }).catch(() => setReloadError('重新载入失败，请稍后重试。')) }}>重新载入</Button></>}{reloadError && <p role="alert">{reloadError}</p>}</div>

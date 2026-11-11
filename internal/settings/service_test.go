@@ -183,6 +183,38 @@ func TestReaderToolbarPreferences(t *testing.T) {
 	}
 }
 
+func TestDeveloperModeUpdatesMenuOnlyAfterCommit(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t, filepath.Join(t.TempDir(), "prefs.db"))
+	type change struct {
+		enabled  bool
+		revision int64
+	}
+	var changes []change
+	service := NewService(store, Hooks{DeveloperModeChanged: func(enabled bool, revision int64) {
+		changes = append(changes, change{enabled, revision})
+	}})
+	initial := service.Get(ctx)
+	if !initial.OK || initial.Data.Preferences.DeveloperMode {
+		t.Fatal("开发者模式默认关闭")
+	}
+	prefs := initial.Data.Preferences
+	prefs.DeveloperMode = true
+	saved := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: initial.Data.Revision})
+	if !saved.OK || !service.Get(ctx).Data.Preferences.DeveloperMode {
+		t.Fatalf("开发者模式未保存：%+v", saved)
+	}
+	prefs.DeveloperMode = false
+	conflict := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: initial.Data.Revision})
+	if conflict.OK {
+		t.Fatal("旧版本不应覆盖设置")
+	}
+	disabled := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: saved.Data.Revision})
+	if !disabled.OK || !slices.Equal(changes, []change{{true, saved.Data.Revision}, {false, disabled.Data.Revision}}) {
+		t.Fatalf("菜单应跟随实际保存的状态：%+v", changes)
+	}
+}
+
 func TestFutureSchemaCannotBeReadOrOverwritten(t *testing.T) {
 	ctx := context.Background()
 	filename := filepath.Join(t.TempDir(), "future.db")
@@ -214,7 +246,7 @@ func TestLegacyMediaDefaultsAndScopedNotification(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := 0
-	service := NewService(store, func(context.Context, Preferences) { calls++ })
+	service := NewService(store, Hooks{MediaChanged: func(context.Context, Preferences) { calls++ }})
 	got := service.Get(ctx)
 	if !got.OK || got.Data.Preferences.RemoteImages != "subscriptions" || !got.Data.Preferences.MediaCacheEnabled || got.Data.Preferences.WebImageFallback {
 		t.Fatal("旧设置媒体默认值错误")

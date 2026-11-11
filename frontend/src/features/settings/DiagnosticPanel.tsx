@@ -80,8 +80,8 @@ export default function DiagnosticPanel() {
   }
 
   return (
-      <section className="diagnostics" aria-labelledby="diagnostics-title">
-        <div className="section-heading"><div><h2 id="diagnostics-title">连接诊断</h2></div><span className={`connection ${info ? 'connected' : ''}`}>{info ? '桌面服务已连接' : '连接中'}</span></div>
+      <section className="diagnostics">
+        <p className="connection">{info ? '桌面服务已连接' : '连接中'}</p>
         {info && <dl className="system-info"><div><dt>版本</dt><dd>{info.version}</dd></div><div><dt>运行平台</dt><dd>{info.platform} / {info.architecture}</dd></div><div><dt>桌面框架</dt><dd>Wails {info.wails_version}</dd></div></dl>}
         <div className="probe"><div className="progress-label"><span role="status">{operation ? statusLabels[operation.status] ?? operation.status : '尚未开始检查'}</span><span>{operation ? `${operation.completed} / ${operation.total}` : '约 5 秒'}</span></div><progress aria-label="连接检查进度" max={operation?.total ?? 20} value={operation?.completed ?? 0}/><div className="actions"><Button onClick={() => { void start() }} disabled={!info || busy}>开始检查</Button><Button variant="outline" onClick={() => { void cancel() }} disabled={operation?.status !== 'running' || pending}>取消检查</Button></div></div>
         {error && <p role="alert" className="error">{error}</p>}

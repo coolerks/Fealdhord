@@ -63,15 +63,15 @@ jobs:
           "$wails" task icons
           "$wails" generate syso -arch amd64 -icon bin/icons/Fealdhord.ico \
             -manifest build/windows/Fealdhord.exe.manifest -out rsrc_windows_amd64.syso
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -tags production -trimpath \
-            -ldflags="-s -w -H windowsgui" -o bin/Fealdhord.exe .
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -tags production,devtools -trimpath \
+            -ldflags="-X github.com/coolerks/Fealdhord/internal/app.version=${VERSION#v} -s -w -H windowsgui" -o bin/Fealdhord.exe .
           zip -j "bin/release/Fealdhord-${VERSION}-windows-amd64.zip" bin/Fealdhord.exe
       - name: 打包 Linux x64
         if: matrix.target == 'linux-amd64'
         run: |
           root=bin/deb
           install -d "$root/DEBIAN" "$root/usr/bin"
-          CGO_ENABLED=1 go build -tags production -trimpath -ldflags="-s -w" -o "$root/usr/bin/Fealdhord" .
+          CGO_ENABLED=1 go build -tags production,devtools -trimpath -ldflags="-X github.com/coolerks/Fealdhord/internal/app.version=${VERSION#v} -s -w" -o "$root/usr/bin/Fealdhord" .
           install -Dm644 build/linux/Fealdhord.desktop "$root/usr/share/applications/io.fealdhord.desktop"
           install -Dm644 build/appicon.png "$root/usr/share/icons/hicolor/1024x1024/apps/io.fealdhord.desktop.png"
           cat > "$root/DEBIAN/control" <<CONTROL
@@ -90,7 +90,7 @@ jobs:
           CGO_ENABLED: '1'
         run: |
           for arch in arm64 amd64; do
-            GOARCH="$arch" go build -tags production,private_mac_apis -trimpath -ldflags="-s -w -extldflags=-mmacosx-version-min=13.0" -o "bin/Fealdhord-$arch" .
+            GOARCH="$arch" go build -tags production,devtools,private_mac_apis -trimpath -ldflags="-X github.com/coolerks/Fealdhord/internal/app.version=${VERSION#v} -s -w -extldflags=-mmacosx-version-min=13.0" -o "bin/Fealdhord-$arch" .
           done
           lipo -create bin/Fealdhord-arm64 bin/Fealdhord-amd64 -output bin/Fealdhord
           architectures=" $(lipo -archs bin/Fealdhord) "

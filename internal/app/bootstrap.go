@@ -41,9 +41,12 @@ func newBootstrapService(parent context.Context, emit func(OperationEvent), inte
 	return &BootstrapService{ctx: ctx, stop: stop, emit: emit, interval: interval, jobs: make(map[string]*operation)}
 }
 
+// 发布构建通过 Go 链接器注入对应的版本标签。
+var version = "0.1.0-dev"
+
 func (s *BootstrapService) GetInfo() InfoResult {
 	return InfoResult{OK: true, RequestID: rand.Text(), Data: &Info{
-		Name: "折栈 Fealdhord", Version: "0.1.0-dev", WailsVersion: "3.0.0",
+		Name: "折栈 Fealdhord", Version: version, WailsVersion: "3.0.0",
 		Platform: runtime.GOOS, Architecture: runtime.GOARCH,
 	}}
 }

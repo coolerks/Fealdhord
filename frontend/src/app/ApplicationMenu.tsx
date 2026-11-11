@@ -8,6 +8,7 @@ import type { CommandID } from '@/lib/commands'
 import { captureTextTarget, editText } from '@/lib/text-actions'
 import { CommandPresentation, TextActionPresentation } from '@/components/command-presentation'
 import { commandShortcut, textShortcut } from '@/lib/command-presentation'
+import { useWorkspace } from '@/stores/workspace'
 import { native } from '@/lib/native'
 
 const groups: {title:string;sections:CommandID[][]}[] = [
@@ -15,10 +16,10 @@ const groups: {title:string;sections:CommandID[][]}[] = [
  {title:'显示',sections:[['all','unread','favorites'],['list','masonry','sidebar','reader'],['theme-system','theme-light','theme-dark'],['fullscreen']]},
  {title:'文章',sections:[['previous','next'],['reader-mode','open-original'],['favorite','read']]},
  {title:'窗口',sections:[['minimize','maximize'],['palette']]},
- {title:'帮助',sections:[['help','about']]},
 ]
 export function ApplicationMenu({ windowsSidebarToggle }: { windowsSidebarToggle?: ReactNode }) {
  const client=useQueryClient()
+ const developerMode = useWorkspace(state => state.preferences?.developer_mode)
  const menuClassName = windowsSidebarToggle ? "action-menu windows-menu-popover" : "action-menu"
  const text=useRef<ReturnType<typeof captureTextTarget> | null>(null)
  const command=(id:CommandID)=><MenubarItem key={id} aria-keyshortcuts={commandShortcut(id,native.isMac())?.keys} onSelect={()=>runCommand(id,client)}><CommandPresentation id={id}/></MenubarItem>
@@ -32,6 +33,7 @@ export function ApplicationMenu({ windowsSidebarToggle }: { windowsSidebarToggle
  <MenubarGroup aria-label="搜索">{command('search')}</MenubarGroup>
  </MenubarContent></MenubarMenu>
  {groups.slice(1).map(renderGroup)}
+ {renderGroup({ title: '帮助', sections: developerMode ? [['help', 'about', 'diagnostics'], ['devtools']] : [['help', 'about', 'diagnostics']] })}
  </Menubar>
  {windowsSidebarToggle && <>
    <div className="window-drag-area" onDoubleClick={() => runCommand('maximize',client)} />

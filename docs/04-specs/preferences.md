@@ -18,17 +18,19 @@ migrations/00001_ui_preferences.sql 通过 goose 创建 app_settings，sqlc v1.3
 
 通知方式 `preferences.notification_mode` 接受 `toast` 或 `native`，默认 `toast`。布尔值 `preferences.refresh_toast_auto_dismiss` 默认 `false`，旧记录缺少该字段时同样为 `false`。两个值由现有 Get／Update 契约和 CAS 保存，无需迁移。
 
+`preferences.developer_mode` 是「关于」页的布尔开关。默认及旧记录缺字段均为 `false`，沿用 Get／Update 与 CAS。macOS 菜单读取已提交偏好。Windows／Linux 菜单读取工作区当前偏好。
+
 ## 4. 错误
 
-非法枚举／尺寸／超限锚点→ValidationError，零写入；旧 revision→Conflict，原子拒绝；未来 schema→ConfigurationError；I/O→DatabaseError。读取旧字段分别回退安全默认，不覆盖有效字段；未知未来 schema 不允许旧客户端写回。常驻项含未知 ID、重复 ID 或超过八项时拒绝写入，旧记录中的无效值和缺失值分别恢复默认。系统通知授权被拒或请求失败时保留当前方式，发送失败时回退到应用内通知。
+非法枚举／尺寸／超限锚点→ValidationError，零写入；旧 revision→Conflict，原子拒绝；未来 schema→ConfigurationError；I/O→DatabaseError。读取旧字段分别回退安全默认，不覆盖有效字段；未知未来 schema 不允许旧客户端写回。常驻项含未知 ID、重复 ID 或超过八项时拒绝写入，旧记录中的无效值和缺失值分别恢复默认。系统通知授权被拒或请求失败时保留当前方式，发送失败时回退到应用内通知。开发者模式保存冲突不触发原生菜单更新。
 
 ## 5. 案例
 
-正常：保存 Dark＋Masonry，关闭数据库重开仍一致。基础：新库默认 System＋List。异常：两个窗口以同 revision 更新，只能一个成功，不静默覆盖。常驻项全部取消后重启，仍只显示「更多」。订阅刷新结果默认保留，开启自动收起后，新到达的结果采用普通 Toast 的 5 秒计时。
+正常：保存 Dark＋Masonry，关闭数据库重开仍一致。基础：新库默认 System＋List。异常：两个窗口以同 revision 更新，只能一个成功，不静默覆盖。常驻项全部取消后重启，仍只显示「更多」。订阅刷新结果默认保留，开启自动收起后，新到达的结果采用普通 Toast 的 5 秒计时。开启开发者模式后，「帮助」出现「开发者工具」，关闭后隐藏。
 
 ## 6. 测试
 
-临时真实 SQLite 测试重开、并发 CAS、非法输入、旧字段恢复与未来 schema 拒绝读写；使用 -race 检查，不访问用户数据目录，不执行 E2E。前端保存失败、快速连续更改和初次恢复需组件／单元验证。阅读工具栏覆盖默认项、搜索勾选、动作移动、CAS 保存、空数组读回和无效 ID 拒绝。通知覆盖设置保存与重开、旧记录默认值、订阅终态专用超时和系统发送失败回退。
+临时真实 SQLite 测试重开、并发 CAS、非法输入、旧字段恢复与未来 schema 拒绝读写；使用 -race 检查，不访问用户数据目录，不执行 E2E。前端保存失败、快速连续更改和初次恢复需组件／单元验证。阅读工具栏覆盖默认项、搜索勾选、动作移动、CAS 保存、空数组读回和无效 ID 拒绝。通知覆盖设置保存与重开、旧记录默认值、订阅终态专用超时和系统发送失败回退。开发者模式覆盖默认关闭、保存读回、CAS 冲突及两次切换的菜单通知。
 
 ## 7. 实现约束
 
