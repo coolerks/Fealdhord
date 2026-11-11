@@ -6,6 +6,8 @@
 import * as app$0 from "../app/models.js";
 
 export interface Preferences {
+    "refresh_interval_minutes": number;
+    "notification_mode": string;
     "web_image_fallback": boolean;
     "remote_images": string;
     "media_cache_enabled": boolean;

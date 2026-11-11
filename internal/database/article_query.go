@@ -187,6 +187,9 @@ func (s *Store) QueryArticles(ctx context.Context, raw ArticleQuery) (QueryPage,
 	}
 	conditions := []string{"a.rowid<=?", "birth.generation<=?"}
 	args := []any{cursor.Upper, cursor.Generation}
+	if query.Scope.Kind != "favorites" {
+		conditions = append(conditions, "f.archived_at IS NULL")
+	}
 	if query.Scope.Kind == "feed" {
 		conditions = append(conditions, "a.feed_id=?")
 		args = append(args, query.Scope.ID)
@@ -196,7 +199,7 @@ func (s *Store) QueryArticles(ctx context.Context, raw ArticleQuery) (QueryPage,
 		args = append(args, query.Scope.ID)
 	}
 	if featured {
-		conditions = append(conditions, "f.archived_at IS NULL", "a.sort_at>=?", "ar.profile_key=?", "ar.importance>=?", "ar.relevance>=?")
+		conditions = append(conditions, "a.sort_at>=?", "ar.profile_key=?", "ar.importance>=?", "ar.relevance>=?")
 		args = append(args, cursor.Since, featureProfile, featureSettings.MinimumImportance, featureSettings.MinimumRelevance)
 	}
 	if query.Scope.Kind == "unread" || query.Read == "unread" {

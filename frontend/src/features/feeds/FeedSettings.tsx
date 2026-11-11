@@ -1,3 +1,4 @@
+import { notify } from '@/lib/notifications'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { useRef,useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -37,7 +38,6 @@ export function FeedSettings() {
   const [useDefaultIcon,setUseDefaultIcon]=useState(false)
   const [customIconURL,setCustomIconURL]=useState<string>()
   const [editing,setEditing]=useState<UpdateRequest|null>(null)
-  const [cacheMessage,setCacheMessage]=useState('')
   const prefs=useWorkspace(state=>state.preferences)!, patch=useWorkspace(state=>state.patch)
   const originalFeed=query.data?.items?.find(feed=>feed.id===editing?.id)
   const editURLChanged=Boolean(editing && originalFeed && editing.url!==originalFeed.url)
@@ -95,7 +95,7 @@ export function FeedSettings() {
     <Field><FieldLabel id="remote-images-label">远程图片</FieldLabel><SegmentedControl aria-labelledby="remote-images-label" value={prefs.remote_images} onValueChange={value=>{if(value)patch({remote_images:value})}}>{([['always','总是允许','check'],['subscriptions','仅活动订阅','radio-tower'],['never','从不加载','x']] as const).map(([value,label,icon])=><ToggleGroupItem key={value} value={value}><AnimatedGlyph meaning={icon}/>{label}</ToggleGroupItem>)}</SegmentedControl></Field>
     <Field orientation="horizontal"><FieldLabel htmlFor="web-image-fallback">从原文页面补充首图</FieldLabel><Switch id="web-image-fallback" checked={prefs.web_image_fallback} onCheckedChange={value=>patch({web_image_fallback:value})}/></Field>
     <Field orientation="horizontal"><FieldLabel htmlFor="media-cache">磁盘图片缓存</FieldLabel><Switch id="media-cache" checked={prefs.media_cache_enabled} onCheckedChange={value=>patch({media_cache_enabled:value})}/></Field>
-    <Button variant="outline" disabled={busy} onClick={()=>{setCacheMessage('');action.mutate(async()=>{await rssAPI.clearCache();setCacheMessage('图片缓存已清理')})}}>清理图片缓存</Button>{cacheMessage && <p role="status">{cacheMessage}</p>}
+    <Button variant="outline" disabled={busy} onClick={()=>{action.mutate(async()=>{await rssAPI.clearCache();void notify('图片缓存已清理')})}}>清理图片缓存</Button>
   </FieldGroup>
   <Dialog open={Boolean(editing)} onOpenChange={open=>{if(!open && !action.isPending)setEditing(null)}}><DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>编辑订阅</DialogTitle></DialogHeader>{editing && <form className="feed-form" onSubmit={event=>{event.preventDefault();action.mutate(async()=>{editController.current=new AbortController();try{await rssAPI.update(editURLChanged && editing.use_default_icon===undefined && !editing.custom_icon_url
       ? {...editing,use_default_icon:!storedIcon}
@@ -114,6 +114,6 @@ export function FeedSettings() {
     {action.isPending && editController.current && <Button type="button" variant="ghost" onClick={()=>editController.current?.abort()}>取消保存</Button>}
     {action.error && <p role="alert">{action.error.message}</p>}<Button disabled={busy} type="submit">保存订阅</Button><Button disabled={busy} type="button" variant="ghost" onClick={()=>setEditing(null)}>取消</Button>
   </form>}</DialogContent></Dialog>
-  <Dialog open={Boolean(removing)} onOpenChange={open=>{if(!open && !action.isPending)setRemoving(null)}}><DialogContent><DialogHeader><DialogTitle>归档“{removing?.title}”？</DialogTitle><DialogDescription>停止刷新此订阅，保留文章、已读和收藏。之后可以恢复。</DialogDescription></DialogHeader>{action.error && <p role="alert">{action.error.message}</p>}<Button disabled={busy} onClick={()=>{if(removing)action.mutate(async()=>{await rssAPI.archive({id:removing.id,revision:removing.revision});setRemoving(null)})}}>确认归档</Button><Button variant="ghost" disabled={busy} onClick={()=>setRemoving(null)}>取消</Button></DialogContent></Dialog>
+  <Dialog open={Boolean(removing)} onOpenChange={open=>{if(!open && !action.isPending)setRemoving(null)}}><DialogContent><DialogHeader><DialogTitle>归档“{removing?.title}”？</DialogTitle><DialogDescription>停止刷新并从常规浏览中隐藏文章。恢复后会重新显示，收藏和已读状态会保留。</DialogDescription></DialogHeader>{action.error && <p role="alert">{action.error.message}</p>}<Button disabled={busy} onClick={()=>{if(removing)action.mutate(async()=>{await rssAPI.archive({id:removing.id,revision:removing.revision});setRemoving(null)})}}>确认归档</Button><Button variant="ghost" disabled={busy} onClick={()=>setRemoving(null)}>取消</Button></DialogContent></Dialog>
   </div>
 }

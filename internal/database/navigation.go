@@ -74,11 +74,11 @@ func (s *Store) Navigation(ctx context.Context) (Navigation, error) {
 		return out, err
 	}
 	defer tx.Rollback()
-	err = tx.QueryRowContext(ctx, `SELECT COUNT(*),COALESCE(SUM(CASE WHEN COALESCE(r.is_read,0)=0 THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN f.article_id IS NOT NULL THEN 1 ELSE 0 END),0) FROM articles a LEFT JOIN reading_states r ON r.article_id=a.id LEFT JOIN favorites f ON f.article_id=a.id`).Scan(&out.Totals.Total, &out.Totals.Unread, &out.Totals.Favorites)
+	err = tx.QueryRowContext(ctx, `SELECT COUNT(CASE WHEN feed.archived_at IS NULL THEN 1 END),COUNT(CASE WHEN feed.archived_at IS NULL AND COALESCE(r.is_read,0)=0 THEN 1 END),COUNT(f.article_id) FROM articles a JOIN feeds feed ON feed.id=a.feed_id LEFT JOIN reading_states r ON r.article_id=a.id LEFT JOIN favorites f ON f.article_id=a.id`).Scan(&out.Totals.Total, &out.Totals.Unread, &out.Totals.Favorites)
 	if err != nil {
 		return out, err
 	}
-	rows, err := tx.QueryContext(ctx, `WITH counts AS(SELECT ec.category_id,COUNT(*) AS total,SUM(CASE WHEN COALESCE(r.is_read,0)=0 THEN 1 ELSE 0 END) AS unread FROM effective_article_categories ec LEFT JOIN reading_states r ON r.article_id=ec.article_id GROUP BY ec.category_id)
+	rows, err := tx.QueryContext(ctx, `WITH counts AS(SELECT ec.category_id,COUNT(*) AS total,SUM(CASE WHEN COALESCE(r.is_read,0)=0 THEN 1 ELSE 0 END) AS unread FROM effective_article_categories ec JOIN articles a ON a.id=ec.article_id JOIN feeds feed ON feed.id=a.feed_id LEFT JOIN reading_states r ON r.article_id=ec.article_id WHERE feed.archived_at IS NULL GROUP BY ec.category_id)
  SELECT c.id,COALESCE(c.parent_id,''),c.name,c.icon,c.color,c.description,c.sort_position,c.revision,COALESCE(n.total,0),COALESCE(n.unread,0) FROM categories c LEFT JOIN counts n ON n.category_id=c.id ORDER BY c.sort_position,c.name,c.id`)
 	if err != nil {
 		return out, err

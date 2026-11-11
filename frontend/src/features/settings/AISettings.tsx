@@ -1,4 +1,5 @@
 import { ModelCatalogField } from './ModelCatalogField'
+import { notify } from '@/lib/notifications'
 import { invalidateRSS } from '@/lib/refresh'
 import { ArticleAISettings } from '@/features/article-ai/ArticleAISettings'
 import { SearchableSelect } from '@/components/ui/searchable-select'
@@ -56,7 +57,6 @@ export function AISettings() {
   const [providerError, setProviderError] = useState('')
   const [testing, setTesting] = useState('')
   const [testRunning, setTestRunning] = useState(false)
-  const [testStatus, setTestStatus] = useState('')
   const testRequest = useRef<ReturnType<typeof api.TestConnection> | null>(null)
   useEffect(() => () => {
     const pending = testRequest.current
@@ -67,12 +67,11 @@ export function AISettings() {
     const pending = api.TestConnection(id)
     testRequest.current = pending
     setTestRunning(true)
-    setTestStatus('')
     try {
       await pending
-      if (testRequest.current === pending) setTestStatus('连接成功')
+      if (testRequest.current === pending) void notify('连接成功')
     } catch (error) {
-      if (testRequest.current === pending) setTestStatus(configError(error))
+      if (testRequest.current === pending) void notify('连接测试失败', configError(error), true)
     } finally {
       if (testRequest.current === pending) {
         testRequest.current = null
@@ -143,7 +142,7 @@ export function AISettings() {
         <span className="mr-auto">{item.displayName} · {providers.find(service => service.id === item.providerId)?.name}{!item.enabled && '（已停用）'}</span>
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => setModel(item)}>编辑</Button>
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => setDeleting(item.id)}>删除</Button>
-        <Button size="sm" variant="ghost" disabled={busy || !activeModels.includes(item) || !!testing} onClick={() => { setTesting(item.id); setTestStatus('') }}>测试连接</Button>
+        <Button size="sm" variant="ghost" disabled={busy || !activeModels.includes(item) || !!testing} onClick={() => setTesting(item.id)}>测试连接</Button>
         {testing === item.id && <div className="w-full space-x-2">
           <span>将向服务发送一条测试消息，可能产生费用。</span>
           <Button size="sm" variant="outline" disabled={busy} onClick={() => void runTest(item.id)}>{testRunning ? '正在测试…' : '开始测试'}</Button>
@@ -165,7 +164,6 @@ export function AISettings() {
           <Button size="sm" variant="ghost" onClick={() => setDeleting('')}>取消</Button>
         </div>}
       </div>)}
-      {testStatus && <p role="status">{testStatus}</p>}
       {model && <form className="space-y-3" onSubmit={event => {
         event.preventDefault()
         mutation.mutate(async () => {

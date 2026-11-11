@@ -20,6 +20,7 @@ require (
 
 require (
 	al.essio.dev/pkg/shellescape v1.6.0 // indirect
+	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/adrg/xdg v0.5.3 // indirect
 	github.com/andybalholm/cascadia v1.3.4 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect

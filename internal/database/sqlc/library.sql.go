@@ -632,6 +632,7 @@ SELECT a.id,a.title,a.url,a.author,substr(a.summary,1,500) AS summary,a.sort_at,
 FROM articles a JOIN feeds f ON f.id=a.feed_id
 LEFT JOIN reading_states r ON r.article_id=a.id LEFT JOIN favorites fav ON fav.article_id=a.id
 LEFT JOIN article_media m ON m.article_id=a.id AND m.status='ready'
+WHERE f.archived_at IS NULL
 ORDER BY a.sort_at DESC,a.id DESC LIMIT ?
 `
 
@@ -735,11 +736,19 @@ func (q *Queries) ListCategories(ctx context.Context) ([]Category, error) {
 }
 
 const listDueFeeds = `-- name: ListDueFeeds :many
-SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code, custom_icon_url FROM feeds WHERE archived_at IS NULL AND (next_check_at IS NULL OR next_check_at<=?) ORDER BY next_check_at,id LIMIT 500
+SELECT id, title, url, normalized_url, site_url, description, icon_url, etag, last_modified, last_checked_at, last_success_at, next_check_at, error_count, last_error, created_at, updated_at, archived_at, sort_position, revision, last_error_code, custom_icon_url FROM feeds WHERE archived_at IS NULL AND
+ (CASE WHEN error_count>0 THEN next_check_at ELSE last_checked_at + ?1 END IS NULL OR
+  CASE WHEN error_count>0 THEN next_check_at ELSE last_checked_at + ?1 END <= ?2)
+ ORDER BY last_checked_at,id LIMIT 500
 `
 
-func (q *Queries) ListDueFeeds(ctx context.Context, nextCheckAt sql.NullInt64) ([]Feed, error) {
-	rows, err := q.db.QueryContext(ctx, listDueFeeds, nextCheckAt)
+type ListDueFeedsParams struct {
+	IntervalMs sql.NullInt64 `json:"interval_ms"`
+	CheckAt    int64         `json:"check_at"`
+}
+
+func (q *Queries) ListDueFeeds(ctx context.Context, arg ListDueFeedsParams) ([]Feed, error) {
+	rows, err := q.db.QueryContext(ctx, listDueFeeds, arg.IntervalMs, arg.CheckAt)
 	if err != nil {
 		return nil, err
 	}
@@ -1047,6 +1056,7 @@ UPDATE feeds SET title=?1,url=?2,normalized_url=?3,
  custom_icon_url=CASE WHEN ?6 IS NULL THEN custom_icon_url ELSE ?7 END,updated_at=?8,revision=revision+1,
  etag=CASE WHEN normalized_url<>?3 THEN '' ELSE etag END,
  last_modified=CASE WHEN normalized_url<>?3 THEN '' ELSE last_modified END,
+ last_checked_at=CASE WHEN normalized_url<>?3 THEN NULL ELSE last_checked_at END,
  next_check_at=CASE WHEN normalized_url<>?3 THEN NULL ELSE next_check_at END
 WHERE id=?9 AND revision=?10
 `

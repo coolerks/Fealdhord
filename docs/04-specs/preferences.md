@@ -31,3 +31,8 @@ migrations/00001_ui_preferences.sql 通过 goose 创建 app_settings，sqlc v1.3
 错误：用 localStorage 另存一套持久事实，或用无 revision 的整对象覆盖。正确：SQLite 单一事实、Go 验证、串行保存最新偏好，冲突明确提示并恢复一致性。
 
 `reader_layout` 默认为 `fill`，可选 `drawer` 或 `split`。读取缺少该字段的旧记录时，仅将已开启 `reader_pinned` 的记录映射为 `split`。列表视图固定并排，瀑布流读取此偏好，兼容值 `split` 按抽屉显示。
+
+
+## 订阅刷新与通知
+
+设置的「订阅」页保存自动刷新间隔 `refresh_interval_minutes` 和通知方式 `notification_mode`。旧配置读取时采用 30 分钟和应用内 Toast。系统通知选项调用 Wails 请求授权，发送失败时回退到应用内 Toast。刷新进度和可重试的表单错误仍显示在操作处。

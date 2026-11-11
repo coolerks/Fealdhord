@@ -45,7 +45,7 @@ it('归档先确认并保留文章，归档源可以恢复',async()=>{
   setup();await userEvent.click(await screen.findByRole('button',{name:'归档 测试源'}))
   expect(api.archive).not.toHaveBeenCalled()
   const dialog=screen.getByRole('dialog',{name:'归档“测试源”？'})
-  expect(within(dialog).getByText(/保留文章、已读和收藏/)).toBeInTheDocument()
+  expect(within(dialog).getByText(/从常规浏览中隐藏文章/)).toBeInTheDocument()
   api.list.mockResolvedValue({items:[{...feed,archived:true,revision:5}],categories:[]})
   await userEvent.click(within(dialog).getByRole('button',{name:'确认归档'}))
   await waitFor(()=>expect(api.archive).toHaveBeenCalledWith({id:'one',revision:4}))

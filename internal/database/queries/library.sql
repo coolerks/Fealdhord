@@ -28,6 +28,7 @@ SELECT a.id,a.title,a.url,a.author,substr(a.summary,1,500) AS summary,a.sort_at,
 FROM articles a JOIN feeds f ON f.id=a.feed_id
 LEFT JOIN reading_states r ON r.article_id=a.id LEFT JOIN favorites fav ON fav.article_id=a.id
 LEFT JOIN article_media m ON m.article_id=a.id AND m.status='ready'
+WHERE f.archived_at IS NULL
 ORDER BY a.sort_at DESC,a.id DESC LIMIT ?;
 -- name: SetRead :exec
 INSERT INTO reading_states(article_id,is_read,read_at,updated_at) VALUES(?,?,?,?)
@@ -72,7 +73,10 @@ ON CONFLICT(article_id,category_id,source) DO UPDATE SET state='included',update
 -- name: ListAllFeeds :many
 SELECT * FROM feeds ORDER BY sort_position,title,id;
 -- name: ListDueFeeds :many
-SELECT * FROM feeds WHERE archived_at IS NULL AND (next_check_at IS NULL OR next_check_at<=?) ORDER BY next_check_at,id LIMIT 500;
+SELECT * FROM feeds WHERE archived_at IS NULL AND
+ (CASE WHEN error_count>0 THEN next_check_at ELSE last_checked_at + sqlc.arg(interval_ms) END IS NULL OR
+  CASE WHEN error_count>0 THEN next_check_at ELSE last_checked_at + sqlc.arg(interval_ms) END <= sqlc.arg(check_at))
+ ORDER BY last_checked_at,id LIMIT 500;
 -- name: SaveFeedDetails :execrows
 UPDATE feeds SET title=sqlc.arg(title),url=sqlc.arg(url),normalized_url=sqlc.arg(normalized_url),
  site_url=sqlc.arg(site_url),description=sqlc.arg(description),
@@ -80,6 +84,7 @@ UPDATE feeds SET title=sqlc.arg(title),url=sqlc.arg(url),normalized_url=sqlc.arg
  custom_icon_url=CASE WHEN sqlc.narg(icon_data) IS NULL THEN custom_icon_url ELSE sqlc.arg(custom_icon_url) END,updated_at=sqlc.arg(updated_at),revision=revision+1,
  etag=CASE WHEN normalized_url<>sqlc.arg(normalized_url) THEN '' ELSE etag END,
  last_modified=CASE WHEN normalized_url<>sqlc.arg(normalized_url) THEN '' ELSE last_modified END,
+ last_checked_at=CASE WHEN normalized_url<>sqlc.arg(normalized_url) THEN NULL ELSE last_checked_at END,
  next_check_at=CASE WHEN normalized_url<>sqlc.arg(normalized_url) THEN NULL ELSE next_check_at END
 WHERE id=sqlc.arg(id) AND revision=sqlc.arg(revision);
 -- name: SaveFeedSuccess :exec

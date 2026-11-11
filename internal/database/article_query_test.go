@@ -186,3 +186,62 @@ func TestSearchCandidateLimitDoesNotPretendExhaustion(t *testing.T) {
 		t.Fatal(second, err)
 	}
 }
+
+func TestArchivedFeedArticlesReturnToOriginalScopesOnRestore(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	feed, err := s.EnsureFeed(ctx, "https://example.test/feed", "订阅")
+	if err != nil {
+		t.Fatal(err)
+	}
+	category, err := s.CreateCategory(ctx, "分类", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	article, err := s.UpsertArticle(ctx, ArticleInput{FeedID: feed, GUID: "one", Title: "文章", FetchedAt: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetMembership(ctx, article, category, "manual", "included", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetFavorite(ctx, article, true); err != nil {
+		t.Fatal(err)
+	}
+
+	assertVisibility := func(want int) {
+		t.Helper()
+		for _, scope := range []ArticleScope{{Kind: "all"}, {Kind: "unread"}, {Kind: "category", ID: category}} {
+			page, err := s.QueryArticles(ctx, ArticleQuery{Scope: scope})
+			if err != nil || len(page.Items) != want || (want > 0 && page.Items[0].ID != article) {
+				t.Fatalf("范围 %s 的文章不符: %+v, %v", scope.Kind, page, err)
+			}
+		}
+		favorites, err := s.QueryArticles(ctx, ArticleQuery{Scope: ArticleScope{Kind: "favorites"}})
+		if err != nil || len(favorites.Items) != 1 || favorites.Items[0].ID != article {
+			t.Fatalf("收藏应保留: %+v, %v", favorites, err)
+		}
+		navigation, err := s.Navigation(ctx)
+		if err != nil || navigation.Totals.Total != int64(want) || navigation.Totals.Unread != int64(want) {
+			t.Fatalf("导航数量不符: %+v, %v", navigation.Totals, err)
+		}
+	}
+
+	assertVisibility(1)
+	subscription, err := s.GetSubscription(ctx, feed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ArchiveFeed(ctx, feed, subscription.Revision); err != nil {
+		t.Fatal(err)
+	}
+	assertVisibility(0)
+	subscription, err = s.GetSubscription(ctx, feed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RestoreSubscription(ctx, feed, subscription.Revision); err != nil {
+		t.Fatal(err)
+	}
+	assertVisibility(1)
+}

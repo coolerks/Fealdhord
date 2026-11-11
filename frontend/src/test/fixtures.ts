@@ -2,7 +2,7 @@ import type { Preferences } from '@/lib/preferences'
 import type { Article } from '@/lib/library'
 
 export function preferencesFixture(patch: Partial<Preferences> = {}): Preferences {
-  return { reader_open_mode:'feed',reader_auto_read:true,reader_font_family:'sans',selected_scope_id:'',remote_images:'subscriptions',media_cache_enabled:true,web_image_fallback:false,theme: 'system', article_view_mode: 'list', list_density: 'compact', list_thumbnail: 'none', masonry_image_mode: 'original_ratio', animation: 'full', follow_system_reduce_motion: true, sidebar_collapsed: false, sidebar_width: 248, list_width: 360, reader_layout: 'fill', reader_pinned: false, reader_open: true, selected_scope: 'all', selected_article_id: '', scroll_anchors: {}, reader_font_size: 17, reader_line_height: 1.7, reader_width: 720, ...patch }
+  return { refresh_interval_minutes: 30, notification_mode: 'toast', reader_open_mode:'feed',reader_auto_read:true,reader_font_family:'sans',selected_scope_id:'',remote_images:'subscriptions',media_cache_enabled:true,web_image_fallback:false,theme: 'system', article_view_mode: 'list', list_density: 'compact', list_thumbnail: 'none', masonry_image_mode: 'original_ratio', animation: 'full', follow_system_reduce_motion: true, sidebar_collapsed: false, sidebar_width: 248, list_width: 360, reader_layout: 'fill', reader_pinned: false, reader_open: true, selected_scope: 'all', selected_article_id: '', scroll_anchors: {}, reader_font_size: 17, reader_line_height: 1.7, reader_width: 720, ...patch }
 }
 // 只供测试使用，生产模块不得导入。
 export function articleFixtures(count: number): Article[] {

@@ -1,3 +1,4 @@
+import { Toaster } from '@/components/ui/toast'
 import { useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { AnimatedGlyph } from '@/components/animated-glyph'
@@ -31,5 +32,5 @@ function PreferencesGate() {
 
 export default function App({ client }: { client?: QueryClient }) {
   const [defaultClient] = useState(() => new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false }, mutations: { retry: false } } }))
-  return <QueryClientProvider client={client ?? defaultClient}><TooltipProvider delayDuration={450}><IconMotionProvider><GlobalContextMenu><PreferencesGate /></GlobalContextMenu></IconMotionProvider></TooltipProvider></QueryClientProvider>
+  return <QueryClientProvider client={client ?? defaultClient}><TooltipProvider delayDuration={450}><IconMotionProvider><GlobalContextMenu><PreferencesGate /></GlobalContextMenu><Toaster timeout={5000} limit={3} /></IconMotionProvider></TooltipProvider></QueryClientProvider>
 }

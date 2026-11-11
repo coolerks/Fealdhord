@@ -137,6 +137,13 @@ func main() {
 			desktop.Event.Emit(refresh.EventName, event)
 		}
 	}, changed)
+	refreshService.SetIntervalProvider(func(ctx context.Context) time.Duration {
+		result := settingsService.Get(ctx)
+		if result.OK && result.Data != nil {
+			return time.Duration(result.Data.Preferences.RefreshIntervalMinutes) * time.Minute
+		}
+		return time.Duration(settings.Defaults().RefreshIntervalMinutes) * time.Minute
+	})
 	refreshService.SetAfterCommit(func(ctx context.Context, id string, document *feed.Document, ids []string) {
 		if mediaService != nil {
 			mediaService.Ingest(ctx, id, document, ids)
@@ -173,6 +180,7 @@ func main() {
 		Icon: appIcon,
 		Services: []application.Service{
 			application.NewService(service), application.NewService(settingsService),
+			application.NewService(desktopintegration.NewNotifier()),
 			application.NewService(readerService),
 			application.NewService(aiconfig.NewAPI(aiConfig)),
 			application.NewService(chat.NewAPI(chatService)),

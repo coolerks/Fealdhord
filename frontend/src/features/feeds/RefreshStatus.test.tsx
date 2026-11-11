@@ -14,13 +14,8 @@ it('取消当前操作并展示取消中的真实快照',async()=>{
   expect(screen.getByRole('button',{name:'取消刷新'})).toBeDisabled()
   expect(screen.getByRole('status')).toHaveTextContent('正在取消')
 })
-it('全部失败的 partial 也不能显示成功',()=>{
-  useRefresh.setState({snapshot:{...running,status:'partial',completed:2,results:[{feed_id:'a',status:'failed',message:'连接失败'},{feed_id:'b',status:'failed',message:'格式错误'}]}})
-  render(<RefreshStatus/>);expect(screen.getByRole('status')).toHaveTextContent('2 个订阅失败')
-  expect(screen.queryByText('刷新完成')).not.toBeInTheDocument()
-})
-
-it('截断的事件明细不掩盖较早失败的累计数',()=>{
- useRefresh.setState({error:null,snapshot:{...running,status:'completed',completed:200,total:200,results:[],failed_count:5,success_count:195,cancelled_count:0,skipped_count:0,results_truncated:true}})
- render(<RefreshStatus/>);expect(screen.getByRole('status')).toHaveTextContent('5 个订阅失败')
+it('终态退出行内进度条',()=>{
+  useRefresh.setState({snapshot:{...running,status:'completed',completed:2}})
+  render(<RefreshStatus/>)
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
 })

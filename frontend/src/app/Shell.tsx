@@ -1,10 +1,11 @@
+import { notify } from '@/lib/notifications'
+import { ShortcutKeys } from '@/components/shortcut-keys'
 import { useChatTarget } from '@/features/chat/chat-scope'
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
-import { AnimatedGlyph } from '@/components/animated-glyph'
-import { CircleAlert, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { LibraryEmpty } from '@/features/articles/LibraryEmpty'
 import { ApplicationMenu } from './ApplicationMenu'
 import { native } from '@/lib/native'
@@ -48,6 +49,9 @@ export function Shell() {
   const settingsOpen = useWorkspace(state => state.settingsOpen)
   const paletteOpen = useWorkspace(state => state.paletteOpen)
   const saveStatus = useWorkspace(state => state.saveStatus)
+  useEffect(() => {
+    if (saveStatus === 'error') void notify('偏好保存失败', '可在设置中重试保存。', true)
+  }, [saveStatus])
   const client = useQueryClient()
   const library=useLibraryQuery()
   const {articles,data,isLoading,isError,refetch}=library
@@ -143,6 +147,12 @@ export function Shell() {
 
   useEffect(()=>native.onCommand(id=>{if(isCommand(id))runCommand(id,client)}),[client])
 
+  useEffect(() => {
+    if (!commandError) return
+    useWorkspace.setState({ commandError: null })
+    void notify(commandError, undefined, true)
+  }, [commandError])
+
   const emptySearch = search.trim() !== ''
   const platform = native.isMac() ? 'mac' : native.isWindows() ? 'windows' : 'other'
   const sidebarToggle = <SemanticButton id="sidebar-toggle" icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
@@ -174,9 +184,7 @@ export function Shell() {
       </main>
       <Suspense fallback={null}>{settingsOpen && <SettingsDialog />}{paletteOpen && <CommandPalette />}{chatOpen && <ChatDialog />}</Suspense>
       <div className="sr-only" aria-live="polite">{preferences.article_view_mode === 'masonry' ? '已切换到瀑布流视图' : '已切换到列表视图'}</div>
-      {saveStatus === 'error' && <div className="save-warning" role="status"><AnimatedGlyph icon={CircleAlert} meaning="badge-alert"/><span>偏好保存失败</span><Button size="sm" variant="ghost" onClick={() => showSettings()}>查看</Button></div>}
-      <Dialog open={helpOpen} onOpenChange={open=>useWorkspace.setState({helpOpen:open})}><DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>键盘快捷键</DialogTitle></DialogHeader><dl className="shortcut-list"><dt>下一篇／上一篇</dt><dd>J ／ K</dd><dt>收藏／切换已读</dt><dd>F ／ M</dd><dt>搜索文章</dt><dd>/</dd><dt>搜索与命令</dt><dd>⌘ ／ Ctrl + K</dd><dt>设置</dt><dd>⌘ ／ Ctrl + ,</dd><dt>刷新订阅</dt><dd>⌘ ／ Ctrl + R</dd><dt>返回浏览</dt><dd>Esc</dd><dt>Windows 菜单栏</dt><dd>F10</dd></dl></DialogContent></Dialog>
-      {commandError&&<div role="alert" className="command-error">{commandError}<Button variant="ghost" onClick={()=>useWorkspace.setState({commandError:null})}>关闭</Button></div>}
+      <Dialog open={helpOpen} onOpenChange={open=>useWorkspace.setState({helpOpen:open})}><DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>键盘快捷键</DialogTitle></DialogHeader><dl className="shortcut-list"><dt>下一篇／上一篇</dt><dd><ShortcutKeys keys="J" /> ／ <ShortcutKeys keys="K" /></dd><dt>收藏／切换已读</dt><dd><ShortcutKeys keys="F" /> ／ <ShortcutKeys keys="M" /></dd><dt>搜索文章</dt><dd><ShortcutKeys keys="/" /></dd><dt>搜索与命令</dt><dd><ShortcutKeys keys={native.isMac() ? "Meta+K" : "Control+K"} /></dd><dt>设置</dt><dd><ShortcutKeys keys={native.isMac() ? "Meta+," : "Control+,"} /></dd><dt>刷新订阅</dt><dd><ShortcutKeys keys={native.isMac() ? "Meta+R" : "Control+R"} /></dd><dt>返回浏览</dt><dd><ShortcutKeys keys="Escape" /></dd><dt>Windows 菜单栏</dt><dd><ShortcutKeys keys="F10" /></dd></dl></DialogContent></Dialog>
     </div></div>
   </MotionConfig>
 }

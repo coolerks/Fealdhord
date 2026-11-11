@@ -12,6 +12,8 @@ type ScrollAnchor struct {
 }
 
 type Preferences struct {
+	RefreshIntervalMinutes   int                     `json:"refresh_interval_minutes"`
+	NotificationMode         string                  `json:"notification_mode"`
 	WebImageFallback         bool                    `json:"web_image_fallback"`
 	RemoteImages             string                  `json:"remote_images"`
 	MediaCacheEnabled        bool                    `json:"media_cache_enabled"`
@@ -41,7 +43,7 @@ type Preferences struct {
 }
 
 func Defaults() Preferences {
-	return Preferences{ReaderLayout: "fill", ReaderOpenMode: "feed", ReaderAutoRead: true, ReaderFontFamily: "sans", RemoteImages: "subscriptions", MediaCacheEnabled: true,
+	return Preferences{RefreshIntervalMinutes: 30, NotificationMode: "toast", ReaderLayout: "fill", ReaderOpenMode: "feed", ReaderAutoRead: true, ReaderFontFamily: "sans", RemoteImages: "subscriptions", MediaCacheEnabled: true,
 		Theme: "system", ArticleViewMode: "list", ListDensity: "compact", ListThumbnail: "none",
 		MasonryImageMode: "original_ratio", Animation: "full", FollowSystemReduceMotion: true,
 		SidebarWidth: 248, ListWidth: 360, ReaderOpen: false, SelectedScope: "all",
@@ -59,6 +61,12 @@ func oneOf(value string, choices ...string) bool {
 }
 
 func (p Preferences) Validate() error {
+	if p.RefreshIntervalMinutes < 5 || p.RefreshIntervalMinutes > 1440 {
+		return errors.New("订阅刷新间隔须为 5 至 1440 分钟。")
+	}
+	if !oneOf(p.NotificationMode, "toast", "native") {
+		return errors.New("通知方式无效。")
+	}
 	if !oneOf(p.ReaderLayout, "fill", "drawer", "split") {
 		return errors.New("阅读布局无效。")
 	}
@@ -92,6 +100,12 @@ func (p Preferences) Validate() error {
 // normalize 只用于读取旧设置；非法字段分别回退，保留其他有效偏好。
 func (p *Preferences) normalize() {
 	d := Defaults()
+	if p.RefreshIntervalMinutes < 5 || p.RefreshIntervalMinutes > 1440 {
+		p.RefreshIntervalMinutes = d.RefreshIntervalMinutes
+	}
+	if !oneOf(p.NotificationMode, "toast", "native") {
+		p.NotificationMode = d.NotificationMode
+	}
 	if p.ReaderLayout == "" && p.ReaderPinned {
 		p.ReaderLayout = "split"
 	}

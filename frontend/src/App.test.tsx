@@ -276,6 +276,11 @@ describe('Phase 1 阅读 Shell', () => {
     await userEvent.click(trigger)
     const dialog=await screen.findByRole('dialog',{name:'命令面板'})
     expect(within(dialog).getByRole('combobox',{name:'搜索命令'})).toBeInTheDocument()
+    const settingsCommand = within(dialog).getByRole('option', { name: '打开设置' })
+    const shortcut = settingsCommand.querySelector('[data-slot="command-shortcut"]')
+    expect(shortcut).toHaveTextContent('Ctrl+,')
+    expect(shortcut?.querySelectorAll('kbd')).toHaveLength(2)
+
     await userEvent.click(screen.getByRole('option',{name:'订阅管理…'}))
     expect(await screen.findByRole('textbox',{name:'订阅或网页地址'})).toBeInTheDocument()
     expect(screen.queryByText(/RSS 阶段/)).not.toBeInTheDocument()
@@ -289,7 +294,7 @@ describe('Phase 1 阅读 Shell', () => {
     act(()=>client.setQueryData(articleQueryKey,initialLibraryData({items:articleFixtures(20),hasMore:true,nextCursor:'more'})))
     expect(await screen.findByRole('button',{name:'载入更多文章'})).toBeEnabled()
     act(()=>useWorkspace.setState({saveStatus:'error',saveError:'保存失败'}))
-    expect(screen.getByText('偏好保存失败')).toBeInTheDocument()
+    expect(await screen.findByText('偏好保存失败')).toBeInTheDocument()
   })
 
   it('设置载入失败显示重试，不能冒充已恢复成功', async () => {
@@ -335,7 +340,7 @@ describe('菜单图标与快捷键',()=>{
   const menu=screen.getByRole('menu',{name:'阅读上下文菜单'})
   expect(within(menu).getAllByRole('group')).toHaveLength(2)
   const settings=within(menu).getByRole('menuitem',{name:'设置…'})
-  expect(settings.lastElementChild).toHaveTextContent('⌘,')
+  expect(settings.lastElementChild).toHaveTextContent('⌘+,')
   expect(settings).toHaveAttribute('aria-keyshortcuts','Meta+,')
   await userEvent.hover(settings)
   expect(menu.querySelector('[data-animating=true]')).not.toBeInTheDocument()

@@ -93,3 +93,31 @@ func TestSubscriptionRevisionArchiveRestoreAndStaleRefresh(t *testing.T) {
 		t.Fatal("恢复没有复用身份")
 	}
 }
+
+func TestDueSubscriptionsUsesCurrentIntervalAndPreservesBackoff(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	input := SubscriptionInput{URL: "https://example.test/feed", Title: "订阅"}
+	id, err := s.AddSubscription(ctx, input, nil, FeedCheck{At: 100, Next: 1000})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertDue := func(at, interval int64, want bool) {
+		t.Helper()
+		feeds, err := s.DueSubscriptions(ctx, at, interval)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (len(feeds) == 1 && feeds[0].ID == id) != want {
+			t.Fatalf("到期检查不符: at=%d interval=%d feeds=%+v", at, interval, feeds)
+		}
+	}
+	assertDue(200, 100, true)
+	assertDue(1000, 1500, false)
+	if err := s.FailSubscription(ctx, id, input.URL, "timeout", "超时", 200, 400); err != nil {
+		t.Fatal(err)
+	}
+	assertDue(399, 100, false)
+	assertDue(400, 1500, true)
+}

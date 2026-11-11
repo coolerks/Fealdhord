@@ -6,6 +6,8 @@ import type { Snapshot } from '@/lib/rss-api'
 import { useRefresh } from '@/stores/refresh'
 const api=vi.hoisted(()=>({current:vi.fn(),get:vi.fn(),subscribeRefresh:vi.fn(),subscribeLibrary:vi.fn()}))
 vi.mock('@/lib/rss-api',()=>({rssAPI:api,feedsQueryKey:['rss','feeds']}))
+const notify = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/notifications', () => ({ notify }))
 import { useRSSSync } from './use-rss-sync'
 const running:Snapshot={generation:2,sequence:3,status:'running',operation_id:'new',completed:1,total:2,results:[]}
 beforeEach(()=>{
@@ -51,4 +53,15 @@ it('丢失结束事件时轮询恢复终态，不持续重复请求',async()=>{
   expect(useRefresh.getState().snapshot?.status).toBe('completed')
   await act(()=>vi.advanceTimersByTimeAsync(10000))
   expect(api.get).toHaveBeenCalledTimes(1);next.unmount()
+})
+
+it('刷新终态通过通知报告累计失败数，同一批次只通知一次', async () => {
+  setup()
+  await waitFor(() => expect(useRefresh.getState().snapshot).toEqual(running))
+  const listener = api.subscribeRefresh.mock.calls[0][0]
+  const completed = {...running, sequence:4, status:'partial', completed:2, failed_count:2, results_truncated:true}
+  act(() => listener(completed))
+  expect(notify).toHaveBeenCalledWith('刷新结束', '2/2 个订阅 · 2 个失败', true)
+  act(() => listener({...completed, sequence:5}))
+  expect(notify).toHaveBeenCalledTimes(1)
 })

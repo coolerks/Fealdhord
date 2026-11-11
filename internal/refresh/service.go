@@ -23,7 +23,7 @@ const maxRefreshFeeds = 10000
 
 type Repository interface {
 	Subscriptions(context.Context, bool) ([]database.Subscription, error)
-	DueSubscriptions(context.Context, int64) ([]database.Subscription, error)
+	DueSubscriptions(context.Context, int64, int64) ([]database.Subscription, error)
 	GetSubscription(context.Context, string) (database.Subscription, error)
 	CommitFeed(context.Context, string, string, []database.ArticleInput, database.FeedCheck) ([]string, error)
 	FailSubscription(context.Context, string, string, string, string, int64, int64) error
@@ -96,6 +96,7 @@ type Service struct {
 	jitter                 func() float64
 	emit                   func(Event)
 	changed                func()
+	interval               func(context.Context) time.Duration
 	afterCommit            func(context.Context, string, *feed.Document, []string)
 	generation             int64
 }
@@ -109,6 +110,19 @@ func NewService(ctx context.Context, repository Repository, fetcher netpolicy.Fe
 func (s *Service) SetAfterCommit(hook func(context.Context, string, *feed.Document, []string)) {
 	s.afterCommit = hook
 }
+
+// SetIntervalProvider 在启动调度前装配，用于读取当前已保存的刷新间隔。
+func (s *Service) SetIntervalProvider(provider func(context.Context) time.Duration) {
+	s.interval = provider
+}
+
+func (s *Service) refreshInterval(ctx context.Context) time.Duration {
+	if s.interval != nil {
+		return s.interval(ctx)
+	}
+	return 30 * time.Minute
+}
+
 func snapshot(r *run) Snapshot {
 	out := r.snapshot
 	out.Results = append([]FeedResult{}, r.snapshot.Results...)
@@ -383,7 +397,7 @@ func (s *Service) refresh(ctx context.Context, id string) FeedResult {
 		}
 		return out
 	}
-	check := database.FeedCheck{At: now.UnixMilli(), Next: now.Add(30 * time.Minute).UnixMilli(), ETag: response.Header.Get("ETag"), LastModified: response.Header.Get("Last-Modified"), NotModified: response.Status == 304}
+	check := database.FeedCheck{At: now.UnixMilli(), Next: now.Add(s.refreshInterval(ctx)).UnixMilli(), ETag: response.Header.Get("ETag"), LastModified: response.Header.Get("Last-Modified"), NotModified: response.Status == 304}
 	var items []database.ArticleInput
 	if document != nil {
 		items = feed.ArticleInputs(document)
@@ -434,7 +448,7 @@ func (s *Service) StartScheduler() {
 	s.mu.Unlock()
 	go func() {
 		defer s.wg.Done()
-		ticker := time.NewTicker(30 * time.Minute)
+		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
 		s.refreshDue()
 		for {
@@ -451,7 +465,7 @@ func (s *Service) refreshDue() {
 	if s.repository == nil {
 		return
 	}
-	rows, err := s.repository.DueSubscriptions(s.ctx, s.now().UTC().UnixMilli())
+	rows, err := s.repository.DueSubscriptions(s.ctx, s.now().UTC().UnixMilli(), s.refreshInterval(s.ctx).Milliseconds())
 	if err != nil {
 		return
 	}

@@ -78,8 +78,8 @@ func (s *Store) Subscriptions(ctx context.Context, includeArchived bool) ([]Subs
 	}
 	return result, nil
 }
-func (s *Store) DueSubscriptions(ctx context.Context, at int64) ([]Subscription, error) {
-	rows, err := s.queries.ListDueFeeds(ctx, sql.NullInt64{Int64: at, Valid: true})
+func (s *Store) DueSubscriptions(ctx context.Context, at, intervalMillis int64) ([]Subscription, error) {
+	rows, err := s.queries.ListDueFeeds(ctx, sqlc.ListDueFeedsParams{IntervalMs: sql.NullInt64{Int64: intervalMillis, Valid: true}, CheckAt: at})
 	if err != nil {
 		return nil, err
 	}

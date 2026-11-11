@@ -140,7 +140,6 @@
   }
 }
 .sidebar-search kbd {
-  margin-inline-start: auto;
   color: var(--sidebar-foreground);
   font-weight: 600;
   border-color: color-mix(in srgb, var(--sidebar-foreground) 18%, transparent);
@@ -196,7 +195,7 @@
 .article-pane, .reader-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
 .article-pane { isolation: isolate; background: var(--background); }
 .workspace-toolbar { display: flex; flex: none; min-height: var(--workspace-toolbar-height); padding: 6px 14px; gap: 8px; align-items: center; justify-content: space-between; }
-.workspace-toolbar .toolbar-actions { margin-inline-start: auto; justify-content: flex-end; }
+.workspace-toolbar .toolbar-actions { margin-inline-start: auto; justify-content: safe flex-end; }
 [data-platform=mac] .workspace-toolbar { --wails-draggable: drag; }
 .workspace-toolbar button, .workspace-toolbar input { --wails-draggable: no-drag; }
 .articles-toolbar { transition: padding-inline-start var(--duration-normal) var(--ease-standard); }
@@ -286,7 +285,7 @@
 .article-card .article-flags { margin-top: 12px; }
 .reader-pane { background: var(--reader-background); }
 .reader-toolbar { color: var(--muted-foreground); font-size: 12px; }
-.reader-toolbar .toolbar-start { min-width: 0; }
+.reader-toolbar .toolbar-start { min-width: 0; flex: 1; }
 .reader-toolbar-title {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -343,8 +342,6 @@ html[data-motion=subtle] .reader-toolbar-title { transform: none; }
 .actions { display: flex; gap: 8px; margin-top: 18px; }
 .error { color: var(--destructive); margin-top: 12px; }
 .command-dialog { width: min(540px,calc(100vw - 40px)); max-width: min(540px,calc(100vw - 40px)); padding: 4px; }
-.save-warning { position: absolute; right: 20px; bottom: 16px; display: flex; align-items: center; gap: 8px; background: var(--popover); color: var(--destructive); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; font-size: 12px; }
-.save-warning svg { width: 16px; height: 16px; }
 @media (hover:none) { .article-quick-actions { position: relative; opacity: 1; pointer-events: auto; right: auto; bottom: auto; margin: 6px; } .article-row .article-quick-actions { margin-left: auto; } }
 @container (max-width: 520px) { .reader-drawer { width: 100%; } }
 html[data-motion=off] *, html[data-motion=off] *::before, html[data-motion=off] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
@@ -376,8 +373,8 @@ html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion
 [data-platform=mac] .system-nav { padding-bottom: 12px; }
 [data-platform=mac] .sidebar-organize { padding-block-start: 10px; }
 [data-platform=mac] .nav-section:has(+ .nav-section) { margin-bottom: 10px; }
-.nav-item { height:39px;font-size:14px;border-radius:8px; }
-[data-platform=mac] .nav-item { height: 32px; }
+.nav-item { height: 32px; font-size: 14px; border-radius: 8px; }
+.glass-sidebar .nav-item :is(.animated-glyph, svg, .feed-icon) { width: 16px; height: 16px; }
 .nav-item.is-current { background:transparent;color:var(--sidebar-accent-foreground); }
 .glass-sidebar { box-shadow:none; }
 .toolbar-actions { gap:4px; }
@@ -398,7 +395,6 @@ html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion
 .semantic-button:active { background:var(--accent); }
 .shortcut-list { display:grid;grid-template-columns:1fr auto;gap:16px;font-size:13px;margin:12px 0; }
 .shortcut-list dd { color:var(--muted-foreground);margin:0; }
-.command-error { position:absolute;right:24px;bottom:24px;background:var(--popover);color:var(--destructive);border:1px solid var(--border);border-radius:10px;padding:8px 16px; }
 html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [data-slot=context-menu-content] { animation:none!important; }
 
 .nav-selected-surface { position:absolute;inset:0;background:var(--sidebar-row-fill,var(--sidebar-accent));border-radius:8px;pointer-events:none;z-index:-1; }
@@ -436,8 +432,7 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 
 /* 内容标题与操作形成同一工具区；窄分栏按可用宽度重排。 */
 .article-pane { container-type:inline-size; }
-.articles-toolbar { flex-wrap: wrap; }
-.articles-toolbar .toolbar-actions { flex-wrap: wrap; }
+
 .articles-heading { flex: 1 1 48px; overflow: hidden; }
 .articles-heading h1 { overflow:hidden;text-overflow:ellipsis; }
 .nav-section-heading h2 { margin:0;padding:8px;font-size:12px;font-weight:600;color:var(--muted-foreground); }
@@ -464,7 +459,8 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 
 .action-menu { min-width:240px; }
 .action-menu [role^=menuitem] { gap:10px;min-height:30px;padding-inline:10px; }
-.menu-shortcut { margin-left:auto;padding-left:24px;font-size:12px;line-height:1;color:var(--muted-foreground);white-space:nowrap;font-variant-numeric:tabular-nums; }
+.menu-shortcut { margin-inline-start:auto;padding-inline-start:8px;font-size:12px;line-height:1;color:var(--muted-foreground);white-space:nowrap;font-variant-numeric:tabular-nums; }
+.sidebar-search .menu-shortcut { padding-inline-start: 0; }
 [role^=menuitem][data-highlighted] .menu-shortcut { color:inherit;opacity:.7; }
 [role^=menuitem] .animated-glyph { width:16px;height:16px; }
 [role^=menuitem] .animated-glyph svg { width:16px;height:16px; }
@@ -522,7 +518,9 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 .reader-view-tab:hover { color: var(--foreground); }
 .reader-view-tab[data-state=active] { background: var(--accent); color: var(--foreground); }
 .reader-view-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
-.reader-toolbar .toolbar-actions { flex-wrap: wrap; min-width: 0; }
+.workspace-toolbar .toolbar-actions { flex: 0 1 auto; flex-wrap: nowrap; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.workspace-toolbar .toolbar-actions::-webkit-scrollbar { display: none; }
+.workspace-toolbar .toolbar-actions > * { flex-shrink: 0; }
 
 .window-controls svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1; }
 .field-selection {
