@@ -570,3 +570,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 20: 关闭 Toast 保留设置弹窗
+<!-- trellis-session: v=2 fp=214529a7f32724e2 -->
+
+**Date**: 2026-11-11
+**Task**: 关闭 Toast 保留设置弹窗
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+共享 DialogContent 排除 Toast 卡片的外部关闭判定。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1e17781` | fix: 关闭通知时保留设置弹窗 |
+
+### Testing
+
+- [OK] 复现原故障，修复后 99 项前端测试及构建通过。
+
+### Status
+
+[OK] **Completed**
