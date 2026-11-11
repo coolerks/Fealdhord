@@ -34,6 +34,7 @@ type Preferences struct {
 	SelectedScope            string                  `json:"selected_scope"`
 	SelectedArticleID        string                  `json:"selected_article_id"`
 	ScrollAnchors            map[string]ScrollAnchor `json:"scroll_anchors"`
+	ReaderToolbarPinned      []string                `json:"reader_toolbar_pinned"`
 	ReaderOpenMode           string                  `json:"reader_open_mode"`
 	ReaderAutoRead           bool                    `json:"reader_auto_read"`
 	ReaderFontFamily         string                  `json:"reader_font_family"`
@@ -47,7 +48,8 @@ func Defaults() Preferences {
 		Theme: "system", ArticleViewMode: "list", ListDensity: "compact", ListThumbnail: "none",
 		MasonryImageMode: "original_ratio", Animation: "full", FollowSystemReduceMotion: true,
 		SidebarWidth: 248, ListWidth: 360, ReaderOpen: false, SelectedScope: "all",
-		ScrollAnchors: map[string]ScrollAnchor{}, ReaderFontSize: 17, ReaderLineHeight: 1.7, ReaderWidth: 720,
+		ReaderToolbarPinned: []string{"refresh", "favorite", "translate", "ai"},
+		ScrollAnchors:       map[string]ScrollAnchor{}, ReaderFontSize: 17, ReaderLineHeight: 1.7, ReaderWidth: 720,
 	}
 }
 
@@ -60,7 +62,24 @@ func oneOf(value string, choices ...string) bool {
 	return false
 }
 
+func validReaderToolbarPinned(actions []string) bool {
+	if len(actions) > 8 {
+		return false
+	}
+	seen := make(map[string]bool, len(actions))
+	for _, action := range actions {
+		if seen[action] || !oneOf(action, "refresh", "favorite", "translate", "ai", "categories", "read", "view", "original") {
+			return false
+		}
+		seen[action] = true
+	}
+	return true
+}
+
 func (p Preferences) Validate() error {
+	if !validReaderToolbarPinned(p.ReaderToolbarPinned) {
+		return errors.New("阅读工具栏选项无效。")
+	}
 	if p.RefreshIntervalMinutes < 5 || p.RefreshIntervalMinutes > 1440 {
 		return errors.New("订阅刷新间隔须为 5 至 1440 分钟。")
 	}
@@ -100,6 +119,9 @@ func (p Preferences) Validate() error {
 // normalize 只用于读取旧设置；非法字段分别回退，保留其他有效偏好。
 func (p *Preferences) normalize() {
 	d := Defaults()
+	if p.ReaderToolbarPinned == nil || !validReaderToolbarPinned(p.ReaderToolbarPinned) {
+		p.ReaderToolbarPinned = d.ReaderToolbarPinned
+	}
 	if p.RefreshIntervalMinutes < 5 || p.RefreshIntervalMinutes > 1440 {
 		p.RefreshIntervalMinutes = d.RefreshIntervalMinutes
 	}

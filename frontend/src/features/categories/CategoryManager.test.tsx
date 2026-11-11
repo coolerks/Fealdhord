@@ -32,7 +32,7 @@ it('删除先读取影响预览；取消不写入，确认携带树版本',async
 })
 it('手动排除与恢复自动是独立明确操作',async()=>{
  api.memberships.mockResolvedValue([{category_id:'cat',effective:true,manual:'auto'}]);api.setMembership.mockResolvedValue({id:'article'})
- setup(<ArticleCategories articleID="article"/>);await userEvent.click(screen.getByRole('button',{name:'文章分类'}))
+ setup(<ArticleCategories articleID="article" open onOpenChange={() => {}}/>)
  await userEvent.click(await screen.findByRole('radio',{name:'排除'}))
  await waitFor(()=>expect(api.setMembership).toHaveBeenCalledWith('article','cat','excluded'))
  api.memberships.mockResolvedValue([{category_id:'cat',effective:false,manual:'excluded'}])

@@ -14,8 +14,10 @@ import { CircleHelpIcon } from './icons/circle-help'
 import { ClipboardCheckIcon } from './icons/clipboard-check'
 import { CopyIcon } from './icons/copy'
 import { DeleteIcon } from './icons/delete'
+import { EllipsisIcon } from './icons/ellipsis'
 import { ExternalLinkIcon } from './icons/external-link'
 import { FolderOpenIcon } from './icons/folder-open'
+import { LanguagesIcon } from './icons/languages'
 import { LayersIcon } from './icons/layers'
 import { LayoutGridIcon } from './icons/layout-grid'
 import { MaximizeIcon } from './icons/maximize'
@@ -55,8 +57,10 @@ export const animatedIcons = {
   'clipboard-check': ClipboardCheckIcon,
   'copy': CopyIcon,
   'delete': DeleteIcon,
+  'ellipsis': EllipsisIcon,
   'external-link': ExternalLinkIcon,
   'folder-open': FolderOpenIcon,
+  'languages': LanguagesIcon,
   'layers': LayersIcon,
   'layout-grid': LayoutGridIcon,
   'maximize': MaximizeIcon,

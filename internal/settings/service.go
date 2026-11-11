@@ -80,6 +80,9 @@ func (s *Service) Update(ctx context.Context, req UpdateRequest) Result {
 	if s.repository == nil {
 		return failure("DatabaseError", "本地设置暂时无法保存，请重新启动。", true)
 	}
+	if req.Preferences.ReaderToolbarPinned == nil {
+		req.Preferences.ReaderToolbarPinned = Defaults().ReaderToolbarPinned
+	}
 	req.Preferences.ReaderPinned = req.Preferences.ReaderLayout == "split"
 	encoded, err := json.Marshal(req.Preferences)
 	if err != nil || len(encoded) > 65536 {

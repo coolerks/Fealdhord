@@ -10,7 +10,7 @@ import type { Detail } from '@/lib/reader-api'
 const api=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
 vi.mock('@/lib/reader-api',()=>({readerAPI:api}))
 vi.mock('@/lib/preferences',()=>({preferencesAPI:{get:vi.fn(),update:vi.fn()}}))
-vi.mock('@/lib/navigation-api',()=>({navigationQueryKey:['navigation'],navigationAPI:{list:vi.fn(async()=>({categories:[],feeds:[],totals:{total:0,unread:0,favorites:0}}))}}))
+vi.mock('@/lib/navigation-api',()=>({navigationQueryKey:['navigation'],navigationAPI:{list:vi.fn(async()=>({categories:[],feeds:[],totals:{total:0,unread:0,favorites:0}})),memberships:async()=>[]}}))
 import { Reader } from './Reader'
 const link='a'.repeat(64)
 const feed:Detail={article_id:'a-0',mode:'feed',html:`<p>订阅正文 <a href="#" data-reader-link="${link}">正文链接</a></p><pre><code>const value = 1;</code></pre><table><tbody><tr><td>表格</td></tr></tbody></table>`,text:'订阅正文',has_cached:false,has_original:true}
@@ -22,6 +22,11 @@ function setup(patch:Parameters<typeof preferencesFixture>[0]={}){
  const client=new QueryClient({defaultOptions:{queries:{retry:false}}})
  return {...render(renderTree()),client,onRead,renderTree}
 }
+async function selectMoreItem(name:string, role: 'menuitem' | 'menuitemradio' = 'menuitem'){
+ await userEvent.click(screen.getByRole('button',{name:'更多'}))
+ await userEvent.click(await screen.findByRole(role,{name}))
+}
+
 it('正文成功呈现后只标已读一次，代码表格保留；原文和正文链接交给Go',async()=>{
  const {onRead}=setup({reader_font_family:'serif'})
  expect(await screen.findByText('订阅正文')).toBeInTheDocument()
@@ -30,14 +35,14 @@ it('正文成功呈现后只标已读一次，代码表格保留；原文和正�
  expect(screen.getByText('表格').tagName).toBe('TD')
  expect(document.querySelector('.reader-content article')?.getAttribute('style')).toContain('ui-serif')
  await userEvent.click(screen.getByRole('link',{name:'正文链接'}));expect(api.open).toHaveBeenLastCalledWith('a-0',link)
- await userEvent.click(screen.getByRole('button',{name:'在浏览器打开原文'}));expect(api.open).toHaveBeenLastCalledWith('a-0','')
+ await selectMoreItem('在浏览器打开原文');expect(api.open).toHaveBeenLastCalledWith('a-0','')
  expect(onRead).toHaveBeenCalledTimes(1)
 })
 it('取消提取保留订阅正文，迟到响应不能切换当前内容',async()=>{
  let release:(value:Detail)=>void=()=>{};let signal:AbortSignal|undefined
  api.extract.mockImplementation((_id:string,next:AbortSignal)=>{signal=next;return new Promise(resolve=>{release=resolve})})
  setup();await screen.findByText('订阅正文')
- await userEvent.click(screen.getByRole('tab',{name:'阅读模式'}))
+ await selectMoreItem('阅读模式', 'menuitemradio')
  expect(screen.getByText('订阅正文')).toBeInTheDocument()
  await userEvent.click(screen.getByRole('button',{name:'取消提取'}));expect(signal?.aborted).toBe(true)
  await act(async()=>release(extracted))
@@ -47,10 +52,9 @@ it('取消提取保留订阅正文，迟到响应不能切换当前内容',async
 it('提取成功缓存两种模式，往返切换不重复访问原网页',async()=>{
  api.extract.mockResolvedValue(extracted)
  setup();await screen.findByText('订阅正文')
- const toggle=screen.getByRole('tab',{name:'阅读模式'})
- await userEvent.click(toggle);expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
- await userEvent.click(screen.getByRole('tab',{name:'订阅预览'}));expect(await screen.findByText('订阅正文')).toBeInTheDocument()
- await userEvent.click(toggle);expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
+ await selectMoreItem('阅读模式', 'menuitemradio');expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
+ await selectMoreItem('订阅预览', 'menuitemradio');expect(await screen.findByText('订阅正文')).toBeInTheDocument()
+ await selectMoreItem('阅读模式', 'menuitemradio');expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
  expect(api.extract).toHaveBeenCalledTimes(1)
 })
 it('关闭自动已读或正文读取失败均不标记；重试成功后可继续阅读',async()=>{
@@ -73,10 +77,10 @@ it('已显示文章更新时取消旧提取，不遗留忙碌状态或再次覆�
  let release:(value:Detail)=>void=()=>{};let signal:AbortSignal|undefined
  api.extract.mockImplementation((_id:string,next:AbortSignal)=>{signal=next;return new Promise(resolve=>{release=resolve})})
  const {rerender,renderTree,onRead}=setup();await screen.findByText('订阅正文')
- await userEvent.click(screen.getByRole('tab',{name:'阅读模式'}))
+ await selectMoreItem('阅读模式', 'menuitemradio')
  api.get.mockResolvedValue({...feed,html:'<p>更新后的订阅正文</p>',text:'更新后的订阅正文'})
  rerender(renderTree(2));await screen.findByText('更新后的订阅正文')
- expect(signal?.aborted).toBe(true);expect(screen.getByRole('tab',{name:'阅读模式'})).toBeEnabled()
+ expect(signal?.aborted).toBe(true);expect(screen.getByRole('button',{name:'重新提取正文'})).toBeEnabled()
  await act(async()=>release(extracted))
  expect(screen.queryByText('提取后的正文')).not.toBeInTheDocument()
  expect(onRead).toHaveBeenCalledTimes(1)
@@ -89,7 +93,7 @@ it('菜单请求在Reader挂载前到达也只执行一次',async()=>{
 
 it('只有两个阅读标签页，键盘切换后仍可在浏览器打开原文',async()=>{
  api.extract.mockResolvedValue(extracted)
- setup()
+ setup({reader_toolbar_pinned:['view','original']})
  await screen.findByText('订阅正文')
  expect(screen.getAllByRole('tab')).toHaveLength(2)
  const preview=screen.getByRole('tab',{name:'订阅预览'})
@@ -110,4 +114,18 @@ it('全文默认阅读模式时自动提取，严格模式只发一次请求',as
  setup({reader_open_mode:'full'})
  expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
  expect(api.extract).toHaveBeenCalledTimes(1)
+})
+
+it('默认常驻四项，更多中的分类对话框关闭后回到触发器', async () => {
+ setup()
+ await screen.findByText('订阅正文')
+ const toolbar = document.querySelector('.reader-toolbar-actions')!
+ expect(Array.from(toolbar.querySelectorAll('button'), button => button.getAttribute('aria-label'))).toEqual([
+  '重新提取正文', '收藏当前文章', '翻译（暂未开放）', '文章 AI 助手', '更多',
+ ])
+ expect(screen.getByRole('button',{name:'翻译（暂未开放）'})).toBeDisabled()
+ await selectMoreItem('文章分类')
+ expect(await screen.findByRole('dialog',{name:'文章分类'})).toBeInTheDocument()
+ await userEvent.keyboard('{Escape}')
+ await waitFor(() => expect(screen.getByRole('button',{name:'更多'})).toHaveFocus())
 })

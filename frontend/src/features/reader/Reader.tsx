@@ -1,7 +1,6 @@
 import { openChat } from '@/features/chat/chat-scope'
 import { AnimatedGlyph } from '@/components/animated-glyph'
-import { ArticleCategories } from '@/features/categories/ArticleCategories'
-import { BookOpen,BookText,CalendarDays,CheckCheck,ChevronLeft,ExternalLink,RefreshCw,ScanText,Sparkles,Star } from 'lucide-react'
+import { BookOpen,CalendarDays,ChevronLeft } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Tabs } from 'radix-ui'
@@ -16,9 +15,10 @@ import { SemanticButton } from '@/components/semantic-button'
 import { Empty,EmptyHeader,EmptyMedia,EmptyTitle } from '@/components/ui/empty'
 import { useWorkspace } from '@/stores/workspace'
 import { useReaderContent } from './use-reader-content'
+import { ReaderToolbarActions } from './ReaderToolbarActions'
+import { readerViews } from './toolbar-actions'
+import type { ArticleView } from './toolbar-actions'
 import './reader-prose.css'
-
-type ArticleView = 'feed' | 'reader'
 
 type ReaderProps={feedIcon?:string;article?:Article;preferences:Preferences;overlay:boolean;onClose:()=>void;onFavorite:(id:string)=>void;onRead:(id:string)=>void;onAnchor:(key:string,anchor:{article_id:string;offset:number})=>void}
 export function Reader(props:ReaderProps){
@@ -93,34 +93,27 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
  function openLink(resourceID=''){
   if(articleID)void readerAPI.open(articleID,resourceID).catch(error=>useWorkspace.setState({commandError:error instanceof Error?error.message:'无法打开链接。'}))
  }
+ function readSelection() {
+  const selection = window.getSelection()
+  const root = content.current
+  if (!selection?.anchorNode || !selection.focusNode || !root?.contains(selection.anchorNode) || !root.contains(selection.focusNode)) return ''
+  return Array.from(selection.toString()).slice(0, 6000).join('')
+ }
  return <motion.aside className="reader-pane" aria-label="阅读面板" data-article-id={articleID} initial={false} animate={{opacity:1}} transition={{duration:.18}}>
   <Tabs.Root className="reader-tabs" value={view} onValueChange={changeView} activationMode="manual">
   {article && <header className="workspace-toolbar reader-toolbar">
    <div className="toolbar-start"><SemanticButton icon={ChevronLeft} meaning="chevron-left" label={overlay?'返回文章浏览':'收起阅读面板'} onClick={onClose}/>
     {article && <span className="reader-toolbar-title" data-visible={showToolbarTitle} title={article.title} aria-hidden="true">{article.title}</span>}
    </div>
-   <div className="toolbar-actions">
-    {view==='reader' && <SemanticButton icon={RefreshCw} meaning="refresh" label="重新提取正文"
-      disabled={!article || body.extracting} onClick={()=>{void body.extract()}}/>}
-    {article&&<ArticleCategories articleID={article.id}/>}
-    <SemanticButton icon={Star} meaning="favorite" label="收藏当前文章" active={article?.isFavorite} disabled={!article} onClick={()=>article&&onFavorite(article.id)}/>
-    <SemanticButton icon={CheckCheck} meaning="read" label="切换当前文章已读状态" disabled={!article} onClick={()=>article&&onRead(article.id)}/>
-    <SemanticButton icon={Sparkles} meaning="ai" label="文章 AI 助手" disabled={!article} onMouseDown={event => { if (event.button === 0 && !window.getSelection()?.isCollapsed) event.preventDefault() }} onClick={() => {
-      if (!article) return
-      const selection = window.getSelection()
-      const text = selection?.anchorNode && selection.focusNode &&
-        content.current?.contains(selection.anchorNode) && content.current.contains(selection.focusNode)
-        ? Array.from(selection.toString()).slice(0, 6000).join('') : ''
-      openChat({ kind:'article', id:article.id, label:article.title, selection:text })
-    }}/>
-    {article&&<Tabs.List className="reader-view-actions" aria-label="文章显示方式">
-     <Tabs.Trigger className="reader-view-tab" value="feed" aria-label="订阅预览" title="订阅预览"><AnimatedGlyph icon={BookText} meaning="book-text"/></Tabs.Trigger>
-     <Tabs.Trigger className="reader-view-tab" value="reader" aria-label="阅读模式" title="阅读模式"><AnimatedGlyph icon={ScanText} meaning="scan-text"/></Tabs.Trigger>
-    </Tabs.List>}
-    <SemanticButton icon={ExternalLink} meaning="external-link" label="在浏览器打开原文" disabled={!article?.url&&!body.query.data?.has_original} onClick={()=>openLink()}/>
-   </div>
+   <ReaderToolbarActions articleID={article.id} pinned={preferences.reader_toolbar_pinned} view={view} onViewChange={changeView}
+     isFavorite={article.isFavorite} extracting={body.extracting} hasOriginal={Boolean(article.url || body.query.data?.has_original)}
+     onRefresh={() => { started.current = true; setView('reader'); void body.extract() }}
+     onFavorite={() => onFavorite(article.id)} onRead={() => onRead(article.id)} onOriginal={() => openLink()}
+     readSelection={readSelection} onAI={selection => openChat({ kind: 'article', id: article.id, label: article.title, selection })} />
   </header>}
-  {article?<Tabs.Content value={view} asChild><div ref={content} className="reader-content" onScroll={event=>{
+  {article?<Tabs.Content value={view} asChild {...(!preferences.reader_toolbar_pinned.includes('view') && {
+   'aria-labelledby': undefined, 'aria-label': readerViews.find(mode => mode.value === view)?.label,
+  })}><div ref={content} className="reader-content" onScroll={event=>{
    if(!articleID||!hasContent)return
    const offset=event.currentTarget.scrollTop;pending.current=offset;if(timer.current)clearTimeout(timer.current)
    timer.current=setTimeout(()=>{pending.current=null;save.current(`reader|${articleID}`,{article_id:articleID,offset})},180)

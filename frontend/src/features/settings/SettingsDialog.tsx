@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { ToggleGroupItem } from '@/components/ui/toggle-group'
+import { SearchableSelect } from '@/components/ui/searchable-select'
+import { readerToolbarOptions } from '@/features/reader/toolbar-actions'
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
@@ -67,6 +69,16 @@ export function SettingsDialog() {
         </FieldGroup>}
         {tab === 'reader' && <FieldGroup>
           <Choice name="reader-open-mode" label="点击文章时" value={preferences.reader_open_mode} choices={[["feed","订阅预览","book-text"],["full","阅读模式","scan-text"]]} onChange={value=>set('reader_open_mode',value)}/>
+          <Field>
+            <FieldLabel htmlFor="reader-toolbar-pinned">常驻工具栏按钮</FieldLabel>
+            <SearchableSelect id="reader-toolbar-pinned" label="常驻工具栏按钮" options={[...readerToolbarOptions]}
+              value={preferences.reader_toolbar_pinned}
+              placeholder={preferences.reader_toolbar_pinned.length ? `已常驻 ${preferences.reader_toolbar_pinned.length} 项` : '全部放入更多'}
+              onValueChange={id => {
+                const pinned = preferences.reader_toolbar_pinned
+                set('reader_toolbar_pinned', pinned.includes(id) ? pinned.filter(item => item !== id) : [...pinned, id])
+              }} />
+          </Field>
           <Field orientation="horizontal"><FieldLabel htmlFor="reader-auto-read">正文呈现后标为已读</FieldLabel><Switch id="reader-auto-read" checked={preferences.reader_auto_read} onCheckedChange={value=>set('reader_auto_read',value)}/></Field><Choice name="reader-font" label="阅读字体" value={preferences.reader_font_family} choices={[["sans","系统无衬线","book-text"],["serif","衬线","book"],["monospace","等宽","layers"]]} onChange={value=>set('reader_font_family',value)}/><Choice name="reader-layout" label="瀑布流阅读布局" value={preferences.reader_layout === 'fill' ? 'fill' : 'drawer'} choices={[["fill","铺满","maximize"],["drawer","抽屉","panel-right-open"]]} onChange={value=>set('reader_layout',value)}/><Range name="font-size" label="正文字号" value={preferences.reader_font_size} min={14} max={24} unit="px" onChange={value => set('reader_font_size', value)} /><Range name="line-height" label="行高" value={preferences.reader_line_height} min={1.4} max={2} step={.1} onChange={value => set('reader_line_height', value)} /><Range name="reader-width" label="正文宽度" value={preferences.reader_width} min={680} max={760} step={20} unit="px" onChange={value => set('reader_width', value)} /></FieldGroup>}
         {tab === 'feeds' && <FieldGroup><FeedPreferences /><Separator /><FeedSettings /></FieldGroup>}
         {tab==='data' && <TransferPanel/>}

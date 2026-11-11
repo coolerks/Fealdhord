@@ -51,12 +51,12 @@ export function SearchableSelect({
         }}>
         <Command label={`搜索${label}`}>
           <CommandInput ref={input} placeholder="输入文字搜索…" />
-          <CommandList showScrollbar className="max-h-[min(18rem,calc(var(--radix-popover-content-available-height)-3rem))] overflow-x-auto">
+          <CommandList aria-multiselectable={multiple || undefined} showScrollbar className="max-h-[min(18rem,calc(var(--radix-popover-content-available-height)-3rem))] overflow-x-auto">
             <CommandEmpty>没有匹配项</CommandEmpty>
             <CommandGroup>
               {options.map(option => <CommandItem className="w-max min-w-full" key={option.value} value={option.value}
                 keywords={[option.label, ...(option.keywords ?? [])]} disabled={option.disabled}
-                data-checked={checked(option.value)}
+                data-checked={checked(option.value)} aria-checked={multiple ? checked(option.value) : undefined}
                 onSelect={() => {
                   onValueChange(option.value)
                   if (!multiple) setOpen(false)

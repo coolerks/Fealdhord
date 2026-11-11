@@ -624,6 +624,19 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 .workspace-toolbar .toolbar-actions { flex: 0 1 auto; flex-wrap: nowrap; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .workspace-toolbar .toolbar-actions::-webkit-scrollbar { display: none; }
 .workspace-toolbar .toolbar-actions > * { flex-shrink: 0; }
+.reader-toolbar .reader-toolbar-actions { overflow: visible; }
+.reader-toolbar .reader-pinned-actions {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.reader-pinned-actions:empty { display: none; }
+.reader-pinned-actions::-webkit-scrollbar { display: none; }
+.reader-pinned-actions > * { flex-shrink: 0; }
 
 .window-controls svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1; }
 .field-selection {

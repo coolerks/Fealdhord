@@ -232,13 +232,39 @@ describe('Phase 1 阅读 Shell', () => {
 
   it('阅读模式从工具栏重新提取正文', async () => {
     reader.extract.mockResolvedValue({article_id:'a-0',html:'',text:'已提取正文',mode:'reader'})
-    setup(true)
+    const {client} = setup(true)
+    const items = articleFixtures(20).map(article => ({...article, url:'https://example.test/article'}))
+    client.setQueryData(articleQueryKey, initialLibraryData({items, hasMore:false}))
     await userEvent.click(await screen.findByRole('button',{name:'打开文章：测试文章 0'}))
-    await userEvent.click(screen.getByRole('tab',{name:'阅读模式'}))
-    await waitFor(()=>expect(reader.extract).toHaveBeenCalledTimes(1))
     const refresh=within(screen.getByRole('complementary',{name:'阅读面板'})).getByRole('button',{name:'重新提取正文'})
     await userEvent.click(refresh)
+    await waitFor(() => expect(refresh).toBeEnabled())
+    expect(reader.extract).toHaveBeenCalledTimes(1)
+    await userEvent.click(refresh)
     expect(reader.extract).toHaveBeenCalledTimes(2)
+  })
+
+  it('通过更多打开工具栏设置，搜索并保存常驻操作', async () => {
+    const user = userEvent.setup()
+    setup(true)
+    await user.click(await screen.findByRole('button',{name:'打开文章：测试文章 0'}))
+    const pane = within(screen.getByRole('complementary',{name:'阅读面板'}))
+    await user.click(pane.getByRole('button',{name:'更多'}))
+    await user.click(await screen.findByRole('menuitem',{name:'配置阅读工具栏…'}))
+    const settings = await screen.findByRole('dialog',{name:'设置'})
+    await user.click(within(settings).getByRole('button',{name:'常驻工具栏按钮'}))
+    await user.type(screen.getByRole('combobox'), '分类')
+    await user.click(screen.getByRole('option',{name:'文章分类'}))
+    await user.clear(screen.getByRole('combobox'))
+    await user.type(screen.getByRole('combobox'), '收藏')
+    await user.click(screen.getByRole('option',{name:'收藏当前文章'}))
+    await user.keyboard('{Escape}')
+    await user.keyboard('{Escape}')
+    expect(pane.getByRole('button',{name:'文章分类'})).toBeInTheDocument()
+    expect(pane.queryByRole('button',{name:'收藏当前文章'})).not.toBeInTheDocument()
+    await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      reader_toolbar_pinned: ['refresh', 'translate', 'ai', 'categories'],
+    }), expect.any(Number)))
   })
 
   it('输入框右键保留剪切与粘贴，受控搜索状态随编辑更新', async()=>{

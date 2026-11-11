@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 
@@ -145,6 +146,35 @@ func TestLegacyValuesNormalizeIndividually(t *testing.T) {
 	}
 	if _, exists := envelope["error"]; exists {
 		t.Fatal("成功结果不应带 error")
+	}
+}
+
+func TestReaderToolbarPreferences(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t, filepath.Join(t.TempDir(), "prefs.db"))
+	if ok, err := store.SavePreferences(ctx, `{"theme":"dark"}`, 0, 0); err != nil || !ok {
+		t.Fatalf("写入旧设置失败：%t %v", ok, err)
+	}
+	service := NewService(store)
+	got := service.Get(ctx)
+	if !got.OK || !slices.Equal(got.Data.Preferences.ReaderToolbarPinned, []string{"refresh", "favorite", "translate", "ai"}) {
+		t.Fatalf("旧设置未使用默认常驻操作：%+v", got)
+	}
+	prefs := got.Data.Preferences
+	for _, invalid := range [][]string{{"unknown"}, {"favorite", "favorite"}} {
+		prefs.ReaderToolbarPinned = invalid
+		if result := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: got.Data.Revision}); result.OK || result.Error.Code != "ValidationError" {
+			t.Fatalf("无效操作未拒绝：%+v", result)
+		}
+	}
+	prefs.ReaderToolbarPinned = []string{}
+	saved := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: got.Data.Revision})
+	if !saved.OK {
+		t.Fatalf("允许将全部操作移入更多：%+v", saved.Error)
+	}
+	loaded := service.Get(ctx)
+	if !loaded.OK || loaded.Data.Preferences.ReaderToolbarPinned == nil || len(loaded.Data.Preferences.ReaderToolbarPinned) != 0 {
+		t.Fatalf("读取时未保留空数组：%+v", loaded)
 	}
 }
 

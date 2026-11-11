@@ -14,17 +14,19 @@ migrations/00001_ui_preferences.sql 通过 goose 创建 app_settings，sqlc v1.3
 
 偏好覆盖 Theme、article_view_mode、list_density、masonry_image_mode、animation、follow_system_reduce_motion、sidebar_collapsed／width、list_width、reader_open／reader_layout、selected_scope／article_id、scroll_anchors、Reader 字体／宽度。scroll_anchors 同时保存浏览 ID 锚点和 reader|article_id 的 Reader 垂直偏移，合计最多 32 项。旧版 list_thumbnail 字段保留读写兼容，列表按图片策略显示可用首图。当前只恢复四个系统 scope，后续 Feed／Category 导航再扩展。
 
+`preferences.reader_toolbar_pinned` 保存阅读工具栏常驻操作 ID 数组。允许 `refresh`、`favorite`、`translate`、`ai`、`categories`、`read`、`view`、`original`。默认是前四项，`[]` 表示全部放入「更多」。设置只控制常驻项，排列顺序由界面统一定义。字段由既有 Get／Update 契约和 CAS 持久化，无需数据库迁移。
+
 ## 4. 错误
 
-非法枚举／尺寸／超限锚点→ValidationError，零写入；旧 revision→Conflict，原子拒绝；未来 schema→ConfigurationError；I/O→DatabaseError。读取旧字段分别回退安全默认，不覆盖有效字段；未知未来 schema 不允许旧客户端写回。
+非法枚举／尺寸／超限锚点→ValidationError，零写入；旧 revision→Conflict，原子拒绝；未来 schema→ConfigurationError；I/O→DatabaseError。读取旧字段分别回退安全默认，不覆盖有效字段；未知未来 schema 不允许旧客户端写回。常驻项含未知 ID、重复 ID 或超过八项时拒绝写入，旧记录中的无效值和缺失值分别恢复默认。
 
 ## 5. 案例
 
-正常：保存 Dark＋Masonry，关闭数据库重开仍一致。基础：新库默认 System＋List。异常：两个窗口以同 revision 更新，只能一个成功，不静默覆盖。
+正常：保存 Dark＋Masonry，关闭数据库重开仍一致。基础：新库默认 System＋List。异常：两个窗口以同 revision 更新，只能一个成功，不静默覆盖。常驻项全部取消后重启，仍只显示「更多」。
 
 ## 6. 测试
 
-临时真实 SQLite 测试重开、并发 CAS、非法输入、旧字段恢复与未来 schema 拒绝读写；使用 -race 检查，不访问用户数据目录，不执行 E2E。前端保存失败、快速连续更改和初次恢复需组件／单元验证。
+临时真实 SQLite 测试重开、并发 CAS、非法输入、旧字段恢复与未来 schema 拒绝读写；使用 -race 检查，不访问用户数据目录，不执行 E2E。前端保存失败、快速连续更改和初次恢复需组件／单元验证。阅读工具栏覆盖默认项、搜索勾选、动作移动、CAS 保存、空数组读回和无效 ID 拒绝。
 
 ## 7. 实现约束
 
