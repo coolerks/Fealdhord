@@ -89,4 +89,4 @@ macOS 侧栏交互使用半透明状态色。以 `aria-current=page` 统一阅�
 
 ### 阅读工具栏
 
-`readerToolbarOptions` 定义操作 ID、显示顺序、标签和图标。`ReaderToolbarActions` 按偏好渲染常驻项和 shadcn/ui DropdownMenu。窄栏下只允许常驻区横向滚动，「更多」始终可见。常驻阅读方式用标签页切换，放入菜单时用单选项，正文面板保留可访问名称。菜单打开分类、设置或 AI 时，先关闭菜单并恢复焦点。文章选区在菜单触发时采集，传给文章 AI 助手。
+`readerToolbarOptions` 定义操作 ID、显示顺序、标签和图标。`ReaderToolbarActions` 按偏好渲染常驻项和 shadcn/ui DropdownMenu。窄栏下只允许常驻区横向滚动，「更多」始终可见。常驻阅读方式用标签页切换，放入「更多」时用独立的「文章显示方式」子菜单。子菜单用 Portal 渲染以免被父菜单的滚动区裁切。两个模式共用 `view` 单选状态，当前项用末尾勾选和 `aria-checked` 表达。正文面板保留可访问名称。菜单打开分类、设置或 AI 时，先关闭菜单并恢复焦点。文章选区在菜单触发时采集，传给文章 AI 助手。

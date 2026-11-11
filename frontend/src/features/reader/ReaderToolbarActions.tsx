@@ -4,8 +4,9 @@ import { AnimatedGlyph } from '@/components/animated-glyph'
 import { SemanticButton } from '@/components/semantic-button'
 import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
+  DropdownMenuPortal, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator,
+  DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ArticleCategories } from '@/features/categories/ArticleCategories'
 import { useWorkspace } from '@/stores/workspace'
@@ -105,27 +106,40 @@ export function ReaderToolbarActions({
         moreTrigger.current?.focus()
         run()
       }}>
-        {overflowOptions.map(({ value, label, icon, meaning }) => {
-          if (value === 'view') {
-            return <DropdownMenuRadioGroup key={value} aria-label={label} value={view} onValueChange={onViewChange}>
-              {readerViews.map(mode => <DropdownMenuRadioItem key={mode.value} value={mode.value}>
-                <AnimatedGlyph icon={mode.icon} meaning={mode.meaning} />{mode.label}
-              </DropdownMenuRadioItem>)}
-            </DropdownMenuRadioGroup>
-          }
-          if (value === 'favorite') {
-            return <DropdownMenuCheckboxItem key={value} checked={isFavorite} onSelect={onFavorite}>
+        <DropdownMenuGroup>
+          {overflowOptions.map(({ value, label, icon, meaning }) => {
+            if (value === 'view') {
+              return <DropdownMenuSub key={value}>
+                <DropdownMenuSubTrigger>
+                  <AnimatedGlyph icon={icon} meaning={meaning} />{label}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuSubContent sideOffset={4}>
+                    <DropdownMenuRadioGroup aria-label={label} value={view} onValueChange={onViewChange}>
+                      {readerViews.map(mode => <DropdownMenuRadioItem key={mode.value} value={mode.value}>
+                        <AnimatedGlyph icon={mode.icon} meaning={mode.meaning} />{mode.label}
+                      </DropdownMenuRadioItem>)}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
+            }
+            if (value === 'favorite') {
+              return <DropdownMenuCheckboxItem key={value} checked={isFavorite} onSelect={onFavorite}>
+                <AnimatedGlyph icon={icon} meaning={meaning} />{label}
+              </DropdownMenuCheckboxItem>
+            }
+            return <DropdownMenuItem key={value} disabled={isDisabled(value)} onSelect={() => runAction(value, true)}>
               <AnimatedGlyph icon={icon} meaning={meaning} />{label}
-            </DropdownMenuCheckboxItem>
-          }
-          return <DropdownMenuItem key={value} disabled={isDisabled(value)} onSelect={() => runAction(value, true)}>
-            <AnimatedGlyph icon={icon} meaning={meaning} />{label}
-          </DropdownMenuItem>
-        })}
+            </DropdownMenuItem>
+          })}
+        </DropdownMenuGroup>
         {overflowOptions.length > 0 && <DropdownMenuSeparator />}
-        <DropdownMenuItem onSelect={() => { afterMenuClose.current = () => showSettings('reader') }}>
-          <AnimatedGlyph meaning="settings" />配置阅读工具栏…
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem onSelect={() => { afterMenuClose.current = () => showSettings('reader') }}>
+            <AnimatedGlyph meaning="settings" />配置阅读工具栏…
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
     {categoriesOpen && <ArticleCategories articleID={articleID} open={categoriesOpen} onOpenChange={setCategoriesOpen}

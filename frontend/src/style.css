@@ -389,7 +389,7 @@ html[data-motion=subtle] .reader-toolbar-title { transform: none; }
 @container (max-width: 520px) { .reader-drawer { width: 100%; } }
 html[data-motion=off] *, html[data-motion=off] *::before, html[data-motion=off] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 html[data-motion=subtle] .semantic-button svg, html[data-motion=subtle] .nav-item svg, html[data-motion=subtle] .article-cover img, html[data-motion=subtle] .article-card { transform: none !important; animation: none !important; }
-html[data-motion=subtle] [data-slot=dialog-content], html[data-motion=subtle] [data-slot=dialog-overlay], html[data-motion=subtle] [data-slot=dropdown-menu-content], html[data-motion=subtle] .search-row { animation: none !important; }
+html[data-motion=subtle] :is([data-slot=dialog-content], [data-slot=dialog-overlay], [data-slot=dropdown-menu-content], [data-slot=dropdown-menu-sub-content], .search-row) { animation: none !important; }
 
 html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion=subtle] *::after { transition-duration: 100ms !important; animation-duration: 100ms !important; }
 

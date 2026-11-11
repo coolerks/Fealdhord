@@ -22,9 +22,14 @@ function setup(patch:Parameters<typeof preferencesFixture>[0]={}){
  const client=new QueryClient({defaultOptions:{queries:{retry:false}}})
  return {...render(renderTree()),client,onRead,renderTree}
 }
-async function selectMoreItem(name:string, role: 'menuitem' | 'menuitemradio' = 'menuitem'){
+async function selectMoreItem(name:string){
  await userEvent.click(screen.getByRole('button',{name:'更多'}))
- await userEvent.click(await screen.findByRole(role,{name}))
+ await userEvent.click(await screen.findByRole('menuitem',{name}))
+}
+
+async function selectReaderMode(name:'阅读模式' | '订阅预览'){
+ await selectMoreItem('文章显示方式')
+ await userEvent.click(await screen.findByRole('menuitemradio',{name}))
 }
 
 it('正文成功呈现后只标已读一次，代码表格保留；原文和正文链接交给Go',async()=>{
@@ -42,7 +47,7 @@ it('取消提取保留订阅正文，迟到响应不能切换当前内容',async
  let release:(value:Detail)=>void=()=>{};let signal:AbortSignal|undefined
  api.extract.mockImplementation((_id:string,next:AbortSignal)=>{signal=next;return new Promise(resolve=>{release=resolve})})
  setup();await screen.findByText('订阅正文')
- await selectMoreItem('阅读模式', 'menuitemradio')
+ await selectReaderMode('阅读模式')
  expect(screen.getByText('订阅正文')).toBeInTheDocument()
  await userEvent.click(screen.getByRole('button',{name:'取消提取'}));expect(signal?.aborted).toBe(true)
  await act(async()=>release(extracted))
@@ -52,10 +57,35 @@ it('取消提取保留订阅正文，迟到响应不能切换当前内容',async
 it('提取成功缓存两种模式，往返切换不重复访问原网页',async()=>{
  api.extract.mockResolvedValue(extracted)
  setup();await screen.findByText('订阅正文')
- await selectMoreItem('阅读模式', 'menuitemradio');expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
- await selectMoreItem('订阅预览', 'menuitemradio');expect(await screen.findByText('订阅正文')).toBeInTheDocument()
- await selectMoreItem('阅读模式', 'menuitemradio');expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
+ await selectReaderMode('阅读模式');expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
+ await selectReaderMode('订阅预览');expect(await screen.findByText('订阅正文')).toBeInTheDocument()
+ await selectReaderMode('阅读模式');expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
  expect(api.extract).toHaveBeenCalledTimes(1)
+})
+
+it('更多仅展示阅读方式入口，键盘可展开子菜单并切换唯一勾选项', async () => {
+ const user = userEvent.setup()
+ api.extract.mockResolvedValue(extracted)
+ setup()
+ await screen.findByText('订阅正文')
+ const more = screen.getByRole('button', { name: '更多' })
+ more.focus()
+ await user.keyboard('{Enter}{ArrowDown}{ArrowDown}')
+ const trigger = screen.getByRole('menuitem', { name: '文章显示方式' })
+ expect(trigger).toHaveFocus()
+ expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
+ expect(screen.queryByRole('menuitemradio')).not.toBeInTheDocument()
+
+ await user.keyboard('{ArrowRight}')
+ expect(await screen.findByRole('menuitemradio', { name: '订阅预览', checked: true })).toHaveFocus()
+ expect(screen.getByRole('menuitemradio', { name: '阅读模式', checked: false })).toBeInTheDocument()
+ await user.keyboard('{ArrowDown}{Enter}')
+ expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
+ await waitFor(() => expect(more).toHaveFocus())
+
+ await selectMoreItem('文章显示方式')
+ expect(await screen.findByRole('menuitemradio', { name: '阅读模式', checked: true })).toBeInTheDocument()
+ expect(screen.getByRole('menuitemradio', { name: '订阅预览', checked: false })).toBeInTheDocument()
 })
 it('关闭自动已读或正文读取失败均不标记；重试成功后可继续阅读',async()=>{
  api.get.mockRejectedValue(new Error('数据库不可用'))
@@ -77,7 +107,7 @@ it('已显示文章更新时取消旧提取，不遗留忙碌状态或再次覆�
  let release:(value:Detail)=>void=()=>{};let signal:AbortSignal|undefined
  api.extract.mockImplementation((_id:string,next:AbortSignal)=>{signal=next;return new Promise(resolve=>{release=resolve})})
  const {rerender,renderTree,onRead}=setup();await screen.findByText('订阅正文')
- await selectMoreItem('阅读模式', 'menuitemradio')
+ await selectReaderMode('阅读模式')
  api.get.mockResolvedValue({...feed,html:'<p>更新后的订阅正文</p>',text:'更新后的订阅正文'})
  rerender(renderTree(2));await screen.findByText('更新后的订阅正文')
  expect(signal?.aborted).toBe(true);expect(screen.getByRole('button',{name:'重新提取正文'})).toBeEnabled()
