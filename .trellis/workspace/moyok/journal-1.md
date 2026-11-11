@@ -369,3 +369,25 @@ Windows 11 22H2 起启用 DWM Acrylic 与透明 WebView2，自绘标题栏及侧
 ### Status
 
 [OK] **Completed**
+
+
+## Session 12: 侧栏动效与 Windows 亚克力交互修正
+<!-- trellis-session: v=2 fp=aa269bbb7b04cc5d -->
+
+**Date**: 2026-11-11
+**Task**: 侧栏动效与 Windows 亚克力交互修正
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+修正亚克力上的菜单及导航状态色，移除菜单栏底线。侧栏滚动分隔按需显示，切换只重排一次。前端 90 项测试、Chromium 布局探针和 Windows x64 交叉编译通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f86ad47` | fix: 优化侧栏切换与 Windows 亚克力交互 |
+
+### Status
+
+[OK] **Completed**
