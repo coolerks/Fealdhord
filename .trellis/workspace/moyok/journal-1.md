@@ -517,3 +517,30 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 18: 关于页与开发者模式
+<!-- trellis-session: v=2 fp=489a10f9f4813b59 -->
+
+**Date**: 2026-11-11
+**Task**: 关于页与开发者模式
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+重做关于页，添加默认关闭的开发者模式及帮助菜单入口，连接诊断迁至帮助。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `878173d` | feat: 重做关于页并添加开发者模式 |
+
+### Testing
+
+- [OK] 前端 99 项测试、lint 和构建通过，Go 相关包测试及 macOS／Windows 发布模式编译通过。
+- [OK] 未现场验证原生检查器窗口，未执行 Linux 打包。
+
+### Status
+
+[OK] **Completed**
