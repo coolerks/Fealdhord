@@ -18,6 +18,7 @@ type Props = {
   pinned: string[]
   view: ArticleView
   isFavorite: boolean
+  isRead: boolean
   extracting: boolean
   hasOriginal: boolean
   onViewChange: (view: string) => void
@@ -30,7 +31,7 @@ type Props = {
 }
 
 export function ReaderToolbarActions({
-  articleID, pinned, view, isFavorite, extracting, hasOriginal, onViewChange,
+  articleID, pinned, view, isFavorite, isRead, extracting, hasOriginal, onViewChange,
   onRefresh, onFavorite, onRead, onOriginal, readSelection, onAI,
 }: Props) {
   const [categoriesOpen, setCategoriesOpen] = useState(false)
@@ -107,7 +108,9 @@ export function ReaderToolbarActions({
         run()
       }}>
         <DropdownMenuGroup>
-          {overflowOptions.map(({ value, label, icon, meaning }) => {
+          {overflowOptions.map(option => {
+            const { value, icon, meaning } = option
+            const label = 'menuLabel' in option ? option.menuLabel : option.label
             if (value === 'view') {
               return <DropdownMenuSub key={value}>
                 <DropdownMenuSubTrigger>
@@ -129,15 +132,16 @@ export function ReaderToolbarActions({
                 <AnimatedGlyph icon={icon} meaning={meaning} />{label}
               </DropdownMenuCheckboxItem>
             }
+            const readLabel = isRead ? '标为未读' : '标为已读'
             return <DropdownMenuItem key={value} disabled={isDisabled(value)} onSelect={() => runAction(value, true)}>
-              <AnimatedGlyph icon={icon} meaning={meaning} />{label}
+              <AnimatedGlyph icon={icon} meaning={meaning} />{value === 'read' ? readLabel : label}
             </DropdownMenuItem>
           })}
         </DropdownMenuGroup>
         {overflowOptions.length > 0 && <DropdownMenuSeparator />}
         <DropdownMenuGroup>
           <DropdownMenuItem onSelect={() => { afterMenuClose.current = () => showSettings('reader') }}>
-            <AnimatedGlyph meaning="settings" />配置阅读工具栏…
+            <AnimatedGlyph meaning="settings" />工具栏设置…
           </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>

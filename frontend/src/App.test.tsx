@@ -250,7 +250,7 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(await screen.findByRole('button',{name:'打开文章：测试文章 0'}))
     const pane = within(screen.getByRole('complementary',{name:'阅读面板'}))
     await user.click(pane.getByRole('button',{name:'更多'}))
-    await user.click(await screen.findByRole('menuitem',{name:'配置阅读工具栏…'}))
+    await user.click(await screen.findByRole('menuitem',{name:'工具栏设置…'}))
     const settings = await screen.findByRole('dialog',{name:'设置'})
     await user.click(within(settings).getByRole('button',{name:'常驻工具栏按钮'}))
     await user.type(screen.getByRole('combobox'), '分类')

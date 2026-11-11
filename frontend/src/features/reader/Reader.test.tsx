@@ -18,7 +18,7 @@ const extracted:Detail={...feed,mode:'reader',html:'<p>提取后的正文</p>',t
 beforeEach(()=>{vi.resetAllMocks();api.get.mockResolvedValue(feed);api.open.mockResolvedValue(undefined);useWorkspace.setState({preferences:preferencesFixture(),readerModeRequestID:null})})
 function setup(patch:Parameters<typeof preferencesFixture>[0]={}){
  const prefs=preferencesFixture(patch),onRead=vi.fn(),article={...articleFixtures(1)[0],contentText:'',isRead:false,url:'https://example.test/article'}
- const renderTree=(revision=1)=><StrictMode><QueryClientProvider client={client}><TooltipProvider><Reader article={{...article,revision}} preferences={prefs} overlay onClose={vi.fn()} onFavorite={vi.fn()} onRead={onRead} onAnchor={vi.fn()}/></TooltipProvider></QueryClientProvider></StrictMode>
+ const renderTree=(revision=1,isRead=false)=><StrictMode><QueryClientProvider client={client}><TooltipProvider><Reader article={{...article,revision,isRead}} preferences={prefs} overlay onClose={vi.fn()} onFavorite={vi.fn()} onRead={onRead} onAnchor={vi.fn()}/></TooltipProvider></QueryClientProvider></StrictMode>
  const client=new QueryClient({defaultOptions:{queries:{retry:false}}})
  return {...render(renderTree()),client,onRead,renderTree}
 }
@@ -28,7 +28,7 @@ async function selectMoreItem(name:string){
 }
 
 async function selectReaderMode(name:'阅读模式' | '订阅预览'){
- await selectMoreItem('文章显示方式')
+ await selectMoreItem('阅读方式')
  await userEvent.click(await screen.findByRole('menuitemradio',{name}))
 }
 
@@ -40,7 +40,7 @@ it('正文成功呈现后只标已读一次，代码表格保留；原文和正�
  expect(screen.getByText('表格').tagName).toBe('TD')
  expect(document.querySelector('.reader-content article')?.getAttribute('style')).toContain('ui-serif')
  await userEvent.click(screen.getByRole('link',{name:'正文链接'}));expect(api.open).toHaveBeenLastCalledWith('a-0',link)
- await selectMoreItem('在浏览器打开原文');expect(api.open).toHaveBeenLastCalledWith('a-0','')
+ await selectMoreItem('打开原文');expect(api.open).toHaveBeenLastCalledWith('a-0','')
  expect(onRead).toHaveBeenCalledTimes(1)
 })
 it('取消提取保留订阅正文，迟到响应不能切换当前内容',async()=>{
@@ -71,7 +71,7 @@ it('更多仅展示阅读方式入口，键盘可展开子菜单并切换唯一�
  const more = screen.getByRole('button', { name: '更多' })
  more.focus()
  await user.keyboard('{Enter}{ArrowDown}{ArrowDown}')
- const trigger = screen.getByRole('menuitem', { name: '文章显示方式' })
+ const trigger = screen.getByRole('menuitem', { name: '阅读方式' })
  expect(trigger).toHaveFocus()
  expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
  expect(screen.queryByRole('menuitemradio')).not.toBeInTheDocument()
@@ -83,7 +83,7 @@ it('更多仅展示阅读方式入口，键盘可展开子菜单并切换唯一�
  expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
  await waitFor(() => expect(more).toHaveFocus())
 
- await selectMoreItem('文章显示方式')
+ await selectMoreItem('阅读方式')
  expect(await screen.findByRole('menuitemradio', { name: '阅读模式', checked: true })).toBeInTheDocument()
  expect(screen.getByRole('menuitemradio', { name: '订阅预览', checked: false })).toBeInTheDocument()
 })
@@ -154,8 +154,20 @@ it('默认常驻四项，更多中的分类对话框关闭后回到触发器', a
   '重新提取正文', '收藏当前文章', '翻译（暂未开放）', '文章 AI 助手', '更多',
  ])
  expect(screen.getByRole('button',{name:'翻译（暂未开放）'})).toBeDisabled()
- await selectMoreItem('文章分类')
+ await selectMoreItem('归类')
  expect(await screen.findByRole('dialog',{name:'文章分类'})).toBeInTheDocument()
  await userEvent.keyboard('{Escape}')
  await waitFor(() => expect(screen.getByRole('button',{name:'更多'})).toHaveFocus())
+})
+
+it('已读操作显示执行后的状态，点击沿用同一篇文章的切换操作', async () => {
+ const { onRead, rerender, renderTree } = setup({ reader_auto_read: false })
+ await screen.findByText('订阅正文')
+ await selectMoreItem('标为已读')
+ expect(onRead).toHaveBeenLastCalledWith('a-0')
+
+ rerender(renderTree(1, true))
+ await selectMoreItem('标为未读')
+ expect(onRead).toHaveBeenCalledTimes(2)
+ expect(onRead).toHaveBeenLastCalledWith('a-0')
 })

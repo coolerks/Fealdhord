@@ -106,7 +106,7 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
     {article && <span className="reader-toolbar-title" data-visible={showToolbarTitle} title={article.title} aria-hidden="true">{article.title}</span>}
    </div>
    <ReaderToolbarActions articleID={article.id} pinned={preferences.reader_toolbar_pinned} view={view} onViewChange={changeView}
-     isFavorite={article.isFavorite} extracting={body.extracting} hasOriginal={Boolean(article.url || body.query.data?.has_original)}
+     isFavorite={article.isFavorite} isRead={article.isRead} extracting={body.extracting} hasOriginal={Boolean(article.url || body.query.data?.has_original)}
      onRefresh={() => { started.current = true; setView('reader'); void body.extract() }}
      onFavorite={() => onFavorite(article.id)} onRead={() => onRead(article.id)} onOriginal={() => openLink()}
      readSelection={readSelection} onAI={selection => openChat({ kind: 'article', id: article.id, label: article.title, selection })} />
