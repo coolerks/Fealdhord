@@ -439,3 +439,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 15: 阅读方式二级菜单
+<!-- trellis-session: v=2 fp=b5ecb8e508f8e78c -->
+
+**Date**: 2026-11-11
+**Task**: 阅读方式二级菜单
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+更多菜单以文章显示方式统一入口，子菜单用末尾勾选标记当前模式。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2d3027a` | fix: 将文章显示方式归入二级菜单 |
+
+### Testing
+
+- [OK] 前端 93 项测试与生产构建通过，Lint 只有既有 TanStack Virtual 警告。
+
+### Status
+
+[OK] **Completed**

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 14
+- **Total Sessions**: 15
 - **Last Active**: 2026-11-11
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~441 | Active |
+| `journal-1.md` | ~467 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 15 | 2026-11-11 | 阅读方式二级菜单 | `2d3027a` | `codex/interface-clarity` |
 | 14 | 2026-11-11 | 阅读工具栏常驻操作 | `6d412dc` | `codex/interface-clarity` |
 | 13 | 2026-11-11 | 侧栏与文章区同步平推 | `3882147` | `codex/interface-clarity` |
 | 12 | 2026-11-11 | 侧栏动效与 Windows 亚克力交互修正 | `f86ad47` | `codex/interface-clarity` |
