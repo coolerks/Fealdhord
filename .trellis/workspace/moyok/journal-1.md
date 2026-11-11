@@ -347,3 +347,25 @@
 ### Next Steps
 
 - 依据路线图规划AI基础能力；AI/Agent/Skills/MCP尚未实现。
+
+
+## Session 11: Windows 标题栏与侧栏原生毛玻璃
+<!-- trellis-session: v=2 fp=6dc933b95e373f43 -->
+
+**Date**: 2026-11-11
+**Task**: Windows 标题栏与侧栏原生毛玻璃
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+Windows 11 22H2 起启用 DWM Acrylic 与透明 WebView2，自绘标题栏及侧栏共用叠色。前端 89 项、macOS 桌面包测试和 Windows x64 生产交叉编译通过，Windows 实机材质与交互待验收。Phase 7 工具运行时继续进行。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3a04bb1` | feat: 为 Windows 标题栏与侧栏接入原生 Acrylic |
+
+### Status
+
+[OK] **Completed**
