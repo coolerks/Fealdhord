@@ -5,6 +5,8 @@ package desktop
 #cgo LDFLAGS: -framework AppKit
 #import <AppKit/AppKit.h>
 
+void installResizeCursors(NSWindow *window);
+
 static void installSidebarMaterial(void *handle) {
     NSWindow *window = (NSWindow *)handle;
     NSView *content = window.contentView;
@@ -19,6 +21,8 @@ static void installSidebarMaterial(void *handle) {
     material.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [content addSubview:material positioned:NSWindowBelow relativeTo:nil];
     [material release];
+
+    installResizeCursors(window);
 }
 */
 import "C"
