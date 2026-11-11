@@ -116,6 +116,20 @@ describe('Phase 1 阅读 Shell', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
   })
 
+  it('分类与订阅滚过固定导航的边缘时才显示分隔线', async () => {
+    const { container } = setup()
+    await screen.findByRole('navigation', { name: '阅读视图' })
+    const scroller = container.querySelector<HTMLElement>('.sidebar-organize')!
+    const edge = scroller.parentElement
+    expect(edge).toHaveAttribute('data-scrolled', 'false')
+    scroller.scrollTop = 12
+    fireEvent.scroll(scroller)
+    expect(edge).toHaveAttribute('data-scrolled', 'true')
+    scroller.scrollTop = 0
+    fireEvent.scroll(scroller)
+    expect(edge).toHaveAttribute('data-scrolled', 'false')
+  })
+
   it('分隔条可用键盘调整并保存，命令面板可打开设置', async () => {
     setup()
     const separator = await screen.findByRole('separator', { name: '调整侧栏宽度' })

@@ -80,3 +80,9 @@ macOS 侧栏交互使用半透明状态色。以 `aria-current=page` 统一阅�
 ### Windows 原生材质
 
 `[data-platform=windows]` 下，`.application-menu` 与 `.glass-sidebar` 共用 `--window-chrome-surface`。半透明颜色由 CSS 提供，桌面模糊由 DWM 提供。文章工作区使用实色背景，保留浮层的语义颜色。降低透明度或高对比度媒体查询命中时统一换成实色，强制颜色使用 `Canvas`。检查深浅主题、侧栏收起以及窗口按钮交互。
+
+### 侧栏分隔与过渡
+
+`.sidebar-organize-wrap[data-scrolled=true]` 由内部分类／订阅滚动区的正 `scrollTop` 驱动，回顶清除。固定导航与滚动内容交界处的分隔线通过伪元素显示，始终不占布局。Windows 的菜单触发器、侧栏开关和导航交互共用半透明色，分类行由外层绘制一次状态色。窗口按钮保留独立状态样式。
+
+侧栏展开与收起通过 `.sidebar-track` 的 transform 和 `.reading-clip` 的 clip-path 同步，`--sidebar-docked` 只在切换端点改变网格宽度，避免逐帧触发虚拟列表重测。拖动分割条时立即应用宽度。验证滚动回顶、键盘展开与折叠、深浅主题、内容宽度变化次数以及关闭动效后的直接切换。
