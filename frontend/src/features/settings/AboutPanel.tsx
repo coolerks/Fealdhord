@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { AnimatedGlyph } from '@/components/animated-glyph'
 import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
+import { toast } from '@/components/ui/toast-manager'
 import { desktopAPI } from '@/lib/api'
 import { native } from '@/lib/native'
 import { notify } from '@/lib/notifications'
@@ -24,11 +24,14 @@ export function AboutPanel({ developerMode, onDeveloperModeChange }: {
       {info.data && <p className="text-sm text-muted-foreground">{info.data.version}</p>}
       {info.isError && <Button variant="ghost" size="sm" onClick={() => { void info.refetch() }}>重试读取版本</Button>}
       <div className="mt-3 flex flex-wrap justify-center gap-2">
-        <Button variant="outline" size="sm" disabled><AnimatedGlyph meaning="refresh" />检查更新</Button>
-        <Button variant="outline" size="sm" disabled><AnimatedGlyph meaning="external-link" />访问官网</Button>
-        <Button variant="outline" size="sm" onClick={() => {
-          void native.openURL(sourceURL).catch(() => { void notify('无法打开源码仓库', undefined, true) })
-        }}><AnimatedGlyph meaning="external-link" />查看源码</Button>
+        <Button type="button" variant="link" size="sm" onClick={() => toast.add({ title: '检查更新暂未开放' })}>检查更新</Button>
+        <Button type="button" variant="link" size="sm" onClick={() => toast.add({ title: '官网暂未开放' })}>访问官网</Button>
+        <Button asChild variant="link" size="sm">
+          <a href={sourceURL} onClick={(event) => {
+            event.preventDefault()
+            void native.openURL(sourceURL).catch(() => { void notify('无法打开源码仓库', undefined, true) })
+          }}>查看源码</a>
+        </Button>
       </div>
     </div>
     <Separator />
