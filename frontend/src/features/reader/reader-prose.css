@@ -94,11 +94,11 @@
   justify-content: space-between;
   gap: 8px;
   padding: 5px 8px 0 14px;
-  font-size: .78em;
+  font-size: .85em;
 }
 .reader-code-language { display: inline-flex; align-items: center; gap: 6px; }
-.reader-code-language svg { width: 1em; height: 1em; }
 .reader-code-toolbar .reader-code-copy { color: inherit; }
+.reader-code-language svg,
 .reader-code-copy :is(.animated-glyph, svg) { width: 14px; height: 14px; }
 .reader-code-toolbar .reader-code-copy:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
 .reader-html[data-code-theme=app] :is(.hljs-keyword, .hljs-selector-tag, .hljs-meta, .hljs-deletion) { color: var(--article-code-keyword); }
