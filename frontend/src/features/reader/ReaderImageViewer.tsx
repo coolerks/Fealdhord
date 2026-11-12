@@ -27,7 +27,9 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
   const viewer = useRef<HTMLElement>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const cleanupExit = useRef<(() => void) | null>(null)
+  const cleanupSlide = useRef<(() => void) | null>(null)
   const [index, setIndex] = useState(initialIndex)
+  const [slide, setSlide] = useState<{ index: number; direction: number }>()
   const [entry, setEntry] = useState(origin.width > 0 && origin.height > 0 ? origin : undefined)
   const [entered, setEntered] = useState(false)
   const [zoom, setZoom] = useState(100)
@@ -85,7 +87,7 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
       return
     }
 
-    const picture = node.querySelector<HTMLImageElement>('.reader-image-canvas img')
+    const picture = node.querySelector<HTMLImageElement>(`[data-image-index="${index}"] .reader-image-canvas img`)
     const source = image.element
     const destination = source.getBoundingClientRect()
     const bounds = node.getBoundingClientRect()
@@ -93,7 +95,7 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
       destination.left < bounds.right && destination.right > bounds.left &&
       destination.top < bounds.bottom && destination.bottom > bounds.top
     let returning: Animation | undefined
-    if (motion !== 'subtle' && entered && picture?.animate && visible) {
+    if (motion !== 'subtle' && !slide && entered && picture?.animate && visible) {
       const current = picture.getBoundingClientRect()
       const radius = getComputedStyle(picture).borderRadius
       for (const animation of picture.getAnimations?.() ?? []) animation.cancel()
@@ -128,16 +130,51 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
   }
 
   function stepImage(direction: number) {
-    if (cleanupExit.current) return
+    if (cleanupExit.current || slide) return
     const next = index + direction
     if (next < 0 || next >= images.length) return
     setEntry(undefined)
+    const motion = document.documentElement.dataset.motion
+    if (viewer.current?.animate && motion !== 'off' && motion !== 'subtle') {
+      stopZoom()
+      setSlide({ index: next, direction })
+      return
+    }
     setIndex(next)
     setZoomImmediately(100)
   }
 
+  function playSlide() {
+    if (!slide || cleanupSlide.current || cleanupExit.current) return
+    const outgoing = viewer.current?.querySelector<HTMLElement>(`[data-image-index="${index}"]`)
+    const incoming = viewer.current?.querySelector<HTMLElement>(`[data-image-index="${slide.index}"]`)
+    if (!outgoing || !incoming) return
+    incoming.style.visibility = 'visible'
+    const options: KeyframeAnimationOptions = { duration: 220, easing: imageEasing, fill: 'both' }
+    const out = outgoing.animate([
+      { transform: 'translateX(0)' },
+      { transform: `translateX(${-100 * slide.direction}%)` },
+    ], options)
+    const into = incoming.animate([
+      { transform: `translateX(${100 * slide.direction}%)` },
+      { transform: 'translateX(0)' },
+    ], options)
+    cleanupSlide.current = () => {
+      into.onfinish = null
+      out.cancel()
+      into.cancel()
+      incoming.style.removeProperty('visibility')
+    }
+    into.onfinish = () => {
+      if (cleanupExit.current) return
+      setIndex(slide.index)
+      setZoomImmediately(100)
+      setSlide(undefined)
+    }
+  }
+
   const wheel = useEffectEvent((delta: number) => {
-    if (cleanupExit.current) return
+    if (cleanupExit.current || slide) return
     revealControls()
     if (wheelMode === 'navigate') stepImage(Math.sign(delta))
     else scaleZoom(Math.exp(-delta * 0.0018))
@@ -169,8 +206,15 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
       clearTimeout(timer.current)
       stopZoom()
       cleanupExit.current?.()
+      cleanupSlide.current?.()
     }
   }, [stopZoom])
+
+  useLayoutEffect(() => {
+    if (slide) return
+    cleanupSlide.current?.()
+    cleanupSlide.current = null
+  }, [slide])
 
   return <ContextMenu>
     <ContextMenuTrigger asChild>
@@ -188,14 +232,24 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
             stepImage(event.key === 'ArrowLeft' ? -1 : 1)
           }
         }}>
-        <ZoomedImage key={index} image={image} zoom={zoom} entry={entry} onReady={setEntered}
-          onBackdropClick={backdropClose ? close : undefined} />
+        <div className="reader-image-stage">
+          {(slide ? [index, slide.index] : [index]).map(page => {
+            const pending = page === slide?.index
+            return <div className="reader-image-slide" key={page} data-image-index={page}
+              data-pending={pending} inert={pending} aria-hidden={pending || undefined}>
+              <ZoomedImage image={images[page]} zoom={pending ? 100 : zoom} entry={pending ? undefined : entry}
+                onReady={setEntered} onAvailable={pending ? playSlide : undefined}
+                onBackdropClick={backdropClose ? close : undefined} />
+            </div>
+          })}
+        </div>
         <div className="reader-image-controls" data-visible={controlsVisible} inert={leaving}>
           <Button variant="ghost" size="icon-sm" aria-label="上一张" disabled={index === 0} onClick={() => stepImage(-1)}><ChevronLeft /></Button>
           <span className="reader-image-count">{index + 1} / {images.length}</span>
           <Button variant="ghost" size="icon-sm" aria-label="下一张" disabled={index === images.length - 1} onClick={() => stepImage(1)}><ChevronRight /></Button>
           <div className="reader-image-scale">
-            <Slider value={[zoom]} min={minZoom} max={maxZoom} step={0.1} thumbProps={{ 'aria-label': '图片缩放', 'aria-valuetext': `${Math.round(zoom)}%` }}
+            <Slider value={[zoom]} min={minZoom} max={maxZoom} step={0.1} disabled={Boolean(slide)}
+              thumbProps={{ 'aria-label': '图片缩放', 'aria-valuetext': `${Math.round(zoom)}%` }}
               onValueChange={([value]) => setZoomImmediately(value)} />
             <span>{Math.round(zoom)}%</span>
           </div>
@@ -214,8 +268,8 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
       }}>
       <ContextMenuGroup>
         <ContextMenuItem onSelect={() => { void copyReaderImage(image.id) }}><Copy />复制图片</ContextMenuItem>
-        <ContextMenuItem disabled={zoom >= maxZoom} onSelect={() => scaleZoom(1.25)}><Plus />放大</ContextMenuItem>
-        <ContextMenuItem disabled={zoom <= minZoom} onSelect={() => scaleZoom(1 / 1.25)}><Minus />缩小</ContextMenuItem>
+        <ContextMenuItem disabled={Boolean(slide) || zoom >= maxZoom} onSelect={() => scaleZoom(1.25)}><Plus />放大</ContextMenuItem>
+        <ContextMenuItem disabled={Boolean(slide) || zoom <= minZoom} onSelect={() => scaleZoom(1 / 1.25)}><Minus />缩小</ContextMenuItem>
       </ContextMenuGroup>
       <ContextMenuSeparator />
       <ContextMenuGroup>
@@ -228,11 +282,12 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
   </ContextMenu>
 }
 
-function ZoomedImage({ image, zoom, entry, onReady, onBackdropClick }: {
+function ZoomedImage({ image, zoom, entry, onReady, onAvailable, onBackdropClick }: {
   image: ReaderImage
   zoom: number
   entry?: DOMRectReadOnly
   onReady: (ready: boolean) => void
+  onAvailable?: () => void
   onBackdropClick?: () => void
 }) {
   const scroll = useRef<HTMLDivElement>(null)
@@ -293,10 +348,14 @@ function ZoomedImage({ image, zoom, entry, onReady, onBackdropClick }: {
       {failed ? <p role="alert">图片无法显示</p> : <img ref={picture} src={image.src} alt={image.alt} draggable={false}
         data-entry-pending={Boolean(entry && (!fit || !loaded))}
         style={fit ? { width: natural.width * fit, height: natural.height * fit } : { maxWidth: '100%', maxHeight: '100%' }}
-        onError={() => setFailed(true)}
+        onError={() => {
+          setFailed(true)
+          onAvailable?.()
+        }}
         onLoad={event => {
           setNatural({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })
           setLoaded(true)
+          onAvailable?.()
         }} />}
     </div>
   </div>

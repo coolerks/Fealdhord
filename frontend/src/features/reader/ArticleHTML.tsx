@@ -61,7 +61,7 @@ function CodeToolbar({ block }: { block: CodeBlock }) {
 
   return <>
     <span className="reader-code-language"><CodeXml aria-hidden="true" />{block.language || '纯文本'}</span>
-    <Button variant="ghost" size="icon-sm" className="reader-code-copy" aria-label="复制代码" title={copied ? '已复制' : '复制代码'}
+    <Button variant="ghost" size="icon-xs" className="reader-code-copy" aria-label="复制代码" title={copied ? '已复制' : '复制代码'}
       onClick={event => { event.stopPropagation(); void copy() }}>
       {copied ? <Check aria-hidden="true" /> : <AnimatedGlyph icon={Copy} meaning="copy" />}
     </Button>

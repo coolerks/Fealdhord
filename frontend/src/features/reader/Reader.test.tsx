@@ -308,6 +308,50 @@ it('滚轮切图偏好保持缩放比例为默认值，禁止远程图时无法�
  expect(screen.queryByRole('region', { name: '看图模式' })).not.toBeInTheDocument()
 })
 
+it('切图等下一张就绪后按方向平推，动画结束才移除旧图', async () => {
+ api.get.mockResolvedValue(illustrated)
+ const root = document.documentElement
+ const previousMotion = root.dataset.motion
+ root.dataset.motion = 'full'
+ try {
+  setup()
+  fireEvent.click(await screen.findByRole('button', { name: '查看图片：第一张' }))
+  const viewer = screen.getByRole('region', { name: '看图模式' })
+  Object.defineProperty(viewer, 'animate', { value: vi.fn() })
+  const controls = viewer.querySelector('.reader-image-controls')
+
+  for (const [current, next, key, direction] of [[0, 1, 'ArrowRight', 1], [1, 0, 'ArrowLeft', -1]] as const) {
+   fireEvent.keyDown(viewer, { key })
+   const outgoing = viewer.querySelector(`[data-image-index="${current}"]`)!
+   const incoming = viewer.querySelector(`[data-image-index="${next}"]`)!
+   const exit = vi.fn(() => ({ cancel: vi.fn() }))
+   const enter = { onfinish: null as (() => void) | null, cancel: vi.fn() }
+   const animate = vi.fn(() => enter)
+   Object.defineProperty(outgoing, 'animate', { value: exit, configurable: true })
+   Object.defineProperty(incoming, 'animate', { value: animate, configurable: true })
+   expect(outgoing).toBeInTheDocument()
+   expect(incoming).toHaveAttribute('inert')
+   expect(exit).not.toHaveBeenCalled()
+
+   fireEvent.load(incoming.querySelector('img')!)
+   expect(exit).toHaveBeenCalledWith([
+    { transform: 'translateX(0)' }, { transform: `translateX(${-100 * direction}%)` },
+   ], expect.objectContaining({ duration: 220 }))
+   expect(animate).toHaveBeenCalledWith([
+    { transform: `translateX(${100 * direction}%)` }, { transform: 'translateX(0)' },
+   ], expect.objectContaining({ duration: 220 }))
+   expect(outgoing).toBeInTheDocument()
+   act(() => enter.onfinish?.())
+   expect(outgoing).not.toBeInTheDocument()
+   expect(incoming).not.toHaveAttribute('inert')
+   expect(viewer.querySelector('.reader-image-controls')).toBe(controls)
+  }
+ } finally {
+  if (previousMotion === undefined) delete root.dataset.motion
+  else root.dataset.motion = previousMotion
+ }
+})
+
 it('看图从正文图片位置和尺寸开始，退出动画结束后才还原正文', async () => {
  api.get.mockResolvedValue(illustrated)
  const previousObserver = ResizeObserver
