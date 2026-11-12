@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Copy, Minus, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
@@ -31,12 +31,53 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
   const [entry, setEntry] = useState(origin.width > 0 && origin.height > 0 ? origin : undefined)
   const [entered, setEntered] = useState(false)
   const [zoom, setZoom] = useState(100)
+  const zoomMotion = useRef({ value: 100, target: 100, frame: 0 })
   const [controlsVisible, setControlsVisible] = useState(true)
   const [leaving, setLeaving] = useState(false)
   const image = images[index]
 
+  const stopZoom = useCallback(() => {
+    const motion = zoomMotion.current
+    cancelAnimationFrame(motion.frame)
+    motion.frame = 0
+    motion.target = motion.value
+  }, [])
+
+  function setZoomImmediately(value: number) {
+    stopZoom()
+    zoomMotion.current.value = value
+    zoomMotion.current.target = value
+    setZoom(value)
+  }
+
+  function scaleZoom(factor: number) {
+    const motion = zoomMotion.current
+    motion.target = clampZoom(motion.target * factor)
+    const preference = document.documentElement.dataset.motion
+    if (preference === 'off') {
+      setZoomImmediately(motion.target)
+      return
+    }
+    if (motion.frame) return
+
+    const smoothing = preference === 'subtle' ? 15 : 30
+    let lastFrame: number | undefined
+    function advance(time: number) {
+      const elapsed = lastFrame === undefined ? 16 : time - lastFrame
+      lastFrame = time
+      const remaining = motion.target - motion.value
+      motion.value += remaining * (1 - Math.exp(-elapsed / smoothing))
+      const settled = Math.abs(motion.target - motion.value) < 0.05
+      if (settled) motion.value = motion.target
+      setZoom(motion.value)
+      motion.frame = settled ? 0 : requestAnimationFrame(advance)
+    }
+    motion.frame = requestAnimationFrame(advance)
+  }
+
   function close() {
     if (cleanupExit.current) return
+    stopZoom()
     const node = viewer.current
     const motion = document.documentElement.dataset.motion
     if (!node?.animate || motion === 'off') {
@@ -92,14 +133,14 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
     if (next < 0 || next >= images.length) return
     setEntry(undefined)
     setIndex(next)
-    setZoom(100)
+    setZoomImmediately(100)
   }
 
   const wheel = useEffectEvent((delta: number) => {
     if (cleanupExit.current) return
     revealControls()
     if (wheelMode === 'navigate') stepImage(Math.sign(delta))
-    else setZoom(value => clampZoom(value * Math.exp(-delta * 0.0018)))
+    else scaleZoom(Math.exp(-delta * 0.0018))
   })
 
   useEffect(() => {
@@ -126,9 +167,10 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
     timer.current = setTimeout(() => setControlsVisible(false), 2800)
     return () => {
       clearTimeout(timer.current)
+      stopZoom()
       cleanupExit.current?.()
     }
-  }, [])
+  }, [stopZoom])
 
   return <ContextMenu>
     <ContextMenuTrigger asChild>
@@ -154,7 +196,7 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
           <Button variant="ghost" size="icon-sm" aria-label="下一张" disabled={index === images.length - 1} onClick={() => stepImage(1)}><ChevronRight /></Button>
           <div className="reader-image-scale">
             <Slider value={[zoom]} min={minZoom} max={maxZoom} step={0.1} thumbProps={{ 'aria-label': '图片缩放', 'aria-valuetext': `${Math.round(zoom)}%` }}
-              onValueChange={([value]) => setZoom(value)} />
+              onValueChange={([value]) => setZoomImmediately(value)} />
             <span>{Math.round(zoom)}%</span>
           </div>
           <Button variant="ghost" size="icon-sm" aria-label="退出看图" onClick={close}><X /></Button>
@@ -172,8 +214,8 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
       }}>
       <ContextMenuGroup>
         <ContextMenuItem onSelect={() => { void copyReaderImage(image.id) }}><Copy />复制图片</ContextMenuItem>
-        <ContextMenuItem disabled={zoom >= maxZoom} onSelect={() => setZoom(value => clampZoom(value * 1.25))}><Plus />放大</ContextMenuItem>
-        <ContextMenuItem disabled={zoom <= minZoom} onSelect={() => setZoom(value => clampZoom(value / 1.25))}><Minus />缩小</ContextMenuItem>
+        <ContextMenuItem disabled={zoom >= maxZoom} onSelect={() => scaleZoom(1.25)}><Plus />放大</ContextMenuItem>
+        <ContextMenuItem disabled={zoom <= minZoom} onSelect={() => scaleZoom(1 / 1.25)}><Minus />缩小</ContextMenuItem>
       </ContextMenuGroup>
       <ContextMenuSeparator />
       <ContextMenuGroup>
@@ -205,10 +247,11 @@ function ZoomedImage({ image, zoom, entry, onReady, onBackdropClick }: {
     : 0
 
   useLayoutEffect(() => {
-    const element = scroll.current
-    if (!element) return
-    const observer = new ResizeObserver(() => setViewport({ width: element.clientWidth, height: element.clientHeight }))
-    observer.observe(element)
+    // 滚动条改变内部可滚动尺寸，适配比例只取外层视口尺寸。
+    const frame = scroll.current?.parentElement
+    if (!frame) return
+    const observer = new ResizeObserver(() => setViewport({ width: frame.clientWidth, height: frame.clientHeight }))
+    observer.observe(frame)
     return () => observer.disconnect()
   }, [])
 

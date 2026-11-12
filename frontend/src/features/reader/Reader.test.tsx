@@ -191,7 +191,8 @@ it('打开看图后可以连续缩放、切图、复制和按 Esc 回到正文�
  expect(proseScroll).toHaveAttribute('inert')
  const scale = within(viewer).getByRole('slider', { name: '图片缩放' })
  fireEvent.wheel(viewer, { deltaY: -36 })
- expect(Number(scale.getAttribute('aria-valuenow'))).toBeGreaterThan(100)
+ expect(scale).toHaveAttribute('aria-valuenow', '100')
+ await waitFor(() => expect(Number(scale.getAttribute('aria-valuenow'))).toBeGreaterThan(100))
  expect(Number(scale.getAttribute('aria-valuenow'))).toBeLessThan(110)
 
  fireEvent.contextMenu(viewer)
@@ -214,6 +215,42 @@ it('打开看图后可以连续缩放、切图、复制和按 Esc 回到正文�
  expect(await screen.findByRole('menu', { name: '看图操作' })).toBeInTheDocument()
  await user.keyboard('{Escape}')
  expect(screen.queryByRole('region', { name: '看图模式' })).not.toBeInTheDocument()
+})
+
+it('看图放大到 114% 时，滚动条显隐不改变图片尺寸', async () => {
+ api.get.mockResolvedValue(illustrated)
+ const previousObserver = ResizeObserver
+ const geometry = installGeometry()
+ try {
+  const { unmount } = setup()
+  fireEvent.click(await screen.findByRole('button', { name: '查看图片：第一张' }))
+  const viewer = screen.getByRole('region', { name: '看图模式' })
+  const picture = within(viewer).getByRole('img', { name: '第一张' })
+  const scroll = viewer.querySelector('.reader-image-scroll')!
+  let availableWidth = 360
+  let availableHeight = 600
+  Object.defineProperties(scroll, {
+   clientWidth: { get: () => availableWidth },
+   clientHeight: { get: () => availableHeight },
+  })
+  Object.defineProperties(picture, { naturalWidth: { value: 360 }, naturalHeight: { value: 540 } })
+  fireEvent.load(picture)
+  await waitFor(() => expect(picture).toHaveStyle({ width: '360px', height: '540px' }))
+  fireEvent.wheel(viewer, { deltaY: -Math.log(1.14) / .0018 })
+  await waitFor(() => expect(parseFloat(picture.style.width)).toBeCloseTo(410.4))
+  const fittedSize = { width: picture.style.width, height: picture.style.height }
+  for (const scrollbar of [true, false, true]) {
+   availableWidth = scrollbar ? 352 : 360
+   availableHeight = scrollbar ? 592 : 600
+   act(() => geometry.resize())
+   expect(picture).toHaveStyle(fittedSize)
+  }
+  unmount()
+ } finally {
+  geometry.cleanup()
+  vi.restoreAllMocks()
+  vi.stubGlobal('ResizeObserver', previousObserver)
+ }
 })
 
 it('滚轮切图偏好保持缩放比例为默认值，禁止远程图时无法进入看图', async () => {
