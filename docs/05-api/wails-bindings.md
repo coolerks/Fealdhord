@@ -91,6 +91,8 @@ navigation.Service 暴露 List／Save／PreviewDelete／Remove／Memberships／S
 
 reader.Service.Get／Extract 使用 article_id和mode，返回安全本地资源HTML及text／has_cached／has_original。OpenLink仅接当前文章的resource_id（空表示原文），不接受任意地址。ArticleSummary新增revision用于正文缓存键；Settings新增reader_auto_read=true和reader_font_family=sans，旧JSON从默认值恢复。正文RPC采用CancellablePromise上下文取消，提取缓存独立于订阅正文。具体限额与错误见[Reader规范](../../.trellis/spec/backend/reader-guidelines.md)。
 
+`media.API.CopyInlineImage(id)` 接收 64 位十六进制正文图片资源 ID，返回 `{ok,error?,request_id}`。调用沿用内联媒体策略和资源版本校验，成功时向系统剪贴板写入 PNG。非法 ID 返回 `ValidationError`，资源不可用或剪贴板写入失败返回 `MediaError`。
+
 ### Phase 4 OPML 与刷新事件
 
 transfer.API 的 Choose 返回 token／name／cancelled；Preview 返回 preview_id／name／items，outline 含 key／parent_key／title／url／site_url／kind／status／reason／depth，Go保留私有计划与版本。Import返回 report（feeds_added／feeds_reused／feeds_restored／categories_added／associations_added／skipped／feed_ids）、refresh_queued／refresh_error。Export仅返回name／bytes；Discard返回ok／error／request_id。其余均为统一ok／data／error／request_id，禁止前端传宿主路径或修改计划内容。绑定方法可取消，提交完成后取消不能承诺回滚。

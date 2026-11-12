@@ -37,6 +37,8 @@ export interface Preferences {
     "reader_font_size": number;
     "reader_line_height": number;
     "reader_width": number;
+    "reader_image_wheel": string;
+    "reader_outline": string;
 }
 
 export interface Result {

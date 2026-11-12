@@ -43,6 +43,8 @@ type Preferences struct {
 	ReaderFontSize           int                     `json:"reader_font_size"`
 	ReaderLineHeight         float64                 `json:"reader_line_height"`
 	ReaderWidth              int                     `json:"reader_width"`
+	ReaderImageWheel         string                  `json:"reader_image_wheel"`
+	ReaderOutline            string                  `json:"reader_outline"`
 }
 
 func Defaults() Preferences {
@@ -52,6 +54,7 @@ func Defaults() Preferences {
 		SidebarWidth: 248, ListWidth: 360, ReaderOpen: false, SelectedScope: "all",
 		ReaderToolbarPinned: []string{"refresh", "favorite", "translate", "ai"},
 		ScrollAnchors:       map[string]ScrollAnchor{}, ReaderFontSize: 17, ReaderLineHeight: 1.7, ReaderWidth: 720,
+		ReaderImageWheel: "zoom", ReaderOutline: "ticks",
 	}
 }
 
@@ -97,6 +100,9 @@ func (p Preferences) Validate() error {
 	if !oneOf(p.ReaderFontFamily, "sans", "serif", "monospace") {
 		return errors.New("阅读字体选项无效。")
 	}
+	if !oneOf(p.ReaderImageWheel, "zoom", "navigate") || !oneOf(p.ReaderOutline, "ticks", "auto", "fixed", "hidden") {
+		return errors.New("看图或目录选项无效。")
+	}
 	if !oneOf(p.RemoteImages, "always", "subscriptions", "never") || !oneOf(p.Theme, "light", "dark", "system") || !oneOf(p.ArticleViewMode, "list", "masonry") ||
 		!oneOf(p.ListDensity, "compact", "comfortable") || !oneOf(p.ListThumbnail, "none", "small") ||
 		!oneOf(p.MasonryImageMode, "original_ratio", "cropped") || !oneOf(p.Animation, "full", "subtle", "off") {
@@ -141,6 +147,12 @@ func (p *Preferences) normalize() {
 	}
 	if !oneOf(p.ReaderFontFamily, "sans", "serif", "monospace") {
 		p.ReaderFontFamily = d.ReaderFontFamily
+	}
+	if !oneOf(p.ReaderImageWheel, "zoom", "navigate") {
+		p.ReaderImageWheel = d.ReaderImageWheel
+	}
+	if !oneOf(p.ReaderOutline, "ticks", "auto", "fixed", "hidden") {
+		p.ReaderOutline = d.ReaderOutline
 	}
 	if !oneOf(p.RemoteImages, "always", "subscriptions", "never") {
 		p.RemoteImages = d.RemoteImages

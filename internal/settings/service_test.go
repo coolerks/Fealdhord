@@ -183,6 +183,33 @@ func TestReaderToolbarPreferences(t *testing.T) {
 	}
 }
 
+func TestReaderImageAndOutlinePreferences(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t, filepath.Join(t.TempDir(), "prefs.db"))
+	if ok, err := store.SavePreferences(ctx, `{"theme":"dark"}`, 0, 0); err != nil || !ok {
+		t.Fatalf("写入旧设置失败：%t %v", ok, err)
+	}
+	service := NewService(store)
+	got := service.Get(ctx)
+	if !got.OK || got.Data.Preferences.ReaderImageWheel != "zoom" || got.Data.Preferences.ReaderOutline != "ticks" {
+		t.Fatalf("旧设置缺少预期默认值：%+v", got)
+	}
+	prefs := got.Data.Preferences
+	prefs.ReaderImageWheel = "navigate"
+	prefs.ReaderOutline = "fixed"
+	if result := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: got.Data.Revision}); !result.OK {
+		t.Fatalf("保存阅读偏好失败：%+v", result)
+	}
+	loaded := service.Get(ctx)
+	if !loaded.OK || loaded.Data.Preferences.ReaderImageWheel != "navigate" || loaded.Data.Preferences.ReaderOutline != "fixed" {
+		t.Fatalf("读取时未保留阅读偏好：%+v", loaded)
+	}
+	prefs.ReaderOutline = "invalid"
+	if result := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: loaded.Data.Revision}); result.OK || result.Error.Code != "ValidationError" {
+		t.Fatalf("非法目录偏好未拒绝：%+v", result)
+	}
+}
+
 func TestDeveloperModeUpdatesMenuOnlyAfterCommit(t *testing.T) {
 	ctx := context.Background()
 	store := openTestStore(t, filepath.Join(t.TempDir(), "prefs.db"))

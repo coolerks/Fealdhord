@@ -23,6 +23,8 @@ vi.mock('@/lib/rss-api',()=>({feedsQueryKey:['rss','feeds'],rssAPI:{list:vi.fn(a
 vi.mock('@/lib/navigation-api',()=>({navigationQueryKey:['navigation'],navigationAPI:{list:vi.fn(async()=>({categories:[],feeds:[],totals:{total:0,unread:0,favorites:0}}))}}))
 const reader=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
 vi.mock('@/lib/reader-api',()=>({readerAPI:reader}))
+const copyImage = vi.hoisted(() => vi.fn())
+vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/media/api', () => ({ CopyInlineImage: copyImage }))
 import App from './App'
 
 let geometry: ReturnType<typeof installGeometry>
@@ -105,6 +107,22 @@ describe('Phase 1 阅读 Shell', () => {
       fireEvent.keyDown(slider, { key: 'ArrowRight' })
       expect(slider).toHaveAttribute('aria-valuenow', next)
     }
+  })
+
+  it('阅读排版保存滚轮操作与目录显示方式', async () => {
+    const user = userEvent.setup()
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    await user.click(screen.getByRole('button', { name: '阅读排版' }))
+    const wheel = within(screen.getByRole('radiogroup', { name: '看图时滚动鼠标' }))
+    const outline = within(screen.getByRole('radiogroup', { name: '文章目录' }))
+    expect(wheel.getByRole('radio', { name: '缩放' })).toBeChecked()
+    expect(outline.getByRole('radio', { name: '刻度' })).toBeChecked()
+    await user.click(wheel.getByRole('radio', { name: '切换图片' }))
+    await user.click(outline.getByRole('radio', { name: '自适应' }))
+    await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      reader_image_wheel: 'navigate', reader_outline: 'auto',
+    }), expect.any(Number)))
   })
 
   it('隐藏侧栏后保留标题栏按钮和键盘焦点', async () => {
@@ -285,6 +303,32 @@ describe('Phase 1 阅读 Shell', () => {
     expect(reader.extract).toHaveBeenCalledTimes(1)
     await userEvent.click(refresh)
     expect(reader.extract).toHaveBeenCalledTimes(2)
+  })
+
+  it('正文和看图模式使用各自的右键菜单，均可复制当前图片', async () => {
+    const user = userEvent.setup()
+    const id = 'a'.repeat(64)
+    reader.get.mockResolvedValue({
+      article_id: 'a-0', html: `<img src="/media/inline/${id}" alt="文章配图">`, text: '', mode: 'feed',
+      has_cached: false, has_original: false,
+    })
+    copyImage.mockResolvedValue({ ok: true })
+    const { client } = setup()
+    const articles = articleFixtures(1).map(article => ({ ...article, contentText: '' }))
+    act(() => client.setQueryData(articleQueryKey, initialLibraryData({ items: articles, hasMore: false })))
+    await user.click(await screen.findByRole('button', { name: '打开文章：测试文章 0' }))
+    const image = await screen.findByRole('button', { name: '查看图片：文章配图' })
+    fireEvent.contextMenu(image)
+    const articleMenu = await screen.findByRole('menu', { name: '阅读上下文菜单' })
+    await user.click(within(articleMenu).getByRole('menuitem', { name: '复制图片' }))
+    expect(copyImage).toHaveBeenCalledWith(id)
+    await user.click(image)
+    const viewer = screen.getByRole('region', { name: '看图模式' })
+    fireEvent.contextMenu(viewer)
+    const imageMenu = await screen.findByRole('menu', { name: '看图操作' })
+    expect(screen.queryByRole('menu', { name: '阅读上下文菜单' })).not.toBeInTheDocument()
+    await user.click(within(imageMenu).getByRole('menuitem', { name: '复制图片' }))
+    expect(copyImage.mock.calls).toEqual([[id], [id]])
   })
 
   it('通知设置使用分段选择，授权通过后保存方式，独立保存订阅通知自动收起', async () => {

@@ -194,7 +194,9 @@ func main() {
 			application.NewService(navigation.NewService(navigationRepository, changed)),
 			application.NewService(library.NewService(libraryRepository, func(ctx context.Context) bool { return policy(ctx).RemoteImages != "never" })),
 			application.NewService(feedService), application.NewService(refresh.NewAPI(refreshService)),
-			application.NewServiceWithOptions(media.NewAPI(mediaService), application.ServiceOptions{Route: "/media/"}),
+			application.NewServiceWithOptions(media.NewAPI(mediaService, func(png []byte) error {
+				return desktopintegration.CopyImageToClipboard(mainWindow, png)
+			}), application.ServiceOptions{Route: "/media/"}),
 		},
 		Assets: application.AssetOptions{Handler: application.AssetFileServerFS(assets), Middleware: desktopintegration.GuardRuntime},
 		Mac:    application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},

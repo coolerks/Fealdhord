@@ -13,7 +13,7 @@ function Slider({
   max = 100,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root> & {
-  thumbProps?: Pick<React.ComponentProps<typeof SliderPrimitive.Thumb>, "aria-labelledby" | "aria-valuetext">
+  thumbProps?: Pick<React.ComponentProps<typeof SliderPrimitive.Thumb>, "aria-label" | "aria-labelledby" | "aria-valuetext">
 }) {
   const _values = React.useMemo(
     () =>

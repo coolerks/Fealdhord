@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Tabs } from 'radix-ui'
 import { FeedIcon } from '@/features/feeds/FeedIcon'
 import { motion } from 'motion/react'
-import { useEffect,useEffectEvent,useLayoutEffect,useRef,useState } from 'react'
+import { useEffect,useEffectEvent,useLayoutEffect,useMemo,useRef,useState } from 'react'
 import type { RefObject } from 'react'
 import type { Article } from '@/lib/library'
 import type { Preferences } from '@/lib/preferences'
 import { readerAPI } from '@/lib/reader-api'
+import { readerImageID } from '@/lib/reader-image'
 import { SemanticButton } from '@/components/semantic-button'
 import { Empty,EmptyHeader,EmptyMedia,EmptyTitle } from '@/components/ui/empty'
 import { useWorkspace } from '@/stores/workspace'
@@ -18,6 +19,9 @@ import { useReaderContent } from './use-reader-content'
 import { ReaderToolbarActions } from './ReaderToolbarActions'
 import { readerViews } from './toolbar-actions'
 import type { ArticleView } from './toolbar-actions'
+import { ReaderImageViewer } from './ReaderImageViewer'
+import type { ReaderImage } from './ReaderImageViewer'
+import { ReaderOutline } from './ReaderOutline'
 import './reader-prose.css'
 
 type ReaderProps={feedIcon?:string;article?:Article;preferences:Preferences;overlay:boolean;onClose:()=>void;onFavorite:(id:string)=>void;onRead:(id:string)=>void;onAnchor:(key:string,anchor:{article_id:string;offset:number})=>void}
@@ -25,8 +29,17 @@ export function Reader(props:ReaderProps){
  const markedRef=useRef('')
  return <ReaderPane key={`${props.article?.id}:${props.article?.revision ?? 0}:${props.preferences.reader_open_mode}`} {...props} markedRef={markedRef}/>
 }
-function ArticleHTML({ html }: { html: string }) {
+function ArticleHTML({ html, imagesAllowed }: { html: string; imagesAllowed: boolean }) {
  const container = useRef<HTMLDivElement>(null)
+ const safeHTML = useMemo(() => ({ __html: html }), [html])
+ useLayoutEffect(() => {
+  for (const image of container.current?.querySelectorAll('img') ?? []) {
+   if (!readerImageID(image)) continue
+   image.tabIndex = imagesAllowed ? 0 : -1
+   image.setAttribute('role', 'button')
+   image.setAttribute('aria-label', image.alt ? `查看图片：${image.alt}` : '查看图片')
+  }
+ }, [html, imagesAllowed])
  useEffect(() => {
   const blocks = container.current?.querySelectorAll<HTMLElement>('pre > code:only-child, pre:not(:has(code))')
   if (!blocks?.length) return
@@ -36,7 +49,7 @@ function ArticleHTML({ html }: { html: string }) {
   }).catch(() => { /* 原始代码仍可阅读。 */ })
   return () => { current = false }
  }, [html])
- return <div ref={container} className="reader-html" dangerouslySetInnerHTML={{ __html: html }} />
+ return <div ref={container} className="reader-html" dangerouslySetInnerHTML={safeHTML} />
 }
 
 function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onRead,onAnchor,markedRef}:ReaderProps&{markedRef:RefObject<string>}){
@@ -44,9 +57,15 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
  const articleID=article?.id
  const publicationDate=article?.publishedAt.slice(0,10)
  const body=useReaderContent(article,preferences)
+ const prose = useRef<HTMLDivElement>(null)
+ const imagesAllowed = preferences.remote_images !== 'never'
  const [showToolbarTitle,setShowToolbarTitle]=useState(false)
  const [view,setView]=useState<ArticleView>(preferences.reader_open_mode==='full'?'reader':'feed')
+ const [gallery, setGallery] = useState<{ images: ReaderImage[]; index: number; html: string }>()
+ const viewing = imagesAllowed && gallery?.html === body.html ? gallery : undefined
+ if (gallery && !viewing) setGallery(undefined)
  function changeView(next:string){
+  setGallery(undefined)
   if(next==='feed'){body.leave();setView('feed')}
   else if(next==='reader')setView('reader')
  }
@@ -99,6 +118,22 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
   if (!selection?.anchorNode || !selection.focusNode || !root?.contains(selection.anchorNode) || !root.contains(selection.focusNode)) return ''
   return Array.from(selection.toString()).slice(0, 6000).join('')
  }
+ function viewImage(target: HTMLImageElement) {
+  if (!imagesAllowed || !readerImageID(target) || target.hidden) return false
+  const images = Array.from(prose.current?.querySelectorAll<HTMLImageElement>('img:not([hidden])') ?? []).flatMap(element => {
+   const id = readerImageID(element)
+   return id ? [{ id, src: `/media/inline/${id}`, alt: element.alt, element }] : []
+  })
+  const index = images.findIndex(image => image.element === target)
+  if (index === -1) return false
+  setGallery({ images, index, html: body.html })
+  return true
+ }
+ function closeGallery() {
+  const target = viewing?.images[viewing.index]?.element
+  setGallery(undefined)
+  requestAnimationFrame(() => target?.focus({ preventScroll: true }))
+ }
  return <motion.aside className="reader-pane" aria-label="阅读面板" data-article-id={articleID} initial={false} animate={{opacity:1}} transition={{duration:.18}}>
   <Tabs.Root className="reader-tabs" value={view} onValueChange={changeView} activationMode="manual">
   {article && <header className="workspace-toolbar reader-toolbar">
@@ -107,13 +142,13 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
    </div>
    <ReaderToolbarActions articleID={article.id} pinned={preferences.reader_toolbar_pinned} view={view} onViewChange={changeView}
      isFavorite={article.isFavorite} isRead={article.isRead} extracting={body.extracting} hasOriginal={Boolean(article.url || body.query.data?.has_original)}
-     onRefresh={() => { started.current = true; setView('reader'); void body.extract() }}
+     onRefresh={() => { setGallery(undefined); started.current = true; setView('reader'); void body.extract() }}
      onFavorite={() => onFavorite(article.id)} onRead={() => onRead(article.id)} onOriginal={() => openLink()}
      readSelection={readSelection} onAI={selection => openChat({ kind: 'article', id: article.id, label: article.title, selection })} />
   </header>}
   {article?<Tabs.Content value={view} asChild {...(!preferences.reader_toolbar_pinned.includes('view') && {
    'aria-labelledby': undefined, 'aria-label': readerViews.find(mode => mode.value === view)?.label,
-  })}><div ref={content} className="reader-content" onScroll={event=>{
+  })}><div className="reader-stage"><div ref={content} className="reader-content" inert={Boolean(viewing)} aria-hidden={viewing ? true : undefined} onScroll={event=>{
    if(!articleID||!hasContent)return
    const offset=event.currentTarget.scrollTop;pending.current=offset;if(timer.current)clearTimeout(timer.current)
    timer.current=setTimeout(()=>{pending.current=null;save.current(`reader|${articleID}`,{article_id:articleID,offset})},180)
@@ -122,13 +157,22 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
     {publicationDate && <time dateTime={publicationDate}><CalendarDays aria-hidden="true"/>{publicationDate}</time>}
    </p><h1 ref={title} tabIndex={-1}>{article.title}</h1>
    {(body.extracting||body.error)&&<div className="reader-operation" role="status">{body.extracting?<><span>正在提取网页正文…</span><Button variant="ghost" size="sm" onClick={body.cancel}>取消提取</Button></>:<p role="alert">{body.error}</p>}</div>}
-   <div className="reader-prose" data-images={preferences.remote_images==='never'?'blocked':'allowed'} onClick={event=>{
+   <div ref={prose} className="reader-prose" data-images={imagesAllowed?'allowed':'blocked'} onClick={event=>{
     if(!(event.target instanceof Element))return
+    if(event.target instanceof HTMLImageElement && viewImage(event.target)){event.preventDefault();return}
     const link=event.target.closest<HTMLAnchorElement>('a[data-reader-link]')
     if(link&&event.currentTarget.contains(link)){event.preventDefault();openLink(link.dataset.readerLink)}
+   }} onKeyDown={event=>{
+    if ((event.key === 'Enter' || event.key === ' ') && event.target instanceof HTMLImageElement && viewImage(event.target)) {
+     event.preventDefault()
+     event.stopPropagation()
+    }
    }} onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)event.target.hidden=true}}>
-    {body.query.isError&&!hasContent?<div role="alert">正文读取失败。<Button variant="ghost" onClick={()=>{void body.query.refetch()}}>重试</Button></div>:body.query.isFetching&&!hasContent?<><Skeleton className="h-4 w-full"/><Skeleton className="h-4 w-3/4"/></>:body.html?<ArticleHTML html={body.html} />:body.text.split(/\n\n+/).map((paragraph,index)=><p key={index}>{paragraph}</p>)}
-   </div></article></div></Tabs.Content>:<Empty className="reader-empty"><EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={BookOpen} meaning="book"/></EmptyMedia><EmptyTitle>选择文章</EmptyTitle></EmptyHeader></Empty>}
+    {body.query.isError&&!hasContent?<div role="alert">正文读取失败。<Button variant="ghost" onClick={()=>{void body.query.refetch()}}>重试</Button></div>:body.query.isFetching&&!hasContent?<><Skeleton className="h-4 w-full"/><Skeleton className="h-4 w-3/4"/></>:body.html?<ArticleHTML html={body.html} imagesAllowed={imagesAllowed} />:body.text.split(/\n\n+/).map((paragraph,index)=><p key={index}>{paragraph}</p>)}
+   </div></article></div>
+   <ReaderOutline mode={preferences.reader_outline} html={body.html} prose={prose} viewport={content} inert={Boolean(viewing)} />
+   {viewing && <ReaderImageViewer images={viewing.images} initialIndex={viewing.index} wheelMode={preferences.reader_image_wheel} onClose={closeGallery} />}
+   </div></Tabs.Content>:<Empty className="reader-empty"><EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={BookOpen} meaning="book"/></EmptyMedia><EmptyTitle>选择文章</EmptyTitle></EmptyHeader></Empty>}
   </Tabs.Root>
  </motion.aside>
 }

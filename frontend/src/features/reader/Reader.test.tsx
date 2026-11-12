@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { QueryClient,QueryClientProvider } from '@tanstack/react-query'
-import { act,render,screen,waitFor } from '@testing-library/react'
+import { act,fireEvent,render,screen,waitFor,within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach,expect,it,vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -8,6 +8,8 @@ import { preferencesFixture,articleFixtures } from '@/test/fixtures'
 import { useWorkspace } from '@/stores/workspace'
 import type { Detail } from '@/lib/reader-api'
 const api=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
+const copyImage = vi.hoisted(() => vi.fn())
+vi.mock('../../../bindings/github.com/coolerks/Fealdhord/internal/media/api', () => ({ CopyInlineImage: copyImage }))
 vi.mock('@/lib/reader-api',()=>({readerAPI:api}))
 vi.mock('@/lib/preferences',()=>({preferencesAPI:{get:vi.fn(),update:vi.fn()}}))
 vi.mock('@/lib/navigation-api',()=>({navigationQueryKey:['navigation'],navigationAPI:{list:vi.fn(async()=>({categories:[],feeds:[],totals:{total:0,unread:0,favorites:0}})),memberships:async()=>[]}}))
@@ -15,6 +17,8 @@ import { Reader } from './Reader'
 const link='a'.repeat(64)
 const feed:Detail={article_id:'a-0',mode:'feed',html:`<p>订阅正文 <a href="#" data-reader-link="${link}">正文链接</a></p><pre><code>const value = 1;</code></pre><table><tbody><tr><td>表格</td></tr></tbody></table>`,text:'订阅正文',has_cached:false,has_original:true}
 const extracted:Detail={...feed,mode:'reader',html:'<p>提取后的正文</p>',text:'提取后的正文',has_cached:true}
+const imageIDs = ['d'.repeat(64), 'e'.repeat(64)]
+const illustrated: Detail = { ...feed, html: `<h2>章节</h2><img src="/media/inline/${imageIDs[0]}" alt="第一张"><h6>小节</h6><img src="/media/inline/${imageIDs[1]}" alt="第二张">` }
 beforeEach(()=>{vi.resetAllMocks();api.get.mockResolvedValue(feed);api.open.mockResolvedValue(undefined);useWorkspace.setState({preferences:preferencesFixture(),readerModeRequestID:null})})
 function setup(patch:Parameters<typeof preferencesFixture>[0]={}){
  const prefs=preferencesFixture(patch),onRead=vi.fn(),article={...articleFixtures(1)[0],contentText:'',isRead:false,url:'https://example.test/article'}
@@ -170,4 +174,78 @@ it('已读操作显示执行后的状态，点击沿用同一篇文章的切换�
  await selectMoreItem('标为未读')
  expect(onRead).toHaveBeenCalledTimes(2)
  expect(onRead).toHaveBeenLastCalledWith('a-0')
+})
+
+it('打开看图后可以连续缩放、切图、复制和按 Esc 回到正文位置', async () => {
+ const user = userEvent.setup()
+ api.get.mockResolvedValue(illustrated)
+ copyImage.mockResolvedValue({ ok: true })
+ const { container } = setup()
+ const first = await screen.findByRole('button', { name: '查看图片：第一张' })
+ const proseScroll = container.querySelector('.reader-content')!
+ proseScroll.scrollTop = 120
+ await user.click(first)
+ const viewer = screen.getByRole('region', { name: '看图模式' })
+ expect(viewer).toHaveFocus()
+ expect(proseScroll).toHaveAttribute('inert')
+ const scale = within(viewer).getByRole('slider', { name: '图片缩放' })
+ fireEvent.wheel(viewer, { deltaY: -36 })
+ expect(Number(scale.getAttribute('aria-valuenow'))).toBeGreaterThan(100)
+ expect(Number(scale.getAttribute('aria-valuenow'))).toBeLessThan(110)
+
+ fireEvent.contextMenu(viewer)
+ const menu = await screen.findByRole('menu', { name: '看图操作' })
+ expect(within(menu).getByRole('menuitem', { name: '上一张' })).toHaveAttribute('aria-disabled', 'true')
+ await user.click(within(menu).getByRole('menuitem', { name: '下一张' }))
+ expect(within(viewer).getByRole('img', { name: '第二张' })).toBeInTheDocument()
+ expect(scale).toHaveAttribute('aria-valuenow', '100')
+ fireEvent.contextMenu(viewer)
+ await user.click(await screen.findByRole('menuitem', { name: '复制图片' }))
+ expect(copyImage).toHaveBeenCalledWith(imageIDs[1])
+ await waitFor(() => expect(viewer).toHaveFocus())
+ await user.keyboard('{Escape}')
+ expect(screen.queryByRole('region', { name: '看图模式' })).not.toBeInTheDocument()
+ expect(proseScroll.scrollTop).toBe(120)
+ await waitFor(() => expect(first).toHaveFocus())
+
+ await user.keyboard('{Enter}')
+ fireEvent.contextMenu(screen.getByRole('region', { name: '看图模式' }))
+ expect(await screen.findByRole('menu', { name: '看图操作' })).toBeInTheDocument()
+ await user.keyboard('{Escape}')
+ expect(screen.queryByRole('region', { name: '看图模式' })).not.toBeInTheDocument()
+})
+
+it('滚轮切图偏好保持缩放比例为默认值，禁止远程图时无法进入看图', async () => {
+ api.get.mockResolvedValue(illustrated)
+ const first = setup({ reader_image_wheel: 'navigate' })
+ await userEvent.click(await screen.findByRole('button', { name: '查看图片：第一张' }))
+ const viewer = screen.getByRole('region', { name: '看图模式' })
+ fireEvent.wheel(viewer, { deltaY: 60 })
+ expect(within(viewer).getByRole('img', { name: '第二张' })).toBeInTheDocument()
+ expect(within(viewer).getByRole('slider')).toHaveAttribute('aria-valuenow', '100')
+ first.unmount()
+
+ const blocked = setup({ remote_images: 'never' })
+ await screen.findByRole('heading', { name: '章节' })
+ fireEvent.click(blocked.container.querySelector('.reader-prose img')!)
+ expect(screen.queryByRole('region', { name: '看图模式' })).not.toBeInTheDocument()
+})
+
+it('标题目录只收集正文 H1–H6，悬停展开并跳转到对应标题', async () => {
+ api.get.mockResolvedValue(illustrated)
+ const user = userEvent.setup()
+ const { container } = setup()
+ const trigger = await screen.findByRole('button', { name: '文章目录' })
+ const scroll = vi.fn()
+ Object.defineProperty(container.querySelector('.reader-content'), 'scrollTo', { value: scroll })
+ expect(trigger).toHaveAttribute('aria-expanded', 'false')
+ await user.hover(trigger)
+ expect(trigger).toHaveAttribute('aria-expanded', 'true')
+ const outline = screen.getByRole('navigation', { name: '文章目录' })
+ const options = within(outline).getAllByRole('button')
+ expect(options.map(option => option.textContent)).toEqual(['章节H2', '小节H6'])
+ expect(options[1].querySelector('kbd')).toHaveTextContent('H6')
+ await user.click(options[1])
+ expect(scroll).toHaveBeenCalledWith({ top: -20 })
+ expect(screen.getByRole('heading', { name: '小节' })).toHaveFocus()
 })

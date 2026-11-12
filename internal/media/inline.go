@@ -100,26 +100,35 @@ func (s *Service) loadInline(ctx context.Context, id string) ([]byte, string, er
 	call.err = err
 	return call.body, call.mime, call.err
 }
-func (s *Service) serveInline(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimPrefix(r.URL.Path, "/media/inline/")
+func validInlineID(id string) bool {
 	if len(id) != 64 {
-		http.NotFound(w, r)
-		return
+		return false
 	}
 	for _, char := range id {
 		if !(char >= 'a' && char <= 'f' || char >= '0' && char <= '9') {
-			http.NotFound(w, r)
-			return
+			return false
 		}
 	}
-	body, mime, err := s.loadInline(r.Context(), id)
+	return true
+}
+
+func (s *Service) currentInlineAllowed(ctx context.Context, id string) bool {
 	repo, ok := s.repository.(inlineRepository)
-	if err != nil || !ok {
+	if !ok {
+		return false
+	}
+	record, err := repo.ReaderResource(ctx, id)
+	return err == nil && s.inlineAllowed(ctx, record)
+}
+
+func (s *Service) serveInline(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/media/inline/")
+	if !validInlineID(id) {
 		http.NotFound(w, r)
 		return
 	}
-	record, err := repo.ReaderResource(r.Context(), id)
-	if err != nil || !s.inlineAllowed(r.Context(), record) {
+	body, mime, err := s.loadInline(r.Context(), id)
+	if err != nil || !s.currentInlineAllowed(r.Context(), id) {
 		http.NotFound(w, r)
 		return
 	}

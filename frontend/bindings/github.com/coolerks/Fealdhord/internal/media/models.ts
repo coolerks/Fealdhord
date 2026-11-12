@@ -10,3 +10,9 @@ export interface ClearResult {
     "error"?: app$0.AppError | null;
     "request_id": string;
 }
+
+export interface CopyImageResult {
+    "ok": boolean;
+    "error"?: app$0.AppError | null;
+    "request_id": string;
+}

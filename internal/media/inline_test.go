@@ -1,7 +1,11 @@
 package media
 
 import (
+	"bytes"
 	"context"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
@@ -11,6 +15,48 @@ import (
 	"github.com/coolerks/Fealdhord/internal/database"
 	"github.com/coolerks/Fealdhord/internal/netpolicy"
 )
+
+func TestCopyInlineImageValidatesPolicyAndWritesPNG(t *testing.T) {
+	store, article, _ := fixture(t)
+	id := registerInline(t, store, article)
+	var source bytes.Buffer
+	if err := jpeg.Encode(&source, image.NewRGBA(image.Rect(0, 0, 64, 80)), nil); err != nil {
+		t.Fatal(err)
+	}
+	var policy atomic.Value
+	policy.Store(Policy{RemoteImages: "subscriptions", CacheEnabled: true})
+	var fetches atomic.Int32
+	service, err := New(context.Background(), store, fetchFunc(func(_ context.Context, address string, _ netpolicy.Request) (netpolicy.Response, error) {
+		fetches.Add(1)
+		return netpolicy.Response{URL: address, Status: 200, Body: source.Bytes()}, nil
+	}), t.TempDir(), func(context.Context) Policy { return policy.Load().(Policy) }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	var writes int
+	api := NewAPI(service, func(data []byte) error {
+		writes++
+		image, err := png.Decode(bytes.NewReader(data))
+		if err != nil || image.Bounds().Dx() != 64 || image.Bounds().Dy() != 80 {
+			t.Fatalf("剪贴板未收到预期 PNG：%v", err)
+		}
+		return nil
+	})
+	ctx := context.Background()
+	if result := api.CopyInlineImage(ctx, id); !result.OK || writes != 1 {
+		t.Fatalf("登记图片无法复制：%+v", result)
+	}
+	for _, invalid := range []string{strings.Repeat("b", 64), "https://example.test/inline.png"} {
+		if result := api.CopyInlineImage(ctx, invalid); result.OK {
+			t.Fatalf("非图片资源被复制：%+v", result)
+		}
+	}
+	policy.Store(Policy{RemoteImages: "never", CacheEnabled: true})
+	if result := api.CopyInlineImage(ctx, id); result.OK || writes != 1 || fetches.Load() != 1 {
+		t.Fatalf("复制绕过媒体策略或读取了外部地址：%+v", result)
+	}
+}
 
 func registerInline(t *testing.T, store *database.Store, articleID string) string {
 	t.Helper()

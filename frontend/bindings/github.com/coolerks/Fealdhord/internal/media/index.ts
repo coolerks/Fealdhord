@@ -7,5 +7,6 @@ export {
 };
 
 export type {
-    ClearResult
+    ClearResult,
+    CopyImageResult
 } from "./models.js";
