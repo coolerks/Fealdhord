@@ -128,11 +128,13 @@
 .reader-outline-panel button { width: 100%; justify-content: space-between; height: auto; min-height: 32px; padding-block: 5px; font-weight: 400; }
 .reader-outline-panel [aria-current=location] { background: var(--accent); }
 .reader-outline-label { min-width: 0; text-align: start; white-space: normal; overflow-wrap: anywhere; }
+.reader-outline[data-open=true] .reader-outline-ticks { opacity: 0; pointer-events: none; }
+.reader-outline:has(.reader-outline-ticks:focus-visible) .reader-outline-panel { outline: 2px solid var(--ring); }
 .reader-outline[data-open=true] .reader-outline-panel {
   position: absolute;
   display: block;
   inset-block-start: 0;
-  inset-inline-start: 100%;
+  inset-inline-start: 0;
   max-height: 60vh;
   background: var(--popover);
   border: 1px solid var(--border);
