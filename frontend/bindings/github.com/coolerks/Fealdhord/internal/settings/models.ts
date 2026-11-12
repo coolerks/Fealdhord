@@ -39,6 +39,7 @@ export interface Preferences {
     "reader_width": number;
     "reader_image_wheel": string;
     "reader_image_backdrop_close": boolean;
+    "reader_code_theme": string;
     "reader_outline": string;
 }
 

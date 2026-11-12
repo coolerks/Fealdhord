@@ -1,4 +1,5 @@
 import { StrictMode } from 'react'
+import { readdirSync } from 'node:fs'
 import { QueryClient,QueryClientProvider } from '@tanstack/react-query'
 import { act,fireEvent,render,screen,waitFor,within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -7,6 +8,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { preferencesFixture,articleFixtures } from '@/test/fixtures'
 import { installGeometry } from '@/test/geometry'
 import { useWorkspace } from '@/stores/workspace'
+import { native } from '@/lib/native'
 import type { Detail } from '@/lib/reader-api'
 const api=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
 const copyImage = vi.hoisted(() => vi.fn())
@@ -15,6 +17,7 @@ vi.mock('@/lib/reader-api',()=>({readerAPI:api}))
 vi.mock('@/lib/preferences',()=>({preferencesAPI:{get:vi.fn(),update:vi.fn()}}))
 vi.mock('@/lib/navigation-api',()=>({navigationQueryKey:['navigation'],navigationAPI:{list:vi.fn(async()=>({categories:[],feeds:[],totals:{total:0,unread:0,favorites:0}})),memberships:async()=>[]}}))
 import { Reader } from './Reader'
+import { codeThemeOptions } from './code-themes'
 const link='a'.repeat(64)
 const feed:Detail={article_id:'a-0',mode:'feed',html:`<p>订阅正文 <a href="#" data-reader-link="${link}">正文链接</a></p><pre><code>const value = 1;</code></pre><table><tbody><tr><td>表格</td></tr></tbody></table>`,text:'订阅正文',has_cached:false,has_original:true}
 const extracted:Detail={...feed,mode:'reader',html:'<p>提取后的正文</p>',text:'提取后的正文',has_cached:true}
@@ -47,6 +50,42 @@ it('正文成功呈现后只标已读一次，代码表格保留；原文和正�
  await userEvent.click(screen.getByRole('link',{name:'正文链接'}));expect(api.open).toHaveBeenLastCalledWith('a-0',link)
  await selectMoreItem('打开原文');expect(api.open).toHaveBeenLastCalledWith('a-0','')
  expect(onRead).toHaveBeenCalledTimes(1)
+})
+
+it('主题目录包含已安装版本的每个独立 CSS 主题', () => {
+ const files = readdirSync('node_modules/highlight.js/styles', { recursive: true, encoding: 'utf8' })
+ const themes = files.filter(file => file.endsWith('.css') && !file.endsWith('.min.css'))
+  .map(file => file.replaceAll('\\', '/').slice(0, -4)).sort()
+ expect(codeThemeOptions.map(option => option.value)).toEqual(['app', ...themes])
+})
+
+it('正文显示代码语言，复制保留缩进和换行，所选主题只作用于阅读正文', async () => {
+ const user = userEvent.setup()
+ api.get.mockResolvedValue({
+  ...feed,
+  html: '<pre><code class="language-powershell">  Get-ChildItem<br>$env:PATH</code></pre><pre>hello</pre>',
+ })
+ const copy = vi.spyOn(native, 'copy').mockResolvedValue(undefined)
+ try {
+  const { container, unmount } = setup({ reader_code_theme: 'github-dark' })
+  const language = await screen.findByText('PowerShell')
+  const block = language.closest('.reader-code-block')!
+  expect(block.querySelector('[data-highlighted=yes]')).toBeInTheDocument()
+  expect(screen.getByText('纯文本')).toBeInTheDocument()
+  await user.click(within(block as HTMLElement).getByRole('button', { name: '复制代码' }))
+  expect(copy).toHaveBeenCalledExactlyOnceWith('  Get-ChildItem\n$env:PATH')
+  expect(within(block as HTMLElement).getByRole('status')).toHaveTextContent('代码已复制')
+
+  await waitFor(() => expect(container.querySelector('.reader-html')).toHaveAttribute('data-code-theme', 'github-dark'))
+  const style = document.querySelector<HTMLStyleElement>('style[data-reader-code-theme=github-dark]')!
+  const rules = Array.from(style.sheet!.cssRules)
+  expect(rules.length).toBeGreaterThan(0)
+  expect(rules.every(rule => rule.cssText.startsWith('.reader-html[data-code-theme="github-dark"]'))).toBe(true)
+  unmount()
+  expect(style).not.toBeInTheDocument()
+ } finally {
+  copy.mockRestore()
+ }
 })
 it('取消提取保留订阅正文，迟到响应不能切换当前内容',async()=>{
  let release:(value:Detail)=>void=()=>{};let signal:AbortSignal|undefined

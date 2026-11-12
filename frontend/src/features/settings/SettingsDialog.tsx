@@ -11,6 +11,7 @@ import { SegmentedControl } from '@/components/ui/segmented-control'
 import { ToggleGroupItem } from '@/components/ui/toggle-group'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { readerToolbarOptions } from '@/features/reader/toolbar-actions'
+import { availableCodeTheme, codeThemeOptions } from '@/features/reader/code-themes'
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
@@ -73,6 +74,11 @@ export function SettingsDialog() {
         </FieldGroup>}
         {tab === 'reader' && <FieldGroup>
           <Choice name="reader-open-mode" label="点击文章时" value={preferences.reader_open_mode} choices={[["feed","订阅预览","book-text"],["full","阅读模式","scan-text"]]} onChange={value=>set('reader_open_mode',value)}/>
+          <Field>
+            <FieldLabel htmlFor="reader-code-theme">代码块主题</FieldLabel>
+            <SearchableSelect id="reader-code-theme" label="代码块主题" options={codeThemeOptions}
+              value={availableCodeTheme(preferences.reader_code_theme)} onValueChange={value => set('reader_code_theme', value)} />
+          </Field>
           <Choice name="reader-image-wheel" label="看图时滚动鼠标" value={preferences.reader_image_wheel}
             choices={[['zoom', '缩放', 'scan-text'], ['navigate', '切换图片', 'layers']]} onChange={value => set('reader_image_wheel', value)} />
           <Field orientation="horizontal">

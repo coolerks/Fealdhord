@@ -128,6 +128,22 @@ describe('Phase 1 阅读 Shell', () => {
     }), expect.any(Number)))
   })
 
+  it('阅读排版可搜索并保存 Base16 代码主题', async () => {
+    const user = userEvent.setup()
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    await user.click(screen.getByRole('button', { name: '阅读排版' }))
+    const theme = screen.getByRole('button', { name: '代码块主题' })
+    expect(theme).toHaveTextContent('跟随应用')
+    await user.click(theme)
+    await user.type(screen.getByRole('combobox'), 'base16/monokai')
+    await user.click(screen.getByRole('option', { name: 'Base16 · Monokai' }))
+    expect(theme).toHaveTextContent('Base16 · Monokai')
+    await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ reader_code_theme: 'base16/monokai' }), expect.any(Number),
+    ))
+  })
+
   it('隐藏侧栏后保留标题栏按钮和键盘焦点', async () => {
     setup()
     const toggle = await screen.findByRole('button', { name: '折叠侧栏' })

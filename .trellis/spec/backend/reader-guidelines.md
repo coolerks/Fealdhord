@@ -43,3 +43,5 @@ reader.Service.Get{article_id,mode:feed|reader}、Extract{article_id,mode} → D
 清理器会把空片段 `href="#"` 规范化为空并移除；登记链接使用非空本地片段 `#reader-link`，并测试最终Go输出的真实href，确保键盘能聚焦和激活，不能只在组件mock里手写一个可用链接。
 
 复制接口接收登记图片 ID，由 Go 复用 `loadInline` 获取字节。前端提交的 URL、路径和图片字节都没有复制入口。
+
+代码块工具栏使用清理后的正文 `pre` 内容。复制保留高亮前的文本和换行，语法高亮沿用有界检测与字符预算。设置的 `reader_code_theme` 只保存已验证格式的样式标识。主题 CSS 从已安装的 highlight.js 样式按需加载，选择器限定为当前阅读正文。

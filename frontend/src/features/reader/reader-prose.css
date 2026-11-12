@@ -72,12 +72,39 @@
   white-space: pre;
   tab-size: 4;
 }
-.reader-prose :is(.hljs-keyword, .hljs-selector-tag, .hljs-meta) { color: var(--article-code-keyword); }
-.reader-prose :is(.hljs-string, .hljs-regexp, .hljs-addition) { color: var(--article-code-string); }
-.reader-prose :is(.hljs-number, .hljs-literal, .hljs-attr, .hljs-variable) { color: var(--article-code-number); }
-.reader-prose :is(.hljs-title, .hljs-type, .hljs-built_in, .hljs-name) { color: var(--article-code-name); }
-.reader-prose :is(.hljs-comment, .hljs-quote) { color: var(--article-code-comment); }
-.reader-prose .hljs-deletion { color: var(--article-code-keyword); }
+.reader-code-block {
+  min-width: 0;
+  overflow: hidden;
+  margin-block: .9em;
+  background: var(--article-code-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.reader-prose .reader-code-block > pre {
+  margin: 0;
+  padding-block-start: .35em;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+}
+.reader-code-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px 0 14px;
+  font-size: .78em;
+}
+.reader-code-language { display: inline-flex; align-items: center; gap: 6px; }
+.reader-code-language svg { width: 1em; height: 1em; }
+.reader-code-toolbar .reader-code-copy { color: inherit; }
+.reader-code-toolbar .reader-code-copy:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+.reader-html[data-code-theme=app] :is(.hljs-keyword, .hljs-selector-tag, .hljs-meta, .hljs-deletion) { color: var(--article-code-keyword); }
+.reader-html[data-code-theme=app] :is(.hljs-string, .hljs-regexp, .hljs-addition) { color: var(--article-code-string); }
+.reader-html[data-code-theme=app] :is(.hljs-number, .hljs-literal, .hljs-attr, .hljs-variable) { color: var(--article-code-number); }
+.reader-html[data-code-theme=app] :is(.hljs-title, .hljs-type, .hljs-built_in, .hljs-name) { color: var(--article-code-name); }
+.reader-html[data-code-theme=app] :is(.hljs-comment, .hljs-quote) { color: var(--article-code-comment); }
 
 .reader-stage {
   position: relative;

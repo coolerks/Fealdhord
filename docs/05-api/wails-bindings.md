@@ -93,6 +93,8 @@ reader.Service.Get／Extract 使用 article_id和mode，返回安全本地资源
 
 `media.API.CopyInlineImage(id)` 接收 64 位十六进制正文图片资源 ID，返回 `{ok,error?,request_id}`。调用沿用内联媒体策略和资源版本校验，成功时向系统剪贴板写入 PNG。非法 ID 返回 `ValidationError`，资源不可用或剪贴板写入失败返回 `MediaError`。
 
+Settings 的 Get／Update 偏好对象包含 `reader_code_theme`。默认值为 `app`。更新接受匹配 `^(base16/)?[a-z0-9][a-z0-9-]{0,70}$` 的标识，非法格式返回 `ValidationError`。
+
 ### Phase 4 OPML 与刷新事件
 
 transfer.API 的 Choose 返回 token／name／cancelled；Preview 返回 preview_id／name／items，outline 含 key／parent_key／title／url／site_url／kind／status／reason／depth，Go保留私有计划与版本。Import返回 report（feeds_added／feeds_reused／feeds_restored／categories_added／associations_added／skipped／feed_ids）、refresh_queued／refresh_error。Export仅返回name／bytes；Discard返回ok／error／request_id。其余均为统一ok／data／error／request_id，禁止前端传宿主路径或修改计划内容。绑定方法可取消，提交完成后取消不能承诺回滚。

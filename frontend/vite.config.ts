@@ -12,5 +12,5 @@ export default defineConfig({
   },
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   plugins: [tailwindcss(), react(), wails('./bindings')],
-  test: { environment: 'jsdom', setupFiles: ['./src/test-setup.ts'], clearMocks: true },
+  test: { environment: 'jsdom', setupFiles: ['./src/test-setup.ts'], clearMocks: true, css: { include: [/highlight\.js\/styles\//] } },
 })

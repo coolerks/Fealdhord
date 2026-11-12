@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs } from 'radix-ui'
 import { FeedIcon } from '@/features/feeds/FeedIcon'
 import { motion } from 'motion/react'
-import { useEffect,useEffectEvent,useLayoutEffect,useMemo,useRef,useState } from 'react'
+import { useEffect,useEffectEvent,useLayoutEffect,useRef,useState } from 'react'
 import type { RefObject } from 'react'
 import type { Article } from '@/lib/library'
 import type { Preferences } from '@/lib/preferences'
@@ -22,34 +22,13 @@ import type { ArticleView } from './toolbar-actions'
 import { ReaderImageViewer } from './ReaderImageViewer'
 import type { ReaderImage } from './ReaderImageViewer'
 import { ReaderOutline } from './ReaderOutline'
+import { ArticleHTML } from './ArticleHTML'
 import './reader-prose.css'
 
 type ReaderProps={feedIcon?:string;article?:Article;preferences:Preferences;overlay:boolean;onClose:()=>void;onFavorite:(id:string)=>void;onRead:(id:string)=>void;onAnchor:(key:string,anchor:{article_id:string;offset:number})=>void}
 export function Reader(props:ReaderProps){
  const markedRef=useRef('')
  return <ReaderPane key={`${props.article?.id}:${props.article?.revision ?? 0}:${props.preferences.reader_open_mode}`} {...props} markedRef={markedRef}/>
-}
-function ArticleHTML({ html, imagesAllowed }: { html: string; imagesAllowed: boolean }) {
- const container = useRef<HTMLDivElement>(null)
- const safeHTML = useMemo(() => ({ __html: html }), [html])
- useLayoutEffect(() => {
-  for (const image of container.current?.querySelectorAll('img') ?? []) {
-   if (!readerImageID(image)) continue
-   image.tabIndex = imagesAllowed ? 0 : -1
-   image.setAttribute('role', 'button')
-   image.setAttribute('aria-label', image.alt ? `查看图片：${image.alt}` : '查看图片')
-  }
- }, [html, imagesAllowed])
- useEffect(() => {
-  const blocks = container.current?.querySelectorAll<HTMLElement>('pre > code:only-child, pre:not(:has(code))')
-  if (!blocks?.length) return
-  let current = true
-  void import('./highlight-code').then(({ highlightCode }) => {
-   if (current) highlightCode(blocks)
-  }).catch(() => { /* 原始代码仍可阅读。 */ })
-  return () => { current = false }
- }, [html])
- return <div ref={container} className="reader-html" dangerouslySetInnerHTML={safeHTML} />
 }
 
 function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onRead,onAnchor,markedRef}:ReaderProps&{markedRef:RefObject<string>}){
@@ -170,7 +149,7 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
      event.stopPropagation()
     }
    }} onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)event.target.hidden=true}}>
-    {body.query.isError&&!hasContent?<div role="alert">正文读取失败。<Button variant="ghost" onClick={()=>{void body.query.refetch()}}>重试</Button></div>:body.query.isFetching&&!hasContent?<><Skeleton className="h-4 w-full"/><Skeleton className="h-4 w-3/4"/></>:body.html?<ArticleHTML html={body.html} imagesAllowed={imagesAllowed} />:body.text.split(/\n\n+/).map((paragraph,index)=><p key={index}>{paragraph}</p>)}
+    {body.query.isError&&!hasContent?<div role="alert">正文读取失败。<Button variant="ghost" onClick={()=>{void body.query.refetch()}}>重试</Button></div>:body.query.isFetching&&!hasContent?<><Skeleton className="h-4 w-full"/><Skeleton className="h-4 w-3/4"/></>:body.html?<ArticleHTML html={body.html} imagesAllowed={imagesAllowed} theme={preferences.reader_code_theme} />:body.text.split(/\n\n+/).map((paragraph,index)=><p key={index}>{paragraph}</p>)}
    </div></article></div>
    {viewing && <ReaderImageViewer images={viewing.images} initialIndex={viewing.index} origin={viewing.origin}
     wheelMode={preferences.reader_image_wheel} backdropClose={preferences.reader_image_backdrop_close} onClose={closeGallery} />}
