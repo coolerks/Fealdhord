@@ -94,6 +94,7 @@
 .reader-prose img[hidden] { display: none; }
 
 .reader-outline {
+  --reader-outline-tick-width: 28px;
   position: absolute;
   z-index: 1;
   inset-block-start: 18%;
@@ -105,7 +106,7 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  width: 28px;
+  width: var(--reader-outline-tick-width);
   height: auto;
   max-height: min(56vh, 260px);
   overflow: hidden;
@@ -140,6 +141,11 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 4px 14px rgb(0 0 0 / .14);
+  animation: reader-outline-expand var(--duration-normal) var(--ease-standard);
+}
+@keyframes reader-outline-expand {
+  from { clip-path: inset(-16px calc(100% - var(--reader-outline-tick-width)) -20px -16px); }
+  to { clip-path: inset(-16px -16px -20px -16px); }
 }
 .reader-outline[data-mode=fixed] {
   position: relative;
@@ -157,6 +163,7 @@
   border: 0;
   box-shadow: none;
   background: transparent;
+  animation: none;
 }
 @container reader-stage (min-width: 960px) {
   .reader-stage:has(.reader-outline[data-mode=auto]) .reader-content { padding-inline: clamp(12px, 2.5cqw, 36px); }
@@ -175,6 +182,7 @@
     border: 0;
     box-shadow: none;
     background: transparent;
+    animation: none;
   }
 }
 
