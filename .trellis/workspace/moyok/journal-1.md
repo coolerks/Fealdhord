@@ -650,3 +650,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 23: 阅读器代码块与高亮主题
+<!-- trellis-session: v=2 fp=68713cf83edbbfeb -->
+
+**Date**: 2026-11-12
+**Task**: 阅读器代码块与高亮主题
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+正文代码块显示语言并可复制原始代码。阅读排版可搜索和保存 256 个 highlight.js 主题。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c83636a` | feat: 添加代码块复制、语言和高亮主题 |
+
+### Testing
+
+- [OK] 前端 119 项测试、lint、类型检查、生产构建与 Go 设置包测试、vet 通过。
+
+### Status
+
+[OK] **Completed**
