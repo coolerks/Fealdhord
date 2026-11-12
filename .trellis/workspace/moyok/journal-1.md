@@ -624,3 +624,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 22: 阅读器看图与标题目录
+<!-- trellis-session: v=2 fp=63421e56b62f9529 -->
+
+**Date**: 2026-11-12
+**Task**: 阅读器看图与标题目录
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+正文和看图菜单支持图片复制，阅读区加入连续缩放、滚轮切图与 H1–H6 目录。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bfa1187` | feat: 增加文章看图模式和标题目录 |
+
+### Testing
+
+- [OK] Go 全量测试与 vet、前端 109 项测试、生产构建及 macOS arm64 和 Windows x64 编译通过。Linux 构建和实际粘贴待验。
+
+### Status
+
+[OK] **Completed**

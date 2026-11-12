@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 21
+- **Total Sessions**: 22
 - **Last Active**: 2026-11-12
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~626 | Active |
+| `journal-1.md` | ~652 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 22 | 2026-11-12 | 阅读器看图与标题目录 | `bfa1187` | `codex/interface-clarity` |
 | 21 | 2026-11-12 | 文章自动分页与阅读界面修复 | `d4ecf02`, `bee471a`, `5f202a7` | `codex/interface-clarity` |
 | 20 | 2026-11-11 | 关闭 Toast 保留设置弹窗 | `1e17781` | `codex/interface-clarity` |
 | 19 | 2026-11-11 | 关于页文字链接 | `cd41cb3` | `codex/interface-clarity` |
