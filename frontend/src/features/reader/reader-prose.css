@@ -95,7 +95,7 @@
   gap: 8px;
   padding: 5px 8px 0 14px;
 }
-.reader-code-language { display: inline-flex; align-items: center; gap: 6px; font-size: .8em; }
+.reader-code-language { display: inline-flex; align-items: center; gap: 6px; font-size: .7em; }
 .reader-code-toolbar .reader-code-copy { color: inherit; }
 .reader-code-language svg,
 .reader-code-copy :is(.animated-glyph, svg) { width: 14px; height: 14px; }
