@@ -43,6 +43,7 @@ export function ReaderToolbarActions({
   const showSettings = useWorkspace(state => state.showSettings)
   const pinnedOptions = readerToolbarOptions.filter(option => pinned.includes(option.value))
   const overflowOptions = readerToolbarOptions.filter(option => !pinned.includes(option.value))
+  const readLabel = isRead ? '标为未读' : '标为已读'
 
   function openCategories(trigger: HTMLButtonElement | null) {
     returnFocus.current = trigger
@@ -83,7 +84,7 @@ export function ReaderToolbarActions({
             </Tabs.Trigger>)}
           </Tabs.List>
         }
-        return <SemanticButton key={value} ref={value === 'categories' ? categoryTrigger : undefined} icon={icon} meaning={meaning} label={label}
+        return <SemanticButton key={value} ref={value === 'categories' ? categoryTrigger : undefined} icon={icon} meaning={meaning} label={value === 'read' ? readLabel : label}
           disabled={isDisabled(value)}
           active={value === 'favorite' && isFavorite} aria-pressed={value === 'favorite' ? isFavorite : undefined}
           onMouseDown={value === 'ai' ? event => { if (event.button === 0 && readSelection()) event.preventDefault() } : undefined}
@@ -108,9 +109,7 @@ export function ReaderToolbarActions({
         run()
       }}>
         <DropdownMenuGroup>
-          {overflowOptions.map(option => {
-            const { value, icon, meaning } = option
-            const label = 'menuLabel' in option ? option.menuLabel : option.label
+          {overflowOptions.map(({ value, icon, meaning, label }) => {
             if (value === 'view') {
               return <DropdownMenuSub key={value}>
                 <DropdownMenuSubTrigger>
@@ -132,7 +131,6 @@ export function ReaderToolbarActions({
                 <AnimatedGlyph icon={icon} meaning={meaning} />{label}
               </DropdownMenuCheckboxItem>
             }
-            const readLabel = isRead ? '标为未读' : '标为已读'
             return <DropdownMenuItem key={value} disabled={isDisabled(value)} onSelect={() => runAction(value, true)}>
               <AnimatedGlyph icon={icon} meaning={meaning} />{value === 'read' ? readLabel : label}
             </DropdownMenuItem>

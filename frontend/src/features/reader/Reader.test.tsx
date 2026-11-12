@@ -133,7 +133,7 @@ it('只有两个阅读标签页，键盘切换后仍可在浏览器打开原文'
  expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
  expect(screen.getByRole('tab',{name:'阅读模式'})).toHaveAttribute('aria-selected','true')
  expect(screen.getByRole('tabpanel')).toHaveAccessibleName('阅读模式')
- const external=screen.getByRole('button',{name:'在浏览器打开原文'})
+ const external=screen.getByRole('button',{name:'打开原文'})
  expect(external).toHaveTextContent(/^$/)
  await userEvent.click(external)
  expect(api.open).toHaveBeenCalledWith('a-0','')
@@ -151,7 +151,7 @@ it('默认常驻四项，更多中的分类对话框关闭后回到触发器', a
  await screen.findByText('订阅正文')
  const toolbar = document.querySelector('.reader-toolbar-actions')!
  expect(Array.from(toolbar.querySelectorAll('button'), button => button.getAttribute('aria-label'))).toEqual([
-  '重新提取正文', '收藏当前文章', '翻译（暂未开放）', '文章 AI 助手', '更多',
+  '重新提取正文', '收藏', '翻译（暂未开放）', 'AI 助手', '更多',
  ])
  expect(screen.getByRole('button',{name:'翻译（暂未开放）'})).toBeDisabled()
  await selectMoreItem('归类')

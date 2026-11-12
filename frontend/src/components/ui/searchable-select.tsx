@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { Popover } from 'radix-ui'
+import type { LucideIcon } from 'lucide-react'
 import { AnimatedGlyph } from '@/components/animated-glyph'
+import type { IconMeaning } from '@/components/animated-glyph'
 import { Button } from '@/components/ui/button'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { cn } from '@/lib/utils'
@@ -8,7 +10,9 @@ import { cn } from '@/lib/utils'
 type Option = {
   value: string
   label: string
-  keywords?: string[]
+  keywords?: readonly string[]
+  icon?: LucideIcon
+  meaning?: IconMeaning
   disabled?: boolean
 }
 
@@ -61,6 +65,7 @@ export function SearchableSelect({
                   onValueChange(option.value)
                   if (!multiple) setOpen(false)
                 }}>
+                {option.icon && <AnimatedGlyph icon={option.icon} meaning={option.meaning} />}
                 <span className="shrink-0 whitespace-nowrap">{option.label}</span>
               </CommandItem>)}
             </CommandGroup>
