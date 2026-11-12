@@ -56,7 +56,9 @@ export function Shell() {
   }, [saveStatus])
   const client = useQueryClient()
   const library=useLibraryQuery()
-  const {articles,data,isLoading,isError,refetch}=library
+  const {articles,data,isLoading,isError,refetch,fetchNextPage}=library
+  const loadMore = useCallback(() => { void fetchNextPage({ cancelRefetch: false }) }, [fetchNextPage])
+  const pageFailed = library.isFetchNextPageError || (library.isRefetchError && library.hasNextPage)
   const selected = data.find(article=>article.id===preferences.selected_article_id) ?? findCachedArticle(client,preferences.selected_article_id)
   const { data: feedIcons } = useQuery({
     queryKey: feedsQueryKey, queryFn: rssAPI.list, enabled: preferences.remote_images !== 'never',
@@ -174,12 +176,11 @@ export function Shell() {
         }} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
       <main className={cn('reading-workspace', !overlay && 'reader-columns')}>
         <section className="article-pane" aria-label="文章浏览" inert={fillReader && readerVisible} aria-hidden={fillReader && readerVisible || undefined}><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />{!settingsOpen && <RefreshStatus />}
-          {articles.length > 0 ? <ArticleCollection feedIcons={feedIcons} articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} incomplete={library.hasNextPage} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
-          {library.isError && search.trim() && <div className="library-limit"><Button variant="ghost" disabled={library.repairing} onClick={()=>{void library.repairSearch()}}>{library.repairing?'正在重建索引…':'重建搜索索引'}</Button>{library.repairError && <p role="alert">{library.repairError}</p>}</div>}
-          {library.searchLimited && <p className="library-limit" role="status">搜索候选较多，可继续载入或缩小范围。</p>}
+          {articles.length > 0 || library.hasNextPage ? <ArticleCollection feedIcons={feedIcons} articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} nextCursor={library.nextCursor} loadingMore={library.isFetchingNextPage} onLoadMore={loadMore} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
+          {library.isError && !library.isFetchNextPageError && search.trim() && <div className="library-limit"><Button variant="ghost" disabled={library.repairing} onClick={()=>{void library.repairSearch()}}>{library.repairing?'正在重建索引…':'重建搜索索引'}</Button>{library.repairError && <p role="alert">{library.repairError}</p>}</div>}
+          {library.searchLimited && <p className="library-limit" role="status">搜索候选较多，可缩小搜索范围。</p>}
           {library.searchPending && <p className="library-limit" role="status">正在准备搜索…</p>}
-          {library.isFetchNextPageError && <p role="alert">{library.expired?'列表已变化，请重新载入。':'继续读取失败。'}<Button variant="ghost" onClick={()=>{void (library.expired?refetch():library.fetchNextPage())}}>重试</Button></p>}
-          {library.hasNextPage && <div className="library-limit"><Button variant="ghost" disabled={library.isFetching} onClick={()=>{void library.fetchNextPage()}}>{library.isFetchingNextPage?'正在载入…':'载入更多文章'}</Button></div>}
+          {pageFailed && <p className="library-limit" role="alert">{library.expired ? '列表已变化，请重新载入。' : '继续读取失败。'}<Button variant="ghost" disabled={library.isFetching} onClick={library.expired || library.isRefetchError ? () => { void refetch() } : loadMore}>重试</Button></p>}
         </section>
         {!overlay && <><Splitter label="调整文章列表宽度" value={listDraft ?? preferences.list_width} min={300} max={420} onResize={setListDraft} onCommit={value => { patch({ list_width: value }); setListDraft(null) }} /><Reader feedIcon={selectedFeedIcon} article={readerVisible ? selected : undefined} preferences={preferences} overlay={false} onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></>}
         <AnimatePresence>{overlay && readerVisible && <motion.div className={cn('reader-overlay', fillReader ? 'reader-fill' : 'reader-drawer')} transition={slideReader ? { type: 'spring', stiffness: 380, damping: 38 } : { duration: mode === 'off' ? 0 : .1 }} initial={slideReader ? { x: 64, opacity: 0 } : { opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={slideReader ? { x: 16, opacity: 0 } : { opacity: 0 }}><Reader feedIcon={selectedFeedIcon} key={selected?.id} article={selected} preferences={preferences} overlay onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></motion.div>}</AnimatePresence>

@@ -13,10 +13,14 @@ type Props = {
   articles: Article[]; preferences: Preferences; queryKey: string; selectedID: string
   onOpen: (id: string) => void; onFavorite: (id: string) => void; onRead: (id: string) => void
   onAnchor: (key: string, anchor: Anchor) => void
+  nextCursor?: string
+  loadingMore?: boolean
+  onLoadMore?: () => void
 }
-export function ArticleCollection({ feedIcons, articles, preferences, queryKey, selectedID, onOpen, onFavorite, onRead, onAnchor }: Props) {
+export function ArticleCollection({ feedIcons, articles, preferences, queryKey, selectedID, onOpen, onFavorite, onRead, onAnchor, nextCursor, loadingMore, onLoadMore }: Props) {
   'use no memo' // Virtualizer 是可变实例，不能由 React Compiler 自动缓存其方法结果。
   const parent = useRef<HTMLDivElement>(null)
+  const end = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(360)
   const imagesAllowed = preferences.remote_images !== 'never'
   const mode = preferences.article_view_mode
@@ -85,13 +89,30 @@ export function ArticleCollection({ feedIcons, articles, preferences, queryKey, 
     // 锚点写入本身不能重置浏览位置；只有查询或几何变化才恢复。
   }, [queryKey, mode, lanes, width, virtualizer, articles, preferences.scroll_anchors, storageKey])
 
+  const selectedIndex = selectedID ? articles.findIndex(article => article.id === selectedID) : -1
   useEffect(() => {
-    if (!selectedID) return
-    const index = articles.findIndex(article => article.id === selectedID)
-    if (index < 0) return
+    if (selectedIndex < 0) return
     const element = parent.current?.querySelector<HTMLElement>(`[data-article-trigger="${CSS.escape(selectedID)}"]`)
-    if (!element) virtualizer.scrollToIndex(index, { align: 'auto' })
-  }, [articles, selectedID, virtualizer])
+    if (!element) virtualizer.scrollToIndex(selectedIndex, { align: 'auto' })
+  }, [queryKey, selectedID, selectedIndex, virtualizer])
+
+  useEffect(() => {
+    const root = parent.current
+    const target = end.current
+    if (!root || !target || !nextCursor || !onLoadMore) return
+    let active = true
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!active || !entry?.isIntersecting) return
+      active = false
+      observer.disconnect()
+      onLoadMore()
+    }, { root, rootMargin: '0px 0px 400px' })
+    observer.observe(target)
+    return () => {
+      active = false
+      observer.disconnect()
+    }
+  }, [queryKey, nextCursor, onLoadMore])
 
   useEffect(() => () => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
@@ -124,5 +145,7 @@ export function ArticleCollection({ feedIcons, articles, preferences, queryKey, 
         </li>
       })}
     </ol>
+    {nextCursor && <div ref={end} aria-hidden="true" className="h-px" />}
+    {loadingMore && <p className="library-limit" role="status">正在载入更多文章…</p>}
   </ScrollArea>
 }

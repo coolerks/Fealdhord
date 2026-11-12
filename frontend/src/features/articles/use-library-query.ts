@@ -31,5 +31,7 @@ export function useLibraryQuery() {
     catch(error){setRepairError(error instanceof Error?error.message:'重建索引失败。')}
     finally {setRepairing(false)}
   }
-  return {...result,repairSearch,repairing,repairError,searchLimited:result.data?.pages.some(page=>page.searchLimited) ?? false,articles,data,request,key,expired,searchPending:term!==search,reset:()=>client.resetQueries({queryKey:key,exact:true})}
+  const searchPending=term!==search
+  const nextCursor=result.isFetching || result.isError || searchPending ? undefined : result.data?.pages.at(-1)?.nextCursor
+  return {...result,repairSearch,repairing,repairError,searchLimited:result.data?.pages.some(page=>page.searchLimited) ?? false,articles,data,request,key,expired,nextCursor,searchPending,reset:()=>client.resetQueries({queryKey:key,exact:true})}
 }

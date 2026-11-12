@@ -8,6 +8,7 @@ import { useWorkspace } from '@/stores/workspace'
 import { initialLibraryData,libraryArticles } from '@/lib/library-query'
 import type { LibraryData } from '@/lib/library-query'
 import { articleQueryKey } from '@/lib/library'
+import type { LibraryPage } from '@/lib/library'
 
 const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),isWindows:vi.fn(()=>false),isMaximized:vi.fn(async()=>false),onMaximizeChange:vi.fn<(_listener: (value: boolean) => void) => () => void>(()=>()=>{}),onCommand:vi.fn(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(async()=>{}),minimize:vi.fn(async()=>{}),maximize:vi.fn(async()=>{}),fullscreen:vi.fn(),openURL:vi.fn(async()=>{}),openDevTools:vi.fn(async()=>{}),quit:vi.fn()}))
 vi.mock('@/lib/native',()=>({native:host}))
@@ -15,7 +16,7 @@ const authorize = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/desktop/notifier', () => ({ Authorize: authorize, Send: vi.fn() }))
 const api = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn() }))
 vi.mock('@/lib/preferences', () => ({ preferencesAPI: api }))
-const library=vi.hoisted(()=>({list:vi.fn(async()=>({items:[],hasMore:false})),text:vi.fn(async()=>''),setRead:vi.fn(async()=>{}),setFavorite:vi.fn(async()=>{})}))
+const library=vi.hoisted(()=>({list:vi.fn<() => Promise<LibraryPage>>(async()=>({items:[],hasMore:false})),text:vi.fn(async()=>''),setRead:vi.fn(async()=>{}),setFavorite:vi.fn(async()=>{})}))
 vi.mock('@/lib/library-api',()=>({libraryAPI:library}))
 vi.mock('@/lib/api', () => ({ desktopAPI: { info: vi.fn(async () => ({ name: '折栈 Fealdhord', version: '0.1.0-alpha.15', platform: 'windows', architecture: 'amd64', wails_version: '3.0.0' })), subscribe: vi.fn(() => () => {}), start: vi.fn(), cancel: vi.fn(), snapshot: vi.fn() } }))
 vi.mock('@/lib/rss-api',()=>({feedsQueryKey:['rss','feeds'],rssAPI:{list:vi.fn(async()=>({items:[],categories:[]})),current:vi.fn(async()=>({generation:0,operation_id:'',status:'completed',completed:0,total:0,sequence:0,results:[]})),subscribeRefresh:vi.fn(()=>()=>{}),subscribeLibrary:vi.fn(()=>()=>{})}}))
@@ -35,7 +36,7 @@ beforeEach(() => {
   api.get.mockResolvedValue({ preferences: preferencesFixture(), revision: 0 })
   api.update.mockImplementation(async (preferences, revision) => ({ preferences, revision: revision + 1 }))
 })
-afterEach(() => { geometry.cleanup(); vi.restoreAllMocks() })
+afterEach(() => { geometry.cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 function setup(withArticles = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -356,11 +357,52 @@ describe('Phase 1 阅读 Shell', () => {
     await waitFor(()=>expect(screen.getByRole('button',{name:'打开设置'})).toHaveFocus())
   })
 
-  it('加载范围与保存失败属于必要反馈，精简后仍然可见',async()=>{
-    const {client}=setup()
+  it.each(['list', 'masonry'] as const)('%s 接近底部自动载入，跳过空页，失败后可重试', async mode => {
+    const observations: { root: Element | Document | null | undefined; target: Element; intersect: (visible: boolean) => void }[] = []
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(private callback: IntersectionObserverCallback, private options: IntersectionObserverInit) {}
+      observe(target: Element) {
+        observations.push({
+          root: this.options.root, target,
+          intersect: visible => this.callback([{ target, isIntersecting: visible } as IntersectionObserverEntry], this as unknown as IntersectionObserver),
+        })
+      }
+      disconnect() {}
+    })
+    api.get.mockResolvedValue({ preferences: preferencesFixture({ article_view_mode: mode }), revision: 0 })
+    library.list
+      .mockResolvedValueOnce({ items: [], hasMore: true, nextCursor: 'third' })
+      .mockRejectedValueOnce(new Error('读取失败'))
+      .mockResolvedValueOnce({ items: [{ ...articleFixtures(1)[0], id: 'last' }], hasMore: false })
+
+    const { client, container } = setup()
     await screen.findByRole('heading',{name:'全部文章'})
-    act(()=>client.setQueryData(articleQueryKey,initialLibraryData({items:articleFixtures(20),hasMore:true,nextCursor:'more'})))
-    expect(await screen.findByRole('button',{name:'载入更多文章'})).toBeEnabled()
+    act(() => client.setQueryData(articleQueryKey, initialLibraryData({ items: articleFixtures(20), hasMore: true, nextCursor: 'second' })))
+    await waitFor(() => expect(observations).toHaveLength(1))
+    const viewport = container.querySelector('.article-scroll')
+    const first = observations[0]
+    expect(first.root).toBe(viewport)
+    expect(first.target.previousElementSibling).toBe(viewport?.querySelector('.virtual-articles'))
+    expect(screen.queryByRole('button', { name: '载入更多文章' })).not.toBeInTheDocument()
+    act(() => first.intersect(false))
+    expect(library.list).not.toHaveBeenCalled()
+    act(() => { first.intersect(true); first.intersect(true) })
+    await waitFor(() => expect(observations).toHaveLength(2))
+    expect(library.list).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ cursor: 'second' }), expect.any(AbortSignal))
+
+    act(() => observations[1].intersect(true))
+    const retry = await screen.findByRole('button', { name: '重试' })
+    expect(library.list).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'third' }), expect.any(AbortSignal))
+    expect(observations).toHaveLength(2)
+    await userEvent.click(retry)
+    await waitFor(() => expect(libraryArticles(client.getQueryData<LibraryData>(articleQueryKey))).toHaveLength(21))
+    expect(library.list).toHaveBeenCalledTimes(3)
+    expect(screen.queryByRole('button', { name: '重试' })).not.toBeInTheDocument()
+  })
+
+  it('偏好保存失败仍然可见',async()=>{
+    setup()
+    await screen.findByRole('heading',{name:'全部文章'})
     act(()=>useWorkspace.setState({saveStatus:'error',saveError:'保存失败'}))
     expect(await screen.findByText('偏好保存失败')).toBeInTheDocument()
   })
