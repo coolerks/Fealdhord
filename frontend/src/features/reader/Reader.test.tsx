@@ -232,7 +232,7 @@ it('滚轮切图偏好保持缩放比例为默认值，禁止远程图时无法�
  expect(screen.queryByRole('region', { name: '看图模式' })).not.toBeInTheDocument()
 })
 
-it('看图从正文图片位置和尺寸开始，图片加载后才切换背景', async () => {
+it('看图从正文图片位置和尺寸开始，退出动画结束后才还原正文', async () => {
  api.get.mockResolvedValue(illustrated)
  const previousObserver = ResizeObserver
  const previousMotion = document.documentElement.dataset.motion
@@ -246,7 +246,8 @@ it('看图从正文图片位置和尺寸开始，图片加载后才切换背景'
   const viewer = screen.getByRole('region', { name: '看图模式' })
   const picture = within(viewer).getByRole('img', { name: '第一张' })
   const cancel = vi.fn()
-  const animate = vi.fn(() => ({ cancel }))
+  const cancelReturn = vi.fn()
+  const animate = vi.fn().mockReturnValueOnce({ cancel }).mockReturnValueOnce({ cancel: cancelReturn })
   Object.defineProperties(picture, {
    animate: { value: animate },
    naturalWidth: { value: 720 },
@@ -261,9 +262,19 @@ it('看图从正文图片位置和尺寸开始，图片加载后才切换背景'
   ], expect.objectContaining({ duration: 280 })))
   expect(viewer).toHaveAttribute('data-entered', 'true')
   expect(source).toHaveClass('reader-image-source-hidden')
+  const exit = { onfinish: null as (() => void) | null, cancel: vi.fn() }
+  Object.defineProperty(viewer, 'animate', { value: vi.fn(() => exit) })
+  viewer.getBoundingClientRect = () => new DOMRect(0, 0, 360, 600)
   fireEvent.keyDown(viewer, { key: 'Escape' })
+  expect(viewer).toHaveAttribute('data-leaving', 'true')
+  expect(viewer).toBeInTheDocument()
+  expect(animate.mock.calls[1][0][1]).toEqual({ transform: 'translate(30px, 60px) scale(0.5, 0.5)', borderRadius: '6px' })
+  act(() => exit.onfinish?.())
+  expect(viewer).not.toBeInTheDocument()
   expect(cancel).toHaveBeenCalledOnce()
+  expect(cancelReturn).toHaveBeenCalledOnce()
   expect(source).not.toHaveClass('reader-image-source-hidden')
+  expect(source).not.toHaveClass('reader-image-source-returning')
  } finally {
   geometry.cleanup()
   vi.restoreAllMocks()

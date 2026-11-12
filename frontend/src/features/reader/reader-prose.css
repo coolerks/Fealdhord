@@ -92,7 +92,7 @@
 .reader-prose img[role=button]:not([hidden]) { cursor: zoom-in; }
 .reader-prose img[role=button]:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
 .reader-prose img[hidden] { display: none; }
-.reader-prose img.reader-image-source-hidden { visibility: hidden; }
+.reader-prose img:is(.reader-image-source-hidden, .reader-image-source-returning) { visibility: hidden; }
 
 .reader-outline {
   --reader-outline-tick-width: 28px;
@@ -238,6 +238,11 @@ html[data-motion=off] .reader-image-viewer { background-color: var(--reader-back
   font-variant-numeric: tabular-nums;
 }
 .reader-image-controls[data-visible=false]:not(:has(:focus-visible)) { opacity: 0; pointer-events: none; }
+.reader-image-viewer[data-leaving=true] .reader-image-controls {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
 .reader-image-count { white-space: nowrap; }
 .reader-image-scale { display: flex; align-items: center; gap: 8px; width: clamp(65px, 26cqw, 180px); }
 .reader-image-scale span:last-child { flex-shrink: 0; }

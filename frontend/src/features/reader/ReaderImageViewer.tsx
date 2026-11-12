@@ -10,6 +10,11 @@ export type ReaderImage = { id: string; src: string; alt: string; element: HTMLI
 const minZoom = 25
 const maxZoom = 800
 const clampZoom = (zoom: number) => Math.max(minZoom, Math.min(maxZoom, zoom))
+const imageEasing = 'cubic-bezier(.22,1,.36,1)'
+
+function imageTransform(destination: DOMRectReadOnly, layout: DOMRectReadOnly) {
+  return `translate(${destination.left - layout.left}px, ${destination.top - layout.top}px) scale(${destination.width / layout.width}, ${destination.height / layout.height})`
+}
 
 export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, backdropClose, onClose }: {
   images: ReaderImage[]
@@ -21,20 +26,68 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
 }) {
   const viewer = useRef<HTMLElement>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const cleanupExit = useRef<(() => void) | null>(null)
   const [index, setIndex] = useState(initialIndex)
   const [entry, setEntry] = useState(origin.width > 0 && origin.height > 0 ? origin : undefined)
   const [entered, setEntered] = useState(false)
   const [zoom, setZoom] = useState(100)
   const [controlsVisible, setControlsVisible] = useState(true)
+  const [leaving, setLeaving] = useState(false)
   const image = images[index]
 
+  function close() {
+    if (cleanupExit.current) return
+    const node = viewer.current
+    const motion = document.documentElement.dataset.motion
+    if (!node?.animate || motion === 'off') {
+      onClose()
+      return
+    }
+
+    const picture = node.querySelector<HTMLImageElement>('.reader-image-canvas img')
+    const source = image.element
+    const destination = source.getBoundingClientRect()
+    const bounds = node.getBoundingClientRect()
+    const visible = destination.width > 0 && destination.height > 0 &&
+      destination.left < bounds.right && destination.right > bounds.left &&
+      destination.top < bounds.bottom && destination.bottom > bounds.top
+    let returning: Animation | undefined
+    if (motion !== 'subtle' && entered && picture?.animate && visible) {
+      const current = picture.getBoundingClientRect()
+      const radius = getComputedStyle(picture).borderRadius
+      for (const animation of picture.getAnimations?.() ?? []) animation.cancel()
+      const layout = picture.getBoundingClientRect()
+      if (current.width && current.height && layout.width && layout.height) {
+        source.classList.add('reader-image-source-returning')
+        returning = picture.animate([
+          { transform: imageTransform(current, layout), borderRadius: radius },
+          { transform: imageTransform(destination, layout), borderRadius: '6px' },
+        ], { duration: 240, easing: imageEasing, fill: 'forwards' })
+      }
+    }
+    const exit = node.animate(returning
+      ? [{ backgroundColor: getComputedStyle(node).backgroundColor }, { backgroundColor: 'transparent' }]
+      : [{ opacity: 1 }, { opacity: 0 }],
+    { duration: motion === 'subtle' ? 100 : 240, easing: imageEasing, fill: 'forwards' })
+    cleanupExit.current = () => {
+      exit.onfinish = null
+      exit.cancel()
+      returning?.cancel()
+      if (returning) source.classList.remove('reader-image-source-returning')
+    }
+    setLeaving(true)
+    exit.onfinish = onClose
+  }
+
   function revealControls() {
+    if (cleanupExit.current) return
     clearTimeout(timer.current)
     setControlsVisible(true)
     timer.current = setTimeout(() => setControlsVisible(false), 2800)
   }
 
   function stepImage(direction: number) {
+    if (cleanupExit.current) return
     const next = index + direction
     if (next < 0 || next >= images.length) return
     setEntry(undefined)
@@ -43,6 +96,7 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
   }
 
   const wheel = useEffectEvent((delta: number) => {
+    if (cleanupExit.current) return
     revealControls()
     if (wheelMode === 'navigate') stepImage(Math.sign(delta))
     else setZoom(value => clampZoom(value * Math.exp(-delta * 0.0018)))
@@ -70,19 +124,22 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
     viewer.current?.focus({ preventScroll: true })
     clearTimeout(timer.current)
     timer.current = setTimeout(() => setControlsVisible(false), 2800)
-    return () => clearTimeout(timer.current)
+    return () => {
+      clearTimeout(timer.current)
+      cleanupExit.current?.()
+    }
   }, [])
 
   return <ContextMenu>
     <ContextMenuTrigger asChild>
-      <section ref={viewer} className="reader-image-viewer" data-reader-image-viewer="" data-entered={entered || !entry}
+      <section ref={viewer} className="reader-image-viewer" data-reader-image-viewer="" data-entered={entered || !entry} data-leaving={leaving}
         aria-label="看图模式" tabIndex={-1}
         onPointerMove={revealControls} onFocus={revealControls}
         onKeyDown={event => {
           revealControls()
           if (event.key === 'Escape') {
             event.stopPropagation()
-            onClose()
+            close()
           } else if (event.target === event.currentTarget && ['ArrowLeft', 'ArrowRight'].includes(event.key)) {
             event.preventDefault()
             event.stopPropagation()
@@ -90,8 +147,8 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
           }
         }}>
         <ZoomedImage key={index} image={image} zoom={zoom} entry={entry} onReady={setEntered}
-          onBackdropClick={backdropClose ? onClose : undefined} />
-        <div className="reader-image-controls" data-visible={controlsVisible}>
+          onBackdropClick={backdropClose ? close : undefined} />
+        <div className="reader-image-controls" data-visible={controlsVisible} inert={leaving}>
           <Button variant="ghost" size="icon-sm" aria-label="上一张" disabled={index === 0} onClick={() => stepImage(-1)}><ChevronLeft /></Button>
           <span className="reader-image-count">{index + 1} / {images.length}</span>
           <Button variant="ghost" size="icon-sm" aria-label="下一张" disabled={index === images.length - 1} onClick={() => stepImage(1)}><ChevronRight /></Button>
@@ -100,7 +157,7 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
               onValueChange={([value]) => setZoom(value)} />
             <span>{Math.round(zoom)}%</span>
           </div>
-          <Button variant="ghost" size="icon-sm" aria-label="退出看图" onClick={onClose}><X /></Button>
+          <Button variant="ghost" size="icon-sm" aria-label="退出看图" onClick={close}><X /></Button>
         </div>
       </section>
     </ContextMenuTrigger>
@@ -111,7 +168,7 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
       }}
       onEscapeKeyDown={event => {
         event.preventDefault()
-        onClose()
+        close()
       }}>
       <ContextMenuGroup>
         <ContextMenuItem onSelect={() => { void copyReaderImage(image.id) }}><Copy />复制图片</ContextMenuItem>
@@ -124,7 +181,7 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
         <ContextMenuItem disabled={index === images.length - 1} onSelect={() => stepImage(1)}><ChevronRight />下一张</ContextMenuItem>
       </ContextMenuGroup>
       <ContextMenuSeparator />
-      <ContextMenuItem onSelect={onClose}><X />退出看图</ContextMenuItem>
+      <ContextMenuItem onSelect={close}><X />退出看图</ContextMenuItem>
     </ContextMenuContent>
   </ContextMenu>
 }
@@ -175,11 +232,11 @@ function ZoomedImage({ image, zoom, entry, onReady, onBackdropClick }: {
     source.classList.add('reader-image-source-hidden')
     const transition = element.animate([
       {
-        transform: `translate(${entry.left - target.left}px, ${entry.top - target.top}px) scale(${entry.width / target.width}, ${entry.height / target.height})`,
+        transform: imageTransform(entry, target),
         borderRadius: '6px',
       },
       { transform: 'translate(0, 0) scale(1)', borderRadius: '0px' },
-    ], { duration: 280, easing: 'cubic-bezier(.22,1,.36,1)' })
+    ], { duration: 280, easing: imageEasing })
     return () => {
       transition.cancel()
       source.classList.remove('reader-image-source-hidden')
