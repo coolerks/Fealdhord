@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
@@ -16,6 +16,11 @@ export function ReaderOutline({ mode, html, prose, viewport, inert }: {
   const [snapshot, setSnapshot] = useState<{ html: string; headings: HTMLHeadingElement[] }>()
   const [current, setCurrent] = useState<HTMLHeadingElement>()
   const [open, setOpen] = useState(false)
+  const scrollFrame = useRef<number | null>(null)
+  const cancelScroll = useCallback(() => {
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current)
+    scrollFrame.current = null
+  }, [])
 
   useEffect(() => {
     const scroll = viewport.current
@@ -28,6 +33,7 @@ export function ReaderOutline({ mode, html, prose, viewport, inert }: {
     const update = () => {
       if (frame) cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
+        if (scrollFrame.current !== null) return
         const cutoff = scroll.getBoundingClientRect().top + 48
         let activeHeading = nodes[0]
         for (const node of nodes) {
@@ -43,16 +49,24 @@ export function ReaderOutline({ mode, html, prose, viewport, inert }: {
       update()
     })
     scroll.addEventListener('scroll', update, { passive: true })
+    const interrupts = ['wheel', 'touchstart', 'pointerdown', 'keydown']
+    for (const type of interrupts) scroll.addEventListener(type, cancelScroll, { passive: true })
     const observer = new ResizeObserver(update)
     observer.observe(scroll)
     if (prose.current) observer.observe(prose.current)
     return () => {
       active = false
       cancelAnimationFrame(frame)
+      cancelScroll()
       scroll.removeEventListener('scroll', update)
+      for (const type of interrupts) scroll.removeEventListener(type, cancelScroll)
       observer.disconnect()
     }
-  }, [html, mode, prose, viewport])
+  }, [cancelScroll, html, mode, prose, viewport])
+
+  useEffect(() => {
+    if (inert) cancelScroll()
+  }, [cancelScroll, inert])
 
   if (!snapshot?.headings.length || snapshot.html !== html || mode === 'hidden') return null
   const { headings } = snapshot
@@ -60,11 +74,37 @@ export function ReaderOutline({ mode, html, prose, viewport, inert }: {
   function jump(heading: HTMLHeadingElement) {
     const scroll = viewport.current
     if (!scroll || !heading.isConnected) return
-    scroll.scrollTo({ top: scroll.scrollTop + heading.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 20 })
+    cancelScroll()
+    const start = scroll.scrollTop
+    const offset = heading.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 20
+    const target = Math.min(Math.max(0, scroll.scrollHeight - scroll.clientHeight), Math.max(0, start + offset))
     heading.tabIndex = -1
     heading.focus({ preventScroll: true })
     setCurrent(heading)
     setOpen(false)
+
+    const motion = document.documentElement.dataset.motion
+    const distance = target - start
+    if (motion === 'off' || Math.abs(distance) < 2) {
+      scroll.scrollTo({ top: target, behavior: 'instant' })
+      return
+    }
+
+    // 远处先定位到目标附近，只绘制最后一段滚动。
+    const finalTravel = Math.max(160, scroll.clientHeight * .9)
+    const far = Math.abs(distance) > finalTravel * 1.5
+    const animationStart = far ? target - Math.sign(distance) * finalTravel : start
+    const duration = motion === 'subtle' ? 100 : far ? 340 : 220
+    if (far) scroll.scrollTo({ top: animationStart, behavior: 'instant' })
+    let startedAt: number | undefined
+    const step = (now: number) => {
+      startedAt ??= now
+      const progress = Math.min(1, (now - startedAt) / duration)
+      const eased = 1 - (1 - progress) ** 3
+      scroll.scrollTo({ top: animationStart + (target - animationStart) * eased, behavior: 'instant' })
+      scrollFrame.current = progress < 1 ? requestAnimationFrame(step) : null
+    }
+    scrollFrame.current = requestAnimationFrame(step)
   }
 
   return <aside className="reader-outline" data-mode={mode} data-open={open} inert={inert} aria-hidden={inert || undefined}

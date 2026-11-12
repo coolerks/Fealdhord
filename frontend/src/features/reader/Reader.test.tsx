@@ -246,6 +246,45 @@ it('标题目录只收集正文 H1–H6，悬停展开并跳转到对应标题',
  expect(options.map(option => option.textContent)).toEqual(['章节H2', '小节H6'])
  expect(options[1].querySelector('kbd')).toHaveTextContent('H6')
  await user.click(options[1])
- expect(scroll).toHaveBeenCalledWith({ top: -20 })
+ expect(scroll).toHaveBeenCalledWith({ top: 0, behavior: 'instant' })
  expect(screen.getByRole('heading', { name: '小节' })).toHaveFocus()
+})
+
+it.each([
+ { motion: 'full', target: 320, first: undefined },
+ { motion: 'full', target: 3000, first: 2550 },
+ { motion: 'off', target: 3000, first: 3000 },
+])('目录跳转按距离和动效设置滚动到 $target（$motion）', async ({ motion, target, first }) => {
+ api.get.mockResolvedValue(illustrated)
+ const root = document.documentElement
+ const previous = root.dataset.motion
+ root.dataset.motion = motion
+ try {
+  const { container } = setup()
+  const heading = await screen.findByRole('heading', { name: '小节' })
+  const viewport = container.querySelector('.reader-content')!
+  const scrollTo = vi.fn<(options: ScrollToOptions) => void>()
+  Object.defineProperties(viewport, {
+   scrollHeight: { value: 5000 },
+   clientHeight: { value: 500 },
+   scrollTo: { value: scrollTo },
+  })
+  heading.getBoundingClientRect = () => new DOMRect(0, target + 20, 120, 24)
+  const trigger = await screen.findByRole('button', { name: '文章目录' })
+  fireEvent.click(trigger)
+  fireEvent.click(within(screen.getByRole('navigation', { name: '文章目录' })).getByRole('button', { name: '小节H6' }))
+
+  if (first !== undefined) expect(scrollTo.mock.calls[0]?.[0].top).toBe(first)
+  await waitFor(() => expect(scrollTo).toHaveBeenLastCalledWith({ top: target, behavior: 'instant' }))
+  if (motion === 'off') expect(scrollTo).toHaveBeenCalledTimes(1)
+  else {
+   const initial = scrollTo.mock.calls[0]?.[0].top ?? -1
+   expect(initial).toBeGreaterThanOrEqual(0)
+   expect(initial).toBeLessThan(target)
+   expect(scrollTo.mock.calls.some(([options]) => options.top! > initial && options.top! < target)).toBe(true)
+  }
+ } finally {
+  if (previous === undefined) delete root.dataset.motion
+  else root.dataset.motion = previous
+ }
 })
