@@ -75,6 +75,11 @@ export function SettingsDialog() {
           <Choice name="reader-open-mode" label="点击文章时" value={preferences.reader_open_mode} choices={[["feed","订阅预览","book-text"],["full","阅读模式","scan-text"]]} onChange={value=>set('reader_open_mode',value)}/>
           <Choice name="reader-image-wheel" label="看图时滚动鼠标" value={preferences.reader_image_wheel}
             choices={[['zoom', '缩放', 'scan-text'], ['navigate', '切换图片', 'layers']]} onChange={value => set('reader_image_wheel', value)} />
+          <Field orientation="horizontal">
+            <FieldLabel htmlFor="reader-image-backdrop-close">点击空白处退出看图</FieldLabel>
+            <Switch id="reader-image-backdrop-close" checked={preferences.reader_image_backdrop_close}
+              onCheckedChange={value => set('reader_image_backdrop_close', value)} />
+          </Field>
           <Choice name="reader-outline" label="文章目录" value={preferences.reader_outline}
             choices={[['ticks', '刻度', 'list'], ['auto', '自适应', 'maximize'], ['fixed', '固定面板', 'panel-right-open'], ['hidden', '隐藏', 'x']]}
             onChange={value => set('reader_outline', value)} />

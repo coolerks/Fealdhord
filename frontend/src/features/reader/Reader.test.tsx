@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach,expect,it,vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { preferencesFixture,articleFixtures } from '@/test/fixtures'
+import { installGeometry } from '@/test/geometry'
 import { useWorkspace } from '@/stores/workspace'
 import type { Detail } from '@/lib/reader-api'
 const api=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
@@ -229,6 +230,60 @@ it('滚轮切图偏好保持缩放比例为默认值，禁止远程图时无法�
  await screen.findByRole('heading', { name: '章节' })
  fireEvent.click(blocked.container.querySelector('.reader-prose img')!)
  expect(screen.queryByRole('region', { name: '看图模式' })).not.toBeInTheDocument()
+})
+
+it('看图从正文图片位置和尺寸开始，图片加载后才切换背景', async () => {
+ api.get.mockResolvedValue(illustrated)
+ const previousObserver = ResizeObserver
+ const previousMotion = document.documentElement.dataset.motion
+ const geometry = installGeometry()
+ document.documentElement.dataset.motion = 'full'
+ try {
+  setup()
+  const source = await screen.findByRole('button', { name: '查看图片：第一张' })
+  source.getBoundingClientRect = () => new DOMRect(50, 160, 180, 120)
+  fireEvent.click(source)
+  const viewer = screen.getByRole('region', { name: '看图模式' })
+  const picture = within(viewer).getByRole('img', { name: '第一张' })
+  const cancel = vi.fn()
+  const animate = vi.fn(() => ({ cancel }))
+  Object.defineProperties(picture, {
+   animate: { value: animate },
+   naturalWidth: { value: 720 },
+   naturalHeight: { value: 480 },
+  })
+  picture.getBoundingClientRect = () => new DOMRect(20, 100, 360, 240)
+  expect(viewer).toHaveAttribute('data-entered', 'false')
+  fireEvent.load(picture)
+  await waitFor(() => expect(animate).toHaveBeenCalledExactlyOnceWith([
+   { transform: 'translate(30px, 60px) scale(0.5, 0.5)', borderRadius: '6px' },
+   { transform: 'translate(0, 0) scale(1)', borderRadius: '0px' },
+  ], expect.objectContaining({ duration: 280 })))
+  expect(viewer).toHaveAttribute('data-entered', 'true')
+  expect(source).toHaveClass('reader-image-source-hidden')
+  fireEvent.keyDown(viewer, { key: 'Escape' })
+  expect(cancel).toHaveBeenCalledOnce()
+  expect(source).not.toHaveClass('reader-image-source-hidden')
+ } finally {
+  geometry.cleanup()
+  vi.restoreAllMocks()
+  vi.stubGlobal('ResizeObserver', previousObserver)
+  if (previousMotion === undefined) delete document.documentElement.dataset.motion
+  else document.documentElement.dataset.motion = previousMotion
+ }
+})
+
+it.each([true, false])('仅在启用空白点击退出时关闭看图（%s）', async backdropClose => {
+ api.get.mockResolvedValue(illustrated)
+ const user = userEvent.setup()
+ setup({ reader_image_backdrop_close: backdropClose })
+ await user.click(await screen.findByRole('button', { name: '查看图片：第一张' }))
+ const viewer = screen.getByRole('region', { name: '看图模式' })
+ const picture = within(viewer).getByRole('img', { name: '第一张' })
+ await user.click(picture)
+ expect(viewer).toBeInTheDocument()
+ await user.click(picture.parentElement!)
+ expect(Boolean(screen.queryByRole('region', { name: '看图模式' }))).toBe(!backdropClose)
 })
 
 it('标题目录只收集正文 H1–H6，悬停展开并跳转到对应标题', async () => {

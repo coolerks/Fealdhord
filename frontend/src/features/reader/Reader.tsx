@@ -61,7 +61,7 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
  const imagesAllowed = preferences.remote_images !== 'never'
  const [showToolbarTitle,setShowToolbarTitle]=useState(false)
  const [view,setView]=useState<ArticleView>(preferences.reader_open_mode==='full'?'reader':'feed')
- const [gallery, setGallery] = useState<{ images: ReaderImage[]; index: number; html: string }>()
+ const [gallery, setGallery] = useState<{ images: ReaderImage[]; index: number; html: string; origin: DOMRectReadOnly }>()
  const viewing = imagesAllowed && gallery?.html === body.html ? gallery : undefined
  if (gallery && !viewing) setGallery(undefined)
  function changeView(next:string){
@@ -126,7 +126,7 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
   })
   const index = images.findIndex(image => image.element === target)
   if (index === -1) return false
-  setGallery({ images, index, html: body.html })
+  setGallery({ images, index, html: body.html, origin: target.getBoundingClientRect() })
   return true
  }
  function closeGallery() {
@@ -172,7 +172,8 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
    }} onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)event.target.hidden=true}}>
     {body.query.isError&&!hasContent?<div role="alert">正文读取失败。<Button variant="ghost" onClick={()=>{void body.query.refetch()}}>重试</Button></div>:body.query.isFetching&&!hasContent?<><Skeleton className="h-4 w-full"/><Skeleton className="h-4 w-3/4"/></>:body.html?<ArticleHTML html={body.html} imagesAllowed={imagesAllowed} />:body.text.split(/\n\n+/).map((paragraph,index)=><p key={index}>{paragraph}</p>)}
    </div></article></div>
-   {viewing && <ReaderImageViewer images={viewing.images} initialIndex={viewing.index} wheelMode={preferences.reader_image_wheel} onClose={closeGallery} />}
+   {viewing && <ReaderImageViewer images={viewing.images} initialIndex={viewing.index} origin={viewing.origin}
+    wheelMode={preferences.reader_image_wheel} backdropClose={preferences.reader_image_backdrop_close} onClose={closeGallery} />}
    </div></Tabs.Content>:<Empty className="reader-empty"><EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={BookOpen} meaning="book"/></EmptyMedia><EmptyTitle>选择文章</EmptyTitle></EmptyHeader></Empty>}
   </Tabs.Root>
  </motion.aside>

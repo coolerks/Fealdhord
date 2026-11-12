@@ -44,6 +44,7 @@ type Preferences struct {
 	ReaderLineHeight         float64                 `json:"reader_line_height"`
 	ReaderWidth              int                     `json:"reader_width"`
 	ReaderImageWheel         string                  `json:"reader_image_wheel"`
+	ReaderImageBackdropClose bool                    `json:"reader_image_backdrop_close"`
 	ReaderOutline            string                  `json:"reader_outline"`
 }
 
@@ -54,7 +55,7 @@ func Defaults() Preferences {
 		SidebarWidth: 248, ListWidth: 360, ReaderOpen: false, SelectedScope: "all",
 		ReaderToolbarPinned: []string{"refresh", "favorite", "translate", "ai"},
 		ScrollAnchors:       map[string]ScrollAnchor{}, ReaderFontSize: 17, ReaderLineHeight: 1.7, ReaderWidth: 720,
-		ReaderImageWheel: "zoom", ReaderOutline: "ticks",
+		ReaderImageWheel: "zoom", ReaderImageBackdropClose: true, ReaderOutline: "ticks",
 	}
 }
 

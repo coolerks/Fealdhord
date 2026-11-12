@@ -11,15 +11,19 @@ const minZoom = 25
 const maxZoom = 800
 const clampZoom = (zoom: number) => Math.max(minZoom, Math.min(maxZoom, zoom))
 
-export function ReaderImageViewer({ images, initialIndex, wheelMode, onClose }: {
+export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, backdropClose, onClose }: {
   images: ReaderImage[]
   initialIndex: number
+  origin: DOMRectReadOnly
   wheelMode: string
+  backdropClose: boolean
   onClose: () => void
 }) {
   const viewer = useRef<HTMLElement>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [index, setIndex] = useState(initialIndex)
+  const [entry, setEntry] = useState(origin.width > 0 && origin.height > 0 ? origin : undefined)
+  const [entered, setEntered] = useState(false)
   const [zoom, setZoom] = useState(100)
   const [controlsVisible, setControlsVisible] = useState(true)
   const image = images[index]
@@ -33,6 +37,7 @@ export function ReaderImageViewer({ images, initialIndex, wheelMode, onClose }: 
   function stepImage(direction: number) {
     const next = index + direction
     if (next < 0 || next >= images.length) return
+    setEntry(undefined)
     setIndex(next)
     setZoom(100)
   }
@@ -70,7 +75,8 @@ export function ReaderImageViewer({ images, initialIndex, wheelMode, onClose }: 
 
   return <ContextMenu>
     <ContextMenuTrigger asChild>
-      <section ref={viewer} className="reader-image-viewer" data-reader-image-viewer="" aria-label="看图模式" tabIndex={-1}
+      <section ref={viewer} className="reader-image-viewer" data-reader-image-viewer="" data-entered={entered || !entry}
+        aria-label="看图模式" tabIndex={-1}
         onPointerMove={revealControls} onFocus={revealControls}
         onKeyDown={event => {
           revealControls()
@@ -83,7 +89,8 @@ export function ReaderImageViewer({ images, initialIndex, wheelMode, onClose }: 
             stepImage(event.key === 'ArrowLeft' ? -1 : 1)
           }
         }}>
-        <ZoomedImage key={index} image={image} zoom={zoom} />
+        <ZoomedImage key={index} image={image} zoom={zoom} entry={entry} onReady={setEntered}
+          onBackdropClick={backdropClose ? onClose : undefined} />
         <div className="reader-image-controls" data-visible={controlsVisible}>
           <Button variant="ghost" size="icon-sm" aria-label="上一张" disabled={index === 0} onClick={() => stepImage(-1)}><ChevronLeft /></Button>
           <span className="reader-image-count">{index + 1} / {images.length}</span>
@@ -122,11 +129,20 @@ export function ReaderImageViewer({ images, initialIndex, wheelMode, onClose }: 
   </ContextMenu>
 }
 
-function ZoomedImage({ image, zoom }: { image: ReaderImage; zoom: number }) {
+function ZoomedImage({ image, zoom, entry, onReady, onBackdropClick }: {
+  image: ReaderImage
+  zoom: number
+  entry?: DOMRectReadOnly
+  onReady: (ready: boolean) => void
+  onBackdropClick?: () => void
+}) {
   const scroll = useRef<HTMLDivElement>(null)
+  const picture = useRef<HTMLImageElement>(null)
+  const didEnter = useRef(false)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
   const [natural, setNatural] = useState({ width: image.element.naturalWidth, height: image.element.naturalHeight })
   const [failed, setFailed] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const fit = natural.width && natural.height && viewport.width && viewport.height
     ? Math.min(1, viewport.width / natural.width, viewport.height / natural.height) * zoom / 100
     : 0
@@ -146,12 +162,42 @@ function ZoomedImage({ image, zoom }: { image: ReaderImage; zoom: number }) {
     element.scrollTop = (element.scrollHeight - element.clientHeight) / 2
   }, [fit])
 
-  return <div className="reader-image-scroll" ref={scroll}>
-    <div className="reader-image-canvas">
-      {failed ? <p role="alert">图片无法显示</p> : <img src={image.src} alt={image.alt} draggable={false}
+  useLayoutEffect(() => {
+    if (!entry || didEnter.current || (!failed && (!loaded || !fit))) return
+    didEnter.current = true
+    onReady(true)
+    const element = picture.current
+    const motion = document.documentElement.dataset.motion
+    if (!element || !element.animate || motion === 'off' || motion === 'subtle') return
+    const target = element.getBoundingClientRect()
+    if (!target.width || !target.height) return
+    const source = image.element
+    source.classList.add('reader-image-source-hidden')
+    const transition = element.animate([
+      {
+        transform: `translate(${entry.left - target.left}px, ${entry.top - target.top}px) scale(${entry.width / target.width}, ${entry.height / target.height})`,
+        borderRadius: '6px',
+      },
+      { transform: 'translate(0, 0) scale(1)', borderRadius: '0px' },
+    ], { duration: 280, easing: 'cubic-bezier(.22,1,.36,1)' })
+    return () => {
+      transition.cancel()
+      source.classList.remove('reader-image-source-hidden')
+    }
+  }, [entry, failed, fit, image.element, loaded, onReady])
+
+  return <div className="reader-image-scroll" ref={scroll} data-fitted={zoom <= 100}>
+    <div className="reader-image-canvas" onClick={event => {
+      if (event.target === event.currentTarget) onBackdropClick?.()
+    }}>
+      {failed ? <p role="alert">图片无法显示</p> : <img ref={picture} src={image.src} alt={image.alt} draggable={false}
+        data-entry-pending={Boolean(entry && (!fit || !loaded))}
         style={fit ? { width: natural.width * fit, height: natural.height * fit } : { maxWidth: '100%', maxHeight: '100%' }}
         onError={() => setFailed(true)}
-        onLoad={event => setNatural({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })} />}
+        onLoad={event => {
+          setNatural({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })
+          setLoaded(true)
+        }} />}
     </div>
   </div>
 }

@@ -92,6 +92,7 @@
 .reader-prose img[role=button]:not([hidden]) { cursor: zoom-in; }
 .reader-prose img[role=button]:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
 .reader-prose img[hidden] { display: none; }
+.reader-prose img.reader-image-source-hidden { visibility: hidden; }
 
 .reader-outline {
   --reader-outline-tick-width: 28px;
@@ -199,10 +200,14 @@
   position: absolute;
   z-index: 2;
   inset: 0;
-  background: var(--reader-background);
+  background-color: transparent;
+  transition: background-color var(--duration-panel) var(--ease-standard);
   outline: none;
 }
+.reader-image-viewer[data-entered=true],
+html[data-motion=off] .reader-image-viewer { background-color: var(--reader-background); }
 .reader-image-scroll { position: absolute; inset: 0; overflow: auto; overscroll-behavior: contain; }
+.reader-image-scroll[data-fitted=true] { overflow: hidden; }
 .reader-image-canvas {
   display: flex;
   align-items: center;
@@ -212,7 +217,8 @@
   min-width: 100%;
   min-height: 100%;
 }
-.reader-image-canvas img { display: block; flex: none; max-width: none; }
+.reader-image-canvas img { display: block; flex: none; max-width: none; transform-origin: top left; }
+.reader-image-canvas img[data-entry-pending=true] { opacity: 0; }
 .reader-image-controls {
   position: absolute;
   inset-inline-start: 50%;

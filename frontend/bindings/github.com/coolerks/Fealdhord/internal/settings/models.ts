@@ -38,6 +38,7 @@ export interface Preferences {
     "reader_line_height": number;
     "reader_width": number;
     "reader_image_wheel": string;
+    "reader_image_backdrop_close": boolean;
     "reader_outline": string;
 }
 

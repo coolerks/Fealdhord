@@ -109,19 +109,22 @@ describe('Phase 1 阅读 Shell', () => {
     }
   })
 
-  it('阅读排版保存滚轮操作与目录显示方式', async () => {
+  it('阅读排版保存看图操作与目录显示方式', async () => {
     const user = userEvent.setup()
     setup()
     await user.click(await screen.findByRole('button', { name: '打开设置' }))
     await user.click(screen.getByRole('button', { name: '阅读排版' }))
     const wheel = within(screen.getByRole('radiogroup', { name: '看图时滚动鼠标' }))
     const outline = within(screen.getByRole('radiogroup', { name: '文章目录' }))
+    const backdropClose = screen.getByRole('switch', { name: '点击空白处退出看图' })
     expect(wheel.getByRole('radio', { name: '缩放' })).toBeChecked()
     expect(outline.getByRole('radio', { name: '刻度' })).toBeChecked()
+    expect(backdropClose).toBeChecked()
     await user.click(wheel.getByRole('radio', { name: '切换图片' }))
     await user.click(outline.getByRole('radio', { name: '自适应' }))
+    await user.click(backdropClose)
     await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(expect.objectContaining({
-      reader_image_wheel: 'navigate', reader_outline: 'auto',
+      reader_image_wheel: 'navigate', reader_image_backdrop_close: false, reader_outline: 'auto',
     }), expect.any(Number)))
   })
 

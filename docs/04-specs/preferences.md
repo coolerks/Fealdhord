@@ -16,7 +16,7 @@ migrations/00001_ui_preferences.sql 通过 goose 创建 app_settings，sqlc v1.3
 
 `preferences.reader_toolbar_pinned` 保存阅读工具栏常驻操作 ID 数组。允许 `refresh`、`favorite`、`translate`、`ai`、`categories`、`read`、`view`、`original`。默认是前四项，`[]` 表示全部放入「更多」。设置只控制常驻项，排列顺序由界面统一定义。字段由既有 Get／Update 契约和 CAS 持久化，无需数据库迁移。
 
-`reader_image_wheel` 允许 `zoom`（默认缩放）或 `navigate`（切换图片）。`reader_outline` 允许 `ticks`（默认刻度）、`auto`、`fixed`、`hidden`。旧设置缺少字段时按默认值读取。更新时非法枚举返回 `ValidationError`。
+`reader_image_wheel` 允许 `zoom`（默认缩放）或 `navigate`（切换图片）。布尔字段 `reader_image_backdrop_close` 默认开启，控制点击图片周围空白处是否退出看图。 `reader_outline` 允许 `ticks`（默认刻度）、`auto`、`fixed`、`hidden`。旧设置缺少字段时按默认值读取。更新时非法枚举返回 `ValidationError`。
 
 通知方式 `preferences.notification_mode` 接受 `toast` 或 `native`，默认 `toast`。布尔值 `preferences.refresh_toast_auto_dismiss` 默认 `false`，旧记录缺少该字段时同样为 `false`。两个值由现有 Get／Update 契约和 CAS 保存，无需迁移。
 

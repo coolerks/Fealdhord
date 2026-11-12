@@ -191,17 +191,18 @@ func TestReaderImageAndOutlinePreferences(t *testing.T) {
 	}
 	service := NewService(store)
 	got := service.Get(ctx)
-	if !got.OK || got.Data.Preferences.ReaderImageWheel != "zoom" || got.Data.Preferences.ReaderOutline != "ticks" {
+	if !got.OK || got.Data.Preferences.ReaderImageWheel != "zoom" || !got.Data.Preferences.ReaderImageBackdropClose || got.Data.Preferences.ReaderOutline != "ticks" {
 		t.Fatalf("旧设置缺少预期默认值：%+v", got)
 	}
 	prefs := got.Data.Preferences
 	prefs.ReaderImageWheel = "navigate"
+	prefs.ReaderImageBackdropClose = false
 	prefs.ReaderOutline = "fixed"
 	if result := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: got.Data.Revision}); !result.OK {
 		t.Fatalf("保存阅读偏好失败：%+v", result)
 	}
 	loaded := service.Get(ctx)
-	if !loaded.OK || loaded.Data.Preferences.ReaderImageWheel != "navigate" || loaded.Data.Preferences.ReaderOutline != "fixed" {
+	if !loaded.OK || loaded.Data.Preferences.ReaderImageWheel != "navigate" || loaded.Data.Preferences.ReaderImageBackdropClose || loaded.Data.Preferences.ReaderOutline != "fixed" {
 		t.Fatalf("读取时未保留阅读偏好：%+v", loaded)
 	}
 	prefs.ReaderOutline = "invalid"
