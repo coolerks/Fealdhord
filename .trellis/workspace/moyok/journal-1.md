@@ -596,3 +596,31 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 21: 文章自动分页与阅读界面修复
+<!-- trellis-session: v=2 fp=c32a273adfcad881 -->
+
+**Date**: 2026-11-12
+**Task**: 文章自动分页与阅读界面修复
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+列表与瀑布流滚动续页，统一阅读工具栏操作名称和图标，修复铺满阅读时侧栏切换。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d4ecf02` | feat: 滚动时自动载入更多文章 |
+| `bee471a` | fix: 统一阅读工具栏设置的名称和图标 |
+| `5f202a7` | fix: 瀑布流铺满阅读时切换侧栏返回浏览 |
+
+### Testing
+
+- [OK] 前端 104 项测试、类型检查、lint、生产构建通过，未做原生窗口实机验证。
+
+### Status
+
+[OK] **Completed**
