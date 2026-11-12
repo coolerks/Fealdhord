@@ -27,6 +27,7 @@ type Workspace = {
   commandError: string | null
   aiOpen: boolean
   patch: (patch: Partial<Preferences>) => void
+  selectScope: (scope: Preferences['selected_scope'], id?: string) => void
   initialize: (snapshot: Snapshot) => void
   retrySave: () => void
   showSettings: (tab?: SettingsTab) => void
@@ -58,6 +59,11 @@ export const useWorkspace = create<Workspace>((set, get) => ({
     const version = state.version + 1
     set({ preferences, version, saveError: null, saveStatus: 'saving' })
     writer?.enqueue(preferences, version)
+  },
+  selectScope(scope, id = '') {
+    const { preferences, patch } = get()
+    const filledReader = preferences?.article_view_mode === 'masonry' && preferences.reader_layout === 'fill'
+    patch({ selected_scope: scope, selected_scope_id: id, ...(filledReader && { reader_open: false }) })
   },
   retrySave() {
     const { preferences, version } = get()

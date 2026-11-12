@@ -34,7 +34,7 @@ export function runCommand(id: CommandID, client: QueryClient, articleID?: strin
  case 'ai':state.showSettings('ai');break
  case 'palette':useWorkspace.setState({ paletteOpen:true });break
  case 'search':patch({reader_open:false});useWorkspace.setState({searchOpen:true});requestAnimationFrame(()=>document.getElementById('article-search')?.focus());break
- case 'all':case 'unread':case 'favorites':case 'featured':patch({selected_scope:id,selected_scope_id:''});break
+ case 'all':case 'unread':case 'favorites':case 'featured':state.selectScope(id);break
  case 'list':case 'masonry':patch({article_view_mode:id});break
  case 'sidebar':patch({sidebar_collapsed:!prefs.sidebar_collapsed});break
  case 'reader':patch({reader_open:!prefs.reader_open});break

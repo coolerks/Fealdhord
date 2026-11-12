@@ -233,6 +233,46 @@ describe('Phase 1 阅读 Shell', () => {
     host.isMac.mockReturnValue(false)
   })
 
+  it.each([
+    { button: '浏览分类 科技', heading: '科技', kind: 'category', id: 'tech' },
+    { button: '浏览订阅 博客', heading: '博客', kind: 'feed', id: 'blog' },
+    { button: '未读', heading: '未读', kind: 'unread', id: '' },
+  ])('瀑布流铺满阅读时点击 $button 返回目标范围', async ({ button, heading, kind, id }) => {
+    const user = userEvent.setup()
+    api.get.mockResolvedValue({
+      preferences: preferencesFixture({ article_view_mode: 'masonry', reader_layout: 'fill', reader_auto_read: false }),
+      revision: 0,
+    })
+    const { client, container } = setup(true)
+    client.setQueryData(['navigation'], {
+      categories: [{ id: 'tech', parent_id: '', name: '科技', icon: 'folder', unread: 1 }],
+      feeds: [{ id: 'blog', title: '博客', unread: 1 }],
+      totals: { total: 20, unread: 10, favorites: 3 },
+    })
+    library.list.mockResolvedValueOnce({
+      items: [{ ...articleFixtures(1)[0], id: 'target', title: '目标范围的文章', isRead: false }],
+      hasMore: false,
+    })
+
+    await user.click(await screen.findByRole('button', { name: '打开文章：测试文章 0' }))
+    expect(container.querySelector('.reader-fill')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '文章浏览' })).not.toBeInTheDocument()
+
+    const destination = within(screen.getByRole('complementary', { name: '主导航' })).getByRole('button', { name: button })
+    await user.click(destination)
+    const browse = screen.getByRole('region', { name: '文章浏览' })
+    expect(within(browse).getByRole('heading', { name: heading })).toBeInTheDocument()
+    expect(await within(browse).findByRole('button', { name: '打开文章：目标范围的文章' })).toBeInTheDocument()
+    await waitFor(() => expect(container.querySelector('.reader-fill')).not.toBeInTheDocument())
+    expect(destination).toHaveAttribute('aria-current', 'page')
+    expect(library.list).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      scope: id ? { kind, id } : { kind },
+    }), expect.any(AbortSignal))
+    await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      selected_scope: kind, selected_scope_id: id, reader_open: false,
+    }), expect.any(Number)))
+  })
+
   it('阅读模式从工具栏重新提取正文', async () => {
     reader.extract.mockResolvedValue({article_id:'a-0',html:'',text:'已提取正文',mode:'reader'})
     const {client} = setup(true)
