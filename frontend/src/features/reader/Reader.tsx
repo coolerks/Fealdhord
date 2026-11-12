@@ -148,7 +148,9 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
   </header>}
   {article?<Tabs.Content value={view} asChild {...(!preferences.reader_toolbar_pinned.includes('view') && {
    'aria-labelledby': undefined, 'aria-label': readerViews.find(mode => mode.value === view)?.label,
-  })}><div className="reader-stage"><div ref={content} className="reader-content" inert={Boolean(viewing)} aria-hidden={viewing ? true : undefined} onScroll={event=>{
+  })}><div className="reader-stage">
+   <ReaderOutline mode={preferences.reader_outline} html={body.html} prose={prose} viewport={content} inert={Boolean(viewing)} />
+   <div ref={content} className="reader-content" inert={Boolean(viewing)} aria-hidden={viewing ? true : undefined} onScroll={event=>{
    if(!articleID||!hasContent)return
    const offset=event.currentTarget.scrollTop;pending.current=offset;if(timer.current)clearTimeout(timer.current)
    timer.current=setTimeout(()=>{pending.current=null;save.current(`reader|${articleID}`,{article_id:articleID,offset})},180)
@@ -170,7 +172,6 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
    }} onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)event.target.hidden=true}}>
     {body.query.isError&&!hasContent?<div role="alert">正文读取失败。<Button variant="ghost" onClick={()=>{void body.query.refetch()}}>重试</Button></div>:body.query.isFetching&&!hasContent?<><Skeleton className="h-4 w-full"/><Skeleton className="h-4 w-3/4"/></>:body.html?<ArticleHTML html={body.html} imagesAllowed={imagesAllowed} />:body.text.split(/\n\n+/).map((paragraph,index)=><p key={index}>{paragraph}</p>)}
    </div></article></div>
-   <ReaderOutline mode={preferences.reader_outline} html={body.html} prose={prose} viewport={content} inert={Boolean(viewing)} />
    {viewing && <ReaderImageViewer images={viewing.images} initialIndex={viewing.index} wheelMode={preferences.reader_image_wheel} onClose={closeGallery} />}
    </div></Tabs.Content>:<Empty className="reader-empty"><EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={BookOpen} meaning="book"/></EmptyMedia><EmptyTitle>选择文章</EmptyTitle></EmptyHeader></Empty>}
   </Tabs.Root>
