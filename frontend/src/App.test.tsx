@@ -200,6 +200,30 @@ describe('Phase 1 阅读 Shell', () => {
     expect(await screen.findByRole('dialog', { name: '设置' })).toBeInTheDocument()
   })
 
+  it('列表可保存 760 像素，缩窄窗口时适配可用宽度', async () => {
+    let width = 1400
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function(this: HTMLElement) {
+      return this.classList.contains('reading-workspace') ? width : 360
+    })
+    setup()
+    const separator = await screen.findByRole('separator', { name: '调整文章列表宽度' })
+    expect(separator).toHaveAttribute('aria-valuemax', '760')
+    fireEvent.keyDown(separator, { key: 'End' })
+    expect(separator).toHaveAttribute('aria-valuenow', '760')
+    await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ list_width: 760 }), expect.any(Number)))
+
+    width = 1000
+    act(() => geometry.resize())
+    expect(separator).toHaveAttribute('aria-valuenow', '620')
+    expect(useWorkspace.getState().preferences?.list_width).toBe(760)
+
+    width = 450
+    act(() => geometry.resize())
+    expect(separator).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.keyDown(separator, { key: 'End' })
+    expect(useWorkspace.getState().preferences?.list_width).toBe(760)
+  })
+
   it('侧栏拖到最小宽度后继续向左可收起，取消拖动不保存', async () => {
     setup()
     const separator = await screen.findByRole('separator', { name: '调整侧栏宽度' })

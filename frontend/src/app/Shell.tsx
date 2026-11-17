@@ -1,7 +1,7 @@
 import { notify } from '@/lib/notifications'
 import { ShortcutKeys } from '@/components/shortcut-keys'
 import { useChatTarget } from '@/features/chat/chat-scope'
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
@@ -37,6 +37,9 @@ import { RefreshStatus } from '@/features/feeds/RefreshStatus'
 
 
 const readFeedIcons = (page: Page) => new Map(page.items?.map(feed => [feed.id, feed.icon_data]))
+const listMinWidth = 300
+const listMaxWidth = 760
+const listMaxShare = 0.62
 
 export function Shell() {
   useRSSSync()
@@ -74,6 +77,9 @@ export function Shell() {
   const readerVisible = preferences.reader_open && Boolean(selected)
   const [sidebarDraft, setSidebarDraft] = useState<number | null>(null)
   const [listDraft, setListDraft] = useState<number | null>(null)
+  const [listLimit, setListLimit] = useState(listMaxWidth)
+  const workspace = useRef<HTMLElement>(null)
+  const previousView = useRef(overlay)
   const sidebarCollapsed = preferences.sidebar_collapsed
   const sidebarWidth = sidebarDraft ?? preferences.sidebar_width
   const listWidth = listDraft ?? preferences.list_width
@@ -86,6 +92,33 @@ export function Shell() {
     document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
     document.documentElement.dataset.motion = mode
   }, [preferences.theme, systemDark, mode])
+
+  useLayoutEffect(() => {
+    const element = workspace.current
+    if (overlay || !element) return
+    const measure = () => {
+      if (element.clientWidth > 0) setListLimit(Math.min(listMaxWidth, Math.floor(element.clientWidth * listMaxShare)))
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [overlay])
+
+  useLayoutEffect(() => {
+    const changed = previousView.current !== overlay
+    previousView.current = overlay
+    if (!changed || mode === 'off') return
+    const panes = workspace.current?.querySelectorAll<HTMLElement>(
+      ':scope > .article-pane > :is(.scroll-area, .library-empty), :scope > .reader-pane',
+    )
+    const animations = Array.from(panes ?? [], pane => pane.animate?.(
+      mode === 'full' ? [{ opacity: .65, transform: 'translateY(5px)' }, { opacity: 1, transform: 'none' }]
+        : [{ opacity: .75 }, { opacity: 1 }],
+      { duration: mode === 'full' ? 180 : 100, easing: 'cubic-bezier(.22,1,.36,1)' },
+    ))
+    return () => animations.forEach(animation => animation?.cancel())
+  }, [overlay, mode])
 
   const favorite = useCallback((id:string)=>runCommand('favorite',client,id),[client])
   const read = useCallback((id:string)=>runCommand('read',client,id),[client])
@@ -166,7 +199,7 @@ export function Shell() {
   return <MotionConfig reducedMotion={mode === 'full' ? 'never' : 'always'} transition={{ duration: mode === 'off' ? 0 : mode === 'subtle' ? .1 : .22, ease: [.22, 1, .36, 1] }}>
     <div className="desktop-shell" data-platform={platform}>
       {platform !== 'mac' && <ApplicationMenu windowsSidebarToggle={platform === 'windows' ? sidebarToggle : undefined} />}
-      <div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={sidebarCollapsed} data-sidebar-resizing={sidebarDraft !== null}>
+      <div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px`, '--list-width-cap': `${listMaxShare * 100}%` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={sidebarCollapsed} data-sidebar-resizing={sidebarDraft !== null}>
       {platform !== 'windows' && <div className="sidebar-toggle">{sidebarToggle}</div>}
       <div className="sidebar-track"><Sidebar motionMode={mode} /></div>
       {!preferences.sidebar_collapsed && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={360} onResize={setSidebarDraft}
@@ -174,15 +207,17 @@ export function Shell() {
           patch({ sidebar_collapsed: true })
           document.getElementById('sidebar-toggle')?.focus()
         }} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
-      <main className={cn('reading-workspace', !overlay && 'reader-columns')}>
+      <main ref={workspace} className={cn('reading-workspace', !overlay && 'reader-columns')}>
         <section className="article-pane" aria-label="文章浏览" inert={fillReader && readerVisible} aria-hidden={fillReader && readerVisible || undefined}><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />{!settingsOpen && <RefreshStatus />}
-          {articles.length > 0 || library.hasNextPage ? <ArticleCollection feedIcons={feedIcons} articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} nextCursor={library.nextCursor} loadingMore={library.isFetchingNextPage} onLoadMore={loadMore} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
+          {articles.length > 0 || library.hasNextPage ? <ArticleCollection feedIcons={feedIcons} articles={articles} preferences={preferences} motionMode={mode} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} nextCursor={library.nextCursor} loadingMore={library.isFetchingNextPage} onLoadMore={loadMore} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
           {library.isError && !library.isFetchNextPageError && search.trim() && <div className="library-limit"><Button variant="ghost" disabled={library.repairing} onClick={()=>{void library.repairSearch()}}>{library.repairing?'正在重建索引…':'重建搜索索引'}</Button>{library.repairError && <p role="alert">{library.repairError}</p>}</div>}
           {library.searchLimited && <p className="library-limit" role="status">搜索候选较多，可缩小搜索范围。</p>}
           {library.searchPending && <p className="library-limit" role="status">正在准备搜索…</p>}
           {pageFailed && <p className="library-limit" role="alert">{library.expired ? '列表已变化，请重新载入。' : '继续读取失败。'}<Button variant="ghost" disabled={library.isFetching} onClick={library.expired || library.isRefetchError ? () => { void refetch() } : loadMore}>重试</Button></p>}
         </section>
-        {!overlay && <><Splitter label="调整文章列表宽度" value={listDraft ?? preferences.list_width} min={300} max={420} onResize={setListDraft} onCommit={value => { patch({ list_width: value }); setListDraft(null) }} /><Reader feedIcon={selectedFeedIcon} article={readerVisible ? selected : undefined} preferences={preferences} overlay={false} onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></>}
+        {!overlay && <><Splitter label="调整文章列表宽度" value={Math.min(listWidth, listLimit)}
+          min={Math.min(listMinWidth, listLimit)} max={listLimit} disabled={listLimit <= listMinWidth}
+          onResize={setListDraft} onCommit={value => { patch({ list_width: value }); setListDraft(null) }} /><Reader feedIcon={selectedFeedIcon} article={readerVisible ? selected : undefined} preferences={preferences} overlay={false} onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></>}
         <AnimatePresence>{overlay && readerVisible && <motion.div className={cn('reader-overlay', fillReader ? 'reader-fill' : 'reader-drawer')} transition={slideReader ? { type: 'spring', stiffness: 380, damping: 38 } : { duration: mode === 'off' ? 0 : .1 }} initial={slideReader ? { x: 64, opacity: 0 } : { opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={slideReader ? { x: 16, opacity: 0 } : { opacity: 0 }}><Reader feedIcon={selectedFeedIcon} key={selected?.id} article={selected} preferences={preferences} overlay onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></motion.div>}</AnimatePresence>
       </main>
       <Suspense fallback={null}>{settingsOpen && <SettingsDialog />}{paletteOpen && <CommandPalette />}{chatOpen && <ChatDialog />}</Suspense>

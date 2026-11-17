@@ -11,6 +11,8 @@ type Props = {
   imagesAllowed?: boolean; feedIcon?: string; article: Article; mode: string; selected: boolean; width: number; imageMode: string
   onOpen: (id: string) => void; onFavorite: (id: string) => void; onRead: (id: string) => void
 }
+const articleDateFormat = new Intl.DateTimeFormat('zh-CN', { month: 'short', day: 'numeric' })
+
 export const ArticleItem = memo(function ArticleItem({ imagesAllowed=true, feedIcon, article, mode, selected, width, imageMode, onOpen, onFavorite, onRead }: Props) {
   const [failedURL, setFailedURL] = useState('')
   const imageHeight = coverHeight(article, width, imageMode)
@@ -21,7 +23,7 @@ export const ArticleItem = memo(function ArticleItem({ imagesAllowed=true, feedI
     </div>
   )
   const time = new Date(article.publishedAt)
-  const label = Number.isNaN(time.getTime()) ? '时间未知' : new Intl.DateTimeFormat('zh-CN', { month: 'short', day: 'numeric' }).format(time)
+  const label = Number.isNaN(time.getTime()) ? '时间未知' : articleDateFormat.format(time)
   return <div className={cn('article-item', mode === 'masonry' ? 'article-card' : 'article-row', selected && 'is-selected', article.isRead && 'is-read')} data-article-id={article.id}>
     {mode === 'masonry' && cover}
     <div className="article-body">

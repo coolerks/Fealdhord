@@ -73,6 +73,8 @@ func oneOf(value string, choices ...string) bool {
 
 var readerCodeThemeID = regexp.MustCompile(`^(base16/)?[a-z0-9][a-z0-9-]{0,70}$`)
 
+const maxListWidth = 760
+
 func validReaderToolbarPinned(actions []string) bool {
 	if len(actions) > 8 {
 		return false
@@ -117,7 +119,7 @@ func (p Preferences) Validate() error {
 		!oneOf(p.MasonryImageMode, "original_ratio", "cropped") || !oneOf(p.Animation, "full", "subtle", "off") {
 		return errors.New("外观设置选项无效。")
 	}
-	if p.SidebarWidth < 220 || p.SidebarWidth > 360 || p.ListWidth < 300 || p.ListWidth > 420 ||
+	if p.SidebarWidth < 220 || p.SidebarWidth > 360 || p.ListWidth < 300 || p.ListWidth > maxListWidth ||
 		p.ReaderFontSize < 14 || p.ReaderFontSize > 24 || p.ReaderWidth < 680 || p.ReaderWidth > 760 ||
 		math.IsNaN(p.ReaderLineHeight) || p.ReaderLineHeight < 1.4 || p.ReaderLineHeight > 2 {
 		return errors.New("布局或阅读尺寸超出允许范围。")
@@ -190,7 +192,7 @@ func (p *Preferences) normalize() {
 	if p.SidebarWidth < 220 || p.SidebarWidth > 360 {
 		p.SidebarWidth = d.SidebarWidth
 	}
-	if p.ListWidth < 300 || p.ListWidth > 420 {
+	if p.ListWidth < 300 || p.ListWidth > maxListWidth {
 		p.ListWidth = d.ListWidth
 	}
 	if p.ReaderFontSize < 14 || p.ReaderFontSize > 24 {

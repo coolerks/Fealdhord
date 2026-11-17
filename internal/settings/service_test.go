@@ -43,6 +43,7 @@ func TestPreferencesPersistAndReopen(t *testing.T) {
 	prefs.RefreshToastAutoDismiss = true
 	prefs.ArticleViewMode = "masonry"
 	prefs.SidebarWidth = 340
+	prefs.ListWidth = 760
 	prefs.ScrollAnchors["all:masonry"] = ScrollAnchor{ArticleID: "article-7", Offset: 18}
 	saved := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: 0})
 	if !saved.OK || saved.Data.Revision != 1 {
@@ -53,7 +54,7 @@ func TestPreferencesPersistAndReopen(t *testing.T) {
 	}
 	reopened := openTestStore(t, filename)
 	snapshot := NewService(reopened).Get(ctx)
-	if !snapshot.OK || snapshot.Data.Preferences.Theme != "dark" || !snapshot.Data.Preferences.RefreshToastAutoDismiss || snapshot.Data.Preferences.SidebarWidth != 340 || snapshot.Data.Preferences.ScrollAnchors["all:masonry"].ArticleID != "article-7" {
+	if !snapshot.OK || snapshot.Data.Preferences.Theme != "dark" || !snapshot.Data.Preferences.RefreshToastAutoDismiss || snapshot.Data.Preferences.SidebarWidth != 340 || snapshot.Data.Preferences.ListWidth != 760 || snapshot.Data.Preferences.ScrollAnchors["all:masonry"].ArticleID != "article-7" {
 		t.Fatalf("重开丢失设置：%+v", snapshot)
 	}
 }
@@ -94,6 +95,11 @@ func TestInvalidInputsAndUnavailableStoreDoNotWrite(t *testing.T) {
 	prefs.SidebarWidth = 1000
 	if got := s.Update(ctx, UpdateRequest{Preferences: prefs}); got.OK {
 		t.Fatal("超宽布局未拒绝")
+	}
+	prefs = Defaults()
+	prefs.ListWidth = 761
+	if got := s.Update(ctx, UpdateRequest{Preferences: prefs}); got.OK || got.Error.Code != "ValidationError" {
+		t.Fatal("超出列表宽度上限的设置未拒绝")
 	}
 	prefs = Defaults()
 	prefs.ScrollAnchors["all:list"] = ScrollAnchor{Offset: 1e12}
