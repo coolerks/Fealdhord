@@ -21,8 +21,18 @@ tasks:
   icons:
     summary: 从应用 PNG 生成 macOS 和 Windows 图标
     cmds:
+      - task: icons:mac
+      - task: icons:windows
+
+  icons:mac:
+    cmds:
       - mkdir -p bin/icons
-      - wails3 generate icons -input build/appicon.png -macfilename bin/icons/Fealdhord.icns -windowsfilename bin/icons/Fealdhord.ico
+      - wails3 generate icons -input build/appicon.png -macfilename bin/icons/Fealdhord.icns -windowsfilename=
+
+  icons:windows:
+    cmds:
+      - mkdir -p bin/icons
+      - wails3 generate icons -input build/windows/appicon.png -windowsfilename bin/icons/Fealdhord.ico -macfilename= -sizes 256,128,64,48,40,32,24,20,16
 
   build:
     summary: 构建当前平台桌面应用
@@ -40,7 +50,7 @@ tasks:
     summary: 为本机 Windows 构建更新应用图标资源
     platforms: [windows]
     cmds:
-      - task: icons
+      - task: icons:windows
       - wails3 generate syso -arch {{ARCH}} -icon bin/icons/Fealdhord.ico -manifest build/windows/Fealdhord.exe.manifest -out rsrc_windows_{{ARCH}}.syso
 
 
@@ -55,7 +65,7 @@ tasks:
     summary: 创建本机调试用 macOS 应用包，不代表发布签名
     platforms: [darwin]
     cmds:
-      - task: icons
+      - task: icons:mac
       - mkdir -p {{.OUTPUT_DIR}}/{{.APP_NAME}}.app/Contents/MacOS {{.OUTPUT_DIR}}/{{.APP_NAME}}.app/Contents/Resources
       - cp bin/icons/Fealdhord.icns {{.OUTPUT_DIR}}/{{.APP_NAME}}.app/Contents/Resources/Fealdhord.icns
       # 替换已签名可执行文件时使用新 inode，避免原位覆盖后的签名缓存失效。

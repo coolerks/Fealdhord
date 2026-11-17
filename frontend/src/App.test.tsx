@@ -95,6 +95,23 @@ describe('Phase 1 阅读 Shell', () => {
     await waitFor(() => { expect(trigger).toHaveFocus() })
   })
 
+  it('默认在后台运行，可保存退出应用或恢复后台运行', async () => {
+    const user = userEvent.setup()
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    const behavior = within(screen.getByRole('radiogroup', { name: '关闭窗口时' }))
+    const background = behavior.getByRole('radio', { name: '在后台运行' })
+    expect(background).toBeChecked()
+    await user.click(behavior.getByRole('radio', { name: '退出应用' }))
+    await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ quit_on_window_close: true }), expect.any(Number),
+    ))
+    await user.click(background)
+    await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ quit_on_window_close: false }), expect.any(Number),
+    ))
+  })
+
   it('阅读排版滑块具备名称，并按原步长响应方向键', async () => {
     setup()
     await userEvent.click(await screen.findByRole('button', { name: '打开设置' }))

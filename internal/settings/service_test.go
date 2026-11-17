@@ -251,6 +251,39 @@ func TestDeveloperModeUpdatesMenuOnlyAfterCommit(t *testing.T) {
 	}
 }
 
+func TestWindowClosePreferenceDefaultsAndPersists(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t, filepath.Join(t.TempDir(), "prefs.db"))
+	// 旧版本的 JSON 没有关闭偏好。
+	ok, err := store.SavePreferences(ctx, `{"theme":"dark"}`, 0, 0)
+	if err != nil || !ok {
+		t.Fatalf("写入旧设置失败：%v", err)
+	}
+	var changes []bool
+	service := NewService(store, Hooks{WindowCloseSaved: func(quit bool, _ int64) {
+		changes = append(changes, quit)
+	}})
+	initial := service.Get(ctx)
+	if !initial.OK || initial.Data.Preferences.QuitOnWindowClose {
+		t.Fatalf("旧设置应默认在后台运行：%+v", initial)
+	}
+	prefs := initial.Data.Preferences
+	prefs.QuitOnWindowClose = true
+	saved := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: initial.Data.Revision})
+	reloaded := NewService(store).Get(ctx)
+	if !saved.OK || !reloaded.OK || !reloaded.Data.Preferences.QuitOnWindowClose {
+		t.Fatalf("退出偏好未保存：%+v", reloaded)
+	}
+	prefs.QuitOnWindowClose = false
+	if service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: initial.Data.Revision}).OK {
+		t.Fatal("过期 revision 不能覆盖关闭偏好")
+	}
+	disabled := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: saved.Data.Revision})
+	if !disabled.OK || !slices.Equal(changes, []bool{true, false}) {
+		t.Fatalf("关闭行为应跟随实际保存的状态：%v", changes)
+	}
+}
+
 func TestFutureSchemaCannotBeReadOrOverwritten(t *testing.T) {
 	ctx := context.Background()
 	filename := filepath.Join(t.TempDir(), "future.db")

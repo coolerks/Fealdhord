@@ -60,7 +60,7 @@ jobs:
         if: matrix.target == 'windows-amd64'
         run: |
           wails="$(go env GOPATH)/bin/wails3"
-          "$wails" task icons
+          "$wails" task icons:windows
           "$wails" generate syso -arch amd64 -icon bin/icons/Fealdhord.ico \
             -manifest build/windows/Fealdhord.exe.manifest -out rsrc_windows_amd64.syso
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -tags production,devtools -trimpath \

@@ -4,29 +4,30 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"github.com/coolerks/Fealdhord/internal/feed"
-	"github.com/coolerks/Fealdhord/internal/media"
-	"github.com/coolerks/Fealdhord/internal/netpolicy"
-	"github.com/coolerks/Fealdhord/internal/reader"
-	"github.com/coolerks/Fealdhord/internal/refresh"
-	"github.com/coolerks/Fealdhord/internal/transfer"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync/atomic"
 	"time"
-
-	"github.com/coolerks/Fealdhord/internal/chat"
-	"github.com/coolerks/Fealdhord/internal/database"
-	desktopintegration "github.com/coolerks/Fealdhord/internal/desktop"
-	"github.com/coolerks/Fealdhord/internal/library"
-	"github.com/coolerks/Fealdhord/internal/navigation"
-	"github.com/coolerks/Fealdhord/internal/settings"
 
 	"github.com/coolerks/Fealdhord/internal/aiconfig"
 	fealdhord "github.com/coolerks/Fealdhord/internal/app"
 	"github.com/coolerks/Fealdhord/internal/articleai"
+	"github.com/coolerks/Fealdhord/internal/chat"
+	"github.com/coolerks/Fealdhord/internal/database"
+	desktopintegration "github.com/coolerks/Fealdhord/internal/desktop"
+	"github.com/coolerks/Fealdhord/internal/feed"
+	"github.com/coolerks/Fealdhord/internal/library"
+	"github.com/coolerks/Fealdhord/internal/media"
+	"github.com/coolerks/Fealdhord/internal/navigation"
+	"github.com/coolerks/Fealdhord/internal/netpolicy"
+	"github.com/coolerks/Fealdhord/internal/reader"
+	"github.com/coolerks/Fealdhord/internal/refresh"
+	"github.com/coolerks/Fealdhord/internal/settings"
+	"github.com/coolerks/Fealdhord/internal/transfer"
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 //go:embed all:frontend/dist
@@ -44,7 +45,30 @@ func init() {
 }
 
 func main() {
-	var desktop *application.App
+	var reopenWindow atomic.Pointer[application.WebviewWindow]
+	options := application.Options{
+		Name: "Fealdhord", Description: "折栈，本地优先的 RSS 阅读器",
+		Icon: desktopIcon(),
+		Assets: application.AssetOptions{
+			Handler: application.AssetFileServerFS(assets), Middleware: desktopintegration.GuardRuntime,
+		},
+		Windows: application.WindowsOptions{DisableQuitOnLastWindowClosed: true},
+		Linux:   application.LinuxOptions{DisableQuitOnLastWindowClosed: true},
+	}
+	if runtime.GOOS == "linux" {
+		const appID = "io.fealdhord.desktop"
+		options.Linux.ApplicationID = appID
+		options.SingleInstance = &application.SingleInstanceOptions{
+			UniqueID: appID,
+			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
+				if window := reopenWindow.Load(); window != nil {
+					desktopintegration.RestoreMainWindow(window)
+				}
+			},
+		}
+	}
+	// Linux 启动器的重复启动在打开数据库前交给现有进程。
+	desktop := application.New(options)
 	var mainWindow *application.WebviewWindow
 	service, stop := fealdhord.NewBootstrapService(context.Background(), func(event fealdhord.OperationEvent) {
 		desktop.Event.Emit(fealdhord.EventName, event)
@@ -59,9 +83,7 @@ func main() {
 	var mediaRepository media.Repository
 	var sequence atomic.Uint64
 	changed := func() {
-		if desktop != nil {
-			desktop.Event.Emit("fealdhord:library-changed", LibraryChanged{Sequence: sequence.Add(1)})
-		}
+		desktop.Event.Emit("fealdhord:library-changed", LibraryChanged{Sequence: sequence.Add(1)})
 	}
 	var articleAIService *articleai.Service
 	var aiConfig *aiconfig.Service
@@ -102,6 +124,7 @@ func main() {
 	client := netpolicy.New()
 	var mediaService *media.Service
 	var setDeveloperMenu func(bool, int64)
+	var windowClose desktopintegration.WindowClosePreference
 	settingsService := settings.NewService(settingsRepository, settings.Hooks{MediaChanged: func(ctx context.Context, prefs settings.Preferences) {
 		if mediaService != nil {
 			if err := mediaService.PolicyChanged(ctx, media.Policy{RemoteImages: prefs.RemoteImages, CacheEnabled: prefs.MediaCacheEnabled, WebFallback: prefs.WebImageFallback}); err != nil {
@@ -113,7 +136,7 @@ func main() {
 		if setDeveloperMenu != nil {
 			setDeveloperMenu(enabled, revision)
 		}
-	}})
+	}, WindowCloseSaved: windowClose.Update})
 	policy := func(ctx context.Context) media.Policy {
 		result := settingsService.Get(ctx)
 		if !result.OK || result.Data == nil {
@@ -138,9 +161,7 @@ func main() {
 		}
 	}, func(ctx context.Context) bool { return policy(ctx).RemoteImages != "never" })
 	refreshService := refresh.NewService(context.Background(), refreshRepository, client, func(event refresh.Event) {
-		if desktop != nil {
-			desktop.Event.Emit(refresh.EventName, event)
-		}
+		desktop.Event.Emit(refresh.EventName, event)
 	}, changed)
 	refreshService.SetIntervalProvider(func(ctx context.Context) time.Duration {
 		result := settingsService.Get(ctx)
@@ -158,18 +179,15 @@ func main() {
 		value := policy(ctx)
 		return value.RemoteImages == "always" || (value.RemoteImages == "subscriptions" && !article.Archived)
 	}, func(target string) error {
-		if desktop == nil {
-			return fmt.Errorf("桌面应用尚未就绪")
-		}
 		return desktop.Browser.OpenURL(target)
 	})
 	transferService := transfer.NewService(transferRepository, func(ctx context.Context) (string, error) {
-		if desktop == nil || mainWindow == nil || ctx.Err() != nil {
+		if mainWindow == nil || ctx.Err() != nil {
 			return "", context.Canceled
 		}
 		return desktop.Dialog.OpenFile().SetTitle("导入 OPML").AddFilter("OPML 订阅文件", "*.opml;*.xml").AttachToWindow(mainWindow).PromptForSingleSelection()
 	}, func(ctx context.Context) (string, error) {
-		if desktop == nil || mainWindow == nil || ctx.Err() != nil {
+		if mainWindow == nil || ctx.Err() != nil {
 			return "", context.Canceled
 		}
 		return desktop.Dialog.SaveFileWithOptions(&application.SaveFileDialogOptions{Title: "导出 OPML", Filename: "Fealdhord.opml", Filters: []application.FileFilter{{DisplayName: "OPML 订阅文件", Pattern: "*.opml;*.xml"}}, Window: mainWindow}).PromptForSingleSelection()
@@ -180,28 +198,25 @@ func main() {
 		}
 		return nil
 	})
-	desktop = application.New(application.Options{
-		Name: "Fealdhord", Description: "折栈，本地优先的 RSS 阅读器",
-		Icon: appIcon,
-		Services: []application.Service{
-			application.NewService(service), application.NewService(settingsService),
-			application.NewService(desktopintegration.NewNotifier()),
-			application.NewService(readerService),
-			application.NewService(aiconfig.NewAPI(aiConfig)),
-			application.NewService(chat.NewAPI(chatService)),
-			application.NewService(articleai.NewAPI(articleAIService)),
-			application.NewService(transfer.NewAPI(transferService)),
-			application.NewService(navigation.NewService(navigationRepository, changed)),
-			application.NewService(library.NewService(libraryRepository, func(ctx context.Context) bool { return policy(ctx).RemoteImages != "never" })),
-			application.NewService(feedService), application.NewService(refresh.NewAPI(refreshService)),
-			application.NewServiceWithOptions(media.NewAPI(mediaService, func(png []byte) error {
-				return desktopintegration.CopyImageToClipboard(mainWindow, png)
-			}), application.ServiceOptions{Route: "/media/"}),
-		},
-		Assets: application.AssetOptions{Handler: application.AssetFileServerFS(assets), Middleware: desktopintegration.GuardRuntime},
-		Mac:    application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
-	})
+	for _, boundService := range []application.Service{
+		application.NewService(service), application.NewService(settingsService),
+		application.NewService(desktopintegration.NewNotifier()),
+		application.NewService(readerService),
+		application.NewService(aiconfig.NewAPI(aiConfig)),
+		application.NewService(chat.NewAPI(chatService)),
+		application.NewService(articleai.NewAPI(articleAIService)),
+		application.NewService(transfer.NewAPI(transferService)),
+		application.NewService(navigation.NewService(navigationRepository, changed)),
+		application.NewService(library.NewService(libraryRepository, func(ctx context.Context) bool { return policy(ctx).RemoteImages != "never" })),
+		application.NewService(feedService), application.NewService(refresh.NewAPI(refreshService)),
+		application.NewServiceWithOptions(media.NewAPI(mediaService, func(png []byte) error {
+			return desktopintegration.CopyImageToClipboard(mainWindow, png)
+		}), application.ServiceOptions{Route: "/media/"}),
+	} {
+		desktop.RegisterService(boundService)
+	}
 	desktop.OnShutdown(func() {
+		reopenWindow.Store(nil)
 		transferService.Close()
 		stop()
 		refreshService.Close()
@@ -216,6 +231,15 @@ func main() {
 	}
 	mainWindow = desktop.Window.NewWithOptions(desktopintegration.WindowOptions())
 	initialSettings := settingsService.Get(context.Background())
+	if initialSettings.OK {
+		windowClose.Update(initialSettings.Data.Preferences.QuitOnWindowClose, initialSettings.Data.Revision)
+	}
+	windowClose.Install(desktop, mainWindow)
+	if runtime.GOOS == "linux" {
+		mainWindow.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
+			reopenWindow.Store(mainWindow)
+		})
+	}
 	developerMode := initialSettings.OK && initialSettings.Data.Preferences.DeveloperMode
 	setDeveloperMenu = desktopintegration.InstallMenu(desktop, developerMode, func() {
 		result := settingsService.Get(context.Background())

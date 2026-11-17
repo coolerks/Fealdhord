@@ -41,6 +41,7 @@ type Service struct {
 type Hooks struct {
 	MediaChanged         func(context.Context, Preferences)
 	DeveloperModeChanged func(enabled bool, revision int64)
+	WindowCloseSaved     func(quit bool, revision int64)
 }
 
 func NewService(repository Repository, hooks ...Hooks) *Service {
@@ -110,6 +111,9 @@ func (s *Service) Update(ctx context.Context, req UpdateRequest) Result {
 	}
 	if !ok {
 		return failure("Conflict", "设置已在其他窗口更新，请重新载入。", true)
+	}
+	if s.hooks.WindowCloseSaved != nil {
+		s.hooks.WindowCloseSaved(req.Preferences.QuitOnWindowClose, req.Revision+1)
 	}
 	if s.hooks.MediaChanged != nil || s.hooks.DeveloperModeChanged != nil {
 		previous := Defaults()

@@ -24,6 +24,8 @@ migrations/00001_ui_preferences.sql 通过 goose 创建 app_settings，sqlc v1.3
 
 `preferences.developer_mode` 是「关于」页的布尔开关。默认及旧记录缺字段均为 `false`，沿用 Get／Update 与 CAS。macOS 菜单读取已提交偏好。Windows／Linux 菜单读取工作区当前偏好。
 
+`preferences.quit_on_window_close` 保存「外观与浏览 → 关闭窗口时」的选项。`false` 对应「在后台运行」，用于新安装及缺字段的旧记录。`true` 对应「退出应用」。三端窗口关闭事件只使用已保存的最新 revision。
+
 ## 4. 错误
 
 非法枚举／尺寸／超限锚点→ValidationError，零写入；旧 revision→Conflict，原子拒绝；未来 schema→ConfigurationError；I/O→DatabaseError。读取旧字段分别回退安全默认，不覆盖有效字段；未知未来 schema 不允许旧客户端写回。常驻项含未知 ID、重复 ID 或超过八项时拒绝写入，旧记录中的无效值和缺失值分别恢复默认。系统通知授权被拒或请求失败时保留当前方式，发送失败时回退到应用内通知。开发者模式保存冲突不触发原生菜单更新。

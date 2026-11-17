@@ -65,6 +65,9 @@ export function SettingsDialog() {
       <section className="settings-body" aria-label={sections.find(section => section.id === tab)?.title}>
         {tab === 'appearance' && <FieldGroup>
           <Choice name="theme" label="主题" value={preferences.theme} choices={[["light", "浅色","sun"], ["dark", "深色","moon"], ["system", "跟随系统","monitor-cog"]]} onChange={value => set('theme', value)} />
+          <Choice name="window-close" label="关闭窗口时" value={preferences.quit_on_window_close ? 'quit' : 'background'}
+            choices={[[ 'background', '在后台运行', 'minimize' ], [ 'quit', '退出应用', 'x' ]]}
+            onChange={value => set('quit_on_window_close', value === 'quit')} />
           <Choice name="view" label="默认文章视图" value={preferences.article_view_mode} choices={[["list", "列表","list"], ["masonry", "瀑布流","grid"]]} onChange={value => set('article_view_mode', value)} />
           <Choice name="density" label="列表密度" value={preferences.list_density} choices={[["compact", "紧凑","minimize"], ["comfortable", "舒适","maximize"]]} onChange={value => set('list_density', value)} />
           <Choice name="ratio" label="瀑布流图片" value={preferences.masonry_image_mode} choices={[["original_ratio", "原始比例","maximize"], ["cropped", "统一裁剪","scan-text"]]} onChange={value => set('masonry_image_mode', value)} />

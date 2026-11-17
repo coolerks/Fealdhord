@@ -7,6 +7,7 @@ import * as app$0 from "../app/models.js";
 
 export interface Preferences {
     "developer_mode": boolean;
+    "quit_on_window_close": boolean;
     "refresh_interval_minutes": number;
     "notification_mode": string;
     "refresh_toast_auto_dismiss": boolean;

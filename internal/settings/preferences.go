@@ -14,6 +14,7 @@ type ScrollAnchor struct {
 
 type Preferences struct {
 	DeveloperMode            bool                    `json:"developer_mode"`
+	QuitOnWindowClose        bool                    `json:"quit_on_window_close"`
 	RefreshIntervalMinutes   int                     `json:"refresh_interval_minutes"`
 	NotificationMode         string                  `json:"notification_mode"`
 	RefreshToastAutoDismiss  bool                    `json:"refresh_toast_auto_dismiss"`

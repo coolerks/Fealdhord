@@ -87,3 +87,9 @@ Windows 11 22H2（Build 22621）起，主窗口由 Wails 配置 DWM Acrylic 与�
 「设置 → 关于」居中显示应用图标、名称和桌面服务返回的版本。发布流程用 Git 标签注入 Go 版本，开发构建显示 `0.1.0-dev`。三个入口统一使用文字链接样式。「查看源码」用系统浏览器打开 GitHub 仓库。「检查更新」和「访问官网」点击后显示应用内的暂未开放提示。已有「连接诊断」从帮助菜单打开。
 
 开发者模式默认关闭。macOS 在启动时读取设置，之后仅在设置提交成功时更新原生帮助菜单。Windows／Linux 的自绘帮助菜单随工作区偏好更新。菜单点击调用 Wails `OpenDevTools`。发布构建启用 `devtools`，macOS 同时使用 `private_mac_apis`。锁定的 Wails 3.0.0 在 macOS 13.3 及以上启用 Safari 检查时会跳过本地 Inspector 偏好，因此在点击开发者工具时，为当前 WKWebView 补上该设置。详见 [Wails 窗口选项](https://v3.wails.io/features/windows/options/)和 [Inspector 问题记录](https://github.com/wailsapp/wails/issues/6121)。
+
+## 关闭窗口与恢复
+
+「设置 → 外观与浏览 → 关闭窗口时」可选「在后台运行」或「退出应用」。默认隐藏主窗口，保留阅读位置和后台刷新。Windows／Linux 的窗口离开任务栏。macOS 的应用留在 Dock，是否显示运行圆点取决于 Dock 设置。
+
+单击托盘或状态栏图标可显示并聚焦主窗口。macOS 也可从 Dock 恢复。Linux 的应用启动器把重复启动交给现有进程，托盘依赖桌面环境对 StatusNotifierItem 的支持。选择「退出应用」后，点击叉号执行正常退出。托盘菜单和应用菜单中的显式退出始终可用。
