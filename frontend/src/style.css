@@ -245,6 +245,8 @@
 .article-view-live[data-view-entering] { animation: article-view-enter 220ms ease-in-out both; }
 .article-view-outgoing[data-view-leaving] { animation: article-view-leave 220ms ease-in-out both; }
 .article-view-live[data-view-entering=subtle], .article-view-outgoing[data-view-leaving=subtle] { animation-duration: 140ms; }
+.article-view-outgoing[data-view-reflow] { animation-duration: 180ms; animation-timing-function: ease-out; }
+.article-view-outgoing[data-view-reflow][data-view-leaving=subtle] { animation-duration: 120ms; }
 @keyframes article-view-enter { from { opacity: .28; } to { opacity: 1; } }
 @keyframes article-view-leave { from { opacity: 1; } to { opacity: 0; } }
 .workspace-toolbar { display: flex; flex: none; min-height: var(--workspace-toolbar-height); padding: 6px 14px; gap: 8px; align-items: center; justify-content: space-between; }

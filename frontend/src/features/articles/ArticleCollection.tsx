@@ -13,15 +13,17 @@ type Props = {
   articles: Article[]; preferences: Preferences; queryKey: string; selectedID: string
   onOpen: (id: string) => void; onFavorite: (id: string) => void; onRead: (id: string) => void
   onAnchor: (key: string, anchor: Anchor) => void
+  prepareReflow?: () => (() => void) | undefined
   nextCursor?: string
   loadingMore?: boolean
   onLoadMore?: () => void
 }
-export function ArticleCollection({ feedIcons, articles, preferences, queryKey, selectedID, onOpen, onFavorite, onRead, onAnchor, nextCursor, loadingMore, onLoadMore }: Props) {
+export function ArticleCollection({ feedIcons, articles, preferences, queryKey, selectedID, onOpen, onFavorite, onRead, onAnchor, prepareReflow, nextCursor, loadingMore, onLoadMore }: Props) {
   'use no memo' // Virtualizer 是可变实例，不能由 React Compiler 自动缓存其方法结果。
   const parent = useRef<HTMLDivElement>(null)
   const end = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(360)
+  const reflow = useRef<(() => void) | undefined>(undefined)
   const imagesAllowed = preferences.remote_images !== 'never'
   const mode = preferences.article_view_mode
   const rowHeight = preferences.list_density === 'compact' ? 96 : 120
@@ -52,9 +54,10 @@ export function ArticleCollection({ feedIcons, articles, preferences, queryKey, 
     if (current) anchor.current = current
   }, [articles, virtualizer, mode, queryKey])
 
-  const commitWidth = useEffectEvent((next: number) => {
+  const commitWidth = useEffectEvent((next: number, animate: boolean) => {
     if (next <= 0 || next === width) return
     capture()
+    reflow.current = animate ? prepareReflow?.() : undefined
     setWidth(next)
   })
   useLayoutEffect(() => {
@@ -67,14 +70,14 @@ export function ArticleCollection({ feedIcons, articles, preferences, queryKey, 
     }
     let observed = readWidth()
     let idle: ReturnType<typeof setTimeout> | undefined
-    commitWidth(observed)
+    commitWidth(observed, false)
     const observer = new ResizeObserver(() => {
       const next = readWidth()
       if (next === observed) return
       observed = next
       // 保持当前网格直到拖动稳定，避免断点附近反复换列。
       clearTimeout(idle)
-      idle = setTimeout(() => commitWidth(observed), 100)
+      idle = setTimeout(() => commitWidth(observed, true), 100)
     })
     observer.observe(element)
     return () => { observer.disconnect(); clearTimeout(idle) }
@@ -109,6 +112,8 @@ export function ArticleCollection({ feedIcons, articles, preferences, queryKey, 
     virtualizer.scrollToOffset(offset === undefined ? 0 : Math.max(0, offset + (target?.offset ?? 0)))
     anchor.current = index >= 0 ? target ?? null : null
     restoring.current = false
+    if (changedWidth && !changedMode && !changedQuery) reflow.current?.()
+    reflow.current = undefined
     // 锚点写入本身不能重置浏览位置；只有查询或几何变化才恢复。
   }, [queryKey, mode, width, rowHeight, imagesAllowed, virtualizer, articles, preferences.masonry_image_mode, preferences.scroll_anchors, storageKey])
 

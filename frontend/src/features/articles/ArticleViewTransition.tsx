@@ -18,9 +18,27 @@ export class ArticleViewTransition extends Component<Props> {
   private outgoing: HTMLDivElement | null = null
 
   getSnapshotBeforeUpdate(previous: Props): Snapshot | null {
+    if (previous.view === this.props.view || this.props.motion === 'off') return null
+    return this.captureViewport()
+  }
+
+  prepareReflow(): (() => void) | undefined {
+    // 视图切换已经有一层旧画面，避免初始化瀑布流时盖上第二层。
+    if (this.props.motion === 'off' || this.live.current?.dataset.viewEntering) return
+    const snapshot = this.captureViewport()
+    if (!snapshot) return
+    const view = this.props.view
+    return () => {
+      if (this.props.view !== view || this.props.motion === 'off') return
+      this.finish()
+      this.showOutgoing(snapshot, true)
+    }
+  }
+
+  private captureViewport(): Snapshot | null {
     const live = this.live.current
     const host = this.props.host.current
-    if (previous.view === this.props.view || this.props.motion === 'off' || !live || !host || live.closest('[inert]')) return null
+    if (!live || !host || live.closest('[inert]')) return null
 
     const rect = live.getBoundingClientRect()
     const bounds = host.getBoundingClientRect()
@@ -56,9 +74,15 @@ export class ArticleViewTransition extends Component<Props> {
       live.addEventListener('animationend', this.onEnter)
       live.addEventListener('animationcancel', this.onEnter)
     }
-    if (!snapshot) return
+    if (snapshot) this.showOutgoing(snapshot)
+  }
+
+  private showOutgoing(snapshot: Snapshot, reflow = false) {
+    const host = this.props.host.current
+    if (!host) return
     const { content } = snapshot
     content.dataset.viewLeaving = this.props.motion
+    if (reflow) content.dataset.viewReflow = ''
     host.append(content)
     const viewport = content.querySelector('.article-scroll')
     if (viewport) viewport.scrollTop = snapshot.scrollTop

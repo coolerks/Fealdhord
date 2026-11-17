@@ -60,3 +60,30 @@ it('铺满阅读时旧浏览区仍淡出，返回列表时浏览区淡入', () =
     bounds.mockRestore()
   }
 })
+
+it('重排保留变更前的画面，新视口保持不透明，关闭动效时不创建旧层', () => {
+  const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 600))
+  try {
+    const host = createRef<HTMLDivElement>()
+    const transition = createRef<ArticleViewTransition>()
+    const tree = (text: string, motion: 'full' | 'off' = 'full') => <>
+      <ArticleViewTransition ref={transition} host={host} motion={motion} view="masonry">{text}</ArticleViewTransition>
+      <div ref={host} />
+    </>
+    const { container, rerender } = render(tree('旧列'))
+    const show = transition.current?.prepareReflow()
+    rerender(tree('新列'))
+    act(() => show?.())
+    const outgoing = host.current!.firstElementChild!
+    expect(outgoing).toHaveTextContent('旧列')
+    expect(outgoing).toHaveAttribute('data-view-reflow')
+    expect(container.querySelector('[data-view-entering]')).toBeNull()
+    fireEvent.animationEnd(outgoing)
+    expect(host.current).toBeEmptyDOMElement()
+
+    rerender(tree('新列', 'off'))
+    expect(transition.current?.prepareReflow()).toBeUndefined()
+  } finally {
+    bounds.mockRestore()
+  }
+})

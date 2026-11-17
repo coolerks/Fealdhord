@@ -56,20 +56,25 @@ describe('真实虚拟双视图', () => {
 
   it('连续拖动跨过列数阈值时保持当前列宽，停下后提交最终宽度', async () => {
     let width = 750
+    const reveal = vi.fn()
+    const prepareReflow = vi.fn(() => reveal)
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
       return this.classList.contains('masonry-scroll') ? width : 360
     })
     const { container } = render(<TooltipProvider><ArticleCollection articles={articleFixtures(50)}
       preferences={preferencesFixture({ article_view_mode: 'masonry' })} queryKey="all" selectedID=""
-      onOpen={vi.fn()} onFavorite={vi.fn()} onRead={vi.fn()} onAnchor={vi.fn()} /></TooltipProvider>)
+      onOpen={vi.fn()} onFavorite={vi.fn()} onRead={vi.fn()} onAnchor={vi.fn()} prepareReflow={prepareReflow} /></TooltipProvider>)
     const first = () => container.querySelector<HTMLLIElement>('li[data-card-id="a-0"]')
     await waitFor(() => expect(first()?.style.width).toBe('369px'))
     for (const next of [810, 825, 800, 900]) {
       width = next
       act(() => geometry.resize())
       expect(first()?.style.width).toBe('369px')
+      expect(prepareReflow).not.toHaveBeenCalled()
     }
     await waitFor(() => expect(first()?.style.width).toBe('292px'))
+    expect(prepareReflow).toHaveBeenCalledOnce()
+    expect(reveal).toHaveBeenCalledOnce()
   })
 
   it('坏图回退为文字卡，标题和操作仍可用', () => {
