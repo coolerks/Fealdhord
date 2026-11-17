@@ -308,6 +308,66 @@ it('滚轮切图偏好保持缩放比例为默认值，禁止远程图时无法�
  expect(screen.queryByRole('region', { name: '看图模式' })).not.toBeInTheDocument()
 })
 
+it('放大后按住右键拖动图片，普通右键仍打开菜单', async () => {
+ api.get.mockResolvedValue(illustrated)
+ setup()
+ fireEvent.click(await screen.findByRole('button', { name: '查看图片：第一张' }))
+ const viewer = screen.getByRole('region', { name: '看图模式' })
+ const picture = within(viewer).getByRole('img', { name: '第一张' })
+ const scroll = viewer.querySelector<HTMLDivElement>('.reader-image-scroll')!
+ Object.defineProperties(scroll, { scrollWidth: { value: 900 }, scrollHeight: { value: 1200 } })
+ fireEvent.wheel(picture, { ctrlKey: true, deltaY: -40 })
+ await waitFor(() => expect(scroll).toHaveAttribute('data-fitted', 'false'))
+
+ scroll.scrollLeft = 80
+ scroll.scrollTop = 90
+ const right = { button: 2, pointerId: 1, clientX: 100, clientY: 100 }
+ fireEvent.pointerDown(picture, right)
+ expect(scroll).toHaveAttribute('data-dragging', 'true')
+ fireEvent.contextMenu(picture, right)
+ expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+ fireEvent.pointerMove(scroll, { ...right, clientX: 130, clientY: 75 })
+ expect(scroll.scrollLeft).toBe(50)
+ expect(scroll.scrollTop).toBe(115)
+ fireEvent.pointerUp(scroll, right)
+ expect(scroll).not.toHaveAttribute('data-dragging')
+ fireEvent.contextMenu(picture, right)
+ expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+
+ fireEvent.pointerDown(picture, right)
+ fireEvent.contextMenu(picture, right)
+ expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+ fireEvent.pointerUp(scroll, right)
+ expect(await screen.findByRole('menu', { name: '看图操作' })).toBeInTheDocument()
+})
+
+it('捏合只改变图片比例，放大后双轴滚动保留给图片视口', async () => {
+ api.get.mockResolvedValue(illustrated)
+ setup({ reader_image_wheel: 'navigate' })
+ fireEvent.click(await screen.findByRole('button', { name: '查看图片：第一张' }))
+ const viewer = screen.getByRole('region', { name: '看图模式' })
+ const scale = within(viewer).getByRole('slider', { name: '图片缩放' })
+ const picture = within(viewer).getByRole('img', { name: '第一张' })
+ const scroll = viewer.querySelector('.reader-image-scroll')!
+ Object.defineProperties(scroll, { scrollWidth: { value: 900 }, scrollHeight: { value: 1200 } })
+ const gesture = (type: string, scale?: number) =>
+  fireEvent(picture, Object.assign(new Event(type, { bubbles: true, cancelable: true }), { scale }))
+
+ expect(gesture('gesturestart')).toBe(false)
+ expect(gesture('gesturechange', 2)).toBe(false)
+ expect(scale).toHaveAttribute('aria-valuenow', '200')
+ gesture('gesturechange', 1.5)
+ gesture('gestureend')
+ expect(scale).toHaveAttribute('aria-valuenow', '150')
+ expect(fireEvent.wheel(picture, { deltaX: 18, deltaY: 25 })).toBe(true)
+ expect(fireEvent.wheel(picture, { deltaY: 25 })).toBe(true)
+ expect(scale).toHaveAttribute('aria-valuenow', '150')
+
+ expect(fireEvent.wheel(picture, { ctrlKey: true, deltaY: 20 })).toBe(false)
+ await waitFor(() => expect(Number(scale.getAttribute('aria-valuenow'))).toBeLessThan(150))
+ expect(picture).toBeInTheDocument()
+})
+
 it('切图等下一张就绪后按方向平推，动画结束才移除旧图', async () => {
  api.get.mockResolvedValue(illustrated)
  const root = document.documentElement

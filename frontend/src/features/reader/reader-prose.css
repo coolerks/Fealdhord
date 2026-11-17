@@ -238,6 +238,7 @@ html[data-motion=off] .reader-image-viewer { background-color: var(--reader-back
 .reader-image-slide[data-pending=true] { visibility: hidden; pointer-events: none; }
 .reader-image-scroll { position: absolute; inset: 0; overflow: auto; overscroll-behavior: contain; }
 .reader-image-scroll[data-fitted=true] { overflow: hidden; }
+.reader-image-scroll[data-dragging=true] { cursor: grabbing; }
 .reader-image-canvas {
   display: flex;
   align-items: center;

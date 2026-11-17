@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
 import { ChevronLeft, ChevronRight, Copy, Minus, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
@@ -11,6 +12,11 @@ const minZoom = 25
 const maxZoom = 800
 const clampZoom = (zoom: number) => Math.max(minZoom, Math.min(maxZoom, zoom))
 const imageEasing = 'cubic-bezier(.22,1,.36,1)'
+
+function hasImageOverflow(scroll: Element) {
+  return scroll.getAttribute('data-fitted') === 'false' &&
+    (scroll.scrollWidth > scroll.clientWidth || scroll.scrollHeight > scroll.clientHeight)
+}
 
 function imageTransform(destination: DOMRectReadOnly, layout: DOMRectReadOnly) {
   return `translate(${destination.left - layout.left}px, ${destination.top - layout.top}px) scale(${destination.width / layout.width}, ${destination.height / layout.height})`
@@ -173,30 +179,70 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
     }
   }
 
-  const wheel = useEffectEvent((delta: number) => {
+  const wheel = useEffectEvent((delta: number, pinch: boolean) => {
     if (cleanupExit.current || slide) return
     revealControls()
+    if (pinch) {
+      scaleZoom(Math.exp(-delta / 100))
+      return
+    }
     if (wheelMode === 'navigate') stepImage(Math.sign(delta))
     else scaleZoom(Math.exp(-delta * 0.0018))
+  })
+
+  const magnify = useEffectEvent((value: number) => {
+    if (cleanupExit.current || slide) return
+    revealControls()
+    setZoomImmediately(clampZoom(value))
   })
 
   useEffect(() => {
     const node = viewer.current
     if (!node) return
     let lastNavigation = -Infinity
+    let gestureZoom: number | undefined
     const handleWheel = (event: WheelEvent) => {
+      // WebView2 以带 Ctrl 的 wheel 派发捏合。普通滚动由溢出的视口处理双轴平移。
+      const scroll = event.target instanceof Element && event.target.closest('.reader-image-scroll')
+      if (!event.ctrlKey && scroll && hasImageOverflow(scroll)) return
       if (!event.deltaY) return
       event.preventDefault()
+      if (gestureZoom !== undefined) return
       const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? node.clientHeight : 1)
-      if (wheelMode === 'navigate') {
+      if (!event.ctrlKey && wheelMode === 'navigate') {
         if (event.timeStamp - lastNavigation < 200) return
         lastNavigation = event.timeStamp
       }
-      wheel(delta)
+      wheel(delta, event.ctrlKey)
+    }
+    const gestureStart = (event: Event) => {
+      event.preventDefault()
+      stopZoom()
+      gestureZoom = zoomMotion.current.value
+    }
+    const gestureChange = (event: Event) => {
+      event.preventDefault()
+      // WKWebView 的 scale 是相对本次手势起点的累计比例。
+      const scale = (event as Event & { scale?: number }).scale
+      if (gestureZoom !== undefined && typeof scale === 'number' && Number.isFinite(scale) && scale > 0) {
+        magnify(gestureZoom * scale)
+      }
+    }
+    const gestureEnd = (event: Event) => {
+      event.preventDefault()
+      gestureZoom = undefined
     }
     node.addEventListener('wheel', handleWheel, { passive: false })
-    return () => node.removeEventListener('wheel', handleWheel)
-  }, [wheelMode])
+    node.addEventListener('gesturestart', gestureStart)
+    node.addEventListener('gesturechange', gestureChange)
+    node.addEventListener('gestureend', gestureEnd)
+    return () => {
+      node.removeEventListener('wheel', handleWheel)
+      node.removeEventListener('gesturestart', gestureStart)
+      node.removeEventListener('gesturechange', gestureChange)
+      node.removeEventListener('gestureend', gestureEnd)
+    }
+  }, [wheelMode, stopZoom])
 
   useLayoutEffect(() => {
     viewer.current?.focus({ preventScroll: true })
@@ -291,6 +337,11 @@ function ZoomedImage({ image, zoom, entry, onReady, onAvailable, onBackdropClick
   onBackdropClick?: () => void
 }) {
   const scroll = useRef<HTMLDivElement>(null)
+  const scrollPosition = useRef({ x: 0.5, y: 0.5 })
+  const drag = useRef<{
+    id: number; x: number; y: number; left: number; top: number
+    moved: boolean; released: boolean; menuPending: boolean
+  }>(null)
   const picture = useRef<HTMLImageElement>(null)
   const didEnter = useRef(false)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
@@ -313,8 +364,8 @@ function ZoomedImage({ image, zoom, entry, onReady, onAvailable, onBackdropClick
   useLayoutEffect(() => {
     const element = scroll.current
     if (!element) return
-    element.scrollLeft = (element.scrollWidth - element.clientWidth) / 2
-    element.scrollTop = (element.scrollHeight - element.clientHeight) / 2
+    element.scrollLeft = (element.scrollWidth - element.clientWidth) * scrollPosition.current.x
+    element.scrollTop = (element.scrollHeight - element.clientHeight) * scrollPosition.current.y
   }, [fit])
 
   useLayoutEffect(() => {
@@ -341,7 +392,60 @@ function ZoomedImage({ image, zoom, entry, onReady, onAvailable, onBackdropClick
     }
   }, [entry, failed, fit, image.element, loaded, onReady])
 
-  return <div className="reader-image-scroll" ref={scroll} data-fitted={zoom <= 100}>
+  function finishDrag(event: ReactPointerEvent<HTMLDivElement>, cancelled = false) {
+    const current = drag.current
+    if (!current || current.released || current.id !== event.pointerId) return
+    const target = event.currentTarget
+    delete target.dataset.dragging
+    current.released = true
+    if (target.hasPointerCapture?.(event.pointerId)) target.releasePointerCapture(event.pointerId)
+    if (current.moved && !cancelled) return
+    drag.current = null
+    if (!cancelled && current.menuPending) {
+      // 部分 WebView 在右键按下时派发菜单事件，松手确认是单击后再打开菜单。
+      target.dispatchEvent(new MouseEvent('contextmenu', {
+        bubbles: true, cancelable: true, button: 2, clientX: event.clientX, clientY: event.clientY,
+      }))
+    }
+  }
+
+  return <div className="reader-image-scroll" ref={scroll} data-fitted={zoom <= 100}
+    onScroll={({ currentTarget: target }) => {
+      const width = target.scrollWidth - target.clientWidth
+      const height = target.scrollHeight - target.clientHeight
+      scrollPosition.current = { x: width > 0 ? target.scrollLeft / width : 0.5, y: height > 0 ? target.scrollTop / height : 0.5 }
+    }}
+    onPointerDown={event => {
+      const target = event.currentTarget
+      drag.current = null
+      if (event.button !== 2 || event.target === target || !hasImageOverflow(target)) return
+      drag.current = {
+        id: event.pointerId, x: event.clientX, y: event.clientY, left: target.scrollLeft, top: target.scrollTop,
+        moved: false, released: false, menuPending: false,
+      }
+      target.dataset.dragging = 'true'
+      target.setPointerCapture?.(event.pointerId)
+    }}
+    onPointerMove={event => {
+      const current = drag.current
+      if (!current || current.released || current.id !== event.pointerId) return
+      const dx = event.clientX - current.x
+      const dy = event.clientY - current.y
+      if (!current.moved && Math.hypot(dx, dy) < 4) return
+      current.moved = true
+      event.currentTarget.scrollLeft = current.left - dx
+      event.currentTarget.scrollTop = current.top - dy
+    }}
+    onPointerUp={event => finishDrag(event)}
+    onPointerCancel={event => finishDrag(event, true)}
+    onLostPointerCapture={event => finishDrag(event, true)}
+    onContextMenu={event => {
+      const current = drag.current
+      if (!current || event.button !== 2) return
+      if (!current.released || current.moved) event.preventDefault()
+      if (current.released) drag.current = null
+      else current.menuPending = true
+    }}>
     <div className="reader-image-canvas" onClick={event => {
       if (event.target === event.currentTarget) onBackdropClick?.()
     }}>
