@@ -360,12 +360,39 @@ it('捏合只改变图片比例，放大后双轴滚动保留给图片视口', a
  gesture('gestureend')
  expect(scale).toHaveAttribute('aria-valuenow', '150')
  expect(fireEvent.wheel(picture, { deltaX: 18, deltaY: 25 })).toBe(true)
- expect(fireEvent.wheel(picture, { deltaY: 25 })).toBe(true)
+ const vertical = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 25 })
+ Object.defineProperty(vertical, 'wheelDeltaY', { value: -75 })
+ expect(fireEvent(picture, vertical)).toBe(true)
  expect(scale).toHaveAttribute('aria-valuenow', '150')
 
  expect(fireEvent.wheel(picture, { ctrlKey: true, deltaY: 20 })).toBe(false)
  await waitFor(() => expect(Number(scale.getAttribute('aria-valuenow'))).toBeLessThan(150))
  expect(picture).toBeInTheDocument()
+})
+
+it('图片超出视口时，鼠标滚轮仍能继续放大和缩小', async () => {
+ api.get.mockResolvedValue(illustrated)
+ setup()
+ fireEvent.click(await screen.findByRole('button', { name: '查看图片：第一张' }))
+ const viewer = screen.getByRole('region', { name: '看图模式' })
+ const scale = within(viewer).getByRole('slider', { name: '图片缩放' })
+ const picture = within(viewer).getByRole('img', { name: '第一张' })
+ const scroll = viewer.querySelector('.reader-image-scroll')!
+ Object.defineProperties(scroll, { scrollWidth: { value: 900 }, scrollHeight: { value: 1200 } })
+ const mouseWheel = (deltaY: number) => {
+  const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY })
+  Object.defineProperty(event, 'wheelDeltaY', { value: -Math.sign(deltaY) * 120 })
+  expect(fireEvent(picture, event)).toBe(false)
+ }
+ const zoom = () => Number(scale.getAttribute('aria-valuenow'))
+
+ mouseWheel(-40)
+ await waitFor(() => expect(zoom()).toBeGreaterThan(106))
+ expect(scroll).toHaveAttribute('data-fitted', 'false')
+ mouseWheel(-40)
+ await waitFor(() => expect(zoom()).toBeGreaterThan(113))
+ mouseWheel(40)
+ await waitFor(() => expect(zoom()).toBeLessThan(112))
 })
 
 it('切图等下一张就绪后按方向平推，动画结束才移除旧图', async () => {
