@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 23
-- **Last Active**: 2026-11-12
+- **Total Sessions**: 24
+- **Last Active**: 2026-11-17
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~678 | Active |
+| `journal-1.md` | ~708 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 24 | 2026-11-17 | 跨平台窗口关闭与 Windows 图标 | `525da8e` | `codex/interface-clarity` |
 | 23 | 2026-11-12 | 阅读器代码块与高亮主题 | `c83636a` | `codex/interface-clarity` |
 | 22 | 2026-11-12 | 阅读器看图与标题目录 | `bfa1187` | `codex/interface-clarity` |
 | 21 | 2026-11-12 | 文章自动分页与阅读界面修复 | `d4ecf02`, `bee471a`, `5f202a7` | `codex/interface-clarity` |

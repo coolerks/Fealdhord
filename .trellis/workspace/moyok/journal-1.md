@@ -676,3 +676,33 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 24: 跨平台窗口关闭与 Windows 图标
+<!-- trellis-session: v=2 fp=b2c90291f5fd5372 -->
+
+**Date**: 2026-11-17
+**Task**: 跨平台窗口关闭与 Windows 图标
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+三端默认退到后台，设置可改为退出。托盘恢复原窗口，Windows 任务栏和托盘使用专用彩色图标。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `525da8e` | fix: 支持关闭窗口后后台驻留并修正 Windows 图标 |
+
+### Testing
+
+- [OK] Go 全包测试和 vet、前端 121 项与构建、macOS 探针与签名、Windows x64 构建通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Windows 和 Linux 原生操作、macOS Dock 和状态栏点击继续实机验证。
