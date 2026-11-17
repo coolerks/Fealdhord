@@ -54,6 +54,24 @@ describe('真实虚拟双视图', () => {
     await waitFor(() => expect(restored.container.querySelector('.article-scroll')?.scrollTop).toBe(980))
   })
 
+  it('连续拖动跨过列数阈值时保持当前列宽，停下后提交最终宽度', async () => {
+    let width = 750
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('masonry-scroll') ? width : 360
+    })
+    const { container } = render(<TooltipProvider><ArticleCollection articles={articleFixtures(50)}
+      preferences={preferencesFixture({ article_view_mode: 'masonry' })} queryKey="all" selectedID=""
+      onOpen={vi.fn()} onFavorite={vi.fn()} onRead={vi.fn()} onAnchor={vi.fn()} /></TooltipProvider>)
+    const first = () => container.querySelector<HTMLLIElement>('li[data-card-id="a-0"]')
+    await waitFor(() => expect(first()?.style.width).toBe('369px'))
+    for (const next of [810, 825, 800, 900]) {
+      width = next
+      act(() => geometry.resize())
+      expect(first()?.style.width).toBe('369px')
+    }
+    await waitFor(() => expect(first()?.style.width).toBe('292px'))
+  })
+
   it('坏图回退为文字卡，标题和操作仍可用', () => {
     const article = articleFixtures(1)[0]
     const onOpen = vi.fn()

@@ -11,34 +11,17 @@ type Anchor = { article_id: string; offset: number }
 type Props = {
   feedIcons?: ReadonlyMap<string, string | undefined>
   articles: Article[]; preferences: Preferences; queryKey: string; selectedID: string
-  motionMode?: 'full' | 'subtle' | 'off'
   onOpen: (id: string) => void; onFavorite: (id: string) => void; onRead: (id: string) => void
   onAnchor: (key: string, anchor: Anchor) => void
   nextCursor?: string
   loadingMore?: boolean
   onLoadMore?: () => void
 }
-function visibleCardRects(viewport: HTMLDivElement) {
-  const bounds = viewport.getBoundingClientRect()
-  const cards = new Map<string, { x: number; y: number; width: number; element: HTMLLIElement }>()
-  for (const card of viewport.querySelectorAll<HTMLLIElement>('.virtual-articles > li')) {
-    const rect = card.getBoundingClientRect()
-    if (rect.width && rect.bottom > bounds.top && rect.top < bounds.bottom) {
-      cards.set(card.dataset.cardId!, { x: rect.left - bounds.left, y: rect.top - bounds.top, width: rect.width, element: card })
-    }
-  }
-  return cards
-}
-
-export function ArticleCollection({ feedIcons, articles, preferences, queryKey, selectedID, motionMode = 'off', onOpen, onFavorite, onRead, onAnchor, nextCursor, loadingMore, onLoadMore }: Props) {
+export function ArticleCollection({ feedIcons, articles, preferences, queryKey, selectedID, onOpen, onFavorite, onRead, onAnchor, nextCursor, loadingMore, onLoadMore }: Props) {
   'use no memo' // Virtualizer 是可变实例，不能由 React Compiler 自动缓存其方法结果。
   const parent = useRef<HTMLDivElement>(null)
   const end = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(360)
-  const [resizeRevision, setResizeRevision] = useState(0)
-  const measuredWidth = useRef(360)
-  const previousCards = useRef<ReturnType<typeof visibleCardRects> | null>(null)
-  const movingCards = useRef<Animation[]>([])
   const imagesAllowed = preferences.remote_images !== 'never'
   const mode = preferences.article_view_mode
   const rowHeight = preferences.list_density === 'compact' ? 96 : 120
@@ -47,7 +30,7 @@ export function ArticleCollection({ feedIcons, articles, preferences, queryKey, 
   const columnWidth = Math.max(1, (width - (lanes - 1) * gap) / lanes)
   const anchor = useRef<Anchor | null>(null)
   const restored = useRef(false)
-  const previous = useRef({ query: queryKey, mode, lanes, rowHeight, imageMode: preferences.masonry_image_mode, imagesAllowed, resizeRevision })
+  const previous = useRef({ query: queryKey, mode, width, rowHeight, imageMode: preferences.masonry_image_mode, imagesAllowed })
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pending = useRef<{ key: string; anchor: Anchor } | null>(null)
   const onAnchorRef = useRef(onAnchor)
@@ -69,97 +52,65 @@ export function ArticleCollection({ feedIcons, articles, preferences, queryKey, 
     if (current) anchor.current = current
   }, [articles, virtualizer, mode, queryKey])
 
-  const measureWidth = useEffectEvent((element: HTMLDivElement, animate: boolean) => {
-    const style = getComputedStyle(element)
-    const next = (element.clientWidth || element.getBoundingClientRect().width) - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0)
-    if (next <= 0 || Math.abs(next - width) < 1) return
-    const changedLanes = columnCount(next, mode) !== lanes
-    if (changedLanes) capture()
-    if (animate && motionMode === 'full' && (changedLanes || Math.abs(next - width) >= 24)) {
-      previousCards.current = visibleCardRects(element)
-    }
+  const commitWidth = useEffectEvent((next: number) => {
+    if (next <= 0 || next === width) return
+    capture()
     setWidth(next)
   })
   useLayoutEffect(() => {
     const element = parent.current
     if (!element || mode !== 'masonry') return
-    let frame = 0
-    measureWidth(element, false)
+    const readWidth = () => {
+      const style = getComputedStyle(element)
+      return Math.round((element.clientWidth || element.getBoundingClientRect().width) -
+        (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0))
+    }
+    let observed = readWidth()
+    let idle: ReturnType<typeof setTimeout> | undefined
+    commitWidth(observed)
     const observer = new ResizeObserver(() => {
-      if (frame) return
-      frame = requestAnimationFrame(() => { frame = 0; measureWidth(element, true) })
+      const next = readWidth()
+      if (next === observed) return
+      observed = next
+      // 保持当前网格直到拖动稳定，避免断点附近反复换列。
+      clearTimeout(idle)
+      idle = setTimeout(() => commitWidth(observed), 100)
     })
     observer.observe(element)
-    return () => { observer.disconnect(); cancelAnimationFrame(frame) }
+    return () => { observer.disconnect(); clearTimeout(idle) }
   }, [mode])
-
-  const settleWidth = useEffectEvent(() => {
-    if (measuredWidth.current === width) return
-    capture()
-    const viewport = parent.current
-    if (viewport && motionMode === 'full') previousCards.current = visibleCardRects(viewport)
-    // 只丢弃未挂载卡片的旧宽度测量值。可见卡片沿用当前 DOM 尺寸。
-    virtualizer.measure()
-    for (const [id, card] of virtualizer.elementsCache) {
-      if (card.isConnected && card.offsetHeight > 0) virtualizer.itemSizeCache.set(id, card.offsetHeight)
-    }
-    setResizeRevision(revision => revision + 1)
-  })
-  useEffect(() => {
-    if (mode !== 'masonry') return
-    const idle = setTimeout(settleWidth, 120)
-    return () => clearTimeout(idle)
-  }, [mode, width])
 
   useLayoutEffect(() => {
     const before = previous.current
     const changedQuery = before.query !== queryKey
     const changedMode = before.mode !== mode
-    const changedLanes = before.lanes !== lanes
+    const changedWidth = mode === 'masonry' && before.width !== width
     const changedMeasurements = mode === 'list' ? before.rowHeight !== rowHeight
       : before.imageMode !== preferences.masonry_image_mode || before.imagesAllowed !== imagesAllowed
-    const finishedResize = before.resizeRevision !== resizeRevision
-    if (restored.current && !changedQuery && !changedMode && !changedLanes && !changedMeasurements && !finishedResize) return
+    if (restored.current && !changedQuery && !changedMode && !changedWidth && !changedMeasurements) return
     restored.current = true
-    previous.current = { query: queryKey, mode, lanes, rowHeight, imageMode: preferences.masonry_image_mode, imagesAllowed, resizeRevision }
-    measuredWidth.current = width
+    previous.current = { query: queryKey, mode, width, rowHeight, imageMode: preferences.masonry_image_mode, imagesAllowed }
     const saved = preferences.scroll_anchors?.[storageKey]
     const target = changedQuery ? saved ?? null : changedMode ? saved ?? anchor.current : anchor.current ?? saved
     restoring.current = true
-    // 列数变化由 Virtualizer 自行重建。
-    if (!changedLanes && (changedMode || changedMeasurements)) virtualizer.measure()
+    if (changedMode || changedWidth || changedMeasurements) {
+      virtualizer.measure()
+      if (mode === 'masonry') {
+        // 在绘制前把当前尺寸一次性写回，避免逐卡校正引起重排和滚动跳动。
+        for (const [id, card] of virtualizer.elementsCache) {
+          if (!card.isConnected) continue
+          const height = card.offsetHeight
+          if (height > 0) virtualizer.itemSizeCache.set(id, height)
+        }
+      }
+    }
     const index = target ? articles.findIndex(article => article.id === target.article_id) : -1
     const offset = index >= 0 ? virtualizer.getOffsetForIndex(index, 'start')?.[0] : undefined
     virtualizer.scrollToOffset(offset === undefined ? 0 : Math.max(0, offset + (target?.offset ?? 0)))
     anchor.current = index >= 0 ? target ?? null : null
     restoring.current = false
     // 锚点写入本身不能重置浏览位置；只有查询或几何变化才恢复。
-  }, [queryKey, mode, lanes, width, resizeRevision, rowHeight, imagesAllowed, virtualizer, articles, preferences.masonry_image_mode, preferences.scroll_anchors, storageKey])
-
-  useLayoutEffect(() => {
-    const before = previousCards.current
-    const viewport = parent.current
-    previousCards.current = null
-    for (const animation of movingCards.current) animation.cancel()
-    movingCards.current = []
-    if (!before || !viewport || mode !== 'masonry' || motionMode !== 'full') return
-
-    for (const [id, card] of visibleCardRects(viewport)) {
-      const previous = before.get(id)
-      if (!previous || !card.element.animate) continue
-      const x = previous.x - card.x
-      const y = previous.y - card.y
-      if (Math.abs(x) < 1 && Math.abs(y) < 1 && Math.abs(previous.width - card.width) < 1) continue
-      const transform = card.element.style.transform
-      movingCards.current.push(card.element.animate([
-        { transform: `translate(${x}px, ${y}px) ${transform} scaleX(${previous.width / card.width})` },
-        { transform },
-      ], { duration: 180, easing: 'cubic-bezier(.22,1,.36,1)' }))
-    }
-  }, [mode, motionMode, width, resizeRevision])
-  useLayoutEffect(() => () => {
-    for (const animation of movingCards.current) animation.cancel()
-  }, [])
+  }, [queryKey, mode, width, rowHeight, imagesAllowed, virtualizer, articles, preferences.masonry_image_mode, preferences.scroll_anchors, storageKey])
 
   const selectedIndex = selectedID ? articles.findIndex(article => article.id === selectedID) : -1
   useEffect(() => {

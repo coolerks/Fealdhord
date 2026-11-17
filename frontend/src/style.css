@@ -239,6 +239,14 @@
 }
 .article-pane, .reader-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
 .article-pane { isolation: isolate; background: var(--background); }
+.article-view-live { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.article-view-overlay { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.article-view-outgoing { position: absolute; overflow: hidden; background: var(--background); }
+.article-view-live[data-view-entering] { animation: article-view-enter 220ms ease-in-out both; }
+.article-view-outgoing[data-view-leaving] { animation: article-view-leave 220ms ease-in-out both; }
+.article-view-live[data-view-entering=subtle], .article-view-outgoing[data-view-leaving=subtle] { animation-duration: 140ms; }
+@keyframes article-view-enter { from { opacity: .28; } to { opacity: 1; } }
+@keyframes article-view-leave { from { opacity: 1; } to { opacity: 0; } }
 .workspace-toolbar { display: flex; flex: none; min-height: var(--workspace-toolbar-height); padding: 6px 14px; gap: 8px; align-items: center; justify-content: space-between; }
 .workspace-toolbar .toolbar-actions { margin-inline-start: auto; justify-content: safe flex-end; }
 [data-platform=mac] .workspace-toolbar { --wails-draggable: drag; }
@@ -271,7 +279,6 @@
 .article-scroll { height: 100%; overflow-anchor: none; }
 .masonry-scroll { margin-inline-end: 10px; padding: 16px; }
 .virtual-articles { position: relative; width: 100%; margin: 0; padding: 0; list-style: none; }
-.masonry-scroll .virtual-articles > li { transform-origin: top left; }
 .article-item { position: relative; color: var(--foreground); }
 .article-row { display: flex; gap: 12px; align-items: center; height: 100%; padding: 10px 26px 10px 16px; border-bottom: 1px solid color-mix(in srgb,var(--border) 65%,transparent); }
 .article-scroll[data-density=comfortable] .article-row { padding-block: 12px; }

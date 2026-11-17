@@ -16,6 +16,7 @@ import { SemanticButton } from '@/components/semantic-button'
 import { Button } from '@/components/ui/button'
 import { Splitter } from '@/components/splitter'
 import { ArticleCollection } from '@/features/articles/ArticleCollection'
+import { ArticleViewTransition } from '@/features/articles/ArticleViewTransition'
 import { Reader } from '@/features/reader/Reader'
 import { useWorkspace } from '@/stores/workspace'
 import { effectiveMotion, useMediaQuery } from '@/lib/environment'
@@ -79,7 +80,7 @@ export function Shell() {
   const [listDraft, setListDraft] = useState<number | null>(null)
   const [listLimit, setListLimit] = useState(listMaxWidth)
   const workspace = useRef<HTMLElement>(null)
-  const previousView = useRef(overlay)
+  const articleTransitionHost = useRef<HTMLDivElement>(null)
   const sidebarCollapsed = preferences.sidebar_collapsed
   const sidebarWidth = sidebarDraft ?? preferences.sidebar_width
   const listWidth = listDraft ?? preferences.list_width
@@ -104,21 +105,6 @@ export function Shell() {
     observer.observe(element)
     return () => observer.disconnect()
   }, [overlay])
-
-  useLayoutEffect(() => {
-    const changed = previousView.current !== overlay
-    previousView.current = overlay
-    if (!changed || mode === 'off') return
-    const panes = workspace.current?.querySelectorAll<HTMLElement>(
-      ':scope > .article-pane > :is(.scroll-area, .library-empty), :scope > .reader-pane',
-    )
-    const animations = Array.from(panes ?? [], pane => pane.animate?.(
-      mode === 'full' ? [{ opacity: .65, transform: 'translateY(5px)' }, { opacity: 1, transform: 'none' }]
-        : [{ opacity: .75 }, { opacity: 1 }],
-      { duration: mode === 'full' ? 180 : 100, easing: 'cubic-bezier(.22,1,.36,1)' },
-    ))
-    return () => animations.forEach(animation => animation?.cancel())
-  }, [overlay, mode])
 
   const favorite = useCallback((id:string)=>runCommand('favorite',client,id),[client])
   const read = useCallback((id:string)=>runCommand('read',client,id),[client])
@@ -209,7 +195,9 @@ export function Shell() {
         }} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
       <main ref={workspace} className={cn('reading-workspace', !overlay && 'reader-columns')}>
         <section className="article-pane" aria-label="文章浏览" inert={fillReader && readerVisible} aria-hidden={fillReader && readerVisible || undefined}><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />{!settingsOpen && <RefreshStatus />}
-          {articles.length > 0 || library.hasNextPage ? <ArticleCollection feedIcons={feedIcons} articles={articles} preferences={preferences} motionMode={mode} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} nextCursor={library.nextCursor} loadingMore={library.isFetchingNextPage} onLoadMore={loadMore} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
+          <ArticleViewTransition view={preferences.article_view_mode} motion={mode} host={articleTransitionHost}>
+            {articles.length > 0 || library.hasNextPage ? <ArticleCollection feedIcons={feedIcons} articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} nextCursor={library.nextCursor} loadingMore={library.isFetchingNextPage} onLoadMore={loadMore} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
+          </ArticleViewTransition>
           {library.isError && !library.isFetchNextPageError && search.trim() && <div className="library-limit"><Button variant="ghost" disabled={library.repairing} onClick={()=>{void library.repairSearch()}}>{library.repairing?'正在重建索引…':'重建搜索索引'}</Button>{library.repairError && <p role="alert">{library.repairError}</p>}</div>}
           {library.searchLimited && <p className="library-limit" role="status">搜索候选较多，可缩小搜索范围。</p>}
           {library.searchPending && <p className="library-limit" role="status">正在准备搜索…</p>}
@@ -219,6 +207,7 @@ export function Shell() {
           min={Math.min(listMinWidth, listLimit)} max={listLimit} disabled={listLimit <= listMinWidth}
           onResize={setListDraft} onCommit={value => { patch({ list_width: value }); setListDraft(null) }} /><Reader feedIcon={selectedFeedIcon} article={readerVisible ? selected : undefined} preferences={preferences} overlay={false} onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></>}
         <AnimatePresence>{overlay && readerVisible && <motion.div className={cn('reader-overlay', fillReader ? 'reader-fill' : 'reader-drawer')} transition={slideReader ? { type: 'spring', stiffness: 380, damping: 38 } : { duration: mode === 'off' ? 0 : .1 }} initial={slideReader ? { x: 64, opacity: 0 } : { opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={slideReader ? { x: 16, opacity: 0 } : { opacity: 0 }}><Reader feedIcon={selectedFeedIcon} key={selected?.id} article={selected} preferences={preferences} overlay onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></motion.div>}</AnimatePresence>
+        <div className="article-view-overlay" aria-hidden="true" ref={articleTransitionHost} />
       </main>
       <Suspense fallback={null}>{settingsOpen && <SettingsDialog />}{paletteOpen && <CommandPalette />}{chatOpen && <ChatDialog />}</Suspense>
       <div className="sr-only" aria-live="polite">{preferences.article_view_mode === 'masonry' ? '已切换到瀑布流视图' : '已切换到列表视图'}</div>
