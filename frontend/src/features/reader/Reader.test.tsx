@@ -360,9 +360,6 @@ it('捏合只改变图片比例，放大后双轴滚动保留给图片视口', a
  gesture('gestureend')
  expect(scale).toHaveAttribute('aria-valuenow', '150')
  expect(fireEvent.wheel(picture, { deltaX: 18, deltaY: 25 })).toBe(true)
- const vertical = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 25 })
- Object.defineProperty(vertical, 'wheelDeltaY', { value: -75 })
- expect(fireEvent(picture, vertical)).toBe(true)
  expect(scale).toHaveAttribute('aria-valuenow', '150')
 
  expect(fireEvent.wheel(picture, { ctrlKey: true, deltaY: 20 })).toBe(false)
@@ -370,7 +367,7 @@ it('捏合只改变图片比例，放大后双轴滚动保留给图片视口', a
  expect(picture).toBeInTheDocument()
 })
 
-it('图片超出视口时，鼠标滚轮仍能继续放大和缩小', async () => {
+it('图片超出视口时，连续像素滚轮仍能继续放大和缩小', async () => {
  api.get.mockResolvedValue(illustrated)
  setup()
  fireEvent.click(await screen.findByRole('button', { name: '查看图片：第一张' }))
@@ -381,7 +378,7 @@ it('图片超出视口时，鼠标滚轮仍能继续放大和缩小', async () =
  Object.defineProperties(scroll, { scrollWidth: { value: 900 }, scrollHeight: { value: 1200 } })
  const mouseWheel = (deltaY: number) => {
   const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY })
-  Object.defineProperty(event, 'wheelDeltaY', { value: -Math.sign(deltaY) * 120 })
+  Object.defineProperty(event, 'wheelDeltaY', { value: -Math.sign(deltaY) * 75 })
   expect(fireEvent(picture, event)).toBe(false)
  }
  const zoom = () => Number(scale.getAttribute('aria-valuenow'))
@@ -393,6 +390,45 @@ it('图片超出视口时，鼠标滚轮仍能继续放大和缩小', async () =
  await waitFor(() => expect(zoom()).toBeGreaterThan(113))
  mouseWheel(40)
  await waitFor(() => expect(zoom()).toBeLessThan(112))
+})
+
+it('放行 AppKit 已识别的真实双指滚动，同样的鼠标增量仍缩放', async () => {
+ const postMessage = vi.fn()
+ const previous = Object.getOwnPropertyDescriptor(window, 'webkit')
+ Object.defineProperty(window, 'webkit', {
+  configurable: true, value: { messageHandlers: { fealdhordReaderTrackpad: { postMessage } } },
+ })
+ try {
+  api.get.mockResolvedValue(illustrated)
+  const { unmount } = setup()
+  fireEvent.click(await screen.findByRole('button', { name: '查看图片：第一张' }))
+  const viewer = screen.getByRole('region', { name: '看图模式' })
+  const scale = within(viewer).getByRole('slider', { name: '图片缩放' })
+  const picture = within(viewer).getByRole('img', { name: '第一张' })
+  const scroll = viewer.querySelector('.reader-image-scroll')!
+  Object.defineProperties(scroll, { scrollWidth: { value: 900 }, scrollHeight: { value: 1200 } })
+  expect(postMessage).toHaveBeenLastCalledWith(true)
+  fireEvent.wheel(picture, { deltaY: -40 })
+  await waitFor(() => expect(scroll).toHaveAttribute('data-fitted', 'false'))
+
+  const reportSource = (window as Window & { fealdhordReaderScrollSource?: (time: number, trackpad: boolean) => void }).fealdhordReaderScrollSource
+  expect(reportSource).toBeTypeOf('function')
+  const input = (trackpad: boolean, epoch: number) => {
+   const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 25 })
+   Object.defineProperty(event, 'timeStamp', { value: epoch })
+   reportSource?.(epoch, trackpad)
+   return fireEvent(picture, event)
+  }
+  expect(input(true, 1.8e12)).toBe(true)
+  const before = Number(scale.getAttribute('aria-valuenow'))
+  expect(input(false, 1.8e12 + 1)).toBe(false)
+  await waitFor(() => expect(Number(scale.getAttribute('aria-valuenow'))).toBeLessThan(before))
+  unmount()
+  expect(postMessage).toHaveBeenLastCalledWith(false)
+ } finally {
+  if (previous) Object.defineProperty(window, 'webkit', previous)
+  else Reflect.deleteProperty(window, 'webkit')
+ }
 })
 
 it('切图等下一张就绪后按方向平推，动画结束才移除旧图', async () => {

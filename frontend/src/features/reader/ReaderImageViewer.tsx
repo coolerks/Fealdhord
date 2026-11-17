@@ -18,19 +18,9 @@ function hasImageOverflow(scroll: Element) {
     (scroll.scrollWidth > scroll.clientWidth || scroll.scrollHeight > scroll.clientHeight)
 }
 
-function isContinuousScroll(event: WheelEvent) {
-  if (event.deltaMode !== WheelEvent.DOM_DELTA_PIXEL) return false
-  if (event.deltaX) return true
-  // DOM 没有输入设备类型。WebKit 与 Chromium 的旧式字段以 120 为一格，
-  // Chromium 还可能按像素比缩放；缺少该信息时保留鼠标滚轮的行为。
-  const ticks = (event as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY
-  if (ticks === undefined) return false
-  const magnitude = Math.abs(ticks)
-  if (magnitude > 0 && magnitude % 120 === 0) return false
-  const ratio = window.devicePixelRatio || 1
-  const scaled = magnitude * ratio
-  const nearestStep = Math.round(scaled / 120)
-  return !nearestStep || Math.abs(scaled - nearestStep * 120) >= ratio
+type ReaderInputWindow = Window & {
+  webkit?: { messageHandlers?: { fealdhordReaderTrackpad?: { postMessage: (enabled: boolean) => void } } }
+  fealdhordReaderScrollSource?: (time: number, trackpad: boolean) => void
 }
 
 function imageTransform(destination: DOMRectReadOnly, layout: DOMRectReadOnly) {
@@ -214,12 +204,38 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
   useEffect(() => {
     const node = viewer.current
     if (!node) return
+    const host: ReaderInputWindow = window
+    const source = host.webkit?.messageHandlers?.fealdhordReaderTrackpad
+    // 配对 AppKit 和 DOM 中同一事件的时间戳，余下事件沿用鼠标滚轮行为。
+    const input: { time: number; trackpad: boolean }[] = []
+    if (source) {
+      host.fealdhordReaderScrollSource = (time, trackpad) => {
+        input.push({ time, trackpad })
+        if (input.length > 16) input.shift()
+      }
+      source.postMessage(true)
+    }
     let lastNavigation = -Infinity
     let gestureZoom: number | undefined
     const handleWheel = (event: WheelEvent) => {
-      // 带 Ctrl 的 wheel 也可来自捏合。连续滚动交给溢出的视口双轴平移。
+      const time = event.timeStamp > 1e12 ? event.timeStamp : performance.timeOrigin + event.timeStamp
+      let closest = 4
+      let match = -1
+      for (const [index, sample] of input.entries()) {
+        const distance = Math.abs(sample.time - time)
+        if (distance <= closest) {
+          closest = distance
+          match = index
+        }
+      }
+      const trackpad = match >= 0 && input[match].trackpad
+      if (match >= 0) input.splice(0, match + 1)
       const scroll = event.target instanceof Element && event.target.closest('.reader-image-scroll')
-      if (!event.ctrlKey && scroll && hasImageOverflow(scroll) && isContinuousScroll(event)) return
+      if (!event.ctrlKey && !source && event.deltaX && scroll && hasImageOverflow(scroll)) return
+      if (!event.ctrlKey && trackpad && scroll) {
+        if (!hasImageOverflow(scroll)) event.preventDefault()
+        return
+      }
       if (!event.deltaY) return
       event.preventDefault()
       if (gestureZoom !== undefined) return
@@ -252,6 +268,10 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
     node.addEventListener('gesturechange', gestureChange)
     node.addEventListener('gestureend', gestureEnd)
     return () => {
+      if (source) {
+        source.postMessage(false)
+        delete host.fealdhordReaderScrollSource
+      }
       node.removeEventListener('wheel', handleWheel)
       node.removeEventListener('gesturestart', gestureStart)
       node.removeEventListener('gesturechange', gestureChange)

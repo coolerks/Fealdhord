@@ -29,6 +29,8 @@ Go 服务方法形如 `ListArticles(req ListArticlesRequest) ListArticlesResult`
 
 ## 3. 请求与响应
 
+macOS 看图区域挂载和卸载时，通过 WKWebView 消息处理器 `fealdhordReaderTrackpad` 发送布尔值，控制主窗口滚动来源观察。主帧回调 `window.fealdhordReaderScrollSource(epochMs, trackpad)` 提供实际输入的时间戳与 AppKit 手势来源。此回调只提供元数据，原始事件继续由 WebKit 分发。前端找不到匹配信息时沿用鼠标滚轮偏好。
+
 所有 JSON 字段使用 snake_case。ID 字符串；时间 RFC3339；不传 Go int64 给 JS 作为可能超精度 ID。逻辑结果：`{ok:true,data:T,request_id:string}` 或 `{ok:false,error:AppError,request_id:string}`，两种不能同时出现。生成绑定的传输异常由 lib/api 映射为 TransportError。
 
 `ArticleQuery={scope:{kind:all|unread|favorites|featured|feed|category,id?},search?:string,read?:all|read|unread,favorite?:boolean,sort:published_desc|published_asc|relevance,cursor?:string,limit?:number}`。limit 默认 50，范围 1..200。普通文章 cursor 绑定查询哈希、快照上界、sort_at 和 id；全文排序增加 rank 与索引 generation，索引变化返回 CursorExpired 后重查并恢复锚点。

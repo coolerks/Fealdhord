@@ -77,6 +77,7 @@ func ShowMainWindow(app *application.App, window *application.WebviewWindow) {
 				}
 			}
 			installWindowSidebarMaterial(window)
+			installReaderTrackpadMonitor(app, window)
 			window.Show()
 		})
 	})
