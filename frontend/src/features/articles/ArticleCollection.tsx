@@ -1,5 +1,6 @@
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
+import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
+import type { Range } from '@tanstack/react-virtual'
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Article } from '@/lib/library'
 import type { Preferences } from '@/lib/preferences'
 import { ArticleItem } from './ArticleItem'
@@ -13,17 +14,16 @@ type Props = {
   articles: Article[]; preferences: Preferences; queryKey: string; selectedID: string
   onOpen: (id: string) => void; onFavorite: (id: string) => void; onRead: (id: string) => void
   onAnchor: (key: string, anchor: Anchor) => void
-  prepareReflow?: () => (() => void) | undefined
   nextCursor?: string
   loadingMore?: boolean
   onLoadMore?: () => void
 }
-export function ArticleCollection({ feedIcons, articles, preferences, queryKey, selectedID, onOpen, onFavorite, onRead, onAnchor, prepareReflow, nextCursor, loadingMore, onLoadMore }: Props) {
+export function ArticleCollection({ feedIcons, articles, preferences, queryKey, selectedID, onOpen, onFavorite, onRead, onAnchor, nextCursor, loadingMore, onLoadMore }: Props) {
   'use no memo' // Virtualizer 是可变实例，不能由 React Compiler 自动缓存其方法结果。
   const parent = useRef<HTMLDivElement>(null)
   const end = useRef<HTMLDivElement>(null)
-  const [width, setWidth] = useState(360)
-  const reflow = useRef<(() => void) | undefined>(undefined)
+  const [layout, setLayout] = useState<{ width: number; retained?: { queryKey: string; indexes: number[] } }>({ width: 360 })
+  const { width, retained } = layout
   const imagesAllowed = preferences.remote_images !== 'never'
   const mode = preferences.article_view_mode
   const rowHeight = preferences.list_density === 'compact' ? 96 : 120
@@ -38,27 +38,45 @@ export function ArticleCollection({ feedIcons, articles, preferences, queryKey, 
   const onAnchorRef = useRef(onAnchor)
   const storageKey = `${queryKey}|${mode}`
   const restoring = useRef(false)
+  const indexesByID = useMemo(() => new Map(articles.map((article, index) => [article.id, index])), [articles])
   const getItemKey = useCallback((index: number) => articles[index].id, [articles])
+  const rangeExtractor = useCallback((range: Range) => mode === 'masonry' && retained?.queryKey === queryKey
+    ? retained.indexes.filter(index => index < range.count)
+    : defaultRangeExtractor(range), [mode, retained, queryKey])
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLLIElement>({
     count: articles.length, getScrollElement: () => parent.current,
     getItemKey,
     estimateSize: index => mode === 'list' ? rowHeight : 156 + (imagesAllowed ? coverHeight(articles[index], columnWidth, preferences.masonry_image_mode) : 0),
-    overscan: 5, lanes, gap,
+    overscan: 5, lanes, gap, rangeExtractor,
     useAnimationFrameWithResizeObserver: mode === 'masonry',
     initialRect: { width: 360, height: 600 },
   })
   useLayoutEffect(() => { onAnchorRef.current = onAnchor }, [onAnchor])
+  useLayoutEffect(() => {
+    if (mode !== 'masonry') return
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
+      if (restoring.current || retained) return false
+      const index = anchor.current ? indexesByID.get(anchor.current.article_id) : undefined
+      const current = index === undefined ? undefined : instance.measurementsCache[index]
+      // 瀑布流只有锚点所在列的前置卡片会改变该锚点的纵坐标。
+      return Boolean(current && item.lane === current.lane && item.index < current.index)
+    }
+    return () => { virtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined }
+  }, [mode, retained, indexesByID, virtualizer])
   const capture = useCallback(() => {
     if (!parent.current || !restored.current || restoring.current || previous.current.mode !== mode || previous.current.query !== queryKey) return
     const current = findAnchor(virtualizer.getVirtualItems(), articles, parent.current.scrollTop)
     if (current) anchor.current = current
   }, [articles, virtualizer, mode, queryKey])
 
-  const commitWidth = useEffectEvent((next: number, animate: boolean) => {
+  const commitWidth = useEffectEvent((next: number, preserveRange: boolean) => {
     if (next <= 0 || next === width) return
     capture()
-    reflow.current = animate ? prepareReflow?.() : undefined
-    setWidth(next)
+    // 新列分配尚未写入滚动位置时，旧像素偏移会对应到另一组文章。
+    // 先在现有节点上计算新尺寸，锚点就位后再放行虚拟范围。
+    const indexes = preserveRange ? virtualizer.getVirtualIndexes() : []
+    restoring.current = true
+    setLayout({ width: next, retained: indexes.length > 0 ? { queryKey, indexes } : undefined })
   })
   useLayoutEffect(() => {
     const element = parent.current
@@ -107,17 +125,23 @@ export function ArticleCollection({ feedIcons, articles, preferences, queryKey, 
         }
       }
     }
-    const index = target ? articles.findIndex(article => article.id === target.article_id) : -1
+    const index = target ? indexesByID.get(target.article_id) ?? -1 : -1
     const offset = index >= 0 ? virtualizer.getOffsetForIndex(index, 'start')?.[0] : undefined
     virtualizer.scrollToOffset(offset === undefined ? 0 : Math.max(0, offset + (target?.offset ?? 0)))
     anchor.current = index >= 0 ? target ?? null : null
     restoring.current = false
-    if (changedWidth && !changedMode && !changedQuery) reflow.current?.()
-    reflow.current = undefined
     // 锚点写入本身不能重置浏览位置；只有查询或几何变化才恢复。
-  }, [queryKey, mode, width, rowHeight, imagesAllowed, virtualizer, articles, preferences.masonry_image_mode, preferences.scroll_anchors, storageKey])
+  }, [queryKey, mode, width, rowHeight, imagesAllowed, virtualizer, indexesByID, preferences.masonry_image_mode, preferences.scroll_anchors, storageKey])
 
-  const selectedIndex = selectedID ? articles.findIndex(article => article.id === selectedID) : -1
+  useLayoutEffect(() => {
+    if (!retained) return
+    const frame = requestAnimationFrame(() => {
+      setLayout(current => current.retained === retained ? { width: current.width } : current)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [retained])
+
+  const selectedIndex = indexesByID.get(selectedID) ?? -1
   useEffect(() => {
     if (selectedIndex < 0) return
     const element = parent.current?.querySelector<HTMLElement>(`[data-article-trigger="${CSS.escape(selectedID)}"]`)

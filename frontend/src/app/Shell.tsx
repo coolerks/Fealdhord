@@ -81,12 +81,10 @@ export function Shell() {
   const [listLimit, setListLimit] = useState(listMaxWidth)
   const workspace = useRef<HTMLElement>(null)
   const articleTransitionHost = useRef<HTMLDivElement>(null)
-  const articleTransition = useRef<ArticleViewTransition>(null)
   const sidebarCollapsed = preferences.sidebar_collapsed
   const sidebarWidth = sidebarDraft ?? preferences.sidebar_width
   const listWidth = listDraft ?? preferences.list_width
   const queryKey = libraryAnchorKey(library.key)
-  const prepareArticleReflow = useCallback(() => articleTransition.current?.prepareReflow(), [])
 
   useLayoutEffect(() => {
     const dark = preferences.theme === 'dark' || (preferences.theme === 'system' && systemDark)
@@ -197,8 +195,8 @@ export function Shell() {
         }} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
       <main ref={workspace} className={cn('reading-workspace', !overlay && 'reader-columns')}>
         <section className="article-pane" aria-label="文章浏览" inert={fillReader && readerVisible} aria-hidden={fillReader && readerVisible || undefined}><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />{!settingsOpen && <RefreshStatus />}
-          <ArticleViewTransition ref={articleTransition} view={preferences.article_view_mode} motion={mode} host={articleTransitionHost}>
-            {articles.length > 0 || library.hasNextPage ? <ArticleCollection feedIcons={feedIcons} articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} prepareReflow={prepareArticleReflow} nextCursor={library.nextCursor} loadingMore={library.isFetchingNextPage} onLoadMore={loadMore} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
+          <ArticleViewTransition view={preferences.article_view_mode} motion={mode} host={articleTransitionHost}>
+            {articles.length > 0 || library.hasNextPage ? <ArticleCollection feedIcons={feedIcons} articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} nextCursor={library.nextCursor} loadingMore={library.isFetchingNextPage} onLoadMore={loadMore} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
           </ArticleViewTransition>
           {library.isError && !library.isFetchNextPageError && search.trim() && <div className="library-limit"><Button variant="ghost" disabled={library.repairing} onClick={()=>{void library.repairSearch()}}>{library.repairing?'正在重建索引…':'重建搜索索引'}</Button>{library.repairError && <p role="alert">{library.repairError}</p>}</div>}
           {library.searchLimited && <p className="library-limit" role="status">搜索候选较多，可缩小搜索范围。</p>}

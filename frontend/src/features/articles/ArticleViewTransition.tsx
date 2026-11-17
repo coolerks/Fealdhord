@@ -22,19 +22,6 @@ export class ArticleViewTransition extends Component<Props> {
     return this.captureViewport()
   }
 
-  prepareReflow(): (() => void) | undefined {
-    // 视图切换已经有一层旧画面，避免初始化瀑布流时盖上第二层。
-    if (this.props.motion === 'off' || this.live.current?.dataset.viewEntering) return
-    const snapshot = this.captureViewport()
-    if (!snapshot) return
-    const view = this.props.view
-    return () => {
-      if (this.props.view !== view || this.props.motion === 'off') return
-      this.finish()
-      this.showOutgoing(snapshot, true)
-    }
-  }
-
   private captureViewport(): Snapshot | null {
     const live = this.live.current
     const host = this.props.host.current
@@ -77,12 +64,11 @@ export class ArticleViewTransition extends Component<Props> {
     if (snapshot) this.showOutgoing(snapshot)
   }
 
-  private showOutgoing(snapshot: Snapshot, reflow = false) {
+  private showOutgoing(snapshot: Snapshot) {
     const host = this.props.host.current
     if (!host) return
     const { content } = snapshot
     content.dataset.viewLeaving = this.props.motion
-    if (reflow) content.dataset.viewReflow = ''
     host.append(content)
     const viewport = content.querySelector('.article-scroll')
     if (viewport) viewport.scrollTop = snapshot.scrollTop
