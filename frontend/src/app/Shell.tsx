@@ -42,14 +42,14 @@ const listMinWidth = 300
 const listMaxWidth = 760
 const listMaxShare = 0.62
 
-function ReaderTransition({ children, className, mode, distance }: {
-  children: ReactNode; className: string; mode: ReturnType<typeof effectiveMotion>; distance: number
+function ReaderTransition({ children, className, mode }: {
+  children: ReactNode; className: string; mode: ReturnType<typeof effectiveMotion>
 }) {
   const present = useIsPresent()
-  const x = mode === 'full' ? distance : 0
+  const outside = mode === 'full' ? { x: '100%', opacity: 1 } : { x: '0%', opacity: 0 }
   return <motion.div className={className} inert={!present} aria-hidden={!present || undefined}
-    initial={mode === 'off' ? false : { opacity: 0, x }} animate={{ opacity: 1, x: 0 }}
-    exit={mode === 'off' ? undefined : { opacity: 0, x }}>
+    initial={mode === 'off' ? false : outside} animate={{ opacity: 1, x: '0%' }}
+    exit={mode === 'off' ? undefined : outside}>
     {children}
   </motion.div>
 }
@@ -222,10 +222,10 @@ export function Shell() {
           onResize={setListDraft} onCommit={value => { patch({ list_width: value }); setListDraft(null) }} />
           <div className="reader-slot">
             <aside className="reader-pane" aria-label="阅读面板" inert={readerVisible} aria-hidden={readerVisible || undefined}><ReaderEmpty /></aside>
-            <AnimatePresence initial={false}>{reader && <ReaderTransition className="reader-slot-content" mode={mode} distance={0}>{reader}</ReaderTransition>}</AnimatePresence>
+            <AnimatePresence initial={false}>{reader && <ReaderTransition className="reader-slot-content" mode={mode}>{reader}</ReaderTransition>}</AnimatePresence>
           </div>
         </>}
-        <AnimatePresence initial={false}>{overlay && reader && <ReaderTransition className={cn('reader-overlay', fillReader ? 'reader-fill' : 'reader-drawer')} mode={mode} distance={fillReader ? 32 : 56}>{reader}</ReaderTransition>}</AnimatePresence>
+        <AnimatePresence initial={false}>{overlay && reader && <ReaderTransition className={cn('reader-overlay', fillReader ? 'reader-fill' : 'reader-drawer')} mode={mode}>{reader}</ReaderTransition>}</AnimatePresence>
         <div className="article-view-overlay" aria-hidden="true" ref={articleTransitionHost} />
       </main>
       <Suspense fallback={null}>{settingsOpen && <SettingsDialog />}{paletteOpen && <CommandPalette />}{chatOpen && <ChatDialog />}</Suspense>

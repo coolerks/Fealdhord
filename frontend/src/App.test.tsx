@@ -48,19 +48,21 @@ function setup(withArticles = false) {
 
 describe('Phase 1 阅读 Shell', () => {
   it.each([['list', 'fill'], ['masonry', 'fill'], ['masonry', 'drawer']] as const)(
-    '%s / %s 打开文章与返回都有淡入淡出，返回后焦点回到原文章', async (article_view_mode, reader_layout) => {
+    '%s / %s 打开文章时从右侧推入，返回时向右推出并恢复焦点', async (article_view_mode, reader_layout) => {
     api.get.mockResolvedValue({ preferences: preferencesFixture({ article_view_mode, reader_layout, animation: 'full' }), revision: 0 })
     const { container } = setup(true)
     const trigger = await screen.findByRole('button', { name: '打开文章：测试文章 0' })
     fireEvent.click(trigger)
     const layer = container.querySelector<HTMLElement>(article_view_mode === 'list' ? '.reader-slot-content' : '.reader-overlay')!
-    const opacity = () => Number(layer.style.opacity)
+    const offset = () => Number(layer.style.transform.match(/translateX\(([^)]+)%\)/)?.[1] ?? 0)
     const expectIntermediateFrame = () => {
-      expect(opacity()).toBeGreaterThan(0)
-      expect(opacity()).toBeLessThan(1)
+      expect(offset()).toBeGreaterThan(0)
+      expect(offset()).toBeLessThan(100)
+      expect(layer.style.opacity).toBe('1')
     }
+    expect(offset()).toBe(100)
     await waitFor(expectIntermediateFrame, { interval: 10 })
-    await waitFor(() => expect(opacity()).toBe(1))
+    await waitFor(() => expect(offset()).toBe(0))
     fireEvent.click(within(layer).getByRole('button', { name: article_view_mode === 'list' ? '收起阅读面板' : '返回文章浏览' }))
     expect(layer).toHaveAttribute('inert')
     await waitFor(expectIntermediateFrame, { interval: 10 })
