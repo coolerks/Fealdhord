@@ -47,9 +47,10 @@ function ReaderTransition({ children, className, mode }: {
 }) {
   const present = useIsPresent()
   const outside = mode === 'full' ? { x: '100%', opacity: 1 } : { x: '0%', opacity: 0 }
+  const exit = mode === 'full' ? { ...outside, transition: { duration: .32, ease: 'easeInOut' as const } } : outside
   return <motion.div className={className} inert={!present} aria-hidden={!present || undefined}
     initial={mode === 'off' ? false : outside} animate={{ opacity: 1, x: '0%' }}
-    exit={mode === 'off' ? undefined : outside}>
+    exit={mode === 'off' ? undefined : exit}>
     {children}
   </motion.div>
 }
