@@ -46,11 +46,17 @@ function ReaderTransition({ children, className, mode }: {
   children: ReactNode; className: string; mode: ReturnType<typeof effectiveMotion>
 }) {
   const present = useIsPresent()
+  const layer = useRef<HTMLDivElement>(null)
   const outside = mode === 'full' ? { x: '100%', opacity: 1 } : { x: '0%', opacity: 0 }
-  const exit = mode === 'full' ? { ...outside, transition: { duration: .32, ease: 'easeInOut' as const } } : outside
-  return <motion.div className={className} inert={!present} aria-hidden={!present || undefined}
+  const exit = mode === 'full' ? () => {
+    const width = layer.current?.offsetWidth ?? 0
+    const duration = (320 + Math.max(0, width - 400) * .15) / 1000
+    return { ...outside, transition: { duration, ease: 'easeInOut' as const } }
+  } : outside
+  return <motion.div ref={layer} className={className} inert={!present} aria-hidden={!present || undefined}
+    variants={{ exitReader: exit }}
     initial={mode === 'off' ? false : outside} animate={{ opacity: 1, x: '0%' }}
-    exit={mode === 'off' ? undefined : exit}>
+    exit={mode === 'off' ? undefined : 'exitReader'}>
     {children}
   </motion.div>
 }
