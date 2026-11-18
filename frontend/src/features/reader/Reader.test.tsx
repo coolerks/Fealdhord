@@ -308,7 +308,7 @@ it('滚轮切图偏好保持缩放比例为默认值，禁止远程图时无法�
  expect(screen.queryByRole('region', { name: '看图模式' })).not.toBeInTheDocument()
 })
 
-it('放大后按住右键拖动图片，普通右键仍打开菜单', async () => {
+it('放大后按住左键双轴拖动图片，松手后保持看图，右键打开菜单', async () => {
  api.get.mockResolvedValue(illustrated)
  setup()
  fireEvent.click(await screen.findByRole('button', { name: '查看图片：第一张' }))
@@ -316,29 +316,58 @@ it('放大后按住右键拖动图片，普通右键仍打开菜单', async () =
  const picture = within(viewer).getByRole('img', { name: '第一张' })
  const scroll = viewer.querySelector<HTMLDivElement>('.reader-image-scroll')!
  Object.defineProperties(scroll, { scrollWidth: { value: 900 }, scrollHeight: { value: 1200 } })
- fireEvent.wheel(picture, { ctrlKey: true, deltaY: -40 })
+ fireEvent.wheel(picture, { deltaY: -40 })
  await waitFor(() => expect(scroll).toHaveAttribute('data-fitted', 'false'))
 
  scroll.scrollLeft = 80
  scroll.scrollTop = 90
- const right = { button: 2, pointerId: 1, clientX: 100, clientY: 100 }
- fireEvent.pointerDown(picture, right)
+ const left = { button: 0, pointerId: 1, clientX: 100, clientY: 100 }
+ fireEvent.pointerDown(picture, left)
  expect(scroll).toHaveAttribute('data-dragging', 'true')
- fireEvent.contextMenu(picture, right)
- expect(screen.queryByRole('menu')).not.toBeInTheDocument()
- fireEvent.pointerMove(scroll, { ...right, clientX: 130, clientY: 75 })
+ fireEvent.pointerMove(scroll, { ...left, clientX: 130, clientY: 75 })
  expect(scroll.scrollLeft).toBe(50)
  expect(scroll.scrollTop).toBe(115)
- fireEvent.pointerUp(scroll, right)
+ fireEvent.pointerUp(scroll, left)
  expect(scroll).not.toHaveAttribute('data-dragging')
- fireEvent.contextMenu(picture, right)
+ fireEvent.click(viewer.querySelector('.reader-image-canvas')!)
+ expect(viewer).toBeInTheDocument()
  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
 
+ const right = { button: 2, pointerId: 2, clientX: 100, clientY: 100 }
  fireEvent.pointerDown(picture, right)
+ expect(scroll).not.toHaveAttribute('data-dragging')
  fireEvent.contextMenu(picture, right)
- expect(screen.queryByRole('menu')).not.toBeInTheDocument()
- fireEvent.pointerUp(scroll, right)
  expect(await screen.findByRole('menu', { name: '看图操作' })).toBeInTheDocument()
+})
+
+it('左键拖动取消或失去捕获时清除抓手，空白处单击仍可退出', async () => {
+ api.get.mockResolvedValue(illustrated)
+ setup()
+ fireEvent.click(await screen.findByRole('button', { name: '查看图片：第一张' }))
+ const viewer = screen.getByRole('region', { name: '看图模式' })
+ const picture = within(viewer).getByRole('img', { name: '第一张' })
+ const scroll = viewer.querySelector<HTMLDivElement>('.reader-image-scroll')!
+ Object.defineProperties(scroll, { scrollWidth: { value: 900 }, scrollHeight: { value: 1200 } })
+ fireEvent.wheel(picture, { deltaY: -40 })
+ await waitFor(() => expect(scroll).toHaveAttribute('data-fitted', 'false'))
+
+ const left = { button: 0, pointerId: 1, clientX: 100, clientY: 100 }
+ for (const finish of [fireEvent.pointerCancel, fireEvent.lostPointerCapture]) {
+  fireEvent.pointerDown(picture, left)
+  expect(scroll).toHaveAttribute('data-dragging', 'true')
+  fireEvent.pointerMove(scroll, { ...left, clientX: 130, clientY: 75 })
+  finish(scroll, left)
+  expect(scroll).not.toHaveAttribute('data-dragging')
+  const position = { left: scroll.scrollLeft, top: scroll.scrollTop }
+  fireEvent.pointerMove(scroll, { ...left, clientX: 160, clientY: 50 })
+  expect(scroll.scrollLeft).toBe(position.left)
+  expect(scroll.scrollTop).toBe(position.top)
+ }
+ const canvas = viewer.querySelector('.reader-image-canvas')!
+ fireEvent.pointerDown(canvas, left)
+ fireEvent.pointerUp(canvas, left)
+ fireEvent.click(canvas)
+ expect(screen.queryByRole('region', { name: '看图模式' })).not.toBeInTheDocument()
 })
 
 it('捏合只改变图片比例，放大后双轴滚动保留给图片视口', async () => {
@@ -392,7 +421,7 @@ it('图片超出视口时，连续像素滚轮仍能继续放大和缩小', asyn
  await waitFor(() => expect(zoom()).toBeLessThan(112))
 })
 
-it('放行 AppKit 已识别的真实双指滚动，同样的鼠标增量仍缩放', async () => {
+it('AppKit 识别的双指滚动同时移动两轴，同样的鼠标增量仍缩放', async () => {
  const postMessage = vi.fn()
  const previous = Object.getOwnPropertyDescriptor(window, 'webkit')
  Object.defineProperty(window, 'webkit', {
@@ -413,15 +442,24 @@ it('放行 AppKit 已识别的真实双指滚动，同样的鼠标增量仍缩�
 
   const reportSource = (window as Window & { fealdhordReaderScrollSource?: (time: number, trackpad: boolean) => void }).fealdhordReaderScrollSource
   expect(reportSource).toBeTypeOf('function')
-  const input = (trackpad: boolean, epoch: number) => {
-   const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 25 })
+  const input = (trackpad: boolean, epoch: number, deltaX = 18, deltaY = 25) => {
+   const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX, deltaY })
    Object.defineProperty(event, 'timeStamp', { value: epoch })
    reportSource?.(epoch, trackpad)
    return fireEvent(picture, event)
   }
-  expect(input(true, 1.8e12)).toBe(true)
+  scroll.scrollLeft = 200
+  scroll.scrollTop = 200
   const before = Number(scale.getAttribute('aria-valuenow'))
-  expect(input(false, 1.8e12 + 1)).toBe(false)
+  for (const [index, [dx, dy]] of [[18, 25], [-31, 12], [22, -28], [-9, -13]].entries()) {
+   const left = scroll.scrollLeft
+   const top = scroll.scrollTop
+   expect(input(true, 1.8e12 + index, dx, dy)).toBe(false)
+   expect(scroll.scrollLeft).toBe(left + dx)
+   expect(scroll.scrollTop).toBe(top + dy)
+   expect(scale).toHaveAttribute('aria-valuenow', String(before))
+  }
+  expect(input(false, 1.8e12 + 10)).toBe(false)
   await waitFor(() => expect(Number(scale.getAttribute('aria-valuenow'))).toBeLessThan(before))
   unmount()
   expect(postMessage).toHaveBeenLastCalledWith(false)

@@ -233,7 +233,12 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
       const scroll = event.target instanceof Element && event.target.closest('.reader-image-scroll')
       if (!event.ctrlKey && !source && event.deltaX && scroll && hasImageOverflow(scroll)) return
       if (!event.ctrlKey && trackpad && scroll) {
-        if (!hasImageOverflow(scroll)) event.preventDefault()
+        event.preventDefault()
+        if (hasImageOverflow(scroll)) {
+          // WebKit 的默认滚动会锁主轴，DOM 事件仍包含双轴原始增量。
+          scroll.scrollLeft += event.deltaX
+          scroll.scrollTop += event.deltaY
+        }
         return
       }
       if (!event.deltaY) return
@@ -375,7 +380,7 @@ function ZoomedImage({ image, zoom, entry, onReady, onAvailable, onBackdropClick
   const scrollPosition = useRef({ x: 0.5, y: 0.5 })
   const drag = useRef<{
     id: number; x: number; y: number; left: number; top: number
-    moved: boolean; released: boolean; menuPending: boolean
+    moved: boolean; released: boolean
   }>(null)
   const picture = useRef<HTMLImageElement>(null)
   const didEnter = useRef(false)
@@ -434,14 +439,7 @@ function ZoomedImage({ image, zoom, entry, onReady, onAvailable, onBackdropClick
     delete target.dataset.dragging
     current.released = true
     if (target.hasPointerCapture?.(event.pointerId)) target.releasePointerCapture(event.pointerId)
-    if (current.moved && !cancelled) return
-    drag.current = null
-    if (!cancelled && current.menuPending) {
-      // 部分 WebView 在右键按下时派发菜单事件，松手确认是单击后再打开菜单。
-      target.dispatchEvent(new MouseEvent('contextmenu', {
-        bubbles: true, cancelable: true, button: 2, clientX: event.clientX, clientY: event.clientY,
-      }))
-    }
+    if (!current.moved || cancelled) drag.current = null
   }
 
   return <div className="reader-image-scroll" ref={scroll} data-fitted={zoom <= 100}
@@ -452,11 +450,11 @@ function ZoomedImage({ image, zoom, entry, onReady, onAvailable, onBackdropClick
     }}
     onPointerDown={event => {
       const target = event.currentTarget
-      drag.current = null
-      if (event.button !== 2 || event.target === target || !hasImageOverflow(target)) return
+      if (event.button !== 0 || event.ctrlKey || event.target === target || !hasImageOverflow(target)) return
+      event.preventDefault()
       drag.current = {
         id: event.pointerId, x: event.clientX, y: event.clientY, left: target.scrollLeft, top: target.scrollTop,
-        moved: false, released: false, menuPending: false,
+        moved: false, released: false,
       }
       target.dataset.dragging = 'true'
       target.setPointerCapture?.(event.pointerId)
@@ -474,12 +472,11 @@ function ZoomedImage({ image, zoom, entry, onReady, onAvailable, onBackdropClick
     onPointerUp={event => finishDrag(event)}
     onPointerCancel={event => finishDrag(event, true)}
     onLostPointerCapture={event => finishDrag(event, true)}
-    onContextMenu={event => {
-      const current = drag.current
-      if (!current || event.button !== 2) return
-      if (!current.released || current.moved) event.preventDefault()
-      if (current.released) drag.current = null
-      else current.menuPending = true
+    onClickCapture={event => {
+      if (!drag.current?.moved) return
+      event.preventDefault()
+      event.stopPropagation()
+      drag.current = null
     }}>
     <div className="reader-image-canvas" onClick={event => {
       if (event.target === event.currentTarget) onBackdropClick?.()
