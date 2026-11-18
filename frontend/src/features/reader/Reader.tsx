@@ -5,7 +5,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Tabs } from 'radix-ui'
 import { FeedIcon } from '@/features/feeds/FeedIcon'
-import { motion } from 'motion/react'
 import { useEffect,useEffectEvent,useLayoutEffect,useRef,useState } from 'react'
 import type { RefObject } from 'react'
 import type { Article } from '@/lib/library'
@@ -29,6 +28,10 @@ type ReaderProps={feedIcon?:string;article?:Article;preferences:Preferences;over
 export function Reader(props:ReaderProps){
  const markedRef=useRef('')
  return <ReaderPane key={`${props.article?.id}:${props.article?.revision ?? 0}:${props.preferences.reader_open_mode}`} {...props} markedRef={markedRef}/>
+}
+
+export function ReaderEmpty() {
+ return <Empty className="reader-empty"><EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={BookOpen} meaning="book"/></EmptyMedia><EmptyTitle>选择文章</EmptyTitle></EmptyHeader></Empty>
 }
 
 function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onRead,onAnchor,markedRef}:ReaderProps&{markedRef:RefObject<string>}){
@@ -113,7 +116,7 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
   setGallery(undefined)
   requestAnimationFrame(() => target?.focus({ preventScroll: true }))
  }
- return <motion.aside className="reader-pane" aria-label="阅读面板" data-article-id={articleID} initial={false} animate={{opacity:1}} transition={{duration:.18}}>
+ return <aside className="reader-pane" aria-label="阅读面板" data-article-id={articleID}>
   <Tabs.Root className="reader-tabs" value={view} onValueChange={changeView} activationMode="manual">
   {article && <header className="workspace-toolbar reader-toolbar">
    <div className="toolbar-start"><SemanticButton icon={ChevronLeft} meaning="chevron-left" label={overlay?'返回文章浏览':'收起阅读面板'} onClick={onClose}/>
@@ -153,7 +156,7 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
    </div></article></div>
    {viewing && <ReaderImageViewer images={viewing.images} initialIndex={viewing.index} origin={viewing.origin}
     wheelMode={preferences.reader_image_wheel} backdropClose={preferences.reader_image_backdrop_close} onClose={closeGallery} />}
-   </div></Tabs.Content>:<Empty className="reader-empty"><EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={BookOpen} meaning="book"/></EmptyMedia><EmptyTitle>选择文章</EmptyTitle></EmptyHeader></Empty>}
+   </div></Tabs.Content>:<ReaderEmpty />}
   </Tabs.Root>
- </motion.aside>
+ </aside>
 }

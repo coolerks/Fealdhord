@@ -2,9 +2,9 @@ import { notify } from '@/lib/notifications'
 import { ShortcutKeys } from '@/components/shortcut-keys'
 import { useChatTarget } from '@/features/chat/chat-scope'
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AnimatePresence, MotionConfig, motion } from 'motion/react'
+import { AnimatePresence, MotionConfig, motion, useIsPresent } from 'motion/react'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { LibraryEmpty } from '@/features/articles/LibraryEmpty'
 import { ApplicationMenu } from './ApplicationMenu'
@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Splitter } from '@/components/splitter'
 import { ArticleCollection } from '@/features/articles/ArticleCollection'
 import { ArticleViewTransition } from '@/features/articles/ArticleViewTransition'
-import { Reader } from '@/features/reader/Reader'
+import { Reader, ReaderEmpty } from '@/features/reader/Reader'
 import { useWorkspace } from '@/stores/workspace'
 import { effectiveMotion, useMediaQuery } from '@/lib/environment'
 import { useLibraryQuery } from '@/features/articles/use-library-query'
@@ -41,6 +41,18 @@ const readFeedIcons = (page: Page) => new Map(page.items?.map(feed => [feed.id, 
 const listMinWidth = 300
 const listMaxWidth = 760
 const listMaxShare = 0.62
+
+function ReaderTransition({ children, className, mode, distance }: {
+  children: ReactNode; className: string; mode: ReturnType<typeof effectiveMotion>; distance: number
+}) {
+  const present = useIsPresent()
+  const x = mode === 'full' ? distance : 0
+  return <motion.div className={className} inert={!present} aria-hidden={!present || undefined}
+    initial={mode === 'off' ? false : { opacity: 0, x }} animate={{ opacity: 1, x: 0 }}
+    exit={mode === 'off' ? undefined : { opacity: 0, x }}>
+    {children}
+  </motion.div>
+}
 
 export function Shell() {
   useRSSSync()
@@ -74,7 +86,6 @@ export function Shell() {
   const mode = effectiveMotion(preferences, systemReduced)
   const overlay = preferences.article_view_mode === 'masonry'
   const fillReader = overlay && preferences.reader_layout === 'fill'
-  const slideReader = mode === 'full' && !fillReader
   const readerVisible = preferences.reader_open && Boolean(selected)
   const [sidebarDraft, setSidebarDraft] = useState<number | null>(null)
   const [listDraft, setListDraft] = useState<number | null>(null)
@@ -122,8 +133,9 @@ export function Shell() {
     patch({ reader_open: false })
     const id = useWorkspace.getState().preferences?.selected_article_id
     requestAnimationFrame(() => {
+      if (useWorkspace.getState().preferences?.reader_open) return
       const trigger = id ? document.querySelector<HTMLElement>(`[data-article-trigger="${CSS.escape(id)}"]`) : null
-      ;(trigger ?? document.getElementById('reader-toggle'))?.focus()
+      ;(trigger ?? document.getElementById('reader-toggle'))?.focus({ preventScroll: true })
     })
   }, [patch])
 
@@ -178,6 +190,8 @@ export function Shell() {
 
   const emptySearch = search.trim() !== ''
   const platform = native.isMac() ? 'mac' : native.isWindows() ? 'windows' : 'other'
+  const reader = readerVisible && <Reader feedIcon={selectedFeedIcon} article={selected} preferences={preferences} overlay={overlay}
+    onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} />
   const sidebarToggle = <SemanticButton id="sidebar-toggle" icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
     label={sidebarCollapsed ? '展开侧栏' : '折叠侧栏'} meaning={sidebarCollapsed ? 'expand' : 'collapse'}
     aria-expanded={!sidebarCollapsed} aria-controls="workspace-sidebar"
@@ -205,8 +219,13 @@ export function Shell() {
         </section>
         {!overlay && <><Splitter label="调整文章列表宽度" value={Math.min(listWidth, listLimit)}
           min={Math.min(listMinWidth, listLimit)} max={listLimit} disabled={listLimit <= listMinWidth}
-          onResize={setListDraft} onCommit={value => { patch({ list_width: value }); setListDraft(null) }} /><Reader feedIcon={selectedFeedIcon} article={readerVisible ? selected : undefined} preferences={preferences} overlay={false} onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></>}
-        <AnimatePresence>{overlay && readerVisible && <motion.div className={cn('reader-overlay', fillReader ? 'reader-fill' : 'reader-drawer')} transition={slideReader ? { type: 'spring', stiffness: 380, damping: 38 } : { duration: mode === 'off' ? 0 : .1 }} initial={slideReader ? { x: 64, opacity: 0 } : { opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={slideReader ? { x: 16, opacity: 0 } : { opacity: 0 }}><Reader feedIcon={selectedFeedIcon} key={selected?.id} article={selected} preferences={preferences} overlay onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} /></motion.div>}</AnimatePresence>
+          onResize={setListDraft} onCommit={value => { patch({ list_width: value }); setListDraft(null) }} />
+          <div className="reader-slot">
+            <aside className="reader-pane" aria-label="阅读面板" inert={readerVisible} aria-hidden={readerVisible || undefined}><ReaderEmpty /></aside>
+            <AnimatePresence initial={false}>{reader && <ReaderTransition className="reader-slot-content" mode={mode} distance={0}>{reader}</ReaderTransition>}</AnimatePresence>
+          </div>
+        </>}
+        <AnimatePresence initial={false}>{overlay && reader && <ReaderTransition className={cn('reader-overlay', fillReader ? 'reader-fill' : 'reader-drawer')} mode={mode} distance={fillReader ? 32 : 56}>{reader}</ReaderTransition>}</AnimatePresence>
         <div className="article-view-overlay" aria-hidden="true" ref={articleTransitionHost} />
       </main>
       <Suspense fallback={null}>{settingsOpen && <SettingsDialog />}{paletteOpen && <CommandPalette />}{chatOpen && <ChatDialog />}</Suspense>

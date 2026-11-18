@@ -336,6 +336,8 @@
 .article-card .article-flags:empty { display: none; }
 .article-card .article-flags { margin-top: 12px; }
 .reader-pane { background: var(--reader-background); }
+.reader-slot { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.reader-slot-content { position: absolute; inset: 0; }
 .reader-toolbar { color: var(--muted-foreground); font-size: 12px; }
 .reader-toolbar .toolbar-start { min-width: 0; flex: 1; }
 .reader-toolbar-title {

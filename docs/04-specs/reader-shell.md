@@ -20,7 +20,7 @@ ArticleCollection 消费同一 Article[]、selectedID 和操作回调；TanStack
 - 文章区标题与操作优先共用顶部一行，长标题截断，空间不足时操作换行。列表的选中与悬停底色覆盖滑块下方，延伸到列表栏右缘。
 - 浏览锚点键为 scope|search|sort|mode，值为 {article_id,offset}；Reader 使用 reader|article_id，offset 为 Reader 内部滚动距离。共用最多 32 项。恢复和尺寸重算期间不把顶部测量覆盖到已保存锚点；180ms 防抖，卸载／切换时冲刷最后值。
 - J／K 切换并同步列表焦点，F 收藏，M 切换已读，/ 搜索，Cmd／Ctrl+K 命令面板，Escape 关闭 Reader；表单、菜单、对话框、输入法合成期间不抢单键。分隔条 Arrow±8px、Shift±20px、Home／End 到边界。
-- Theme=Light／Dark／System 即时生效；Animation=Off 优先，Follow System＋系统减少动态或 Subtle 使用减弱模式。Off 禁用装饰动画但保留虚拟条目的定位 transform；Subtle 去空间运动／弹簧，短淡入≤100ms。Full Reader 使用有界弹簧；静止空态不持续空转。
+- Theme=Light／Dark／System 即时生效，Animation=Off 优先。打开文章和返回时，列表阅读面板淡入淡出，瀑布流的铺满和抽屉阅读层从右侧短距离滑入并淡入，返回时滑出并淡出。完整过渡为 220ms。轻微动效和系统减少动态使用 100ms 淡入淡出，关闭动效直接切换。返回时动画中的阅读层退出交互，焦点回到原文章。虚拟条目定位不受动效设置影响。
 - 设置与命令面板按需加载。Dialog 有标题、焦点管理及关闭回焦；诊断移至设置的关于区域。原生菜单与真实窗口材质已由[原生体验契约](native-experience.md)补齐，不依赖私有 macOS API。
 
 ## 4. 校验与错误矩阵
