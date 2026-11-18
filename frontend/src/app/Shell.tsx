@@ -52,7 +52,7 @@ function ReaderTransition({ children, className, mode }: {
   const withTiming = (target: typeof inside) => {
     if (mode !== 'full') return target
     const width = layer.current?.offsetWidth ?? 0
-    const duration = (320 + Math.max(0, width - 400) * .15) / 1000
+    const duration = (220 + Math.max(0, width - 400) * .15) / 1000
     return { ...target, transition: { duration, ease: 'easeInOut' as const } }
   }
   return <motion.div ref={layer} className={className} inert={!present} aria-hidden={!present || undefined}
