@@ -62,6 +62,8 @@ describe('Phase 1 阅读 Shell', () => {
     }
     expect(offset()).toBe(100)
     await waitFor(expectIntermediateFrame, { interval: 10 })
+    const widthGetter = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth')!.get!
+    expect(vi.mocked(widthGetter).mock.contexts).toContain(layer)
     await waitFor(() => expect(offset()).toBe(0))
     const measure = vi.fn(() => article_view_mode === 'list' ? 400 : reader_layout === 'drawer' ? 800 : 1200)
     Object.defineProperty(layer, 'offsetWidth', { get: measure })
