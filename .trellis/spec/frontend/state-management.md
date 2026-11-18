@@ -50,7 +50,7 @@ library Query 迁移为 InfiniteData<LibraryPage>；libraryKey 包含 scope／se
 
 看图索引和缩放、目录悬停状态只存在阅读区组件。看图覆盖原正文滚动容器，退出后焦点还给入口图片。设置只持久化 `reader_image_wheel` 和 `reader_outline`。正文 HTML 对象在字符串相同期间保持稳定，确保目录与看图使用的 DOM 引用和焦点恢复仍有效。
 
-看图左键拖动使用 Pointer Capture，释放、取消和丢失捕获时清除抓手，实际拖动后的点击需阻止空白关闭。macOS 双指来源由 AppKit 手势阶段与 DOM 时间戳配对，禁止用滚轮步长或像素模式猜测设备。WebKit 默认滚动会过滤主轴以外的增量，看图平移同时应用已识别双指事件的原始 `deltaX` 和 `deltaY`，惯性使用系统后续事件。相关行为依据见 [WebKit 双轴事件回归用例](https://github.com/WebKit/WebKit/blob/main/LayoutTests/fast/scrolling/mac/wheel-event-deltas-are-not-filtered.html)。
+看图左键拖动使用 Pointer Capture，释放、取消和丢失捕获时清除抓手，实际拖动后的点击需阻止空白关闭。macOS 前端在看图期间同步视口边界，AppKit 在该范围内消费有滑动或惯性阶段的原生滚动事件，并把同一个事件的双轴位移交给图片视口。普通滚轮与捏合沿用 WebKit 入口。来源分流不能依赖 `MayBegin`、异步 DOM 时间戳配对、滚轮步长或像素模式。回归须从 AppKit 事件入口覆盖直接进入 `Began`、惯性、普通滚轮和看图区域外的滚动，不能预先注入来源标记。事件阶段见 [AppKit NSEvent.phase](https://developer.apple.com/documentation/appkit/nsevent/phase-swift.property?language=objc)。
 
 ## 阅读工具栏常驻偏好
 

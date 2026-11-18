@@ -421,7 +421,7 @@ it('图片超出视口时，连续像素滚轮仍能继续放大和缩小', asyn
  await waitFor(() => expect(zoom()).toBeLessThan(112))
 })
 
-it('AppKit 识别的双指滚动同时移动两轴，同样的鼠标增量仍缩放', async () => {
+it('AppKit 滑动只在溢出的图片上平移，普通滚轮和捏合分别缩放', async () => {
  const postMessage = vi.fn()
  const previous = Object.getOwnPropertyDescriptor(window, 'webkit')
  Object.defineProperty(window, 'webkit', {
@@ -436,34 +436,42 @@ it('AppKit 识别的双指滚动同时移动两轴，同样的鼠标增量仍缩
   const picture = within(viewer).getByRole('img', { name: '第一张' })
   const scroll = viewer.querySelector('.reader-image-scroll')!
   Object.defineProperties(scroll, { scrollWidth: { value: 900 }, scrollHeight: { value: 1200 } })
-  expect(postMessage).toHaveBeenLastCalledWith(true)
+  expect(postMessage).toHaveBeenLastCalledWith([0, 0, 0, 0])
+  const pan = (window as Window & { fealdhordReaderPan?: (x: number, y: number, dx: number, dy: number) => void }).fealdhordReaderPan
+  expect(pan).toBeTypeOf('function')
+  Object.defineProperty(document, 'elementFromPoint', {
+   configurable: true, value: (x: number) => x === 10 ? picture : document.body,
+  })
+  pan?.(10, 10, 18, 25)
+  expect(scroll.scrollTop).toBe(0)
+  expect(scale).toHaveAttribute('aria-valuenow', '100')
+
   fireEvent.wheel(picture, { deltaY: -40 })
   await waitFor(() => expect(scroll).toHaveAttribute('data-fitted', 'false'))
-
-  const reportSource = (window as Window & { fealdhordReaderScrollSource?: (time: number, trackpad: boolean) => void }).fealdhordReaderScrollSource
-  expect(reportSource).toBeTypeOf('function')
-  const input = (trackpad: boolean, epoch: number, deltaX = 18, deltaY = 25) => {
-   const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX, deltaY })
-   Object.defineProperty(event, 'timeStamp', { value: epoch })
-   reportSource?.(epoch, trackpad)
-   return fireEvent(picture, event)
-  }
+  await waitFor(() => expect(scale).toHaveAttribute('aria-valuenow', String(100 * Math.exp(40 * .0018))))
   scroll.scrollLeft = 200
   scroll.scrollTop = 200
   const before = Number(scale.getAttribute('aria-valuenow'))
-  for (const [index, [dx, dy]] of [[18, 25], [-31, 12], [22, -28], [-9, -13]].entries()) {
+  for (const [dx, dy] of [[0, 27], [18, 25], [-31, 12], [22, -28], [-9, -13]]) {
    const left = scroll.scrollLeft
    const top = scroll.scrollTop
-   expect(input(true, 1.8e12 + index, dx, dy)).toBe(false)
+   pan?.(10, 10, dx, dy)
    expect(scroll.scrollLeft).toBe(left + dx)
    expect(scroll.scrollTop).toBe(top + dy)
    expect(scale).toHaveAttribute('aria-valuenow', String(before))
   }
-  expect(input(false, 1.8e12 + 10)).toBe(false)
+  const top = scroll.scrollTop
+  pan?.(30, 10, 18, 25)
+  expect(scroll.scrollTop).toBe(top)
+  expect(fireEvent.wheel(picture, { deltaX: 18, deltaY: 25 })).toBe(false)
   await waitFor(() => expect(Number(scale.getAttribute('aria-valuenow'))).toBeLessThan(before))
+  fireEvent(picture, new Event('gesturestart', { bubbles: true, cancelable: true }))
+  fireEvent(picture, Object.assign(new Event('gesturechange', { bubbles: true, cancelable: true }), { scale: 2 }))
+  expect(Number(scale.getAttribute('aria-valuenow'))).toBeGreaterThan(before)
   unmount()
-  expect(postMessage).toHaveBeenLastCalledWith(false)
+  expect(postMessage).toHaveBeenLastCalledWith(null)
  } finally {
+  Reflect.deleteProperty(document, 'elementFromPoint')
   if (previous) Object.defineProperty(window, 'webkit', previous)
   else Reflect.deleteProperty(window, 'webkit')
  }

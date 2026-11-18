@@ -19,8 +19,8 @@ function hasImageOverflow(scroll: Element) {
 }
 
 type ReaderInputWindow = Window & {
-  webkit?: { messageHandlers?: { fealdhordReaderTrackpad?: { postMessage: (enabled: boolean) => void } } }
-  fealdhordReaderScrollSource?: (time: number, trackpad: boolean) => void
+  webkit?: { messageHandlers?: { fealdhordReaderTrackpad?: { postMessage: (bounds: number[] | null) => void } } }
+  fealdhordReaderPan?: (clientX: number, clientY: number, dx: number, dy: number) => void
 }
 
 function imageTransform(destination: DOMRectReadOnly, layout: DOMRectReadOnly) {
@@ -201,46 +201,49 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
     setZoomImmediately(clampZoom(value))
   })
 
+  useLayoutEffect(() => {
+    const node = viewer.current
+    const host: ReaderInputWindow = window
+    const source = host.webkit?.messageHandlers?.fealdhordReaderTrackpad
+    if (!node || !source) return
+
+    host.fealdhordReaderPan = (clientX, clientY, dx, dy) => {
+      const scroll = document.elementFromPoint(clientX, clientY)?.closest('.reader-image-scroll')
+      if (!scroll || !node.contains(scroll) || !hasImageOverflow(scroll)) return
+      scroll.scrollLeft += dx
+      scroll.scrollTop += dy
+    }
+    const syncBounds = () => {
+      const { x, y, width, height } = node.getBoundingClientRect()
+      source.postMessage([x, y, width, height])
+    }
+    const handleTransition = (event: Event) => {
+      if (event.target instanceof Element && event.target.contains(node)) syncBounds()
+    }
+    syncBounds()
+    const observer = new ResizeObserver(syncBounds)
+    observer.observe(node)
+    window.addEventListener('resize', syncBounds)
+    // 祖先的位移动画结束时也需同步，尺寸观察不捕获仅位置改变的情况。
+    document.addEventListener('transitionend', handleTransition, true)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', syncBounds)
+      document.removeEventListener('transitionend', handleTransition, true)
+      source.postMessage(null)
+      delete host.fealdhordReaderPan
+    }
+  }, [])
+
   useEffect(() => {
     const node = viewer.current
     if (!node) return
-    const host: ReaderInputWindow = window
-    const source = host.webkit?.messageHandlers?.fealdhordReaderTrackpad
-    // 配对 AppKit 和 DOM 中同一事件的时间戳，余下事件沿用鼠标滚轮行为。
-    const input: { time: number; trackpad: boolean }[] = []
-    if (source) {
-      host.fealdhordReaderScrollSource = (time, trackpad) => {
-        input.push({ time, trackpad })
-        if (input.length > 16) input.shift()
-      }
-      source.postMessage(true)
-    }
+    const source = (window as ReaderInputWindow).webkit?.messageHandlers?.fealdhordReaderTrackpad
     let lastNavigation = -Infinity
     let gestureZoom: number | undefined
     const handleWheel = (event: WheelEvent) => {
-      const time = event.timeStamp > 1e12 ? event.timeStamp : performance.timeOrigin + event.timeStamp
-      let closest = 4
-      let match = -1
-      for (const [index, sample] of input.entries()) {
-        const distance = Math.abs(sample.time - time)
-        if (distance <= closest) {
-          closest = distance
-          match = index
-        }
-      }
-      const trackpad = match >= 0 && input[match].trackpad
-      if (match >= 0) input.splice(0, match + 1)
       const scroll = event.target instanceof Element && event.target.closest('.reader-image-scroll')
       if (!event.ctrlKey && !source && event.deltaX && scroll && hasImageOverflow(scroll)) return
-      if (!event.ctrlKey && trackpad && scroll) {
-        event.preventDefault()
-        if (hasImageOverflow(scroll)) {
-          // WebKit 的默认滚动会锁主轴，DOM 事件仍包含双轴原始增量。
-          scroll.scrollLeft += event.deltaX
-          scroll.scrollTop += event.deltaY
-        }
-        return
-      }
       if (!event.deltaY) return
       event.preventDefault()
       if (gestureZoom !== undefined) return
@@ -273,10 +276,6 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
     node.addEventListener('gesturechange', gestureChange)
     node.addEventListener('gestureend', gestureEnd)
     return () => {
-      if (source) {
-        source.postMessage(false)
-        delete host.fealdhordReaderScrollSource
-      }
       node.removeEventListener('wheel', handleWheel)
       node.removeEventListener('gesturestart', gestureStart)
       node.removeEventListener('gesturechange', gestureChange)
