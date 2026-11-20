@@ -667,8 +667,9 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 .field-selection[data-single-line=true] { display: flex; align-items: center; white-space: pre; }
 .field-selection[data-single-line=true] > div { min-width: 100%; flex-shrink: 0; }
 .field-selection mark { color: transparent; background: color-mix(in srgb, Highlight 35%, transparent); }
-.text-selection { position: fixed; inset: 0; z-index: 49; pointer-events: none; }
-.text-selection > span { position: absolute; background: color-mix(in srgb, Highlight 35%, transparent); }
+.text-selection { --prose-selection: #b3d7ff; position: fixed; inset: 0; z-index: 49; pointer-events: none; mix-blend-mode: darken; }
+.dark .text-selection { --prose-selection: #304e72; mix-blend-mode: lighten; }
+.text-selection > span { position: absolute; background: var(--prose-selection); }
 [data-text-selection-painted] :is(.chat-message, .reader-prose, .reader-content h1, .reader-byline)::selection,
 [data-text-selection-painted] :is(.chat-message, .reader-prose, .reader-content h1, .reader-byline) *::selection {
   color: inherit;

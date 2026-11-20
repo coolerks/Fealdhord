@@ -775,22 +775,26 @@ describe('Phase 1 阅读 Shell', () => {
     const previousRects = Object.getOwnPropertyDescriptor(Range.prototype, 'getClientRects')
     const previousHitTest = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
     Object.defineProperty(Range.prototype, 'getClientRects', {
-      configurable: true, value: () => [new DOMRect(30, 40, 50, 16)],
+      configurable: true, value: () => [new DOMRect(30, 40, 50, 16), new DOMRect(10, 64, 35, 16)],
     })
     Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => paragraph })
     try {
       const prose = paragraph.closest('.reader-content')!
       Object.defineProperties(prose, { clientWidth: { value: 100 }, clientHeight: { value: 100 } })
+      const painted = () => [...document.querySelectorAll('.text-selection > span')]
+      fireEvent(document, new Event('selectionchange'))
+      await waitFor(() => expect(painted()).toHaveLength(2))
+      expect(painted()[0]).toHaveStyle({ top: '40px', height: '20px' })
+      expect(painted()[1]).toHaveStyle({ top: '60px', height: '20px' })
+      const beforeMenu = painted().map(line => line.getAttribute('style'))
       fireEvent.contextMenu(paragraph)
-      const painted = () => document.querySelector('.text-selection > span')
-      expect(painted()).toHaveStyle({ top: '40px', height: '16px' })
       selection.removeAllRanges()
       fireEvent(document, new Event('selectionchange'))
       const copy = await screen.findByRole('menuitem', { name: '复制' })
-      expect(painted()).toBeInTheDocument()
+      expect(painted().map(line => line.getAttribute('style'))).toEqual(beforeMenu)
       await user.click(copy)
       expect(host.copy).toHaveBeenCalledWith('验证')
-      expect(painted()).toBeNull()
+      expect(painted()).toHaveLength(0)
     } finally {
       selection.removeAllRanges()
       if (previousRects) Object.defineProperty(Range.prototype, 'getClientRects', previousRects)
