@@ -66,12 +66,11 @@
 
 .chat-header {
   justify-content: flex-start;
-  padding-inline: var(--chat-gutter);
   border-block-end: 1px solid var(--border);
 }
 
 .chat-header[data-sidebar-collapsed=true] {
-  padding-inline-start: max(var(--chat-gutter), var(--collapsed-toolbar-inset));
+  padding-inline-start: var(--collapsed-toolbar-inset);
 }
 
 .chat-header h1 {
