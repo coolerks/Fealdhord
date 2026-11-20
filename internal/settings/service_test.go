@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -35,7 +36,7 @@ func TestPreferencesPersistAndReopen(t *testing.T) {
 	}
 	service := NewService(store)
 	got := service.Get(ctx)
-	if !got.OK || got.Data.Revision != 0 || got.Data.Preferences.Theme != "system" || got.Data.Preferences.RefreshToastAutoDismiss {
+	if !got.OK || got.Data.Revision != 0 || got.Data.Preferences.Theme != "system" || got.Data.Preferences.RefreshToastAutoDismiss || got.Data.Preferences.ChatModelID != "" {
 		t.Fatalf("初始偏好错误：%+v", got)
 	}
 	prefs := got.Data.Preferences
@@ -44,10 +45,15 @@ func TestPreferencesPersistAndReopen(t *testing.T) {
 	prefs.ArticleViewMode = "masonry"
 	prefs.SidebarWidth = 340
 	prefs.ListWidth = 760
+	prefs.ChatModelID = "SAVEDMODELID"
 	prefs.ScrollAnchors["all:masonry"] = ScrollAnchor{ArticleID: "article-7", Offset: 18}
 	saved := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: 0})
 	if !saved.OK || saved.Data.Revision != 1 {
 		t.Fatalf("保存失败：%+v", saved)
+	}
+	prefs.ChatModelID = strings.Repeat("X", maxChatModelID+1)
+	if invalid := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: 1}); invalid.OK || invalid.Error.Code != "ValidationError" {
+		t.Fatalf("超长聊天模型标识未拒绝：%+v", invalid)
 	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
@@ -56,6 +62,9 @@ func TestPreferencesPersistAndReopen(t *testing.T) {
 	snapshot := NewService(reopened).Get(ctx)
 	if !snapshot.OK || snapshot.Data.Preferences.Theme != "dark" || !snapshot.Data.Preferences.RefreshToastAutoDismiss || snapshot.Data.Preferences.SidebarWidth != 340 || snapshot.Data.Preferences.ListWidth != 760 || snapshot.Data.Preferences.ScrollAnchors["all:masonry"].ArticleID != "article-7" {
 		t.Fatalf("重开丢失设置：%+v", snapshot)
+	}
+	if snapshot.Data.Preferences.ChatModelID != "SAVEDMODELID" {
+		t.Fatalf("重开丢失聊天模型：%+v", snapshot.Data.Preferences)
 	}
 }
 

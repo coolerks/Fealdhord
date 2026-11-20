@@ -44,7 +44,6 @@ function chatTransition(mode: WorkspaceView['motionMode']) {
 }
 
 const statusLabels: Record<string, string> = {
-  running: '正在回复…',
   failed: '回复失败',
   cancelled: '已取消',
   interrupted: '上次回复已中断',
@@ -123,6 +122,8 @@ function ChatSession({ target, close, workspace }: {
 }) {
   const cache = useQueryClient()
   const showSettings = useWorkspace(state => state.showSettings)
+  const rememberedModelID = useWorkspace(state => state.preferences?.chat_model_id)
+  const patchPreferences = useWorkspace(state => state.patch)
   const [chosen, setChosen] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [includeContext, setIncludeContext] = useState(false)
@@ -130,7 +131,6 @@ function ChatSession({ target, close, workspace }: {
   const [selection, setSelection] = useState(target.selection ?? '')
   const [sources, setSources] = useState<Article[]>([])
   const [picking, setPicking] = useState(false)
-  const [modelChoice, setModelChoice] = useState<string | null>(null)
   const [effortChoices, setEffortChoices] = useState<Record<string, string>>({})
   const [following, setFollowing] = useState(true)
   const [conversationsScrolled, setConversationsScrolled] = useState(false)
@@ -162,9 +162,10 @@ function ChatSession({ target, close, workspace }: {
     }]]
   }))
   const assigned = configuration.data?.assignments?.find(item => item.task === 'chat')?.modelId
-  const defaultModelID = modelOptions.find(option => option.value === assigned)?.value ?? modelOptions[0]?.value
-  const modelID = modelChoice ?? defaultModelID
-  const modelReady = workspace ? modelOptions.some(option => option.value === modelID) : Boolean(model.data)
+  const selectedModel = modelOptions.find(option => option.value === rememberedModelID) ??
+    modelOptions.find(option => option.value === assigned) ?? modelOptions[0]
+  const modelID = selectedModel?.value
+  const modelReady = workspace ? Boolean(selectedModel) : Boolean(model.data)
   const effortLevels = configuration.data?.models?.find(item => item.id === modelID)?.reasoningLevels ?? []
   const reasoningEffort = modelID ? effortChoices[modelID] : undefined
   const invalidEffort = Boolean(reasoningEffort && !effortLevels.some(option => option.value === reasoningEffort))
@@ -174,7 +175,6 @@ function ChatSession({ target, close, workspace }: {
   const theme = useReaderCodeTheme(workspace?.theme ?? 'app', Boolean(workspace && messages.data?.some(message => message.role === 'assistant')))
   const send = useMutation({
     mutationFn: async () => {
-      if (workspace && modelID) setModelChoice(modelID)
       let id = conversationId
       if (!id) {
         const title = Array.from(draft.trim()).slice(0, 64).join('')
@@ -211,6 +211,10 @@ function ChatSession({ target, close, workspace }: {
     mutationFn: (id: string) => api.Cancel(id),
     onSuccess: (_result, id) => cache.invalidateQueries({ queryKey: chatMessagesKey(id) }),
   })
+  function selectModel(id: string) {
+    if (id !== rememberedModelID) patchPreferences({ chat_model_id: id })
+    send.reset()
+  }
   useLayoutEffect(() => {
     const element = timeline.current
     if (element && follow.current) element.scrollTop = element.scrollHeight
@@ -306,7 +310,7 @@ function ChatSession({ target, close, workspace }: {
       {history.isError && retryHistory}
     </div>}
     <div className={workspace ? 'chat-timeline' : 'h-[min(40vh,400px)] min-h-20 space-y-3 overflow-y-auto'}
-      ref={timeline} role={workspace ? 'region' : undefined} aria-label="对话消息" onScroll={event => {
+      ref={timeline} role={workspace ? 'region' : undefined} aria-label="对话消息" tabIndex={workspace ? -1 : undefined} onScroll={event => {
       const { scrollHeight, scrollTop, clientHeight } = event.currentTarget
       follow.current = scrollHeight - scrollTop - clientHeight < 32
       if (workspace) setFollowing(follow.current)
@@ -314,9 +318,9 @@ function ChatSession({ target, close, workspace }: {
       {messages.isError && <Button size="sm" variant="ghost" onClick={() => void messages.refetch()}>重新读取消息</Button>}
       {messages.data?.map(message => <section key={message.id} className={workspace ? 'chat-message' : message.role === 'user' ? 'ml-auto w-fit max-w-[90%] rounded-xl bg-muted p-3' : 'mr-3 rounded-xl border p-3'} data-role={workspace ? message.role : undefined}>
         {(!workspace || message.role !== 'user') && <p className="text-xs text-muted-foreground">{message.role === 'user' ? '你' : message.modelName}</p>}
-        {workspace && message.role === 'assistant'
+        {message.text && (workspace && message.role === 'assistant'
           ? <ChatMarkdown text={message.text} streaming={message.status === 'running'} />
-          : <p className="whitespace-pre-wrap break-words">{message.text}</p>}
+          : <p className="whitespace-pre-wrap break-words">{message.text}</p>)}
         {!!message.tools?.length && <ul className="mt-2 text-xs text-muted-foreground" aria-label="工具活动">
           {message.tools.map(tool => <li key={tool.id}>{toolStatusLabels[tool.status] ?? '文章工具状态未知'}</li>)}
         </ul>}
@@ -326,6 +330,7 @@ function ChatSession({ target, close, workspace }: {
       </section>)}
     </div>
     {workspace && !following && <Button className="chat-latest" variant="outline" size="icon" aria-label="回到最新" onClick={() => {
+      timeline.current?.focus({ preventScroll: true })
       follow.current = true
       setFollowing(true)
     }}><ArrowDown /></Button>}
@@ -373,11 +378,10 @@ function ChatSession({ target, close, workspace }: {
           <div className={workspace ? 'chat-composer-actions' : undefined}>
             {workspace && (modelOptions.length ? <SearchableSelect label="聊天模型" className="chat-model" value={modelID ?? ''}
               options={modelOptions} variant="ghost" announceSelection placeholder="选择模型" disabled={send.isPending}
-              submenus={modelSubmenus} onValueChange={id => { setModelChoice(id); send.reset() }}
+              submenus={modelSubmenus} onValueChange={selectModel}
               onSubValueChange={(id, effort) => {
-                setModelChoice(id)
+                selectModel(id)
                 setEffortChoices(current => ({ ...current, [id]: effort === defaultEffortOption.value ? '' : effort }))
-                send.reset()
               }} />
               : configuration.isError ? <Button type="button" variant="ghost" onClick={() => void configuration.refetch()}>重新读取模型</Button>
                 : configuration.isPending ? <span role="status">正在读取模型…</span>
@@ -390,7 +394,6 @@ function ChatSession({ target, close, workspace }: {
           </div>
         </div>
       </form>
-      {workspace && modelChoice && !modelReady && !send.isError && <p role="alert">{errorLabels.ChatModelUnavailable}</p>}
       {workspace && invalidEffort && !send.isError && <p role="alert">{errorLabels.ChatReasoningUnavailable}</p>}
       {(send.isError || cancel.isError) && <p role="alert">{errorText(send.error ?? cancel.error)}</p>}
     </div>

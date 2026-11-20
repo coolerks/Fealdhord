@@ -49,6 +49,7 @@ type Preferences struct {
 	ReaderImageBackdropClose bool                    `json:"reader_image_backdrop_close"`
 	ReaderCodeTheme          string                  `json:"reader_code_theme"`
 	ChatCodeTheme            string                  `json:"chat_code_theme"`
+	ChatModelID              string                  `json:"chat_model_id"`
 	ReaderOutline            string                  `json:"reader_outline"`
 }
 
@@ -74,7 +75,10 @@ func oneOf(value string, choices ...string) bool {
 
 var codeThemeID = regexp.MustCompile(`^(base16/)?[a-z0-9][a-z0-9-]{0,70}$`)
 
-const maxListWidth = 760
+const (
+	maxListWidth   = 760
+	maxChatModelID = 128
+)
 
 func validReaderToolbarPinned(actions []string) bool {
 	if len(actions) > 8 {
@@ -93,6 +97,9 @@ func validReaderToolbarPinned(actions []string) bool {
 func (p Preferences) Validate() error {
 	if !codeThemeID.MatchString(p.ReaderCodeTheme) || !codeThemeID.MatchString(p.ChatCodeTheme) {
 		return errors.New("代码块主题选项无效。")
+	}
+	if len(p.ChatModelID) > maxChatModelID {
+		return errors.New("聊天模型标识无效。")
 	}
 	if !validReaderToolbarPinned(p.ReaderToolbarPinned) {
 		return errors.New("阅读工具栏选项无效。")
@@ -144,6 +151,9 @@ func (p *Preferences) normalize() {
 	}
 	if !codeThemeID.MatchString(p.ChatCodeTheme) {
 		p.ChatCodeTheme = d.ChatCodeTheme
+	}
+	if len(p.ChatModelID) > maxChatModelID {
+		p.ChatModelID = d.ChatModelID
 	}
 	if p.ReaderToolbarPinned == nil || !validReaderToolbarPinned(p.ReaderToolbarPinned) {
 		p.ReaderToolbarPinned = d.ReaderToolbarPinned

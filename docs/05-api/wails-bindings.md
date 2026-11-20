@@ -99,6 +99,8 @@ Settings 的 Get／Update 偏好对象包含 `reader_code_theme`。默认值为 
 
 `chat_code_theme` 使用相同的标识格式和默认值，独立存储。读取缺少该字段的旧偏好时使用 `app`。
 
+`chat_model_id` 使用本地模型记录 ID，限制 128 字节，可为空。通过同一偏好接口进行读取和带 revision 的更新，旧记录读取为空。
+
 Settings 的 Get／Update 偏好对象包含布尔字段 `quit_on_window_close`，旧记录缺字段时为 `false`。原生窗口采用成功保存时的值和 revision。
 
 ### Phase 4 OPML 与刷新事件

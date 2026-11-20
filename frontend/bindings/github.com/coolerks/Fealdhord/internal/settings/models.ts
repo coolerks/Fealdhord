@@ -42,6 +42,7 @@ export interface Preferences {
     "reader_image_backdrop_close": boolean;
     "reader_code_theme": string;
     "chat_code_theme": string;
+    "chat_model_id": string;
     "reader_outline": string;
 }
 

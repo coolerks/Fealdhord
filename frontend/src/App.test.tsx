@@ -152,6 +152,15 @@ describe('Phase 1 阅读 Shell', () => {
     expect(model).toHaveTextContent(/^备用模型$/)
     await user.type(input, '第二条{Enter}')
     expect(await screen.findByText('第二条回复')).toBeInTheDocument()
+    expect(screen.queryByText('正在回复…')).not.toBeInTheDocument()
+    const timeline = screen.getByRole('region', { name: '对话消息' })
+    Object.defineProperties(timeline, { scrollHeight: { value: 900 }, clientHeight: { value: 300 } })
+    timeline.scrollTop = 100
+    fireEvent.scroll(timeline)
+    await user.click(screen.getByRole('button', { name: '回到最新' }))
+    expect(timeline.scrollTop).toBe(900)
+    expect(timeline).toHaveFocus()
+    expect(screen.queryByRole('button', { name: '回到最新' })).not.toBeInTheDocument()
     const reply = rows[3]
     const update = { conversationId: 'new', messageId: reply.id, offset: reply.text.length, delta: '🙂继续', done: false }
     publish({ ...update, conversationId: 'history' })
@@ -178,6 +187,7 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(model)
     await user.click(screen.getByRole('option', { name: '基础模型 · 本地服务 · simple-model' }))
     expect(model).toHaveTextContent(/^基础模型$/)
+    await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(expect.objectContaining({ chat_model_id: 'third' }), expect.any(Number)))
     expect(screen.queryByRole('dialog', { name: '聊天模型' })).not.toBeInTheDocument()
     await user.click(within(sidebar).getByRole('button', { name: '已有会话' }))
     expect(await screen.findByText('历史回复')).toBeInTheDocument()
@@ -191,6 +201,7 @@ describe('Phase 1 阅读 Shell', () => {
 
     await user.click(opener)
     const workspace = await screen.findByRole('main', { name: 'AI 助手工作区' })
+    expect(await within(workspace).findByRole('button', { name: '聊天模型' })).toHaveTextContent(/^基础模型$/)
     await user.click(screen.getByRole('button', { name: '折叠侧栏' }))
     expect(screen.queryByRole('complementary', { name: 'AI 会话导航' })).not.toBeInTheDocument()
     await user.click(within(workspace).getByRole('button', { name: '阅读' }))

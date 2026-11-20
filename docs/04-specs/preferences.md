@@ -22,6 +22,8 @@ migrations/00001_ui_preferences.sql 通过 goose 创建 app_settings，sqlc v1.3
 
 `reader_code_theme` 默认是 `app`，使用应用深浅色主题。其他选项保存 highlight.js 样式 ID，例如 `github-dark` 或 `base16/monokai`。Go 更新接口验证标识格式，阅读器遇到当前安装版本缺少的主题时显示应用样式。旧设置缺少此字段时使用默认值。
 
+`chat_model_id` 保存全局聊天最近一次显式选择的模型记录 ID，最大 128 字节。空值和旧记录缺失字段时按默认聊天模型选择。全局聊天根据当前启用的模型和服务判断该 ID 是否可用。
+
 通知方式 `preferences.notification_mode` 接受 `toast` 或 `native`，默认 `toast`。布尔值 `preferences.refresh_toast_auto_dismiss` 默认 `false`，旧记录缺少该字段时同样为 `false`。两个值由现有 Get／Update 契约和 CAS 保存，无需迁移。
 
 `preferences.developer_mode` 是「关于」页的布尔开关。默认及旧记录缺字段均为 `false`，沿用 Get／Update 与 CAS。macOS 菜单读取已提交偏好。Windows／Linux 菜单读取工作区当前偏好。
