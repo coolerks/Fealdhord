@@ -64,6 +64,16 @@ type Message struct {
 	Tools     []ToolActivity `json:"tools,omitempty"`
 }
 
+const UpdateEventName = "fealdhord:chat-update"
+
+type UpdateEvent struct {
+	ConversationID string `json:"conversationId"`
+	MessageID      string `json:"messageId"`
+	Offset         int    `json:"offset"` // UTF-16 code units, as used by the frontend.
+	Delta          string `json:"delta"`
+	Done           bool   `json:"done"`
+}
+
 type run struct {
 	cancel context.CancelFunc
 	id     string
@@ -76,17 +86,18 @@ type Service struct {
 	config  *aiconfig.Service
 	root    context.Context
 	stop    context.CancelFunc
+	publish func(UpdateEvent)
 	mu      sync.Mutex
 	active  map[string]*run
 	workers sync.WaitGroup
 }
 
-func New(ctx context.Context, store *database.Store, config *aiconfig.Service) (*Service, error) {
+func New(ctx context.Context, store *database.Store, config *aiconfig.Service, publish func(UpdateEvent)) (*Service, error) {
 	if err := store.InterruptChat(ctx, time.Now().UnixMilli()); err != nil {
 		return nil, err
 	}
 	root, cancel := context.WithCancel(ctx)
-	return &Service{store: store, config: config, root: root, stop: cancel, active: make(map[string]*run)}, nil
+	return &Service{store: store, config: config, root: root, stop: cancel, publish: publish, active: make(map[string]*run)}, nil
 }
 
 func (s *Service) Close() {
@@ -303,6 +314,13 @@ func (s *Service) Cancel(_ context.Context, id string) error {
 func (s *Service) execute(ctx context.Context, id string, current *run, adapter ai.Model, request ai.ModelRequest, tools []agentrun.ReadTool) {
 	defer s.workers.Done()
 	defer current.cancel()
+	update := UpdateEvent{ConversationID: id, MessageID: current.id}
+	defer func() {
+		if s.publish != nil {
+			update.Done = true
+			s.publish(update)
+		}
+	}()
 	status, code := "failed", "ProviderProtocolError"
 	var events <-chan ai.ModelEvent
 	var err error
@@ -314,24 +332,35 @@ func (s *Service) execute(ctx context.Context, id string, current *run, adapter 
 	if err != nil {
 		code = errorCode(err)
 	} else {
-		checkpoint := time.NewTicker(time.Second)
-		defer checkpoint.Stop()
-		var savedBytes int
+		checkpointCtx, stopCheckpoint := context.WithCancel(ctx)
+		checkpointDone := make(chan struct{})
+		go func() {
+			defer close(checkpointDone)
+			s.checkpoint(checkpointCtx, current)
+		}()
+		updates := time.NewTicker(32 * time.Millisecond)
+		defer updates.Stop()
+		var pending strings.Builder
+		flush := func() {
+			if pending.Len() == 0 {
+				return
+			}
+			update.Delta = pending.String()
+			s.publish(update)
+			for _, r := range update.Delta {
+				update.Offset++
+				if r > 0xffff {
+					update.Offset++
+				}
+			}
+			update.Delta = ""
+			pending.Reset()
+		}
 	stream:
 		for {
 			select {
-			case <-checkpoint.C:
-				s.mu.Lock()
-				text := current.text.String()
-				s.mu.Unlock()
-				if len(text) != savedBytes {
-					writeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-					err := s.store.ChatQueries().CheckpointChatMessage(writeCtx, sqlc.CheckpointChatMessageParams{ID: current.id, Content: text})
-					cancel()
-					if err == nil {
-						savedBytes = len(text)
-					}
-				}
+			case <-updates.C:
+				flush()
 			case event, ok := <-events:
 				if !ok {
 					break stream
@@ -347,6 +376,8 @@ func (s *Service) execute(ctx context.Context, id string, current *run, adapter 
 					if exceeded {
 						code = "ResponseLimit"
 						current.cancel()
+					} else if s.publish != nil {
+						pending.WriteString(event.Text)
 					}
 				case "message_end":
 					if code != "ResponseLimit" {
@@ -362,6 +393,9 @@ func (s *Service) execute(ctx context.Context, id string, current *run, adapter 
 				}
 			}
 		}
+		flush()
+		stopCheckpoint()
+		<-checkpointDone
 	}
 	if ctx.Err() != nil && status != "complete" && code != "ResponseLimit" {
 		status, code = "cancelled", "Cancelled"
@@ -377,6 +411,31 @@ func (s *Service) execute(ctx context.Context, id string, current *run, adapter 
 		delete(s.active, id)
 	} else {
 		current.failed = true
+	}
+}
+
+func (s *Service) checkpoint(ctx context.Context, current *run) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	var savedBytes int
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.mu.Lock()
+			text := current.text.String()
+			s.mu.Unlock()
+			if len(text) == savedBytes {
+				continue
+			}
+			writeCtx, cancel := context.WithTimeout(ctx, time.Second)
+			err := s.store.ChatQueries().CheckpointChatMessage(writeCtx, sqlc.CheckpointChatMessageParams{ID: current.id, Content: text})
+			cancel()
+			if err == nil {
+				savedBytes = len(text)
+			}
+		}
 	}
 }
 

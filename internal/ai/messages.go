@@ -119,7 +119,7 @@ func (m *Messages) request(ctx context.Context, req *ModelRequest, stream bool) 
 			payload["tool_choice"] = map[string]string{"type": req.ToolChoice.Mode}
 		}
 	}
-	return m.post(ctx, payload, true)
+	return m.post(ctx, payload, true, stream)
 }
 
 func (m *Messages) Generate(ctx context.Context, req *ModelRequest) (*ModelResponse, error) {

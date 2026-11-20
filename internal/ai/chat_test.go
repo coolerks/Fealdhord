@@ -85,6 +85,57 @@ func TestChatStreamTerminalAndUsage(t *testing.T) {
 	}
 }
 
+func TestChatStreamIdleTimeout(t *testing.T) {
+	const idle = 200 * time.Millisecond
+	for _, stall := range []bool{false, true} {
+		name := "active beyond idle limit"
+		if stall {
+			name = "stall after first delta"
+		}
+		t.Run(name, func(t *testing.T) {
+			model, request := chatFixture(t, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				for range 7 {
+					io.WriteString(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"a\"}}]}\n\n")
+					w.(http.Flusher).Flush()
+					if stall {
+						<-r.Context().Done()
+						return
+					}
+					time.Sleep(40 * time.Millisecond)
+				}
+				io.WriteString(w, "data: {\"choices\":[{\"index\":0,\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+			})
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			// A short non-stream HTTP timeout must not cap the streaming response.
+			model.client.Timeout = idle
+			stream, err := modelStreamWithIdleTimeout(ctx, func(ctx context.Context) (*http.Response, error) {
+				return model.request(ctx, request, true)
+			}, func(body io.Reader, send func(ModelEvent) bool) error {
+				return readChatStream(body, nil, send)
+			}, idle)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var text string
+			var terminal ModelEvent
+			for event := range stream {
+				text += event.Text
+				terminal = event
+			}
+			if stall {
+				var modelErr *ModelError
+				if text != "a" || terminal.Type != "error" || !errors.As(terminal.Error, &modelErr) || modelErr.Code != "Timeout" {
+					t.Fatalf("stalled stream: text %q, terminal %+v", text, terminal)
+				}
+			} else if text != "aaaaaaa" || terminal.Type != "message_end" || terminal.FinishReason != "stop" {
+				t.Fatalf("active stream: text %q, terminal %+v", text, terminal)
+			}
+		})
+	}
+}
+
 func TestChatStreamRepeatedFinishInUsageFrame(t *testing.T) {
 	for _, test := range []struct {
 		name, usageChoice string

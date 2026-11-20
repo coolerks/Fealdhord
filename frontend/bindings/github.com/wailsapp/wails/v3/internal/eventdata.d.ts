@@ -13,6 +13,9 @@ import type * as main$0 from "../../../../coolerks/Fealdhord/models.js";
 import type * as app$0 from "../../../../coolerks/Fealdhord/internal/app/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import type * as chat$0 from "../../../../coolerks/Fealdhord/internal/chat/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import type * as desktop$0 from "../../../../coolerks/Fealdhord/internal/desktop/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -21,6 +24,7 @@ import type * as refresh$0 from "../../../../coolerks/Fealdhord/internal/refresh
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
+            "fealdhord:chat-update": chat$0.UpdateEvent;
             "fealdhord:command": desktop$0.CommandEvent;
             "fealdhord:event": app$0.OperationEvent;
             "fealdhord:library-changed": main$0.LibraryChanged;

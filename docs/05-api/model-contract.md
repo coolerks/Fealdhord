@@ -68,7 +68,7 @@ SSE 事件与工具参数有独立大小上限，UTF-8 和跨分包边界正确�
 
 验收 MODEL-01：三 Adapter 独立通过本节所有 wire 用例，包括多工具交错、工具结果续轮、EOF 与 usage。
 
-Chat Completions 当前以配置的 API 基础路径追加 `chat/completions`，请求使用标准库 HTTP 并禁止重定向。响应上限为 8 MiB，单个 SSE 事件上限为 256 KiB，请求总时限为两分钟。已取消且无人继续消费的事件通道会直接关闭。
+Chat Completions 当前以配置的 API 基础路径追加 `chat/completions`，请求使用标准库 HTTP 并禁止重定向。响应上限为 8 MiB，单个 SSE 事件上限为 256 KiB，非流式请求总时限为两分钟。三种协议的流式请求在连接建立和接收响应期间使用两分钟空闲时限，收到响应或新的数据后重新计时，单次模型流最多十五分钟。调用方可设更短的时限。已取消且无人继续消费的事件通道会直接关闭。
 
 Chat Completions 的流式调用以工具索引累积参数，单轮最多 128 项，单项参数最多 64 KiB。收到 `tool_calls` 结束原因和 `[DONE]`，且整批调用 ID、工具名和 JSON 对象均验证通过后，才发出各项 `tool_call_end`。调用方应等到 `message_end` 再进入 Runtime 的参数 Schema 校验和审批。续轮按 `assistant.tool_calls` 和对应的 `role=tool` 消息编码，缺失、重复或无对应调用的结果在发请求前拒绝。
 

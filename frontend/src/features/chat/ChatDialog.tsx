@@ -22,6 +22,7 @@ import { useChatTarget } from './chat-scope'
 import { aiConfigurationKey } from '@/lib/ai-configuration'
 import { useReaderCodeTheme } from '@/features/reader/code-themes'
 import { ChatMarkdown } from './ChatMarkdown'
+import { chatMessagesKey, useChatMessages } from './useChatMessages'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/api'
 import { List as listAIConfiguration } from '../../../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/api'
 import './chat-workspace.css'
@@ -168,13 +169,7 @@ function ChatSession({ target, close, workspace }: {
   const reasoningEffort = modelID ? effortChoices[modelID] : undefined
   const invalidEffort = Boolean(reasoningEffort && !effortLevels.some(option => option.value === reasoningEffort))
   const conversationId = chosen ?? history.data?.[0]?.id ?? ''
-  const messagesKey = ['chat', 'messages', conversationId] as const
-  const messages = useQuery({
-    queryKey: messagesKey,
-    queryFn: () => api.Messages(conversationId),
-    enabled: Boolean(conversationId),
-    refetchInterval: query => query.state.data?.some(message => message.status === 'running') ? 250 : false,
-  })
+  const messages = useChatMessages(conversationId)
   const active = messages.data?.some(message => message.status === 'running') ?? false
   const theme = useReaderCodeTheme(workspace?.theme ?? 'app', Boolean(workspace && messages.data?.some(message => message.role === 'assistant')))
   const send = useMutation({
@@ -194,7 +189,7 @@ function ChatSession({ target, close, workspace }: {
         ...(workspace && reasoningEffort ? { reasoningEffort } : {}),
       })
       await Promise.all([
-        cache.invalidateQueries({ queryKey: ['chat', 'messages', id] }),
+        cache.invalidateQueries({ queryKey: chatMessagesKey(id) }),
         workspace && cache.invalidateQueries({ queryKey: listKey }),
       ])
     },
@@ -214,7 +209,7 @@ function ChatSession({ target, close, workspace }: {
   })
   const cancel = useMutation({
     mutationFn: (id: string) => api.Cancel(id),
-    onSuccess: (_result, id) => cache.invalidateQueries({ queryKey: ['chat', 'messages', id] }),
+    onSuccess: (_result, id) => cache.invalidateQueries({ queryKey: chatMessagesKey(id) }),
   })
   useLayoutEffect(() => {
     const element = timeline.current
@@ -319,7 +314,9 @@ function ChatSession({ target, close, workspace }: {
       {messages.isError && <Button size="sm" variant="ghost" onClick={() => void messages.refetch()}>重新读取消息</Button>}
       {messages.data?.map(message => <section key={message.id} className={workspace ? 'chat-message' : message.role === 'user' ? 'ml-auto w-fit max-w-[90%] rounded-xl bg-muted p-3' : 'mr-3 rounded-xl border p-3'} data-role={workspace ? message.role : undefined}>
         {(!workspace || message.role !== 'user') && <p className="text-xs text-muted-foreground">{message.role === 'user' ? '你' : message.modelName}</p>}
-        {workspace && message.role === 'assistant' ? <ChatMarkdown text={message.text} /> : <p className="whitespace-pre-wrap break-words">{message.text}</p>}
+        {workspace && message.role === 'assistant'
+          ? <ChatMarkdown text={message.text} streaming={message.status === 'running'} />
+          : <p className="whitespace-pre-wrap break-words">{message.text}</p>}
         {!!message.tools?.length && <ul className="mt-2 text-xs text-muted-foreground" aria-label="工具活动">
           {message.tools.map(tool => <li key={tool.id}>{toolStatusLabels[tool.status] ?? '文章工具状态未知'}</li>)}
         </ul>}

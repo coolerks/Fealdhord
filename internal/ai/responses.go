@@ -113,7 +113,7 @@ func (r *Responses) request(ctx context.Context, req *ModelRequest, stream bool)
 	} else if req.ToolChoice.Mode != "" {
 		payload["tool_choice"] = req.ToolChoice.Mode
 	}
-	return r.post(ctx, payload, false)
+	return r.post(ctx, payload, false, stream)
 }
 
 func (r *Responses) Generate(ctx context.Context, req *ModelRequest) (*ModelResponse, error) {

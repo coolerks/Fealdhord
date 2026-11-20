@@ -11,7 +11,8 @@ import { articleQueryKey } from '@/lib/library'
 import type { LibraryPage } from '@/lib/library'
 import type { Detail } from '@/lib/reader-api'
 import { useChatTarget } from '@/features/chat/chat-scope'
-import type { Message, SendInput } from '../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
+import { FealdhordChatUpdate } from '../bindings/events'
+import type { Message, SendInput, UpdateEvent } from '../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
 
 const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),isWindows:vi.fn(()=>false),isMaximized:vi.fn(async()=>false),onMaximizeChange:vi.fn<(_listener: (value: boolean) => void) => () => void>(()=>()=>{}),onCommand:vi.fn(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(async()=>{}),minimize:vi.fn(async()=>{}),maximize:vi.fn(async()=>{}),fullscreen:vi.fn(),openURL:vi.fn(async()=>{}),openDevTools:vi.fn(async()=>{}),quit:vi.fn()}))
 vi.mock('@/lib/native',()=>({native:host}))
@@ -62,13 +63,17 @@ function setup(withArticles = false) {
 describe('Phase 1 阅读 Shell', () => {
   it('全局 AI 工作区切换会话和本轮模型，停止后返回原阅读位置', async () => {
     const user = userEvent.setup()
-    const { container } = setup(true)
+    const { client, container } = setup(true)
     await user.click(await screen.findByRole('button', { name: '打开文章：测试文章 0' }))
     const prose = container.querySelector<HTMLElement>('.reader-content')!
     prose.scrollTop = 430
     fireEvent.scroll(prose)
     const opener = within(screen.getByRole('complementary', { name: '主导航' })).getByRole('button', { name: 'AI 助手' })
     const rows: Message[] = []
+    const publish = (data: UpdateEvent) => {
+      const runtime: { dispatchWailsEvent: (event: { name: string; data: UpdateEvent }) => void } = Reflect.get(window, '_wails')
+      act(() => runtime.dispatchWailsEvent({ name: FealdhordChatUpdate, data }))
+    }
     chat.List.mockResolvedValue([{ id: 'history', title: '已有会话' }])
     chat.Create.mockImplementation(async () => {
       const created = { id: 'new', title: '第一条' }
@@ -81,7 +86,7 @@ describe('Phase 1 阅读 Shell', () => {
     chat.Send.mockImplementation(async ({ modelId, text }: SendInput) => {
       const base = { errorCode: '', tools: [] }
       rows.push({ ...base, id: text, role: 'user', text, modelName: '', status: 'complete' })
-      rows.push({ ...base, id: `${text}-reply`, role: 'assistant', text: `${text}回复`, modelName: modelId ?? '', status: modelId === 'second' ? 'running' : 'complete' })
+      rows.push({ ...base, id: `${text}-reply`, role: 'assistant', text: `${text}回复`, modelName: modelId ?? '', status: 'running' })
     })
     chat.Cancel.mockImplementation(async () => { rows[3] = { ...rows[3], status: 'cancelled' } })
     listAIConfiguration.mockResolvedValue({
@@ -131,6 +136,9 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(send)
     expect(await screen.findByText('第一条回复')).toBeInTheDocument()
     expect(chat.Send).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: 'new', modelId: 'first', reasoningEffort: 'deep-custom', text: '第一条' }))
+    rows[1] = { ...rows[1], status: 'complete' }
+    publish({ conversationId: 'new', messageId: rows[1].id, offset: rows[1].text.length, delta: '', done: true })
+    await waitFor(() => expect(screen.queryByRole('button', { name: '停止回复' })).not.toBeInTheDocument())
 
     await user.click(model)
     await user.keyboard('alternate-model')
@@ -144,6 +152,23 @@ describe('Phase 1 阅读 Shell', () => {
     expect(model).toHaveTextContent(/^备用模型$/)
     await user.type(input, '第二条{Enter}')
     expect(await screen.findByText('第二条回复')).toBeInTheDocument()
+    const reply = rows[3]
+    const update = { conversationId: 'new', messageId: reply.id, offset: reply.text.length, delta: '🙂继续', done: false }
+    publish({ ...update, conversationId: 'history' })
+    expect(screen.queryByText('第二条回复🙂继续')).not.toBeInTheDocument()
+    publish(update)
+    expect(screen.getByText('第二条回复🙂继续')).toBeInTheDocument()
+    publish(update)
+    act(() => client.setQueryData(['chat', 'messages', 'new'], [...rows]))
+    expect(screen.getByText('第二条回复🙂继续')).toBeInTheDocument()
+    rows[3] = { ...reply, text: reply.text + update.delta + '输出' }
+    // Recover a dropped event from a snapshot, then apply an overlapping event.
+    const outputOffset = rows[3].text.length
+    publish({ ...update, offset: outputOffset, delta: '完成' })
+    expect(screen.queryByText(/输出完成/)).not.toBeInTheDocument()
+    act(() => client.setQueryData(['chat', 'messages', 'new'], [...rows]))
+    publish({ ...update, offset: outputOffset - 2, delta: '输出完成' })
+    expect(screen.getByText('第二条回复🙂继续输出完成')).toBeInTheDocument()
     expect(chat.Send).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: 'new', modelId: 'second', text: '第二条' }))
     expect(chat.Send.mock.lastCall?.[0]).not.toHaveProperty('reasoningEffort')
     expect(chat.Create).toHaveBeenCalledExactlyOnceWith({ kind: 'global', id: '' }, '第一条')

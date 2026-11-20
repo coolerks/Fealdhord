@@ -11,5 +11,6 @@ export type {
     Message,
     Scope,
     SendInput,
-    ToolActivity
+    ToolActivity,
+    UpdateEvent
 } from "./models.js";

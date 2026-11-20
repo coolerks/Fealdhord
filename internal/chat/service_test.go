@@ -21,6 +21,7 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	ctx := context.Background()
 	requests := make(chan string, 2)
 	toolIDs := make(chan [2]string, 1)
+	resume := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload json.RawMessage
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -41,12 +42,20 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 			fmt.Fprintf(w, "data: %s\n\ndata: {\"choices\":[{\"index\":0,\"finish_reason\":\"tool_calls\"}]}\n\ndata: [DONE]\n\n", delta)
 			return
 		}
-		fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"部分回复\"}}]}\n\n")
-		w.(http.Flusher).Flush()
 		if strings.Contains(string(payload), "取消这次") {
+			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"部分🙂\"}}]}\n\n")
+			w.(http.Flusher).Flush()
+			select {
+			case <-resume:
+			case <-r.Context().Done():
+				return
+			}
+			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"回复\"}}]}\n\n")
+			w.(http.Flusher).Flush()
 			<-r.Context().Done()
 			return
 		}
+		fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"部分回复\"}}]}\n\n")
 		fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
 	}))
 	defer server.Close()
@@ -56,7 +65,8 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	}
 	defer db.Close()
 	config := aiconfig.New(db.AIProviderQueries(), nil)
-	service, err := New(ctx, db, config)
+	updates := make(chan UpdateEvent, 8)
+	service, err := New(ctx, db, config, func(event UpdateEvent) { updates <- event })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,6 +95,9 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitMessage(t, service, conversation.ID, 2, "complete")
+	if first, done := takeChatUpdate(t, updates), takeChatUpdate(t, updates); first.Delta != "部分回复" || !done.Done || done.MessageID != first.MessageID {
+		t.Fatalf("complete stream events: %+v, %+v", first, done)
+	}
 	if request := <-requests; !strings.Contains(request, "仅本轮选段") {
 		t.Fatalf("missing explicit selection: %s", request)
 	} else if strings.Contains(request, "reasoning_effort") {
@@ -93,9 +106,15 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	if err := service.Send(ctx, SendInput{ConversationID: conversation.ID, Text: "取消这次"}); err != nil {
 		t.Fatal(err)
 	}
+	first := takeChatUpdate(t, updates)
+	if first.ConversationID != conversation.ID || first.Offset != 0 || first.Delta != "部分🙂" || first.Done {
+		t.Fatalf("first live delta = %+v", first)
+	}
+	close(resume)
+	second := takeChatUpdate(t, updates)
 	running := waitMessage(t, service, conversation.ID, 4, "running")
-	if running.Text != "部分回复" {
-		t.Fatalf("live reply = %+v", running)
+	if second.MessageID != running.ID || second.Offset != 4 || second.Delta != "回复" || running.Text != "部分🙂回复" {
+		t.Fatalf("second live delta = %+v, snapshot = %+v", second, running)
 	}
 	if request := <-requests; strings.Contains(request, "仅本轮选段") || !strings.Contains(request, "第一个问题") {
 		t.Fatalf("unexpected history: %s", request)
@@ -107,7 +126,7 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancelled := waitMessage(t, service, conversation.ID, 4, "cancelled")
-	if cancelled.Text != "部分回复" {
+	if done := takeChatUpdate(t, updates); !done.Done || done.MessageID != running.ID || cancelled.Text != "部分🙂回复" {
 		t.Fatalf("lost partial output: %+v", cancelled)
 	}
 	service.Close()
@@ -117,7 +136,7 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	if err := db.ChatQueries().StartChatToolAudit(ctx, sqlc.StartChatToolAuditParams{MessageID: "stale", CallID: "stale-call", ToolName: "read_article", StartedAt: 1}); err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := New(ctx, db, config)
+	reopened, err := New(ctx, db, config, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,6 +242,17 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	rows, err := reopened.Messages(ctx, global.ID)
 	if err != nil || len(rows) != 8 {
 		t.Fatalf("rejected model persisted a message: %d, %v", len(rows), err)
+	}
+}
+
+func takeChatUpdate(t *testing.T, updates <-chan UpdateEvent) UpdateEvent {
+	t.Helper()
+	select {
+	case update := <-updates:
+		return update
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for a chat update")
+		return UpdateEvent{}
 	}
 }
 

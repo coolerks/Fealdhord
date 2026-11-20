@@ -42,6 +42,7 @@ func init() {
 	application.RegisterEvent[refresh.Event](refresh.EventName)
 	application.RegisterEvent[fealdhord.OperationEvent](fealdhord.EventName)
 	application.RegisterEvent[desktopintegration.CommandEvent](desktopintegration.CommandEventName)
+	application.RegisterEvent[chat.UpdateEvent](chat.UpdateEventName)
 }
 
 func main() {
@@ -110,7 +111,9 @@ func main() {
 					slog.Error("关闭设置数据库失败", "error", err)
 				}
 			}()
-			chatService, err = chat.New(context.Background(), store, aiConfig)
+			chatService, err = chat.New(context.Background(), store, aiConfig, func(event chat.UpdateEvent) {
+				desktop.Event.Emit(chat.UpdateEventName, event)
+			})
 			if err != nil {
 				slog.Error("本地对话初始化失败")
 			} else {

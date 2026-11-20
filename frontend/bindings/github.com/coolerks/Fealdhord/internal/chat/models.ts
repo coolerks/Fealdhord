@@ -38,3 +38,15 @@ export interface ToolActivity {
     "status": string;
     "errorCode": string;
 }
+
+export interface UpdateEvent {
+    "conversationId": string;
+    "messageId": string;
+
+    /**
+     * UTF-16 code units, as used by the frontend.
+     */
+    "offset": number;
+    "delta": string;
+    "done": boolean;
+}

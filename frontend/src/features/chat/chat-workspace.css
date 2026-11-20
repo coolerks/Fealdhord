@@ -35,7 +35,6 @@
 
 .chat-header {
   justify-content: flex-start;
-  border-block-end: 1px solid var(--border);
 }
 
 .chat-header[data-sidebar-collapsed=true] {

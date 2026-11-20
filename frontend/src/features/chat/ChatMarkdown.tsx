@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react'
+import { createContext, memo, useContext, useEffect, useState } from 'react'
 import Markdown from 'react-markdown'
 import type { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -8,17 +8,21 @@ import { native } from '@/lib/native'
 import { notify } from '@/lib/notifications'
 import type { highlightText } from '@/features/reader/highlight-code'
 
-function ChatCode({ text, hint }: { text: string; hint?: string }) {
+const Streaming = createContext(false)
+const remarkPlugins = [remarkGfm]
+
+const ChatCode = memo(function ChatCode({ text, hint }: { text: string; hint?: string }) {
+  const streaming = useContext(Streaming)
   const [snapshot, setSnapshot] = useState<{ text: string; hint?: string; result: ReturnType<typeof highlightText> }>()
   const result = snapshot?.text === text && snapshot.hint === hint ? snapshot.result : undefined
   useEffect(() => {
-    if (!text.trim() || text.length > 8_000) return
+    if (streaming || !text.trim() || text.length > 8_000) return
     let current = true
     void import('@/features/reader/highlight-code').then(({ highlightText }) => {
       if (current) setSnapshot({ text, hint, result: highlightText(text, hint) })
     }).catch(() => { /* 保留纯文本代码。 */ })
     return () => { current = false }
-  }, [text, hint])
+  }, [streaming, text, hint])
 
   return <div className="reader-code-block hljs">
     <div className="reader-code-toolbar"><CodeToolbar text={text} language={result?.language ?? hint} /></div>
@@ -26,7 +30,7 @@ function ChatCode({ text, hint }: { text: string; hint?: string }) {
       ? <code className={`language-${result.id}`} dangerouslySetInnerHTML={{ __html: result.html }} />
       : <code>{text}</code>}</pre>
   </div>
-}
+})
 
 function externalURL(url: string) {
   try {
@@ -58,10 +62,12 @@ const components: Components = {
   },
 }
 
-export const ChatMarkdown = memo(function ChatMarkdown({ text }: { text: string }) {
+export const ChatMarkdown = memo(function ChatMarkdown({ text, streaming }: { text: string; streaming: boolean }) {
   return <div className="reader-prose chat-answer">
-    <Markdown skipHtml urlTransform={externalURL} remarkPlugins={[remarkGfm]} components={components}>
-      {text}
-    </Markdown>
+    <Streaming.Provider value={streaming}>
+      <Markdown skipHtml urlTransform={externalURL} remarkPlugins={remarkPlugins} components={components}>
+        {text}
+      </Markdown>
+    </Streaming.Provider>
   </div>
 })

@@ -28,7 +28,7 @@ func ListModels(ctx context.Context, baseURL, apiKey string, anthropic bool) ([]
 			return nil, &ModelError{Code: "ValidationError"}
 		}
 		request.Header.Set("Accept", "application/json")
-		response, err := client.do(request, anthropic)
+		response, err := client.do(request, anthropic, false)
 		if err != nil {
 			return nil, err
 		}

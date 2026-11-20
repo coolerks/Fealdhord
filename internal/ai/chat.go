@@ -19,6 +19,7 @@ import (
 const (
 	maxResponseBytes = 8 << 20
 	modelTimeout     = 2 * time.Minute
+	modelStreamLimit = 15 * time.Minute
 )
 
 type ChatCompletions struct{ *modelClient }
@@ -130,10 +131,10 @@ func (c *ChatCompletions) request(ctx context.Context, req *ModelRequest, stream
 	if err := encodeChatHistory(&payload, req); err != nil {
 		return nil, err
 	}
-	return c.post(ctx, payload, false)
+	return c.post(ctx, payload, false, stream)
 }
 
-func (c *modelClient) post(ctx context.Context, payload any, anthropic bool) (*http.Response, error) {
+func (c *modelClient) post(ctx context.Context, payload any, anthropic, stream bool) (*http.Response, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, &ModelError{Code: "ValidationError"}
@@ -143,7 +144,10 @@ func (c *modelClient) post(ctx context.Context, payload any, anthropic bool) (*h
 		return nil, &ModelError{Code: "ValidationError"}
 	}
 	request.Header.Set("Content-Type", "application/json")
-	response, err := c.do(request, anthropic)
+	if stream {
+		request.Header.Set("Accept", "text/event-stream")
+	}
+	response, err := c.do(request, anthropic, stream)
 	if err != nil {
 		return nil, err
 	}
@@ -154,14 +158,19 @@ func (c *modelClient) post(ctx context.Context, payload any, anthropic bool) (*h
 	return response, nil
 }
 
-func (c *modelClient) do(request *http.Request, anthropic bool) (*http.Response, error) {
+func (c *modelClient) do(request *http.Request, anthropic, stream bool) (*http.Response, error) {
 	if anthropic {
 		request.Header.Set("anthropic-version", "2023-06-01")
 		request.Header.Set("x-api-key", c.apiKey)
 	} else if c.apiKey != "" {
 		request.Header.Set("Authorization", "Bearer "+c.apiKey)
 	}
-	response, err := c.client.Do(request)
+	client := c.client
+	if stream {
+		// Streaming time limits are managed by modelStream, including while opening the connection.
+		client.Timeout = 0
+	}
+	response, err := client.Do(request)
 	if err != nil {
 		return nil, modelIOError(err, "ProviderConnectionError")
 	}
@@ -264,15 +273,29 @@ func (c *ChatCompletions) Stream(ctx context.Context, req *ModelRequest) (<-chan
 }
 
 func modelStream(ctx context.Context, open func(context.Context) (*http.Response, error), read func(io.Reader, func(ModelEvent) bool) error) (<-chan ModelEvent, error) {
-	streamContext, cancel := context.WithTimeout(ctx, modelTimeout)
+	return modelStreamWithIdleTimeout(ctx, open, read, modelTimeout)
+}
+
+func modelStreamWithIdleTimeout(ctx context.Context, open func(context.Context) (*http.Response, error), read func(io.Reader, func(ModelEvent) bool) error, idleTimeout time.Duration) (<-chan ModelEvent, error) {
+	deadline, release := context.WithTimeout(ctx, modelStreamLimit)
+	streamContext, cancel := context.WithCancelCause(deadline)
+	idle := time.AfterFunc(idleTimeout, func() { cancel(context.DeadlineExceeded) })
+	stop := func() {
+		idle.Stop()
+		cancel(nil)
+		release()
+	}
 	response, err := open(streamContext)
 	if err != nil {
-		cancel()
+		if cause := context.Cause(streamContext); cause != nil {
+			err = modelIOError(cause, "ProviderConnectionError")
+		}
+		stop()
 		return nil, err
 	}
 	mediaType, _, _ := mime.ParseMediaType(response.Header.Get("Content-Type"))
 	if mediaType != "text/event-stream" {
-		cancel()
+		stop()
 		response.Body.Close()
 		return nil, protocolError()
 	}
@@ -280,11 +303,11 @@ func modelStream(ctx context.Context, open func(context.Context) (*http.Response
 	events := make(chan ModelEvent, 1)
 	go func() {
 		defer close(events)
-		defer cancel()
+		defer stop()
 		defer response.Body.Close()
 		id := rand.Text()
 		var sequence uint64
-		send := func(event ModelEvent) bool {
+		send := func(ctx context.Context, event ModelEvent) bool {
 			sequence++
 			event.Sequence, event.MessageID = sequence, id
 			// An available slot also lets a reader observe cancellation after the HTTP body stops.
@@ -296,18 +319,34 @@ func modelStream(ctx context.Context, open func(context.Context) (*http.Response
 			select {
 			case events <- event:
 				return true
-			case <-streamContext.Done():
+			case <-ctx.Done():
 				return false
 			}
 		}
-		if err := read(response.Body, send); err != nil {
-			if streamContext.Err() != nil {
-				err = modelIOError(streamContext.Err(), "ProviderProtocolError")
+		idle.Reset(idleTimeout)
+		body := streamReader{Reader: response.Body, timer: idle, timeout: idleTimeout}
+		if err := read(body, func(event ModelEvent) bool { return send(streamContext, event) }); err != nil {
+			if cause := context.Cause(streamContext); cause != nil {
+				err = modelIOError(cause, "ProviderProtocolError")
 			}
-			send(ModelEvent{Type: "error", Error: err})
+			send(deadline, ModelEvent{Type: "error", Error: err})
 		}
 	}()
 	return events, nil
+}
+
+type streamReader struct {
+	io.Reader
+	timer   *time.Timer
+	timeout time.Duration
+}
+
+func (r streamReader) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	if n > 0 {
+		r.timer.Reset(r.timeout)
+	}
+	return n, err
 }
 
 func readChatStream(body io.Reader, offered map[string]bool, send func(ModelEvent) bool) error {
