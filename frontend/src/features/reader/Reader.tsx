@@ -122,7 +122,7 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
  }
  return <aside className="reader-pane" aria-label="阅读面板" data-article-id={articleID}>
   <Tabs.Root className="reader-tabs" value={view} onValueChange={changeView} activationMode="manual">
-  {article && <header className="workspace-toolbar reader-toolbar">
+  {article && <header className="workspace-toolbar reader-toolbar" inert={Boolean(viewing)} aria-hidden={viewing ? true : undefined}>
    <div className="toolbar-start"><SemanticButton icon={ChevronLeft} meaning="chevron-left" label={overlay?'返回文章浏览':'收起阅读面板'} onClick={onClose}/>
     {article && <span className="reader-toolbar-title" data-visible={showToolbarTitle} title={article.title} aria-hidden="true">{article.title}</span>}
    </div>
@@ -134,9 +134,9 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
   </header>}
   {article?<Tabs.Content value={view} asChild {...(!preferences.reader_toolbar_pinned.includes('view') && {
    'aria-labelledby': undefined, 'aria-label': readerViews.find(mode => mode.value === view)?.label,
-  })}><div className="reader-stage">
+  })}><div className="reader-stage" inert={Boolean(viewing)} aria-hidden={viewing ? true : undefined}>
    {!loading && <ReaderOutline mode={preferences.reader_outline} html={body.html} prose={prose} viewport={content} inert={Boolean(viewing)} />}
-   <div ref={content} className="reader-content" inert={Boolean(viewing)} aria-hidden={viewing ? true : undefined} onScroll={event=>{
+   <div ref={content} className="reader-content" onScroll={event=>{
    if(!articleID||!hasContent||loading)return
    const offset=event.currentTarget.scrollTop;pending.current=offset;if(timer.current)clearTimeout(timer.current)
    timer.current=setTimeout(()=>{pending.current=null;save.current(`reader|${articleID}`,{article_id:articleID,offset})},180)
@@ -171,9 +171,9 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
      </div>
     ) : body.query.isError&&!hasContent?<div role="alert">正文读取失败。<Button variant="ghost" onClick={()=>{void body.query.refetch()}}>重试</Button></div>:body.html?<ArticleHTML html={body.html} imagesAllowed={imagesAllowed} theme={preferences.reader_code_theme} />:body.text.split(/\n\n+/).map((paragraph,index)=><p key={index}>{paragraph}</p>)}
    </div></article></div>
-   {viewing && <ReaderImageViewer images={viewing.images} initialIndex={viewing.index} origin={viewing.origin}
-    wheelMode={preferences.reader_image_wheel} backdropClose={preferences.reader_image_backdrop_close} onClose={closeGallery} />}
    </div></Tabs.Content>:<ReaderEmpty />}
+  {viewing && <ReaderImageViewer images={viewing.images} initialIndex={viewing.index} origin={viewing.origin} readingViewport={content}
+   wheelMode={preferences.reader_image_wheel} backdropClose={preferences.reader_image_backdrop_close} onClose={closeGallery} />}
   </Tabs.Root>
  </aside>
 }

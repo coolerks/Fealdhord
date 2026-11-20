@@ -236,7 +236,7 @@ it('打开看图后可以连续缩放、切图、复制和按 Esc 回到正文�
  await user.click(first)
  const viewer = screen.getByRole('region', { name: '看图模式' })
  expect(viewer).toHaveFocus()
- expect(proseScroll).toHaveAttribute('inert')
+ expect(proseScroll.closest('.reader-stage')).toHaveAttribute('inert')
  const scale = within(viewer).getByRole('slider', { name: '图片缩放' })
  fireEvent.wheel(viewer, { deltaY: -36 })
  expect(scale).toHaveAttribute('aria-valuenow', '100')
@@ -530,18 +530,28 @@ it('切图等下一张就绪后按方向平推，动画结束才移除旧图', a
  }
 })
 
-it('看图从正文图片位置和尺寸开始，退出动画结束后才还原正文', async () => {
+it('看图隐藏阅读工具栏，悬浮返回按钮播放退出动画并恢复正文焦点', async () => {
  api.get.mockResolvedValue(illustrated)
  const previousObserver = ResizeObserver
  const previousMotion = document.documentElement.dataset.motion
  const geometry = installGeometry()
  document.documentElement.dataset.motion = 'full'
  try {
-  setup()
+  const {container}=setup()
   const source = await screen.findByRole('button', { name: '查看图片：第一张' })
+  const toolbar = container.querySelector('.reader-toolbar')
+  const viewport = container.querySelector<HTMLElement>('.reader-content')!
+  viewport.getBoundingClientRect = () => new DOMRect(0, 50, 360, 550)
+  viewport.scrollTop = 120
   source.getBoundingClientRect = () => new DOMRect(50, 160, 180, 120)
   fireEvent.click(source)
   const viewer = screen.getByRole('region', { name: '看图模式' })
+  expect(toolbar).toHaveAttribute('inert')
+  expect(toolbar).toHaveAttribute('aria-hidden', 'true')
+  expect(screen.queryByRole('button', { name: '重新提取正文' })).not.toBeInTheDocument()
+  const back = within(viewer).getByRole('button', { name: '退出看图' })
+  expect(back.closest('.reader-image-back')).toBeInTheDocument()
+  expect(viewer.parentElement).toBe(toolbar?.parentElement)
   const picture = within(viewer).getByRole('img', { name: '第一张' })
   const cancel = vi.fn()
   const cancelReturn = vi.fn()
@@ -562,13 +572,20 @@ it('看图从正文图片位置和尺寸开始，退出动画结束后才还原�
   expect(source).toHaveClass('reader-image-source-hidden')
   const exit = { onfinish: null as (() => void) | null, cancel: vi.fn() }
   Object.defineProperty(viewer, 'animate', { value: vi.fn(() => exit) })
-  viewer.getBoundingClientRect = () => new DOMRect(0, 0, 360, 600)
-  fireEvent.keyDown(viewer, { key: 'Escape' })
+  await userEvent.tab()
+  expect(back).toHaveFocus()
+  await userEvent.keyboard('{Enter}')
   expect(viewer).toHaveAttribute('data-leaving', 'true')
+  expect(back).toBeDisabled()
   expect(viewer).toBeInTheDocument()
+  expect(toolbar).toHaveAttribute('inert')
   expect(animate.mock.calls[1][0][1]).toEqual({ transform: 'translate(30px, 60px) scale(0.5, 0.5)', borderRadius: '6px' })
   act(() => exit.onfinish?.())
   expect(viewer).not.toBeInTheDocument()
+  expect(toolbar).not.toHaveAttribute('inert')
+  expect(screen.getByRole('button', { name: '重新提取正文' })).toBeInTheDocument()
+  expect(viewport.scrollTop).toBe(120)
+  await waitFor(() => expect(source).toHaveFocus())
   expect(cancel).toHaveBeenCalledOnce()
   expect(cancelReturn).toHaveBeenCalledOnce()
   expect(source).not.toHaveClass('reader-image-source-hidden')

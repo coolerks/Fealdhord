@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
-import type { PointerEvent as ReactPointerEvent } from 'react'
+import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import { ChevronLeft, ChevronRight, Copy, Minus, Plus, X } from 'lucide-react'
+import { SemanticButton } from '@/components/semantic-button'
 import { Button } from '@/components/ui/button'
 import { ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Slider } from '@/components/ui/slider'
@@ -27,10 +28,11 @@ function imageTransform(destination: DOMRectReadOnly, layout: DOMRectReadOnly) {
   return `translate(${destination.left - layout.left}px, ${destination.top - layout.top}px) scale(${destination.width / layout.width}, ${destination.height / layout.height})`
 }
 
-export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, backdropClose, onClose }: {
+export function ReaderImageViewer({ images, initialIndex, origin, readingViewport, wheelMode, backdropClose, onClose }: {
   images: ReaderImage[]
   initialIndex: number
   origin: DOMRectReadOnly
+  readingViewport: RefObject<HTMLDivElement | null>
   wheelMode: string
   backdropClose: boolean
   onClose: () => void
@@ -101,8 +103,8 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
     const picture = node.querySelector<HTMLImageElement>(`[data-image-index="${index}"] .reader-image-canvas img`)
     const source = image.element
     const destination = source.getBoundingClientRect()
-    const bounds = node.getBoundingClientRect()
-    const visible = destination.width > 0 && destination.height > 0 &&
+    const bounds = readingViewport.current?.getBoundingClientRect()
+    const visible = bounds && destination.width > 0 && destination.height > 0 &&
       destination.left < bounds.right && destination.right > bounds.left &&
       destination.top < bounds.bottom && destination.bottom > bounds.top
     let returning: Animation | undefined
@@ -328,6 +330,9 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
             </div>
           })}
         </div>
+        <div className="reader-image-back" inert={leaving}>
+          <SemanticButton icon={ChevronLeft} meaning="chevron-left" label="退出看图" onClick={close} disabled={leaving} />
+        </div>
         <div className="reader-image-controls" data-visible={controlsVisible} inert={leaving}>
           <Button variant="ghost" size="icon-sm" aria-label="上一张" disabled={index === 0} onClick={() => stepImage(-1)}><ChevronLeft /></Button>
           <span className="reader-image-count">{index + 1} / {images.length}</span>
@@ -338,7 +343,6 @@ export function ReaderImageViewer({ images, initialIndex, origin, wheelMode, bac
               onValueChange={([value]) => setZoomImmediately(value)} />
             <span>{Math.round(zoom)}%</span>
           </div>
-          <Button variant="ghost" size="icon-sm" aria-label="退出看图" onClick={close}><X /></Button>
         </div>
       </section>
     </ContextMenuTrigger>

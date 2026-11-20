@@ -436,6 +436,9 @@ describe('Phase 1 阅读 Shell', () => {
     expect(screen.queryByRole('menu', { name: '阅读上下文菜单' })).not.toBeInTheDocument()
     await user.click(within(imageMenu).getByRole('menuitem', { name: '复制图片' }))
     expect(copyImage.mock.calls).toEqual([[id], [id]])
+    await user.click(within(viewer).getByRole('button', { name: '退出看图' }))
+    expect(viewer).not.toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: '阅读面板' })).toContainElement(image)
   })
 
   it('通知设置使用分段选择，授权通过后保存方式，独立保存订阅通知自动收起', async () => {

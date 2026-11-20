@@ -253,7 +253,7 @@
 .workspace-toolbar button, .workspace-toolbar input { --wails-draggable: no-drag; }
 [data-sidebar-collapsed=true] .articles-toolbar { padding-inline-start: var(--collapsed-toolbar-inset); }
 .reading-workspace { container-type: inline-size; }
-[data-sidebar-collapsed=true] .reader-overlay .reader-toolbar { padding-inline-start: max(14px, calc(var(--collapsed-toolbar-inset) - (100cqi - 100%))); }
+[data-sidebar-collapsed=true] .reader-overlay :is(.reader-toolbar, .reader-image-viewer) { padding-inline-start: max(14px, calc(var(--collapsed-toolbar-inset) - (100cqi - 100%))); }
 .articles-heading { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .articles-heading h1 { font-size: 14px; font-weight: 600; letter-spacing: -.01em; line-height: 1.25; white-space: nowrap; margin: 0; }
 .articles-heading > span { font-size: 10px; color: var(--muted-foreground); white-space: nowrap; }
@@ -339,6 +339,7 @@
 .reader-slot { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
 .reader-slot-content { position: absolute; inset: 0; }
 .reader-toolbar { color: var(--muted-foreground); font-size: 12px; }
+.reader-toolbar[inert] { opacity: 0; --wails-draggable: no-drag; }
 .reader-toolbar .toolbar-start { min-width: 0; flex: 1; }
 .reader-toolbar-title {
   overflow: hidden;
@@ -624,7 +625,7 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 .transfer-items p { font-size: 12px; color: var(--muted-foreground); }
 .transfer-option { display: flex; align-items: center; gap: 8px; margin-block: 12px; }
 
-.reader-tabs { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.reader-tabs { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .reader-view-actions { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 9px; }
 .reader-view-tab { display: grid; place-items: center; width: 32px; height: 30px; border-radius: 6px; }
 .reader-view-tab:hover { color: var(--foreground); }
