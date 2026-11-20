@@ -48,6 +48,7 @@ type Preferences struct {
 	ReaderImageWheel         string                  `json:"reader_image_wheel"`
 	ReaderImageBackdropClose bool                    `json:"reader_image_backdrop_close"`
 	ReaderCodeTheme          string                  `json:"reader_code_theme"`
+	ChatCodeTheme            string                  `json:"chat_code_theme"`
 	ReaderOutline            string                  `json:"reader_outline"`
 }
 
@@ -58,7 +59,7 @@ func Defaults() Preferences {
 		SidebarWidth: 248, ListWidth: 360, ReaderOpen: false, SelectedScope: "all",
 		ReaderToolbarPinned: []string{"refresh", "favorite", "translate", "ai"},
 		ScrollAnchors:       map[string]ScrollAnchor{}, ReaderFontSize: 17, ReaderLineHeight: 1.7, ReaderWidth: 720,
-		ReaderImageWheel: "zoom", ReaderImageBackdropClose: true, ReaderOutline: "ticks", ReaderCodeTheme: "app",
+		ReaderImageWheel: "zoom", ReaderImageBackdropClose: true, ReaderOutline: "ticks", ReaderCodeTheme: "app", ChatCodeTheme: "app",
 	}
 }
 
@@ -71,7 +72,7 @@ func oneOf(value string, choices ...string) bool {
 	return false
 }
 
-var readerCodeThemeID = regexp.MustCompile(`^(base16/)?[a-z0-9][a-z0-9-]{0,70}$`)
+var codeThemeID = regexp.MustCompile(`^(base16/)?[a-z0-9][a-z0-9-]{0,70}$`)
 
 const maxListWidth = 760
 
@@ -90,7 +91,7 @@ func validReaderToolbarPinned(actions []string) bool {
 }
 
 func (p Preferences) Validate() error {
-	if !readerCodeThemeID.MatchString(p.ReaderCodeTheme) {
+	if !codeThemeID.MatchString(p.ReaderCodeTheme) || !codeThemeID.MatchString(p.ChatCodeTheme) {
 		return errors.New("代码块主题选项无效。")
 	}
 	if !validReaderToolbarPinned(p.ReaderToolbarPinned) {
@@ -138,8 +139,11 @@ func (p Preferences) Validate() error {
 // normalize 只用于读取旧设置；非法字段分别回退，保留其他有效偏好。
 func (p *Preferences) normalize() {
 	d := Defaults()
-	if !readerCodeThemeID.MatchString(p.ReaderCodeTheme) {
+	if !codeThemeID.MatchString(p.ReaderCodeTheme) {
 		p.ReaderCodeTheme = d.ReaderCodeTheme
+	}
+	if !codeThemeID.MatchString(p.ChatCodeTheme) {
+		p.ChatCodeTheme = d.ChatCodeTheme
 	}
 	if p.ReaderToolbarPinned == nil || !validReaderToolbarPinned(p.ReaderToolbarPinned) {
 		p.ReaderToolbarPinned = d.ReaderToolbarPinned

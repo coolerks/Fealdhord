@@ -108,7 +108,15 @@ export function SettingsDialog() {
           autoDismiss={preferences.refresh_toast_auto_dismiss} patch={patch} />}
         {tab==='data' && <TransferPanel/>}
         {tab==='categories' && <CategoryManager/>}
-        {tab === 'ai' && <AISettings />}
+        {tab === 'ai' && <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="chat-code-theme">聊天代码块主题</FieldLabel>
+            <SearchableSelect id="chat-code-theme" label="聊天代码块主题" options={codeThemeOptions}
+              value={availableCodeTheme(preferences.chat_code_theme)} onValueChange={value => set('chat_code_theme', value)} />
+          </Field>
+          <Separator />
+          <AISettings />
+        </FieldGroup>}
         {tab === 'about' && <AboutPanel developerMode={preferences.developer_mode}
           onDeveloperModeChange={enabled => set('developer_mode', enabled)} />}
       </section>

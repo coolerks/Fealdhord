@@ -97,6 +97,8 @@ reader.Service.Get／Extract 使用 article_id和mode，返回安全本地资源
 
 Settings 的 Get／Update 偏好对象包含 `reader_code_theme`。默认值为 `app`。更新接受匹配 `^(base16/)?[a-z0-9][a-z0-9-]{0,70}$` 的标识，非法格式返回 `ValidationError`。
 
+`chat_code_theme` 使用相同的标识格式和默认值，独立存储。读取缺少该字段的旧偏好时使用 `app`。
+
 Settings 的 Get／Update 偏好对象包含布尔字段 `quit_on_window_close`，旧记录缺字段时为 `false`。原生窗口采用成功保存时的值和 revision。
 
 ### Phase 4 OPML 与刷新事件
@@ -114,6 +116,8 @@ transfer.API 的 Choose 返回 token／name／cancelled；Preview 返回 preview
 ## 基础 Chat
 
 `chat.API` 提供 `List`、`Create`、`Messages`、`Model`、`Send` 与 `Cancel`。`Send` 在本地事务提交后启动后台流，`Messages` 返回当前文本及运行状态。会话固定在全局、分类或文章范围，附加上下文只用于当前发送。详见 [Chat 与上下文规格](../04-specs/chat.md)。
+
+`Chat.Send` 可选字段 `modelId` 为 AI 配置中已保存的模型记录 ID，仅接受全局会话使用。服务重新核验模型与服务是否启用，选项不可用时返回 `ChatModelUnavailable`。省略字段使用默认聊天模型，凭据及协议解析继续由服务端负责。
 
 ## 文章 AI
 

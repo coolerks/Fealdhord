@@ -198,7 +198,7 @@ func TestReaderImageAndOutlinePreferences(t *testing.T) {
 	service := NewService(store)
 	got := service.Get(ctx)
 	if !got.OK || got.Data.Preferences.ReaderImageWheel != "zoom" || !got.Data.Preferences.ReaderImageBackdropClose ||
-		got.Data.Preferences.ReaderOutline != "ticks" || got.Data.Preferences.ReaderCodeTheme != "app" {
+		got.Data.Preferences.ReaderOutline != "ticks" || got.Data.Preferences.ReaderCodeTheme != "app" || got.Data.Preferences.ChatCodeTheme != "app" {
 		t.Fatalf("旧设置缺少预期默认值：%+v", got)
 	}
 	prefs := got.Data.Preferences
@@ -206,12 +206,14 @@ func TestReaderImageAndOutlinePreferences(t *testing.T) {
 	prefs.ReaderImageBackdropClose = false
 	prefs.ReaderOutline = "fixed"
 	prefs.ReaderCodeTheme = "base16/monokai"
+	prefs.ChatCodeTheme = "github-dark"
 	if result := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: got.Data.Revision}); !result.OK {
 		t.Fatalf("保存阅读偏好失败：%+v", result)
 	}
 	loaded := service.Get(ctx)
 	if !loaded.OK || loaded.Data.Preferences.ReaderImageWheel != "navigate" || loaded.Data.Preferences.ReaderImageBackdropClose ||
-		loaded.Data.Preferences.ReaderOutline != "fixed" || loaded.Data.Preferences.ReaderCodeTheme != "base16/monokai" {
+		loaded.Data.Preferences.ReaderOutline != "fixed" || loaded.Data.Preferences.ReaderCodeTheme != "base16/monokai" ||
+		loaded.Data.Preferences.ChatCodeTheme != "github-dark" {
 		t.Fatalf("读取时未保留阅读偏好：%+v", loaded)
 	}
 	prefs.ReaderOutline = "invalid"
@@ -222,6 +224,11 @@ func TestReaderImageAndOutlinePreferences(t *testing.T) {
 	prefs.ReaderCodeTheme = "../monokai"
 	if result := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: loaded.Data.Revision}); result.OK || result.Error.Code != "ValidationError" {
 		t.Fatalf("非法代码主题标识未拒绝：%+v", result)
+	}
+	prefs.ReaderCodeTheme = "base16/monokai"
+	prefs.ChatCodeTheme = "../github-dark"
+	if result := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: loaded.Data.Revision}); result.OK || result.Error.Code != "ValidationError" {
+		t.Fatalf("非法聊天代码主题标识未拒绝：%+v", result)
 	}
 }
 

@@ -23,6 +23,7 @@ export interface Scope {
 
 export interface SendInput {
     "conversationId": string;
+    "modelId"?: string;
     "text": string;
     "includeContext": boolean;
     "selection": string;

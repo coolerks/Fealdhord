@@ -28,7 +28,8 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 		}
 		requests <- string(payload)
 		w.Header().Set("Content-Type", "text/event-stream")
-		if strings.Contains(string(payload), "测试授权工具") && !strings.Contains(string(payload), `"role":"tool"`) {
+		if strings.Contains(string(payload), "测试授权工具") && strings.Contains(string(payload), `"tools":[`) &&
+			!strings.Contains(string(payload), `"role":"tool"`) {
 			ids := <-toolIDs
 			calls := make([]map[string]any, 0, len(ids))
 			for index, id := range ids {
@@ -173,6 +174,43 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 		t.Fatalf("bad tool results: %s", next)
 	}
 
+	alternate, err := config.SaveModel(ctx, aiconfig.Model{
+		ProviderID: p.ID, Name: "alternate-model", DisplayName: "备用模型", Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, choice := range []aiconfig.Model{alternate, m} {
+		err := reopened.Send(ctx, SendInput{
+			ConversationID: global.ID, ModelID: choice.ID, Text: fmt.Sprintf("模型切换 %d", index),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		reply := waitMessage(t, reopened, global.ID, 6+index*2, "complete")
+		payload := <-requests
+		if reply.ModelName != choice.DisplayName || !strings.Contains(payload, fmt.Sprintf(`"model":%q`, choice.Name)) ||
+			!strings.Contains(payload, "测试授权工具") || (index > 0 && !strings.Contains(payload, "模型切换 0")) {
+			t.Fatalf("model switch lost model or history: reply=%+v payload=%s", reply, payload)
+		}
+	}
+	if assigned, err := reopened.Model(ctx); err != nil || assigned.ID != m.ID {
+		t.Fatalf("model switch changed default: %+v, %v", assigned, err)
+	}
+	alternate.Enabled = false
+	if _, err := config.SaveModel(ctx, alternate); err != nil {
+		t.Fatal(err)
+	}
+	if err := reopened.Send(ctx, SendInput{ConversationID: global.ID, ModelID: alternate.ID, Text: "停用模型"}); err == nil || err.Error() != "ChatModelUnavailable" {
+		t.Fatalf("disabled model = %v", err)
+	}
+	if err := reopened.Send(ctx, SendInput{ConversationID: conversation.ID, ModelID: m.ID, Text: "非全局用途"}); err == nil || err.Error() != "ValidationError" {
+		t.Fatalf("non-global override = %v", err)
+	}
+	rows, err := reopened.Messages(ctx, global.ID)
+	if err != nil || len(rows) != 8 {
+		t.Fatalf("rejected model persisted a message: %d, %v", len(rows), err)
+	}
 }
 
 func waitMessage(t *testing.T, service *Service, id string, count int, status string) Message {

@@ -1,10 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, CodeXml, Copy } from 'lucide-react'
-import { AnimatedGlyph } from '@/components/animated-glyph'
-import { Button } from '@/components/ui/button'
-import { native } from '@/lib/native'
-import { notify } from '@/lib/notifications'
+import { CodeToolbar } from '@/components/code-toolbar'
 import { readerImageID } from '@/lib/reader-image'
 import type { CodeBlock } from './highlight-code'
 import { useReaderCodeTheme } from './code-themes'
@@ -33,40 +29,6 @@ function prepareCodeBlocks(container: HTMLDivElement): CodeBlock[] {
     blocks.push({ target, toolbar, text, hint, language: hint })
   }
   return blocks
-}
-
-function CodeToolbar({ block }: { block: CodeBlock }) {
-  const [copied, setCopied] = useState(false)
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const mounted = useRef(false)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-      clearTimeout(timer.current)
-    }
-  }, [])
-
-  async function copy() {
-    try {
-      await native.copy(block.text)
-      if (!mounted.current) return
-      clearTimeout(timer.current)
-      setCopied(true)
-      timer.current = setTimeout(() => setCopied(false), 1600)
-    } catch {
-      void notify('复制代码失败', undefined, true)
-    }
-  }
-
-  return <>
-    <span className="reader-code-language"><CodeXml aria-hidden="true" />{block.language || '纯文本'}</span>
-    <Button variant="ghost" size="icon-xs" className="reader-code-copy" aria-label="复制代码" title={copied ? '已复制' : '复制代码'}
-      onClick={event => { event.stopPropagation(); void copy() }}>
-      {copied ? <Check aria-hidden="true" /> : <AnimatedGlyph icon={Copy} meaning="copy" />}
-    </Button>
-    <span className="sr-only" role="status">{copied ? '代码已复制' : ''}</span>
-  </>
 }
 
 export function ArticleHTML({ html, imagesAllowed, theme }: { html: string; imagesAllowed: boolean; theme: string }) {
@@ -101,6 +63,6 @@ export function ArticleHTML({ html, imagesAllowed, theme }: { html: string; imag
 
   return <>
     <div ref={container} className="reader-html" data-code-theme={appliedTheme} dangerouslySetInnerHTML={safeHTML} />
-    {blocks?.map((block, index) => createPortal(<CodeToolbar block={block} />, block.toolbar, index))}
+    {blocks?.map((block, index) => createPortal(<CodeToolbar text={block.text} language={block.language} />, block.toolbar, index))}
   </>
 }

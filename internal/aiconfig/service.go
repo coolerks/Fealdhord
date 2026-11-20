@@ -287,7 +287,7 @@ func (s *Service) resolve(ctx context.Context, task, id string, modelRevision, p
 }
 
 func (s *Service) TestConnection(ctx context.Context, modelID string) error {
-	model, adapter, err := s.enabledModel(ctx, modelID)
+	model, adapter, err := s.ResolveEnabledModel(ctx, modelID)
 	if err != nil {
 		return err
 	}
@@ -298,7 +298,7 @@ func (s *Service) TestConnection(ctx context.Context, modelID string) error {
 	return err
 }
 
-func (s *Service) enabledModel(ctx context.Context, id string) (Model, ai.Model, error) {
+func (s *Service) ResolveEnabledModel(ctx context.Context, id string) (Model, ai.Model, error) {
 	s.credentialMu.Lock()
 	defer s.credentialMu.Unlock()
 	row, err := s.db.GetEnabledAIModel(ctx, id)

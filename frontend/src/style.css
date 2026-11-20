@@ -227,6 +227,7 @@
 }
 
 .reading-workspace { position: relative; display: grid; grid-template-columns: minmax(0,1fr); min-width: 0; min-height: 0; overflow: hidden; }
+.chat-obscured { opacity: 0; pointer-events: none; }
 .reading-workspace.reader-columns { grid-template-columns: min(var(--list-width), var(--list-width-cap)) 4px minmax(0,1fr); }
 .reader-columns > .splitter::before {
   content: '';

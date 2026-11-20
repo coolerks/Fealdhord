@@ -18,7 +18,7 @@ export function GlobalContextMenu({children}:{children:ReactNode}) {
  const client=useQueryClient()
  const [open, setOpen] = useState(false)
  const selectedID=useWorkspace(state=>state.preferences?.selected_article_id)
- const [target,setTarget]=useState<{articleID: string; imageID?: string; text: ReturnType<typeof captureTextTarget> | null}>({articleID:'',text:null})
+ const [target,setTarget]=useState<{articleID: string; imageID?: string; inChat?: boolean; text: ReturnType<typeof captureTextTarget> | null}>({articleID:'',text:null})
  const imageID = target.imageID
  const field = target.text?.field
  const hasSelection = Boolean(target.text?.text)
@@ -32,8 +32,9 @@ export function GlobalContextMenu({children}:{children:ReactNode}) {
   if (element?.closest('[data-reader-image-viewer]')) return
   const imageID = element instanceof HTMLImageElement && !element.hidden && element.closest('.reader-prose[data-images=allowed]')
     ? readerImageID(element) : undefined
-  setTarget({articleID:element?.closest<HTMLElement>('[data-article-id]')?.dataset.articleId??'',imageID,text:captureTextTarget(event.target)})
- }}>{children}</div></ContextMenuTrigger>{open && target.text && <FieldSelection target={target.text} />}<ContextMenuContent className="action-menu global-context-menu" aria-label="阅读上下文菜单" onCloseAutoFocus={event=>{if(field?.isConnected){event.preventDefault();field.focus({preventScroll:true})}}}>
+  setTarget({articleID:element?.closest<HTMLElement>('[data-article-id]')?.dataset.articleId??'',imageID,
+    inChat:Boolean(element?.closest('.chat-workspace, .chat-sidebar')),text:captureTextTarget(event.target)})
+ }}>{children}</div></ContextMenuTrigger>{open && target.text && <FieldSelection target={target.text} />}<ContextMenuContent className="action-menu global-context-menu" aria-label={target.inChat ? 'AI 上下文菜单' : '阅读上下文菜单'} onCloseAutoFocus={event=>{if(field?.isConnected){event.preventDefault();field.focus({preventScroll:true})}}}>
  {imageID && <><ContextMenuGroup aria-label="图片"><ContextMenuItem onSelect={() => { void copyReaderImage(imageID) }}><Copy />复制图片</ContextMenuItem></ContextMenuGroup><ContextMenuSeparator /></>}
  {(field||hasSelection)&&<><ContextMenuGroup aria-label="文本编辑">
  {field&&textItem('cut',!hasSelection||readOnly)}
@@ -41,7 +42,7 @@ export function GlobalContextMenu({children}:{children:ReactNode}) {
  {field&&<>{textItem('paste',readOnly)}{textItem('selectAll')}</>}
  </ContextMenuGroup><ContextMenuSeparator/></>}
  {target.articleID&&<><ContextMenuGroup aria-label="文章操作">{commands(['favorite','read'],true)}</ContextMenuGroup><ContextMenuSeparator/></>}
- <ContextMenuGroup aria-label="视图">{commands(['search','list','masonry','sidebar'])}</ContextMenuGroup>
- <ContextMenuSeparator/><ContextMenuGroup aria-label="应用">{commands(['settings'])}</ContextMenuGroup>
+ {!target.inChat && <><ContextMenuGroup aria-label="视图">{commands(['search','list','masonry','sidebar'])}</ContextMenuGroup><ContextMenuSeparator/></>}
+ <ContextMenuGroup aria-label="应用">{commands([target.inChat ? 'ai' : 'settings'])}</ContextMenuGroup>
  </ContextMenuContent></ContextMenu>
 }

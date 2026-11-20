@@ -32,6 +32,7 @@ type Scope struct {
 
 type SendInput struct {
 	ConversationID    string   `json:"conversationId"`
+	ModelID           string   `json:"modelId,omitempty"`
 	Text              string   `json:"text"`
 	IncludeContext    bool     `json:"includeContext"`
 	Selection         string   `json:"selection"`
@@ -178,7 +179,7 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 		return modelError("StorageError")
 	}
 	if (input.Selection != "" && conversation.ScopeType != "article") || (input.IncludeContext && conversation.ScopeType == "global") ||
-		(len(input.ArticleIDs) > 0 && conversation.ScopeType != "global") {
+		((len(input.ArticleIDs) > 0 || input.ModelID != "") && conversation.ScopeType != "global") {
 		return modelError("ValidationError")
 	}
 	var readIDs []string
@@ -193,7 +194,7 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 			return modelError("ValidationError")
 		}
 	}
-	model, adapter, err := s.config.Resolve(ctx, "chat")
+	model, adapter, err := s.resolveModel(ctx, input.ModelID)
 	if err != nil {
 		return err
 	}
@@ -267,6 +268,17 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 	}
 	go s.execute(runCtx, conversation.ID, current, adapter, request, tools)
 	return nil
+}
+
+func (s *Service) resolveModel(ctx context.Context, id string) (aiconfig.Model, ai.Model, error) {
+	if id == "" {
+		return s.config.Resolve(ctx, "chat")
+	}
+	model, adapter, err := s.config.ResolveEnabledModel(ctx, id)
+	if err != nil && errorCode(err) == "ConfigurationError" {
+		return model, nil, modelError("ChatModelUnavailable")
+	}
+	return model, adapter, err
 }
 
 func (s *Service) Cancel(_ context.Context, id string) error {

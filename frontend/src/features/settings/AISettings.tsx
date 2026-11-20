@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/api'
 import type { Model, Provider } from '../../../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/models'
 
-const queryKey = ['ai-configuration'] as const
+import { aiConfigurationKey as queryKey } from '@/lib/ai-configuration'
 const protocols = [
   ['chat_completions', 'Chat Completions'],
   ['responses', 'Responses'],

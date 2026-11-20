@@ -13,24 +13,32 @@ export type CodeBlock = {
   language?: string
 }
 
+export function highlightText(text: string, hint?: string, limit = 8_000) {
+  const definition = hint ? hljs.getLanguage(hint) : undefined
+  const language = definition?.name || hint
+  if (text.length > limit || (hint && !definition)) return { language }
+
+  const result = hint
+    ? hljs.highlight(text, { language: hint, ignoreIllegals: true })
+    : hljs.highlightAuto(text, autoLanguages)
+  if (!result.language || (!hint && result.relevance < 2)) return { language }
+  return { language: hljs.getLanguage(result.language)?.name || result.language, html: result.value, id: result.language }
+}
+
 export function highlightCode(blocks: CodeBlock[]) {
   let remaining = 48_000
   return blocks.map(block => {
     const { target, text, hint } = block
-    const definition = hint ? hljs.getLanguage(hint) : undefined
-    const language = definition?.name || hint
-    if (target.querySelector(':not(span, br)') || text.length > Math.min(8_000, remaining) || (hint && !definition)) {
-      return { ...block, language }
+    if (target.querySelector(':not(span, br)')) {
+      return { ...block, language: hint ? hljs.getLanguage(hint)?.name || hint : undefined }
     }
-
-    remaining -= text.length
-    const result = hint
-      ? hljs.highlight(text, { language: hint, ignoreIllegals: true })
-      : hljs.highlightAuto(text, autoLanguages)
-    if (!result.language || (!hint && result.relevance < 2)) return { ...block, language }
-    target.innerHTML = result.value
-    target.classList.add(`language-${result.language}`)
-    target.dataset.highlighted = 'yes'
-    return { ...block, language: hljs.getLanguage(result.language)?.name || result.language }
+    const result = highlightText(text, hint, Math.min(8_000, remaining))
+    if (text.length <= Math.min(8_000, remaining) && (!hint || hljs.getLanguage(hint))) remaining -= text.length
+    if (result.html && result.id) {
+      target.innerHTML = result.html
+      target.classList.add(`language-${result.id}`)
+      target.dataset.highlighted = 'yes'
+    }
+    return { ...block, language: result.language }
   })
 }

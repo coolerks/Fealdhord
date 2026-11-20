@@ -1,0 +1,67 @@
+import { memo, useEffect, useState } from 'react'
+import Markdown from 'react-markdown'
+import type { Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { CodeToolbar } from '@/components/code-toolbar'
+import { Checkbox } from '@/components/ui/checkbox'
+import { native } from '@/lib/native'
+import { notify } from '@/lib/notifications'
+import type { highlightText } from '@/features/reader/highlight-code'
+
+function ChatCode({ text, hint }: { text: string; hint?: string }) {
+  const [snapshot, setSnapshot] = useState<{ text: string; hint?: string; result: ReturnType<typeof highlightText> }>()
+  const result = snapshot?.text === text && snapshot.hint === hint ? snapshot.result : undefined
+  useEffect(() => {
+    if (!text.trim() || text.length > 8_000) return
+    let current = true
+    void import('@/features/reader/highlight-code').then(({ highlightText }) => {
+      if (current) setSnapshot({ text, hint, result: highlightText(text, hint) })
+    }).catch(() => { /* 保留纯文本代码。 */ })
+    return () => { current = false }
+  }, [text, hint])
+
+  return <div className="reader-code-block hljs">
+    <div className="reader-code-toolbar"><CodeToolbar text={text} language={result?.language ?? hint} /></div>
+    <pre>{result?.html
+      ? <code className={`language-${result.id}`} dangerouslySetInnerHTML={{ __html: result.html }} />
+      : <code>{text}</code>}</pre>
+  </div>
+}
+
+function externalURL(url: string) {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.href : ''
+  } catch {
+    return ''
+  }
+}
+
+const components: Components = {
+  a: ({ href, children }) => href ? <a href={href} onClick={event => {
+    event.preventDefault()
+    void native.openURL(href).catch(() => notify('无法打开链接', undefined, true))
+  }}>{children}</a> : <span>{children}</span>,
+  img: ({ alt }) => alt ? <span>{alt}</span> : null,
+  input: ({ type, checked }) => type === 'checkbox'
+    ? <Checkbox aria-label={checked ? '已完成' : '未完成'} checked={checked} disabled />
+    : null,
+  pre: ({ node, children }) => {
+    const code = node?.children.find(child => child.type === 'element' && child.tagName === 'code')
+    if (!code || code.type !== 'element') return <pre>{children}</pre>
+    const className = code.properties.className
+    const hint = Array.isArray(className)
+      ? className.join(' ').match(/(?:^|\s)language-([\w+-]+)/)?.[1].toLowerCase()
+      : undefined
+    const text = code.children.map(child => child.type === 'text' ? child.value : '').join('').replace(/\n$/, '')
+    return <ChatCode text={text} hint={hint} />
+  },
+}
+
+export const ChatMarkdown = memo(function ChatMarkdown({ text }: { text: string }) {
+  return <div className="reader-prose chat-answer">
+    <Markdown skipHtml urlTransform={externalURL} remarkPlugins={[remarkGfm]} components={components}>
+      {text}
+    </Markdown>
+  </div>
+})

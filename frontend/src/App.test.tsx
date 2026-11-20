@@ -10,6 +10,8 @@ import type { LibraryData } from '@/lib/library-query'
 import { articleQueryKey } from '@/lib/library'
 import type { LibraryPage } from '@/lib/library'
 import type { Detail } from '@/lib/reader-api'
+import { useChatTarget } from '@/features/chat/chat-scope'
+import type { Message, SendInput } from '../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
 
 const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),isWindows:vi.fn(()=>false),isMaximized:vi.fn(async()=>false),onMaximizeChange:vi.fn<(_listener: (value: boolean) => void) => () => void>(()=>()=>{}),onCommand:vi.fn(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(async()=>{}),minimize:vi.fn(async()=>{}),maximize:vi.fn(async()=>{}),fullscreen:vi.fn(),openURL:vi.fn(async()=>{}),openDevTools:vi.fn(async()=>{}),quit:vi.fn()}))
 vi.mock('@/lib/native',()=>({native:host}))
@@ -24,6 +26,10 @@ vi.mock('@/lib/rss-api',()=>({feedsQueryKey:['rss','feeds'],rssAPI:{list:vi.fn(a
 vi.mock('@/lib/navigation-api',()=>({navigationQueryKey:['navigation'],navigationAPI:{list:vi.fn(async()=>({categories:[],feeds:[],totals:{total:0,unread:0,favorites:0}}))}}))
 const reader=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
 vi.mock('@/lib/reader-api',()=>({readerAPI:reader}))
+const chat = vi.hoisted(() => ({ List: vi.fn(), Create: vi.fn(), Messages: vi.fn(), Send: vi.fn(), Cancel: vi.fn(), Model: vi.fn() }))
+vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/chat/api', () => chat)
+const listAIConfiguration = vi.hoisted(() => vi.fn())
+vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/api', () => ({ List: listAIConfiguration }))
 const copyImage = vi.hoisted(() => vi.fn())
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/media/api', () => ({ CopyInlineImage: copyImage }))
 import App from './App'
@@ -31,6 +37,8 @@ import App from './App'
 let geometry: ReturnType<typeof installGeometry>
 beforeEach(() => {
   vi.clearAllMocks()
+  useChatTarget.setState({ target: null })
+  listAIConfiguration.mockResolvedValue({ providers: [], models: [], assignments: [] })
   host.isMac.mockReturnValue(false)
   host.isWindows.mockReturnValue(false)
   geometry = installGeometry()
@@ -48,6 +56,104 @@ function setup(withArticles = false) {
 }
 
 describe('Phase 1 阅读 Shell', () => {
+  it('全局 AI 工作区切换会话和本轮模型，停止后返回原阅读位置', async () => {
+    const user = userEvent.setup()
+    const { container } = setup(true)
+    await user.click(await screen.findByRole('button', { name: '打开文章：测试文章 0' }))
+    const prose = container.querySelector<HTMLElement>('.reader-content')!
+    prose.scrollTop = 430
+    fireEvent.scroll(prose)
+    const opener = within(screen.getByRole('complementary', { name: '主导航' })).getByRole('button', { name: 'AI 助手' })
+    const rows: Message[] = []
+    chat.List.mockResolvedValue([{ id: 'history', title: '已有会话' }])
+    chat.Create.mockImplementation(async () => {
+      const created = { id: 'new', title: '第一条' }
+      chat.List.mockResolvedValue([{ id: 'history', title: '已有会话' }, created])
+      return created
+    })
+    chat.Messages.mockImplementation(async (id: string) => id === 'new' ? [...rows] : [{
+      id: 'old', role: 'assistant', text: '历史回复', modelName: '默认模型', status: 'complete',
+    }])
+    chat.Send.mockImplementation(async ({ modelId, text }: SendInput) => {
+      const base = { errorCode: '', tools: [] }
+      rows.push({ ...base, id: text, role: 'user', text, modelName: '', status: 'complete' })
+      rows.push({ ...base, id: `${text}-reply`, role: 'assistant', text: `${text}回复`, modelName: modelId ?? '', status: modelId === 'second' ? 'running' : 'complete' })
+    })
+    chat.Cancel.mockImplementation(async () => { rows[3] = { ...rows[3], status: 'cancelled' } })
+    listAIConfiguration.mockResolvedValue({
+      providers: [{ id: 'provider', name: '本地服务', enabled: true }],
+      models: [
+        { id: 'first', providerId: 'provider', name: 'default-model', displayName: '默认模型', enabled: true },
+        { id: 'second', providerId: 'provider', name: 'alternate-model', displayName: '备用模型', enabled: true },
+      ],
+      assignments: [{ task: 'chat', modelId: 'first' }],
+    })
+
+    await user.click(opener)
+    const sidebar = await screen.findByRole('complementary', { name: 'AI 会话导航' })
+    expect(screen.queryByRole('complementary', { name: '主导航' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'AI 助手' })).not.toBeInTheDocument()
+    expect(await screen.findByText('历史回复')).toBeInTheDocument()
+    await user.click(within(sidebar).getByRole('button', { name: '新对话' }))
+    expect(screen.queryByText('历史回复')).not.toBeInTheDocument()
+    expect(chat.Create).not.toHaveBeenCalled()
+    const input = screen.getByRole('textbox', { name: '消息' })
+    const model = screen.getByRole('button', { name: '聊天模型' })
+    expect(model).toHaveTextContent('默认模型')
+    await user.type(input, '第一条')
+    await user.click(screen.getByRole('button', { name: '发送' }))
+    expect(await screen.findByText('第一条回复')).toBeInTheDocument()
+    expect(chat.Send).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: 'new', modelId: 'first', text: '第一条' }))
+
+    await user.click(model)
+    await user.type(screen.getByRole('combobox', { name: '搜索聊天模型' }), 'alternate-model')
+    await user.click(screen.getByRole('option', { name: '备用模型 · 本地服务' }))
+    await user.type(input, '第二条{Enter}')
+    expect(await screen.findByText('第二条回复')).toBeInTheDocument()
+    expect(chat.Send).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: 'new', modelId: 'second', text: '第二条' }))
+    expect(chat.Create).toHaveBeenCalledExactlyOnceWith({ kind: 'global', id: '' }, '第一条')
+    await user.click(screen.getByRole('button', { name: '停止回复' }))
+    expect(await screen.findByText('已取消')).toBeInTheDocument()
+    expect(chat.Cancel).toHaveBeenCalledExactlyOnceWith('new')
+    await user.click(within(sidebar).getByRole('button', { name: '已有会话' }))
+    expect(await screen.findByText('历史回复')).toBeInTheDocument()
+    await user.click(within(sidebar).getByRole('button', { name: '返回阅读' }))
+    await waitFor(() => expect(opener).toHaveFocus())
+    expect(container.querySelector('.reader-content')).toBe(prose)
+    expect(prose.scrollTop).toBe(430)
+  })
+
+  it('全局回复安全渲染 Markdown，聊天代码主题和文章主题独立保存', async () => {
+    const user = userEvent.setup()
+    api.get.mockResolvedValue({ preferences: preferencesFixture({ reader_code_theme: 'base16/monokai' }), revision: 0 })
+    chat.List.mockResolvedValue([{ id: 'history', title: '历史会话' }])
+    chat.Messages.mockResolvedValue([{
+      id: 'reply', role: 'assistant', status: 'complete', modelName: '模型',
+      text: ['## 小结', '', '| 输入 | 输出 |', '| --- | --- |', '| A | B |', '',
+        '[文档](https://example.test/) [无效](javascript:alert%281%29)', '', '![配图](https://example.test/picture.png)',
+        '', '<script>bad()</script>', '', '```js', 'const value = "<tag>";', '```'].join('\n'),
+    }])
+    const { container } = setup()
+    await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    expect(await screen.findByRole('heading', { name: '小结' })).toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: 'B' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '无效' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: '配图' })).not.toBeInTheDocument()
+    expect(container.querySelector('.chat-answer script')).toBeNull()
+    await user.click(screen.getByRole('link', { name: '文档' }))
+    expect(host.openURL).toHaveBeenCalledExactlyOnceWith('https://example.test/')
+    await user.click(screen.getByRole('button', { name: '复制代码' }))
+    expect(host.copy).toHaveBeenCalledExactlyOnceWith('const value = "<tag>";')
+    await user.click(screen.getByRole('button', { name: 'AI 设置' }))
+    await user.click(await screen.findByRole('button', { name: '聊天代码块主题' }))
+    await user.type(screen.getByRole('combobox'), 'github-dark')
+    await user.click(screen.getByRole('option', { name: 'Github Dark' }))
+    await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      reader_code_theme: 'base16/monokai', chat_code_theme: 'github-dark',
+    }), expect.any(Number)))
+    await waitFor(() => expect(container.querySelector('.chat-session')).toHaveAttribute('data-code-theme', 'github-dark'))
+  })
+
   it.each([['list', 'fill'], ['masonry', 'fill'], ['masonry', 'drawer']] as const)(
     '%s / %s 打开文章时从右侧推入，返回时向右推出并恢复焦点', async (article_view_mode, reader_layout) => {
     api.get.mockResolvedValue({ preferences: preferencesFixture({ article_view_mode, reader_layout, animation: 'full' }), revision: 0 })
