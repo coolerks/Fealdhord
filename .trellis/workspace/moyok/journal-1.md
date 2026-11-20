@@ -728,3 +728,25 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 26: 全局 AI 输入区与思考档位
+<!-- trellis-session: v=2 fp=a17567693519fc7b -->
+
+**Date**: 2026-11-20
+**Task**: 全局 AI 输入区与思考档位
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+交付底部模式切换、轻阴影输入框、圆形发送和可编辑的模型思考档位。前端 138 项测试及生产构建通过，相关 Go 测试和 vet 通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e867381` | feat: 调整全局 AI 输入区并支持自定义思考档位 |
+
+### Status
+
+[OK] **Completed**
