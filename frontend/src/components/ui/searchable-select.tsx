@@ -61,14 +61,15 @@ export function SearchableSelect({
             input.current.focus()
           }
         }}>
-        <Command label={`搜索${label}`} className={cn('p-0', !showSearch && '[&_[data-slot=command-input-wrapper]]:sr-only')}>
+        <Command label={`搜索${label}`} className={cn('gap-1 p-0',
+          showSearch ? '[&_[data-slot=command-input-wrapper]]:p-0' : '[&_[data-slot=command-input-wrapper]]:sr-only')}>
           <CommandInput ref={input} value={search} onValueChange={setSearch} placeholder="输入文字搜索…" />
-          <CommandList aria-multiselectable={multiple || undefined} showScrollbar className={cn('min-w-0',
+          <CommandList aria-multiselectable={multiple || undefined} className={cn('min-w-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
             showSearch ? 'max-h-[min(18rem,calc(var(--radix-popover-content-available-height)-3rem))]'
               : 'max-h-[min(18rem,calc(var(--radix-popover-content-available-height)-0.625rem))]')}>
             <CommandEmpty>没有匹配项</CommandEmpty>
             <CommandGroup className="p-0">
-              {options.map(option => <CommandItem className="min-w-0 rounded-lg px-2 py-1" key={option.value} value={option.value}
+              {options.map(option => <CommandItem className="h-8 min-w-0 rounded-lg px-2 py-0" key={option.value} value={option.value}
                 keywords={[option.label, ...(option.keywords ?? [])]} disabled={option.disabled}
                 data-checked={checked(option.value)} aria-checked={multiple || announceSelection ? checked(option.value) : undefined}
                 aria-label={option.accessibleLabel}
