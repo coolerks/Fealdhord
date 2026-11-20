@@ -19,7 +19,7 @@ type Option = {
 
 export function SearchableSelect({
   id, label, options, value, onValueChange, disabled, className, variant = 'outline',
-  announceSelection = false, matchTriggerWidth = false, placeholder = '请选择',
+  announceSelection = false, placeholder = '请选择',
 }: {
   id?: string
   label: string
@@ -30,15 +30,20 @@ export function SearchableSelect({
   className?: string
   variant?: 'outline' | 'ghost'
   announceSelection?: boolean
-  matchTriggerWidth?: boolean
   placeholder?: string
 }) {
   const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
   const input = useRef<HTMLInputElement>(null)
+  const showSearch = options.length >= 10 || search.length > 0
   const multiple = Array.isArray(value)
   const selected = options.find(option => option.value === value)
   const checked = (id: string) => Array.isArray(value) ? value.includes(id) : value === id
-  return <Popover.Root open={open && !disabled} onOpenChange={setOpen} modal>
+  function changeOpen(next: boolean) {
+    setOpen(next)
+    if (!next) setSearch('')
+  }
+  return <Popover.Root open={open && !disabled} onOpenChange={changeOpen} modal>
     <Popover.Trigger asChild>
       <Button type="button" id={id} aria-label={label} variant={variant} disabled={disabled}
         aria-description={announceSelection ? selected?.accessibleLabel ?? selected?.label : undefined}
@@ -49,27 +54,27 @@ export function SearchableSelect({
     </Popover.Trigger>
     <Popover.Portal>
       <Popover.Content align="start" sideOffset={4} aria-label={label}
-        className={cn('z-50 rounded-xl border bg-popover shadow-md', matchTriggerWidth
-          ? 'w-[min(var(--radix-popover-trigger-width),var(--radix-popover-content-available-width))]'
-          : 'w-[min(var(--radix-popover-content-available-width),24rem)]')}
+        className="z-50 w-max max-w-[min(var(--radix-popover-content-available-width),24rem)] rounded-xl border bg-popover shadow-md"
         onOpenAutoFocus={event => {
           if (input.current) {
             event.preventDefault()
             input.current.focus()
           }
         }}>
-        <Command label={`搜索${label}`}>
-          <CommandInput ref={input} placeholder="输入文字搜索…" />
-          <CommandList aria-multiselectable={multiple || undefined} showScrollbar className="max-h-[min(18rem,calc(var(--radix-popover-content-available-height)-3rem))] overflow-x-auto">
+        <Command label={`搜索${label}`} className={cn(!showSearch && '[&_[data-slot=command-input-wrapper]]:sr-only')}>
+          <CommandInput ref={input} value={search} onValueChange={setSearch} placeholder="输入文字搜索…" />
+          <CommandList aria-multiselectable={multiple || undefined} showScrollbar className={cn('overflow-x-auto',
+            showSearch ? 'max-h-[min(18rem,calc(var(--radix-popover-content-available-height)-3rem))]'
+              : 'max-h-[min(18rem,calc(var(--radix-popover-content-available-height)-0.625rem))]')}>
             <CommandEmpty>没有匹配项</CommandEmpty>
-            <CommandGroup>
-              {options.map(option => <CommandItem className="w-max min-w-full" key={option.value} value={option.value}
+            <CommandGroup className="w-max min-w-full">
+              {options.map(option => <CommandItem key={option.value} value={option.value}
                 keywords={[option.label, ...(option.keywords ?? [])]} disabled={option.disabled}
                 data-checked={checked(option.value)} aria-checked={multiple || announceSelection ? checked(option.value) : undefined}
                 aria-label={option.accessibleLabel}
                 onSelect={() => {
                   onValueChange(option.value)
-                  if (!multiple) setOpen(false)
+                  if (!multiple) changeOpen(false)
                 }}>
                 {option.icon && <AnimatedGlyph icon={option.icon} meaning={option.meaning} />}
                 <span className="shrink-0 whitespace-nowrap">{option.label}</span>

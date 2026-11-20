@@ -37,7 +37,7 @@ export function ModelCatalogField({ provider, value, excluded, disabled, onSelec
         disabled={disabled || catalog.isFetching} aria-busy={catalog.isFetching}
         onClick={() => void catalog.refetch()} />
     </div>
-    <SearchableSelect id="ai-model-catalog" label="服务模型" className="w-full" matchTriggerWidth
+    <SearchableSelect id="ai-model-catalog" label="服务模型" className="w-full"
       value={value} disabled={disabled || !items.length}
       placeholder={catalog.isFetching ? '正在获取模型…' : '从服务选择模型'}
       options={items.map(item => ({
