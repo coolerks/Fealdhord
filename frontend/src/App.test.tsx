@@ -757,6 +757,49 @@ describe('Phase 1 阅读 Shell', () => {
     }), expect.any(Number)))
   })
 
+  it('正文右键在浏览器清除选区后仍保留底色和复制内容', async () => {
+    const user = userEvent.setup()
+    reader.get.mockResolvedValue({ article_id: 'a-0', html: '<p>用于验证的正文文字</p>', text: '用于验证的正文文字', mode: 'feed',
+      has_cached: false, has_original: false })
+    const { client } = setup()
+    const articles = articleFixtures(1).map(article => ({ ...article, contentText: '' }))
+    act(() => client.setQueryData(articleQueryKey, initialLibraryData({ items: articles, hasMore: false })))
+    await user.click(await screen.findByRole('button', { name: '打开文章：测试文章 0' }))
+    const paragraph = await screen.findByText('用于验证的正文文字')
+    const selection = window.getSelection()!
+    const range = document.createRange()
+    range.setStart(paragraph.firstChild!, 2)
+    range.setEnd(paragraph.firstChild!, 4)
+    selection.removeAllRanges()
+    selection.addRange(range)
+    const previousRects = Object.getOwnPropertyDescriptor(Range.prototype, 'getClientRects')
+    const previousHitTest = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
+    Object.defineProperty(Range.prototype, 'getClientRects', {
+      configurable: true, value: () => [new DOMRect(30, 40, 50, 16)],
+    })
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => paragraph })
+    try {
+      const prose = paragraph.closest('.reader-content')!
+      Object.defineProperties(prose, { clientWidth: { value: 100 }, clientHeight: { value: 100 } })
+      fireEvent.contextMenu(paragraph)
+      const painted = () => document.querySelector('.text-selection > span')
+      expect(painted()).toHaveStyle({ top: '40px', height: '16px' })
+      selection.removeAllRanges()
+      fireEvent(document, new Event('selectionchange'))
+      const copy = await screen.findByRole('menuitem', { name: '复制' })
+      expect(painted()).toBeInTheDocument()
+      await user.click(copy)
+      expect(host.copy).toHaveBeenCalledWith('验证')
+      expect(painted()).toBeNull()
+    } finally {
+      selection.removeAllRanges()
+      if (previousRects) Object.defineProperty(Range.prototype, 'getClientRects', previousRects)
+      else Reflect.deleteProperty(Range.prototype, 'getClientRects')
+      if (previousHitTest) Object.defineProperty(document, 'elementFromPoint', previousHitTest)
+      else Reflect.deleteProperty(document, 'elementFromPoint')
+    }
+  })
+
   it('输入框右键保留剪切与粘贴，受控搜索状态随编辑更新', async()=>{
     setup()
     await userEvent.click(await screen.findByRole('button',{name:'搜索文章'}))
