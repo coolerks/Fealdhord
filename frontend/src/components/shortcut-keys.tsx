@@ -9,7 +9,7 @@ export function ShortcutKeys({ keys, menu = false }: { keys: string; menu?: bool
       {keys.split('+').map((key, index) => (
         <Fragment key={key}>
           {index > 0 && <span>+</span>}
-          <Kbd>{labels[key] ?? key}</Kbd>
+          <Kbd>{key === 'Shift' && keys.startsWith('Meta+') ? '⇧' : labels[key] ?? key}</Kbd>
         </Fragment>
       ))}
     </KbdGroup>

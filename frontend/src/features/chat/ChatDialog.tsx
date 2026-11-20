@@ -1,18 +1,23 @@
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, BookOpen, MessageSquare, Plus, Settings, Sparkles, Square } from 'lucide-react'
+import { motion, useIsPresent } from 'motion/react'
+import { ArrowDown, ArrowUp, BookOpen, Plus, Settings, Sparkles, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { SemanticButton } from '@/components/semantic-button'
+import { SidebarAction } from '@/components/sidebar-action'
 import { Input } from '@/components/ui/input'
 import { libraryAPI } from '@/lib/library-api'
 import type { Article } from '@/lib/library'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useWorkspace } from '@/stores/workspace'
+import { cn } from '@/lib/utils'
+import { native } from '@/lib/native'
+import { moveSidebarFocus } from '@/lib/sidebar-navigation'
 import { useChatTarget } from './chat-scope'
 import { aiConfigurationKey } from '@/lib/ai-configuration'
 import { useReaderCodeTheme } from '@/features/reader/code-themes'
@@ -23,7 +28,19 @@ import './chat-workspace.css'
 
 const globalTarget = { kind: 'global', id: '', label: 'AI 助手' }
 const defaultEffortOption = { value: ':default', label: '使用服务默认' }
-type WorkspaceView = { sidebar: HTMLElement | null; collapsed: boolean; theme: string }
+type WorkspaceView = {
+  sidebar: HTMLElement | null; collapsed: boolean; theme: string
+  motionMode: 'full' | 'subtle' | 'off'; present: boolean
+}
+
+function chatTransition(mode: WorkspaceView['motionMode']) {
+  const hidden = { opacity: 0, '--workspace-mode-offset': mode === 'full' ? '6px' : '0px' }
+  return {
+    initial: mode === 'off' ? false as const : hidden,
+    animate: { opacity: 1, '--workspace-mode-offset': '0px' },
+    exit: mode === 'off' ? undefined : hidden,
+  }
+}
 
 const statusLabels: Record<string, string> = {
   running: '正在回复…',
@@ -79,14 +96,25 @@ export function ChatDialog() {
   </Dialog>
 }
 
-export function GlobalChat({ sidebar, collapsed, theme }: WorkspaceView) {
+export function GlobalChat({ sidebar, collapsed, theme, motionMode, onReady }: Omit<WorkspaceView, 'present'> & {
+  onReady: (ready: boolean) => void
+}) {
+  const present = useIsPresent()
+  useLayoutEffect(() => {
+    onReady(true)
+    return () => onReady(false)
+  }, [onReady])
   function returnToReading() {
     useChatTarget.setState({ target: null })
-    requestAnimationFrame(() => document.getElementById(collapsed ? 'sidebar-toggle' : 'open-global-chat')?.focus({ preventScroll: true }))
+    requestAnimationFrame(() => {
+      if (useChatTarget.getState().target?.kind === 'global') return
+      document.getElementById(collapsed ? 'sidebar-toggle' : 'open-global-chat')?.focus({ preventScroll: true })
+    })
   }
-  return <main className="reading-workspace chat-workspace" aria-label="AI 助手工作区">
-    <ChatSession target={globalTarget} close={returnToReading} workspace={{ sidebar, collapsed, theme }} />
-  </main>
+  return <motion.main className="reading-workspace chat-workspace workspace-mode-chat" aria-label="AI 助手工作区"
+    inert={!present} aria-hidden={!present || undefined} {...chatTransition(motionMode)}>
+    <ChatSession target={globalTarget} close={returnToReading} workspace={{ sidebar, collapsed, theme, motionMode, present }} />
+  </motion.main>
 }
 
 function ChatSession({ target, close, workspace }: {
@@ -104,6 +132,7 @@ function ChatSession({ target, close, workspace }: {
   const [modelChoice, setModelChoice] = useState<string | null>(null)
   const [effortChoices, setEffortChoices] = useState<Record<string, string>>({})
   const [following, setFollowing] = useState(true)
+  const [conversationsScrolled, setConversationsScrolled] = useState(false)
   const composer = useRef<HTMLTextAreaElement>(null)
   const timeline = useRef<HTMLDivElement>(null)
   const follow = useRef(true)
@@ -180,7 +209,7 @@ function ChatSession({ target, close, workspace }: {
     const element = timeline.current
     if (element && follow.current) element.scrollTop = element.scrollHeight
   }, [messages.data, conversationId, theme, following])
-  const inWorkspace = Boolean(workspace)
+  const inWorkspace = Boolean(workspace?.present)
   useLayoutEffect(() => {
     if (inWorkspace) composer.current?.focus({ preventScroll: true })
   }, [inWorkspace])
@@ -198,38 +227,66 @@ function ChatSession({ target, close, workspace }: {
     }
     if (workspace && !id) composer.current?.focus({ preventScroll: true })
   }
+  const openNewConversation = useEffectEvent(() => {
+    if (!send.isPending) choose('')
+  })
+  useEffect(() => {
+    if (!inWorkspace) return
+    function onKeyDown(event: KeyboardEvent) {
+      const modifier = native.isMac() ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey
+      if (event.defaultPrevented || event.isComposing || event.repeat || !modifier || !event.shiftKey ||
+        event.altKey || event.key.toLowerCase() !== 'n') return
+      const { settingsOpen, helpOpen, diagnosticsOpen, paletteOpen } = useWorkspace.getState()
+      if (settingsOpen || helpOpen || diagnosticsOpen || paletteOpen ||
+        (event.target instanceof Element && event.target.closest('[role=dialog], [role=menu]'))) return
+      event.preventDefault()
+      openNewConversation()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [inWorkspace])
+  const newConversationShortcut = native.isMac() ? 'Meta+Shift+N' : 'Control+Shift+N'
   const canSend = !active && Boolean(draft.trim()) && modelReady && !invalidEffort && !send.isPending && !history.isPending &&
     !(conversationId && messages.isPending)
   const retryHistory = <Button size="sm" variant="ghost" onClick={() => void history.refetch()}>重新读取历史</Button>
   return <div className={workspace ? 'chat-session reader-html' : 'flex min-h-0 flex-col gap-3'} data-code-theme={workspace ? theme : undefined}>
     {workspace?.sidebar && createPortal(
-      <aside id="workspace-sidebar" className="glass-sidebar chat-sidebar" aria-label="AI 会话导航" inert={workspace.collapsed}
-        aria-hidden={workspace.collapsed || undefined}>
+      <motion.aside id={workspace.present ? 'workspace-sidebar' : undefined} className="glass-sidebar chat-sidebar workspace-mode-chat"
+        aria-label="AI 会话导航" inert={workspace.collapsed || !workspace.present}
+        aria-hidden={workspace.collapsed || !workspace.present || undefined} {...chatTransition(workspace.motionMode)}>
         <div className="sidebar-titlebar" />
-        <div className="chat-sidebar-actions">
-          <Button variant="outline" disabled={send.isPending} onClick={() => choose('')}><Plus />新对话</Button>
+        <div className="system-nav">
+          <SidebarAction label="新对话" meaning="add" shortcut={newConversationShortcut} disabled={send.isPending} onClick={() => choose('')} />
         </div>
-        <nav className="chat-conversations" aria-label="会话">
-          <h2>会话</h2>
+        <div className="sidebar-organize-wrap" data-scrolled={conversationsScrolled}>
+        <nav className="sidebar-organize" aria-label="会话" onKeyDown={moveSidebarFocus}
+          onScroll={event => setConversationsScrolled(event.currentTarget.scrollTop > 0)}>
+          <div className="nav-section-heading"><h2>会话</h2></div>
           {history.isPending && <p role="status">正在读取会话…</p>}
           {history.isError && retryHistory}
-          <ul>{history.data?.map(item => <li key={item.id}>
-            <Button variant={item.id === conversationId ? 'secondary' : 'ghost'} title={item.title}
-              aria-current={item.id === conversationId ? 'page' : undefined} disabled={send.isPending} onClick={() => choose(item.id)}>
-              <MessageSquare /><span>{item.title}</span>
-            </Button>
-          </li>)}</ul>
+          <ul className="feed-nav">{history.data?.map(item => {
+            const current = item.id === conversationId
+            return <li key={item.id}>
+              <Button data-navigation={item.id} variant={current ? 'secondary' : 'ghost'} className={cn('nav-item', current && 'is-current')}
+                aria-current={current ? 'page' : undefined} disabled={send.isPending} onClick={() => choose(item.id)}>
+                {current && <span className="nav-selected-surface" />}
+                <AnimatedGlyph meaning="message-square" /><span className="nav-node-label">{item.title}</span>
+              </Button>
+            </li>
+          })}</ul>
         </nav>
+        </div>
         <footer className="sidebar-footer"><div className="sidebar-bottom">
           <Button variant="ghost" className="sidebar-ai" onClick={close}><AnimatedGlyph icon={BookOpen} meaning="book" />阅读</Button>
           <SemanticButton icon={Settings} meaning="settings" label="AI 设置" onClick={() => showSettings('ai')} />
         </div></footer>
-      </aside>, workspace.sidebar)}
+      </motion.aside>, workspace.sidebar)}
     {workspace ? <header className="workspace-toolbar chat-header" data-sidebar-collapsed={workspace.collapsed}>
       {workspace.collapsed && <SemanticButton icon={BookOpen} meaning="book" label="阅读" onClick={close} />}
       <Sparkles className="chat-heading-icon" aria-hidden="true" />
       <h1>{history.data?.find(item => item.id === conversationId)?.title ?? (conversationId ? 'AI 助手' : '新对话')}</h1>
-      {workspace.collapsed && <Button variant="ghost" size="icon" aria-label="新对话" disabled={send.isPending} onClick={() => choose('')}><Plus /></Button>}
+      {workspace.collapsed && <SemanticButton icon={Plus} meaning="add" label="新对话" aria-keyshortcuts={newConversationShortcut}
+        disabled={send.isPending} onClick={() => choose('')} />}
     </header> : <div className="flex flex-wrap items-center gap-3">
       <span className="min-w-0 truncate" title={target.label}>{target.label}</span>
       {model.data ? <span className="text-muted-foreground">{model.data.displayName}</span> : model.isError &&

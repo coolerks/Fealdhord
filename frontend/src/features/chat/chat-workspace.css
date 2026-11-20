@@ -1,49 +1,18 @@
 .chat-sidebar-host {
   position: absolute;
   inset: 0;
+  pointer-events: none;
 }
 
 .chat-sidebar {
   height: 100%;
 }
 
-.chat-sidebar-actions {
-  display: grid;
-  gap: 6px;
-  padding: 0 12px;
+.chat-sidebar:not([inert]) {
+  pointer-events: auto;
 }
 
-.chat-sidebar-actions button {
-  justify-content: flex-start;
-}
-
-.chat-conversations {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 16px 12px;
-}
-
-.chat-conversations h2 {
-  margin: 0 8px 6px;
-  color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 550;
-}
-
-.chat-conversations button {
-  width: 100%;
-  justify-content: flex-start;
-  font-weight: 400;
-}
-
-.chat-conversations button span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.chat-conversations [role=status] {
+.chat-sidebar .sidebar-organize [role=status] {
   padding: 6px 8px;
   color: var(--muted-foreground);
   font-size: 12px;

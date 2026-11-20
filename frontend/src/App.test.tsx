@@ -100,10 +100,13 @@ describe('Phase 1 阅读 Shell', () => {
     expect(screen.queryByRole('complementary', { name: '主导航' })).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog', { name: 'AI 助手' })).not.toBeInTheDocument()
     expect(await screen.findByText('历史回复')).toBeInTheDocument()
-    await user.click(within(sidebar).getByRole('button', { name: '新对话' }))
+    expect(within(sidebar).getByRole('button', { name: '新对话' }))
+      .toHaveAttribute('aria-keyshortcuts', 'Control+Shift+N')
+    await user.keyboard('{Control>}{Shift>}N{/Shift}{/Control}')
     expect(screen.queryByText('历史回复')).not.toBeInTheDocument()
     expect(chat.Create).not.toHaveBeenCalled()
     const input = screen.getByRole('textbox', { name: '消息' })
+    expect(input).toHaveFocus()
     const model = screen.getByRole('button', { name: '聊天模型' })
     expect(model).toHaveTextContent('默认模型')
     expect(model).not.toHaveTextContent('本地服务')
@@ -149,6 +152,43 @@ describe('Phase 1 阅读 Shell', () => {
     expect(screen.queryByRole('complementary', { name: 'AI 会话导航' })).not.toBeInTheDocument()
     await user.click(within(workspace).getByRole('button', { name: '阅读' }))
     await waitFor(() => expect(screen.getByRole('button', { name: '展开侧栏' })).toHaveFocus())
+  })
+
+  it('阅读和 AI 双向切换时两栏同步淡入淡出，会话图标悬停有中间帧', async () => {
+    api.get.mockResolvedValue({ preferences: preferencesFixture({ animation: 'full' }), revision: 0 })
+    chat.List.mockResolvedValue([{ id: 'history', title: '已有会话' }])
+    chat.Messages.mockResolvedValue([])
+    const { container } = setup()
+    const readingMain = await screen.findByRole('region', { name: '文章浏览' })
+    fireEvent.click(screen.getByRole('button', { name: 'AI 助手' }))
+
+    const main = await screen.findByRole('main', { name: 'AI 助手工作区' })
+    const sidebar = screen.getByRole('complementary', { name: 'AI 会话导航' })
+    const expectIntermediateOpacity = () => {
+      for (const pane of [main, sidebar]) {
+        expect(Number(pane.style.opacity)).toBeGreaterThan(0)
+        expect(Number(pane.style.opacity)).toBeLessThan(1)
+      }
+    }
+    await waitFor(expectIntermediateOpacity, { interval: 10 })
+    expect(readingMain.closest('main')).toHaveAttribute('inert')
+    await waitFor(() => expect(sidebar.style.opacity).toBe('1'))
+
+    const row = await within(sidebar).findByRole('button', { name: '已有会话' })
+    const glyph = row.querySelector('[data-meaning="message-square"]')
+    fireEvent.mouseEnter(row)
+    await waitFor(() => {
+      const angle = glyph?.querySelector('svg')?.style.transform.match(/rotate\((-?[0-9.]+)deg\)/)?.[1]
+      expect(Math.abs(Number(angle))).toBeGreaterThan(0.05)
+    }, { interval: 10 })
+
+    fireEvent.click(within(sidebar).getByRole('button', { name: '阅读' }))
+    expect(main).toHaveAttribute('inert')
+    expect(sidebar).toHaveAttribute('inert')
+    expect(readingMain.closest('main')).not.toHaveAttribute('inert')
+    await waitFor(expectIntermediateOpacity, { interval: 10 })
+    await waitFor(() => expect(container.querySelector('.chat-workspace')).not.toBeInTheDocument())
+    expect(sidebar).not.toBeInTheDocument()
   })
 
   it('新模型预填四档，删掉一档并添加自定义档位后可以重新编辑', async () => {

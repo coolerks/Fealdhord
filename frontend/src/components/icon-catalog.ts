@@ -21,6 +21,7 @@ import { LanguagesIcon } from './icons/languages'
 import { LayersIcon } from './icons/layers'
 import { LayoutGridIcon } from './icons/layout-grid'
 import { MaximizeIcon } from './icons/maximize'
+import { MessageSquareIcon } from './icons/message-square'
 import { MinimizeIcon } from './icons/minimize'
 import { MonitorCogIcon } from './icons/monitor-cog'
 import { MoonIcon } from './icons/moon'
@@ -64,6 +65,7 @@ export const animatedIcons = {
   'layers': LayersIcon,
   'layout-grid': LayoutGridIcon,
   'maximize': MaximizeIcon,
+  'message-square': MessageSquareIcon,
   'minimize': MinimizeIcon,
   'monitor-cog': MonitorCogIcon,
   'moon': MoonIcon,

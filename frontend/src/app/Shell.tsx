@@ -69,6 +69,8 @@ export function Shell() {
   const chatKind = useChatTarget(state => state.target?.kind)
   const globalChat = chatKind === 'global'
   const [chatSidebar, setChatSidebar] = useState<HTMLDivElement | null>(null)
+  const [chatReady, setChatReady] = useState(false)
+  const chatVisible = globalChat && chatReady
   const preferences = useWorkspace(state => state.preferences)!
   const patch = useWorkspace(state => state.patch)
   const search = useWorkspace(state => state.search)
@@ -225,16 +227,16 @@ export function Shell() {
       <div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px`, '--list-width-cap': `${listMaxShare * 100}%` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={sidebarCollapsed} data-sidebar-resizing={sidebarDraft !== null}>
       {platform !== 'windows' && <div className="sidebar-toggle">{sidebarToggle}</div>}
       <div className="sidebar-track">
-        <Sidebar motionMode={mode} inChat={globalChat} />
-        {globalChat && <div ref={setChatSidebar} className="chat-sidebar-host" />}
+        <Sidebar motionMode={mode} inChat={chatVisible} />
+        <div ref={setChatSidebar} className="chat-sidebar-host" />
       </div>
       {!preferences.sidebar_collapsed && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={360} onResize={setSidebarDraft}
         onCollapse={() => {
           patch({ sidebar_collapsed: true })
           document.getElementById('sidebar-toggle')?.focus()
         }} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
-      <main ref={workspace} className={cn('reading-workspace', !overlay && 'reader-columns', globalChat && 'chat-obscured')}
-        inert={globalChat} aria-hidden={globalChat || undefined}>
+      <main ref={workspace} className={cn('reading-workspace workspace-mode-reading', !overlay && 'reader-columns', chatVisible && 'chat-obscured')}
+        inert={chatVisible} aria-hidden={chatVisible || undefined}>
         <section className="article-pane" aria-label="文章浏览" inert={fillReader && readerVisible} aria-hidden={fillReader && readerVisible || undefined}><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />{!settingsOpen && <RefreshStatus />}
           <ArticleViewTransition view={preferences.article_view_mode} motion={mode} host={articleTransitionHost}>
             {articles.length > 0 || library.hasNextPage ? <ArticleCollection feedIcons={feedIcons} articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} nextCursor={library.nextCursor} loadingMore={library.isFetchingNextPage} onLoadMore={loadMore} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
@@ -256,7 +258,10 @@ export function Shell() {
         <div className="article-view-overlay" aria-hidden="true" ref={articleTransitionHost} />
       </main>
       <Suspense fallback={null}>
-        {globalChat && <GlobalChat sidebar={chatSidebar} collapsed={sidebarCollapsed} theme={preferences.chat_code_theme} />}
+        <AnimatePresence>
+          {globalChat && <GlobalChat key="global-chat" sidebar={chatSidebar} collapsed={sidebarCollapsed}
+            theme={preferences.chat_code_theme} motionMode={mode} onReady={setChatReady} />}
+        </AnimatePresence>
         {settingsOpen && <SettingsDialog />}{paletteOpen && <CommandPalette />}{chatKind && !globalChat && <ChatDialog />}
       </Suspense>
       <div className="sr-only" aria-live="polite">{preferences.article_view_mode === 'masonry' ? '已切换到瀑布流视图' : '已切换到列表视图'}</div>

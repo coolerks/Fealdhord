@@ -54,21 +54,21 @@ export function SearchableSelect({
     </Popover.Trigger>
     <Popover.Portal>
       <Popover.Content align="start" sideOffset={4} aria-label={label}
-        className="z-50 w-max max-w-[min(var(--radix-popover-content-available-width),24rem)] rounded-xl border bg-popover shadow-md"
+        className="z-50 w-max max-w-[min(var(--radix-popover-content-available-width),24rem)] rounded-xl border bg-popover p-1 shadow-md"
         onOpenAutoFocus={event => {
           if (input.current) {
             event.preventDefault()
             input.current.focus()
           }
         }}>
-        <Command label={`搜索${label}`} className={cn(!showSearch && '[&_[data-slot=command-input-wrapper]]:sr-only')}>
+        <Command label={`搜索${label}`} className={cn('p-0', !showSearch && '[&_[data-slot=command-input-wrapper]]:sr-only')}>
           <CommandInput ref={input} value={search} onValueChange={setSearch} placeholder="输入文字搜索…" />
-          <CommandList aria-multiselectable={multiple || undefined} showScrollbar className={cn('overflow-x-auto',
+          <CommandList aria-multiselectable={multiple || undefined} showScrollbar className={cn('min-w-0',
             showSearch ? 'max-h-[min(18rem,calc(var(--radix-popover-content-available-height)-3rem))]'
               : 'max-h-[min(18rem,calc(var(--radix-popover-content-available-height)-0.625rem))]')}>
             <CommandEmpty>没有匹配项</CommandEmpty>
-            <CommandGroup className="w-max min-w-full">
-              {options.map(option => <CommandItem key={option.value} value={option.value}
+            <CommandGroup className="p-0">
+              {options.map(option => <CommandItem className="min-w-0 rounded-lg px-2 py-1" key={option.value} value={option.value}
                 keywords={[option.label, ...(option.keywords ?? [])]} disabled={option.disabled}
                 data-checked={checked(option.value)} aria-checked={multiple || announceSelection ? checked(option.value) : undefined}
                 aria-label={option.accessibleLabel}
@@ -77,7 +77,7 @@ export function SearchableSelect({
                   if (!multiple) changeOpen(false)
                 }}>
                 {option.icon && <AnimatedGlyph icon={option.icon} meaning={option.meaning} />}
-                <span className="shrink-0 whitespace-nowrap">{option.label}</span>
+                <span className="min-w-0 flex-1 truncate">{option.label}</span>
               </CommandItem>)}
             </CommandGroup>
           </CommandList>
