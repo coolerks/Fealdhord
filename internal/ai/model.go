@@ -14,6 +14,7 @@ type Model interface {
 
 type ModelRequest struct {
 	Model           string
+	ReasoningEffort string
 	System          string
 	Messages        []Message
 	Tools           []ToolDefinition

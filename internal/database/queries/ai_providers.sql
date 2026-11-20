@@ -20,11 +20,11 @@ DELETE FROM ai_providers WHERE id = ? AND revision = ?;
 SELECT * FROM ai_models ORDER BY created_at,id;
 
 -- name: CreateAIModel :one
-INSERT INTO ai_models (id,provider_id,model,display_name,enabled,created_at,updated_at)
-VALUES (?,?,?,?,?,?,?) RETURNING *;
+INSERT INTO ai_models (id,provider_id,model,display_name,enabled,created_at,updated_at,reasoning_levels)
+VALUES (?,?,?,?,?,?,?,?) RETURNING *;
 
 -- name: UpdateAIModel :one
-UPDATE ai_models SET model = ?, display_name = ?, enabled = ?, revision = revision+1, updated_at = ?
+UPDATE ai_models SET model = ?, display_name = ?, enabled = ?, revision = revision+1, updated_at = ?, reasoning_levels = ?
 WHERE id = ? AND provider_id = ? AND revision = ? RETURNING *;
 
 -- name: DeleteAIModel :execrows

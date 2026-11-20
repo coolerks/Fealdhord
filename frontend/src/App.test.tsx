@@ -29,7 +29,11 @@ vi.mock('@/lib/reader-api',()=>({readerAPI:reader}))
 const chat = vi.hoisted(() => ({ List: vi.fn(), Create: vi.fn(), Messages: vi.fn(), Send: vi.fn(), Cancel: vi.fn(), Model: vi.fn() }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/chat/api', () => chat)
 const listAIConfiguration = vi.hoisted(() => vi.fn())
-vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/api', () => ({ List: listAIConfiguration }))
+const saveAIModel = vi.hoisted(() => vi.fn())
+vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/api', () => ({
+  List: listAIConfiguration, SaveModel: saveAIModel,
+  FetchModels: () => Object.assign(Promise.resolve([]), { cancel: vi.fn() }),
+}))
 const copyImage = vi.hoisted(() => vi.fn())
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/media/api', () => ({ CopyInlineImage: copyImage }))
 import App from './App'
@@ -83,8 +87,10 @@ describe('Phase 1 阅读 Shell', () => {
     listAIConfiguration.mockResolvedValue({
       providers: [{ id: 'provider', name: '本地服务', enabled: true }],
       models: [
-        { id: 'first', providerId: 'provider', name: 'default-model', displayName: '默认模型', enabled: true },
-        { id: 'second', providerId: 'provider', name: 'alternate-model', displayName: '备用模型', enabled: true },
+        { id: 'first', providerId: 'provider', name: 'default-model', displayName: '默认模型', enabled: true,
+          reasoningLevels: [{ label: '推理增强', value: 'deep-custom' }] },
+        { id: 'second', providerId: 'provider', name: 'alternate-model', displayName: '备用模型', enabled: true,
+          reasoningLevels: [{ label: '轻量', value: 'lite' }] },
       ],
       assignments: [{ task: 'chat', modelId: 'first' }],
     })
@@ -100,27 +106,82 @@ describe('Phase 1 阅读 Shell', () => {
     const input = screen.getByRole('textbox', { name: '消息' })
     const model = screen.getByRole('button', { name: '聊天模型' })
     expect(model).toHaveTextContent('默认模型')
+    expect(model).not.toHaveTextContent('本地服务')
+    const effort = screen.getByRole('button', { name: '思考强度' })
+    await user.click(effort)
+    await user.click(screen.getByRole('option', { name: '推理增强' }))
     await user.type(input, '第一条')
-    await user.click(screen.getByRole('button', { name: '发送' }))
+    const send = screen.getByRole('button', { name: '发送' })
+    expect(send).toHaveClass('rounded-full')
+    expect(send).toHaveTextContent(/^$/)
+    expect(send.parentElement).toBe(model.parentElement)
+    await user.click(send)
     expect(await screen.findByText('第一条回复')).toBeInTheDocument()
-    expect(chat.Send).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: 'new', modelId: 'first', text: '第一条' }))
+    expect(chat.Send).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: 'new', modelId: 'first', reasoningEffort: 'deep-custom', text: '第一条' }))
 
     await user.click(model)
     await user.type(screen.getByRole('combobox', { name: '搜索聊天模型' }), 'alternate-model')
-    await user.click(screen.getByRole('option', { name: '备用模型 · 本地服务' }))
+    const alternate = screen.getByRole('option', { name: '备用模型 · 本地服务 · alternate-model' })
+    expect(alternate).toHaveTextContent(/^备用模型$/)
+    await user.click(alternate)
+    expect(effort).toHaveTextContent('使用服务默认')
     await user.type(input, '第二条{Enter}')
     expect(await screen.findByText('第二条回复')).toBeInTheDocument()
     expect(chat.Send).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: 'new', modelId: 'second', text: '第二条' }))
+    expect(chat.Send.mock.lastCall?.[0]).not.toHaveProperty('reasoningEffort')
     expect(chat.Create).toHaveBeenCalledExactlyOnceWith({ kind: 'global', id: '' }, '第一条')
     await user.click(screen.getByRole('button', { name: '停止回复' }))
     expect(await screen.findByText('已取消')).toBeInTheDocument()
     expect(chat.Cancel).toHaveBeenCalledExactlyOnceWith('new')
     await user.click(within(sidebar).getByRole('button', { name: '已有会话' }))
     expect(await screen.findByText('历史回复')).toBeInTheDocument()
-    await user.click(within(sidebar).getByRole('button', { name: '返回阅读' }))
+    expect(within(sidebar).queryByRole('button', { name: '返回阅读' })).not.toBeInTheDocument()
+    const reading = within(sidebar).getByRole('button', { name: '阅读' })
+    expect(reading.closest('footer')).toBeInTheDocument()
+    await user.click(reading)
     await waitFor(() => expect(opener).toHaveFocus())
     expect(container.querySelector('.reader-content')).toBe(prose)
     expect(prose.scrollTop).toBe(430)
+
+    await user.click(opener)
+    const workspace = await screen.findByRole('main', { name: 'AI 助手工作区' })
+    await user.click(screen.getByRole('button', { name: '折叠侧栏' }))
+    expect(screen.queryByRole('complementary', { name: 'AI 会话导航' })).not.toBeInTheDocument()
+    await user.click(within(workspace).getByRole('button', { name: '阅读' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '展开侧栏' })).toHaveFocus())
+  })
+
+  it('新模型预填四档，删掉一档并添加自定义档位后可以重新编辑', async () => {
+    const user = userEvent.setup()
+    const providers = [{ id: 'provider', name: '本地服务', protocol: 'chat_completions', enabled: true, revision: 0 }]
+    listAIConfiguration.mockResolvedValue({ providers, models: [], assignments: [] })
+    saveAIModel.mockImplementation(async input => {
+      const saved = { ...input, id: 'saved', revision: 1 }
+      listAIConfiguration.mockResolvedValue({ providers, models: [saved], assignments: [] })
+      return saved
+    })
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    await user.click(await screen.findByRole('button', { name: 'AI 与扩展' }))
+    await user.click(await screen.findByRole('button', { name: '添加模型' }))
+    const levels = within(screen.getByRole('group', { name: '思考档位' }))
+    expect(levels.getAllByRole('textbox', { name: '参数值' }).map(input => (input as HTMLInputElement).value))
+      .toEqual(['low', 'medium', 'high', 'xhigh'])
+    await user.type(screen.getByRole('textbox', { name: '模型 ID' }), 'example-model')
+    await user.type(screen.getByLabelText('显示名称', { selector: '#ai-model-display' }), '实验模型')
+    await user.click(levels.getByRole('button', { name: '删除档位 中' }))
+    await user.click(levels.getByRole('button', { name: '添加档位' }))
+    await user.type(levels.getAllByRole('textbox', { name: '显示名称' }).at(-1)!, '深度')
+    await user.type(levels.getAllByRole('textbox', { name: '参数值' }).at(-1)!, 'custom_max')
+    await user.click(screen.getByRole('button', { name: '保存模型' }))
+    expect(saveAIModel).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      reasoningLevels: [{ label: '低', value: 'low' }, { label: '高', value: 'high' },
+        { label: '超高', value: 'xhigh' }, { label: '深度', value: 'custom_max' }],
+    }))
+    const models = screen.getByRole('region', { name: '模型' })
+    await user.click(await within(models).findByRole('button', { name: '编辑' }))
+    expect(screen.getByRole('button', { name: '删除档位 深度' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '删除档位 中' })).not.toBeInTheDocument()
   })
 
   it('全局回复安全渲染 Markdown，聊天代码主题和文章主题独立保存', async () => {

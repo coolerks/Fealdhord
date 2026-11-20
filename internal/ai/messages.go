@@ -87,6 +87,9 @@ func (m *Messages) request(ctx context.Context, req *ModelRequest, stream bool) 
 		return nil, &ModelError{Code: "ValidationError"}
 	}
 	payload := map[string]any{"model": req.Model, "messages": turns, "max_tokens": limit, "stream": stream}
+	if req.ReasoningEffort != "" {
+		payload["output_config"] = map[string]string{"effort": req.ReasoningEffort}
+	}
 	if len(systems) > 0 {
 		payload["system"] = strings.Join(systems, "\n\n")
 	}

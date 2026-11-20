@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 type Option = {
   value: string
   label: string
+  accessibleLabel?: string
   keywords?: readonly string[]
   icon?: LucideIcon
   meaning?: IconMeaning
@@ -17,7 +18,8 @@ type Option = {
 }
 
 export function SearchableSelect({
-  id, label, options, value, onValueChange, disabled, className, matchTriggerWidth = false, placeholder = '请选择',
+  id, label, options, value, onValueChange, disabled, className, variant = 'outline',
+  announceSelection = false, matchTriggerWidth = false, placeholder = '请选择',
 }: {
   id?: string
   label: string
@@ -26,6 +28,8 @@ export function SearchableSelect({
   onValueChange: (value: string) => void
   disabled?: boolean
   className?: string
+  variant?: 'outline' | 'ghost'
+  announceSelection?: boolean
   matchTriggerWidth?: boolean
   placeholder?: string
 }) {
@@ -36,7 +40,8 @@ export function SearchableSelect({
   const checked = (id: string) => Array.isArray(value) ? value.includes(id) : value === id
   return <Popover.Root open={open && !disabled} onOpenChange={setOpen} modal>
     <Popover.Trigger asChild>
-      <Button type="button" id={id} aria-label={label} variant="outline" disabled={disabled}
+      <Button type="button" id={id} aria-label={label} variant={variant} disabled={disabled}
+        aria-description={announceSelection ? selected?.accessibleLabel ?? selected?.label : undefined}
         className={cn('min-w-0 justify-between font-normal', className)}>
         <span className={cn('truncate', !selected && !multiple && 'text-muted-foreground')}>{selected?.label ?? placeholder}</span>
         <AnimatedGlyph meaning="chevron-right" className="rotate-90 text-muted-foreground" />
@@ -60,7 +65,8 @@ export function SearchableSelect({
             <CommandGroup>
               {options.map(option => <CommandItem className="w-max min-w-full" key={option.value} value={option.value}
                 keywords={[option.label, ...(option.keywords ?? [])]} disabled={option.disabled}
-                data-checked={checked(option.value)} aria-checked={multiple ? checked(option.value) : undefined}
+                data-checked={checked(option.value)} aria-checked={multiple || announceSelection ? checked(option.value) : undefined}
+                aria-label={option.accessibleLabel}
                 onSelect={() => {
                   onValueChange(option.value)
                   if (!multiple) setOpen(false)

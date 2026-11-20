@@ -13,6 +13,7 @@ export interface Model {
     "displayName": string;
     "enabled": boolean;
     "revision": number;
+    "reasoningLevels": ReasoningLevel[] | null;
 }
 
 export interface Provider {
@@ -38,6 +39,11 @@ export interface ProviderInput {
      * nil 保留，空字符串清除。
      */
     "apiKey": string | null;
+}
+
+export interface ReasoningLevel {
+    "label": string;
+    "value": string;
 }
 
 export interface Snapshot {

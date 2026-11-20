@@ -4,8 +4,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ChevronLeft, MessageSquare, Plus, Settings } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, MessageSquare, Plus, Settings, Sparkles, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { AnimatedGlyph } from '@/components/animated-glyph'
+import { SemanticButton } from '@/components/semantic-button'
 import { Input } from '@/components/ui/input'
 import { libraryAPI } from '@/lib/library-api'
 import type { Article } from '@/lib/library'
@@ -20,6 +22,7 @@ import { List as listAIConfiguration } from '../../../bindings/github.com/cooler
 import './chat-workspace.css'
 
 const globalTarget = { kind: 'global', id: '', label: 'AI 助手' }
+const defaultEffortOption = { value: ':default', label: '使用服务默认' }
 type WorkspaceView = { sidebar: HTMLElement | null; collapsed: boolean; theme: string }
 
 const statusLabels: Record<string, string> = {
@@ -42,6 +45,9 @@ const errorLabels: Record<string, string> = {
   ContextUnavailable: '有已选文章无法读取，请重新选择。',
   ConfigurationError: '请先分配聊天模型。',
   ChatModelUnavailable: '所选模型已不可用，请重新选择。',
+  ChatReasoningUnavailable: '所选思考档位已不可用，请重新选择。',
+  ChatReasoningToolsUnavailable: '这个服务的自定义思考强度暂不支持本轮读取正文。请使用服务默认，或取消本轮读取授权。',
+  ProviderHTTPError: '模型服务拒绝了请求，请检查模型设置及思考档位，或稍后重试。',
   CredentialError: '请检查服务的 API 密钥。',
   AuthenticationError: '服务拒绝了当前密钥。',
   RateLimitError: '服务限流，请稍后重试。',
@@ -96,6 +102,7 @@ function ChatSession({ target, close, workspace }: {
   const [sources, setSources] = useState<Article[]>([])
   const [picking, setPicking] = useState(false)
   const [modelChoice, setModelChoice] = useState<string | null>(null)
+  const [effortChoices, setEffortChoices] = useState<Record<string, string>>({})
   const [following, setFollowing] = useState(true)
   const composer = useRef<HTMLTextAreaElement>(null)
   const timeline = useRef<HTMLDivElement>(null)
@@ -106,19 +113,20 @@ function ChatSession({ target, close, workspace }: {
   const model = useQuery({ queryKey: ['chat', 'model'], queryFn: () => api.Model(), enabled: !workspace, retry: false })
   const configuration = useQuery({ queryKey: aiConfigurationKey, queryFn: listAIConfiguration, enabled: Boolean(workspace), retry: false })
   const providers = configuration.data?.providers ?? []
-  const modelCandidates = (configuration.data?.models ?? []).flatMap(item => {
+  const modelOptions = (configuration.data?.models ?? []).flatMap(item => {
     const provider = providers.find(service => service.id === item.providerId && service.enabled)
-    return item.enabled && provider ? [{ id: item.id, name: item.name, label: `${item.displayName} · ${provider.name}` }] : []
+    return item.enabled && provider ? [{
+      value: item.id, label: item.displayName, keywords: [item.name, provider.name],
+      accessibleLabel: `${item.displayName} · ${provider.name} · ${item.name}`,
+    }] : []
   })
-  const modelOptions = modelCandidates.map(item => ({
-    value: item.id,
-    label: modelCandidates.some(other => other.id !== item.id && other.label === item.label) ? `${item.label} · ${item.name}` : item.label,
-    keywords: [item.name],
-  }))
   const assigned = configuration.data?.assignments?.find(item => item.task === 'chat')?.modelId
   const defaultModelID = modelOptions.find(option => option.value === assigned)?.value ?? modelOptions[0]?.value
   const modelID = modelChoice ?? defaultModelID
   const modelReady = workspace ? modelOptions.some(option => option.value === modelID) : Boolean(model.data)
+  const effortLevels = configuration.data?.models?.find(item => item.id === modelID)?.reasoningLevels ?? []
+  const reasoningEffort = modelID ? effortChoices[modelID] : undefined
+  const invalidEffort = Boolean(reasoningEffort && !effortLevels.some(option => option.value === reasoningEffort))
   const conversationId = chosen ?? history.data?.[0]?.id ?? ''
   const messagesKey = ['chat', 'messages', conversationId] as const
   const messages = useQuery({
@@ -143,6 +151,7 @@ function ChatSession({ target, close, workspace }: {
       await api.Send({
         conversationId: id, text: draft, includeContext, selection, allowArticleReads,
         articleIds: sources.map(article => article.id), ...(workspace && modelID ? { modelId: modelID } : {}),
+        ...(workspace && reasoningEffort ? { reasoningEffort } : {}),
       })
       await Promise.all([
         cache.invalidateQueries({ queryKey: ['chat', 'messages', id] }),
@@ -189,7 +198,7 @@ function ChatSession({ target, close, workspace }: {
     }
     if (workspace && !id) composer.current?.focus({ preventScroll: true })
   }
-  const canSend = !active && Boolean(draft.trim()) && modelReady && !send.isPending && !history.isPending &&
+  const canSend = !active && Boolean(draft.trim()) && modelReady && !invalidEffort && !send.isPending && !history.isPending &&
     !(conversationId && messages.isPending)
   const retryHistory = <Button size="sm" variant="ghost" onClick={() => void history.refetch()}>重新读取历史</Button>
   return <div className={workspace ? 'chat-session reader-html' : 'flex min-h-0 flex-col gap-3'} data-code-theme={workspace ? theme : undefined}>
@@ -198,7 +207,6 @@ function ChatSession({ target, close, workspace }: {
         aria-hidden={workspace.collapsed || undefined}>
         <div className="sidebar-titlebar" />
         <div className="chat-sidebar-actions">
-          <Button variant="ghost" onClick={close}><ChevronLeft />返回阅读</Button>
           <Button variant="outline" disabled={send.isPending} onClick={() => choose('')}><Plus />新对话</Button>
         </div>
         <nav className="chat-conversations" aria-label="会话">
@@ -212,12 +220,14 @@ function ChatSession({ target, close, workspace }: {
             </Button>
           </li>)}</ul>
         </nav>
-        <footer className="chat-sidebar-footer">
-          <Button variant="ghost" onClick={() => showSettings('ai')}><Settings />AI 设置</Button>
-        </footer>
+        <footer className="sidebar-footer"><div className="sidebar-bottom">
+          <Button variant="ghost" className="sidebar-ai" onClick={close}><AnimatedGlyph icon={BookOpen} meaning="book" />阅读</Button>
+          <SemanticButton icon={Settings} meaning="settings" label="AI 设置" onClick={() => showSettings('ai')} />
+        </div></footer>
       </aside>, workspace.sidebar)}
     {workspace ? <header className="workspace-toolbar chat-header" data-sidebar-collapsed={workspace.collapsed}>
-      {workspace.collapsed && <Button variant="ghost" size="icon" aria-label="返回阅读" onClick={close}><ChevronLeft /></Button>}
+      {workspace.collapsed && <SemanticButton icon={BookOpen} meaning="book" label="阅读" onClick={close} />}
+      <Sparkles className="chat-heading-icon" aria-hidden="true" />
       <h1>{history.data?.find(item => item.id === conversationId)?.title ?? (conversationId ? 'AI 助手' : '新对话')}</h1>
       {workspace.collapsed && <Button variant="ghost" size="icon" aria-label="新对话" disabled={send.isPending} onClick={() => choose('')}><Plus /></Button>}
     </header> : <div className="flex flex-wrap items-center gap-3">
@@ -292,19 +302,32 @@ function ChatSession({ target, close, workspace }: {
             }
           } : undefined} />
         <div className={workspace ? 'chat-composer-toolbar' : undefined}>
-          {workspace && <>
+          {workspace &&
             <Button size="icon" type="button" variant="ghost" aria-label="附加文章" title="附加文章" aria-expanded={picking} disabled={send.isPending} onClick={() => setPicking(!picking)}><Plus /></Button>
-            {modelOptions.length ? <SearchableSelect label="聊天模型" className="chat-model" value={modelID ?? ''}
-              options={modelOptions} placeholder="选择模型" disabled={send.isPending} onValueChange={id => { setModelChoice(id); send.reset() }} />
+          }
+          <div className={workspace ? 'chat-composer-actions' : undefined}>
+            {workspace && (modelOptions.length ? <SearchableSelect label="聊天模型" className="chat-model" value={modelID ?? ''}
+              options={modelOptions} variant="ghost" announceSelection placeholder="选择模型" disabled={send.isPending} onValueChange={id => { setModelChoice(id); send.reset() }} />
               : configuration.isError ? <Button type="button" variant="ghost" onClick={() => void configuration.refetch()}>重新读取模型</Button>
                 : configuration.isPending ? <span role="status">正在读取模型…</span>
-                  : <Button type="button" variant="ghost" onClick={() => showSettings('ai')}>配置模型</Button>}
-          </>}
-          {active ? <Button type="button" variant="outline" disabled={cancel.isPending} onClick={() => cancel.mutate(conversationId)}>停止回复</Button> :
-            <Button type="submit" disabled={!canSend}>发送</Button>}
+                  : <Button type="button" variant="ghost" onClick={() => showSettings('ai')}>配置模型</Button>)}
+            {workspace && modelID && modelReady && (effortLevels.length > 0 || reasoningEffort) &&
+              <SearchableSelect label="思考强度" className="chat-effort" value={reasoningEffort || defaultEffortOption.value}
+                variant="ghost" announceSelection options={[defaultEffortOption, ...effortLevels]} placeholder="选择档位"
+                disabled={send.isPending} onValueChange={effort => {
+                  setEffortChoices(current => ({ ...current, [modelID]: effort === defaultEffortOption.value ? '' : effort }))
+                  send.reset()
+                }} />}
+            {workspace ? (active
+              ? <Button type="button" size="icon" className="rounded-full" aria-label="停止回复" title="停止回复" disabled={cancel.isPending} onClick={() => cancel.mutate(conversationId)}><Square fill="currentColor" /></Button>
+              : <Button type="submit" size="icon" className="rounded-full" aria-label="发送" title="发送" disabled={!canSend}><ArrowUp /></Button>)
+              : active ? <Button type="button" variant="outline" disabled={cancel.isPending} onClick={() => cancel.mutate(conversationId)}>停止回复</Button>
+                : <Button type="submit" disabled={!canSend}>发送</Button>}
+          </div>
         </div>
       </form>
       {workspace && modelChoice && !modelReady && !send.isError && <p role="alert">{errorLabels.ChatModelUnavailable}</p>}
+      {workspace && invalidEffort && !send.isError && <p role="alert">{errorLabels.ChatReasoningUnavailable}</p>}
       {(send.isError || cancel.isError) && <p role="alert">{errorText(send.error ?? cancel.error)}</p>}
     </div>
   </div>

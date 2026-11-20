@@ -15,6 +15,7 @@ sql:
       - migrations/00012_article_ai_controls.sql
       - migrations/00013_chat_tool_audit.sql
       - migrations/00014_feed_custom_icon.sql
+      - migrations/00015_ai_model_reasoning_levels.sql
     queries: internal/database/queries
     gen:
       go:

@@ -86,6 +86,9 @@ func (r *Responses) request(ctx context.Context, req *ModelRequest, stream bool)
 		}
 	}
 	payload := map[string]any{"model": req.Model, "input": input, "store": false, "stream": stream}
+	if req.ReasoningEffort != "" {
+		payload["reasoning"] = map[string]string{"effort": req.ReasoningEffort}
+	}
 	if req.System != "" {
 		payload["instructions"] = req.System
 	}

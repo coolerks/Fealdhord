@@ -5,8 +5,10 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -43,12 +45,41 @@ type ProviderInput struct {
 }
 
 type Model struct {
-	ID          string `json:"id"`
-	ProviderID  string `json:"providerId"`
-	Name        string `json:"name"`
-	DisplayName string `json:"displayName"`
-	Enabled     bool   `json:"enabled"`
-	Revision    int64  `json:"revision"`
+	ID              string           `json:"id"`
+	ProviderID      string           `json:"providerId"`
+	Name            string           `json:"name"`
+	DisplayName     string           `json:"displayName"`
+	Enabled         bool             `json:"enabled"`
+	Revision        int64            `json:"revision"`
+	ReasoningLevels []ReasoningLevel `json:"reasoningLevels"`
+}
+
+type ReasoningLevel struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+const maxReasoningLevels = 16
+
+var reasoningLevelValue = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
+
+func encodeReasoningLevels(levels []ReasoningLevel) (string, error) {
+	if len(levels) > maxReasoningLevels {
+		return "", configError("InvalidReasoningLevels")
+	}
+	normalized := make([]ReasoningLevel, 0, len(levels))
+	seen := make(map[string]bool, len(levels))
+	for _, level := range levels {
+		level.Label = strings.TrimSpace(level.Label)
+		level.Value = strings.TrimSpace(level.Value)
+		if level.Label == "" || len([]rune(level.Label)) > 32 || !reasoningLevelValue.MatchString(level.Value) || seen[level.Value] {
+			return "", configError("InvalidReasoningLevels")
+		}
+		seen[level.Value] = true
+		normalized = append(normalized, level)
+	}
+	data, err := json.Marshal(normalized)
+	return string(data), err
 }
 
 type Assignment struct {
@@ -68,8 +99,10 @@ func publicProvider(row sqlc.AiProvider) Provider {
 }
 
 func publicModel(row sqlc.AiModel) Model {
+	levels := []ReasoningLevel{}
+	_ = json.Unmarshal([]byte(row.ReasoningLevels), &levels)
 	return Model{ID: row.ID, ProviderID: row.ProviderID, Name: row.Model, DisplayName: row.DisplayName,
-		Enabled: row.Enabled != 0, Revision: row.Revision}
+		Enabled: row.Enabled != 0, Revision: row.Revision, ReasoningLevels: levels}
 }
 
 func (s *Service) List(ctx context.Context) (Snapshot, error) {
@@ -202,15 +235,18 @@ func (s *Service) SaveModel(ctx context.Context, input Model) (Model, error) {
 	if input.DisplayName == "" {
 		input.DisplayName = input.Name
 	}
+	levels, err := encodeReasoningLevels(input.ReasoningLevels)
+	if err != nil {
+		return Model{}, err
+	}
 	now := time.Now().UTC().UnixMilli()
 	var row sqlc.AiModel
-	var err error
 	if input.ID == "" {
 		row, err = s.db.CreateAIModel(ctx, sqlc.CreateAIModelParams{ID: rand.Text(), ProviderID: input.ProviderID,
-			Model: input.Name, DisplayName: input.DisplayName, Enabled: flag(input.Enabled), CreatedAt: now, UpdatedAt: now})
+			Model: input.Name, DisplayName: input.DisplayName, Enabled: flag(input.Enabled), CreatedAt: now, UpdatedAt: now, ReasoningLevels: levels})
 	} else {
 		row, err = s.db.UpdateAIModel(ctx, sqlc.UpdateAIModelParams{ID: input.ID, ProviderID: input.ProviderID, Revision: input.Revision,
-			Model: input.Name, DisplayName: input.DisplayName, Enabled: flag(input.Enabled), UpdatedAt: now})
+			Model: input.Name, DisplayName: input.DisplayName, Enabled: flag(input.Enabled), UpdatedAt: now, ReasoningLevels: levels})
 	}
 	if err != nil {
 		return Model{}, conflictError(err)

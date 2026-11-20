@@ -11,5 +11,6 @@ export type {
     Model,
     Provider,
     ProviderInput,
+    ReasoningLevel,
     Snapshot
 } from "./models.js";

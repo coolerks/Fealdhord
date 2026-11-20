@@ -73,7 +73,8 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := config.SaveModel(ctx, aiconfig.Model{ProviderID: p.ID, Name: "mock-model", Enabled: true})
+	m, err := config.SaveModel(ctx, aiconfig.Model{ProviderID: p.ID, Name: "mock-model", Enabled: true,
+		ReasoningLevels: []aiconfig.ReasoningLevel{{Label: "低", Value: "low"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,6 +87,8 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	waitMessage(t, service, conversation.ID, 2, "complete")
 	if request := <-requests; !strings.Contains(request, "仅本轮选段") {
 		t.Fatalf("missing explicit selection: %s", request)
+	} else if strings.Contains(request, "reasoning_effort") {
+		t.Fatalf("default effort must be omitted: %s", request)
 	}
 	if err := service.Send(ctx, SendInput{ConversationID: conversation.ID, Text: "取消这次"}); err != nil {
 		t.Fatal(err)
@@ -175,14 +178,16 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	}
 
 	alternate, err := config.SaveModel(ctx, aiconfig.Model{
-		ProviderID: p.ID, Name: "alternate-model", DisplayName: "备用模型", Enabled: true,
+		ProviderID: p.ID, Name: "deepseek-flash", DisplayName: "备用模型", Enabled: true,
+		ReasoningLevels: []aiconfig.ReasoningLevel{{Label: "极深", Value: "custom_max"}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for index, choice := range []aiconfig.Model{alternate, m} {
+		effort := choice.ReasoningLevels[0].Value
 		err := reopened.Send(ctx, SendInput{
-			ConversationID: global.ID, ModelID: choice.ID, Text: fmt.Sprintf("模型切换 %d", index),
+			ConversationID: global.ID, ModelID: choice.ID, ReasoningEffort: effort, Text: fmt.Sprintf("模型切换 %d", index),
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -190,9 +195,17 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 		reply := waitMessage(t, reopened, global.ID, 6+index*2, "complete")
 		payload := <-requests
 		if reply.ModelName != choice.DisplayName || !strings.Contains(payload, fmt.Sprintf(`"model":%q`, choice.Name)) ||
+			!strings.Contains(payload, fmt.Sprintf(`"reasoning_effort":%q`, effort)) ||
 			!strings.Contains(payload, "测试授权工具") || (index > 0 && !strings.Contains(payload, "模型切换 0")) {
 			t.Fatalf("model switch lost model or history: reply=%+v payload=%s", reply, payload)
 		}
+	}
+	if err := reopened.Send(ctx, SendInput{ConversationID: global.ID, ModelID: m.ID, ReasoningEffort: "custom_max", Text: "其他模型档位"}); err == nil || err.Error() != "ChatReasoningUnavailable" {
+		t.Fatalf("foreign effort = %v", err)
+	}
+	if err := reopened.Send(ctx, SendInput{ConversationID: global.ID, ModelID: alternate.ID, ReasoningEffort: "custom_max",
+		Text: "需要续传的工具组合", ArticleIDs: []string{selected}, AllowArticleReads: true}); err == nil || err.Error() != "ChatReasoningToolsUnavailable" {
+		t.Fatalf("unsupported tool continuation = %v", err)
 	}
 	if assigned, err := reopened.Model(ctx); err != nil || assigned.ID != m.ID {
 		t.Fatalf("model switch changed default: %+v, %v", assigned, err)

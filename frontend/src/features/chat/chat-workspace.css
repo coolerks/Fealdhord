@@ -13,7 +13,7 @@
   padding: 0 12px;
 }
 
-.chat-sidebar :is(.chat-sidebar-actions, .chat-sidebar-footer) button {
+.chat-sidebar-actions button {
   justify-content: flex-start;
 }
 
@@ -49,10 +49,6 @@
   font-size: 12px;
 }
 
-.chat-sidebar-footer {
-  padding: 8px 12px 12px;
-}
-
 .app-shell > .chat-workspace {
   display: flex;
   background: var(--background);
@@ -86,6 +82,13 @@
   white-space: nowrap;
   font-size: 14px;
   font-weight: 600;
+}
+
+.chat-heading-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--muted-foreground);
 }
 
 .chat-timeline {
@@ -163,12 +166,9 @@
 .chat-composer-form {
   padding: 6px;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 18px;
   background: var(--card);
-}
-
-.chat-composer-form:focus-within {
-  border-color: var(--ring);
+  box-shadow: 0 2px 9px color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
 .chat-input[data-slot=textarea] {
@@ -182,18 +182,28 @@
 
 .chat-composer-toolbar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 5px;
   font-size: 12px;
 }
 
-.chat-model {
-  max-width: min(65%, 20rem);
+.chat-composer-actions {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin-inline-start: auto;
+  gap: 3px;
 }
 
-.chat-composer-toolbar > :last-child {
-  margin-inline-start: auto;
+.chat-model {
+  max-width: 20rem;
+  flex-shrink: 1;
+}
+
+.chat-effort {
+  max-width: 7rem;
+  flex-shrink: 1;
+  color: var(--muted-foreground);
 }
 
 .chat-composer > [role=alert] {

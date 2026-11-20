@@ -9,14 +9,15 @@ import (
 )
 
 type AiModel struct {
-	ID          string `json:"id"`
-	ProviderID  string `json:"provider_id"`
-	Model       string `json:"model"`
-	DisplayName string `json:"display_name"`
-	Enabled     int64  `json:"enabled"`
-	Revision    int64  `json:"revision"`
-	CreatedAt   int64  `json:"created_at"`
-	UpdatedAt   int64  `json:"updated_at"`
+	ID              string `json:"id"`
+	ProviderID      string `json:"provider_id"`
+	Model           string `json:"model"`
+	DisplayName     string `json:"display_name"`
+	Enabled         int64  `json:"enabled"`
+	Revision        int64  `json:"revision"`
+	CreatedAt       int64  `json:"created_at"`
+	UpdatedAt       int64  `json:"updated_at"`
+	ReasoningLevels string `json:"reasoning_levels"`
 }
 
 type AiProvider struct {

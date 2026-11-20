@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -219,5 +220,48 @@ func TestFetchModelsUsesSavedProviderAndCatalogFallback(t *testing.T) {
 				t.Fatalf("fetch should not save models: %+v, %v", snapshot.Models, err)
 			}
 		})
+	}
+}
+
+func TestModelReasoningLevelsRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	db, err := database.Open(ctx, filepath.Join(t.TempDir(), "reasoning.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	service := New(db.AIProviderQueries(), testCredentials{})
+	provider, err := service.SaveProvider(ctx, ProviderInput{Provider: Provider{
+		Name: "Local", Protocol: "chat_completions", BaseURL: "http://localhost:8080", Enabled: true,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model, err := service.SaveModel(ctx, Model{ProviderID: provider.ID, Name: "example", Enabled: true})
+	if err != nil || len(model.ReasoningLevels) != 0 {
+		t.Fatalf("empty model = %+v, %v", model, err)
+	}
+	model.ReasoningLevels = []ReasoningLevel{{Label: "高", Value: "high"}, {Label: " 深入 ", Value: " custom_max "}}
+	model, err = service.SaveModel(ctx, model)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	snapshot, err := service.List(ctx)
+	want := []ReasoningLevel{{Label: "高", Value: "high"}, {Label: "深入", Value: "custom_max"}}
+	if err != nil || len(snapshot.Models) != 1 || !slices.Equal(snapshot.Models[0].ReasoningLevels, want) {
+		t.Fatalf("loaded levels = %+v, %v", snapshot.Models, err)
+	}
+	model.ReasoningLevels = []ReasoningLevel{{Label: "高", Value: "high"}, {Label: "重复", Value: "high"}}
+	if _, err := service.SaveModel(ctx, model); err == nil || err.Error() != "InvalidReasoningLevels" {
+		t.Fatalf("duplicated parameter = %v", err)
+	}
+	model.ReasoningLevels = []ReasoningLevel{}
+	if _, err := service.SaveModel(ctx, model); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = service.List(ctx)
+	if err != nil || len(snapshot.Models) != 1 || len(snapshot.Models[0].ReasoningLevels) != 0 {
+		t.Fatalf("deleted levels were restored: %+v, %v", snapshot.Models, err)
 	}
 }

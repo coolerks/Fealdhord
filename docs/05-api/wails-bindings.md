@@ -119,6 +119,8 @@ transfer.API 的 Choose 返回 token／name／cancelled；Preview 返回 preview
 
 `Chat.Send` 可选字段 `modelId` 为 AI 配置中已保存的模型记录 ID，仅接受全局会话使用。服务重新核验模型与服务是否启用，选项不可用时返回 `ChatModelUnavailable`。省略字段使用默认聊天模型，凭据及协议解析继续由服务端负责。
 
+模型 DTO 的 `reasoningLevels` 保存有序列表 `[{label,value}]`，可为空。非法或重复参数值返回 `InvalidReasoningLevels`。全局 `Chat.Send.reasoningEffort` 可选，必须匹配选中模型的已保存参数值，否则返回 `ChatReasoningUnavailable`。已知不支持显式档位与本轮读取工具组合时返回 `ChatReasoningToolsUnavailable`，两种拒绝均发生在写入本轮消息前。普通 Chat Completions 使用 `reasoning_effort`，OpenRouter Chat Completions 和 Responses 使用 `reasoning.effort`，Claude Messages 使用 `output_config.effort`。
+
 ## 文章 AI
 
 `articleai.API.Settings` 返回启用位、分类提示词、每小时预算、精选阈值与 revision；`Save` 按 revision 条件写入。 `Evaluate` 接收 `{articleId, task, preview}`，task 为 classification 或 featured。preview 返回评估而不写文章结果，且仍占用调用预算。成功返回命中分类、评分或缓存标志，已缓存时不重新请求。并发运行、预算、模型输出异常分别返回 Busy、BudgetExceeded、InvalidModelOutput。详情见 [自动分类](../04-specs/ai-classification.md)。

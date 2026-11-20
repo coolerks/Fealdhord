@@ -25,6 +25,7 @@ type ChatCompletions struct{ *modelClient }
 
 type modelClient struct {
 	endpoint string
+	host     string
 	apiKey   string
 	client   http.Client
 }
@@ -51,6 +52,7 @@ func newModelClient(baseURL, apiKey, path string, client *http.Client) (*modelCl
 	}
 	return &modelClient{
 		endpoint: base.JoinPath(path).String(),
+		host:     strings.ToLower(base.Hostname()),
 		apiKey:   apiKey,
 		client: http.Client{
 			Transport: client.Transport,
@@ -72,6 +74,8 @@ type chatMessage struct {
 
 type chatRequest struct {
 	Model           string               `json:"model"`
+	ReasoningEffort string               `json:"reasoning_effort,omitempty"`
+	Reasoning       map[string]string    `json:"reasoning,omitempty"`
 	Messages        []chatMessage        `json:"messages"`
 	Temperature     *float64             `json:"temperature,omitempty"`
 	TopP            *float64             `json:"top_p,omitempty"`
@@ -112,6 +116,13 @@ func (c *ChatCompletions) request(ctx context.Context, req *ModelRequest, stream
 	payload := chatRequest{
 		Model: req.Model, Temperature: req.Temperature, TopP: req.TopP,
 		MaxOutputTokens: req.MaxOutputTokens, Stop: req.Stop, Stream: stream,
+	}
+	if req.ReasoningEffort != "" {
+		if c.host == "openrouter.ai" {
+			payload.Reasoning = map[string]string{"effort": req.ReasoningEffort}
+		} else {
+			payload.ReasoningEffort = req.ReasoningEffort
+		}
 	}
 	if stream {
 		payload.StreamOptions = map[string]bool{"include_usage": true}

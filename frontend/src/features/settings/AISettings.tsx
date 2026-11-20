@@ -6,6 +6,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { useEffect, useRef, useState } from 'react'
+import { Plus, Trash2 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
@@ -25,6 +26,11 @@ const tasks = [
   ['translation', '翻译'], ['featured', '精选'],
 ]
 const newProvider: Provider = { id: '', revision: 0, name: '', protocol: 'chat_completions', baseUrl: '', enabled: true, hasCredential: false }
+const defaultReasoningLevels = [
+  { label: '低', value: 'low' }, { label: '中', value: 'medium' },
+  { label: '高', value: 'high' }, { label: '超高', value: 'xhigh' },
+]
+const maxReasoningLevels = 16
 
 function configError(error: unknown) {
   const message = error instanceof Error ? error.message : ''
@@ -36,6 +42,7 @@ function configError(error: unknown) {
   if (message.includes('Provider')) return '服务请求失败，请检查地址和模型 ID。'
   if (message.includes('Conflict')) return '配置已变更或模型已存在，请刷新后重试。'
   if (message.includes('ConfigurationError')) return '请选择已启用的服务和模型。'
+  if (message.includes('InvalidReasoningLevels')) return '请检查思考档位名称和参数值。参数值不能重复，仅支持字母、数字、连字符和下划线。'
   if (message.includes('ValidationError')) return '请检查名称、地址和密钥格式。'
   return '无法保存 AI 设置，请重试。'
 }
@@ -89,6 +96,7 @@ export function AISettings() {
   const providers = configuration.data?.providers ?? []
   const models = configuration.data?.models ?? []
   const modelProvider = providers.find(item => item.id === model?.providerId)
+  const reasoningLevels = model?.reasoningLevels ?? []
   const activeModels = models.filter(item => item.enabled && providers.some(service => service.id === item.providerId && service.enabled))
   if (configuration.isPending) return <p role="status">正在读取 AI 设置…</p>
   if (configuration.isError) return <Button onClick={() => void configuration.refetch()}>重新读取 AI 设置</Button>
@@ -99,7 +107,10 @@ export function AISettings() {
       {providers.map(item => <div key={item.id} className="flex flex-wrap items-center gap-2">
         <span className="mr-auto">{item.name}{!item.enabled && '（已停用）'}</span>
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => editProvider(item)}>编辑</Button>
-        <Button size="sm" variant="ghost" disabled={busy} onClick={() => setModel({ id: '', revision: 0, providerId: item.id, name: '', displayName: '', enabled: true })}>添加模型</Button>
+        <Button size="sm" variant="ghost" disabled={busy} onClick={() => {
+          mutation.reset()
+          setModel({ id: '', revision: 0, providerId: item.id, name: '', displayName: '', enabled: true, reasoningLevels: defaultReasoningLevels })
+        }}>添加模型</Button>
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => setDeleting(item.id)}>删除</Button>
         {deleting === item.id && <div className="w-full space-x-2">
           <span>同时删除该服务的模型和用途分配。</span>
@@ -140,7 +151,7 @@ export function AISettings() {
       <h3>模型</h3>
       {models.map(item => <div key={item.id} className="flex flex-wrap items-center gap-2">
         <span className="mr-auto">{item.displayName} · {providers.find(service => service.id === item.providerId)?.name}{!item.enabled && '（已停用）'}</span>
-        <Button size="sm" variant="ghost" disabled={busy} onClick={() => setModel(item)}>编辑</Button>
+        <Button size="sm" variant="ghost" disabled={busy} onClick={() => { mutation.reset(); setModel(item) }}>编辑</Button>
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => setDeleting(item.id)}>删除</Button>
         <Button size="sm" variant="ghost" disabled={busy || !activeModels.includes(item) || !!testing} onClick={() => setTesting(item.id)}>测试连接</Button>
         {testing === item.id && <div className="w-full space-x-2">
@@ -166,6 +177,7 @@ export function AISettings() {
       </div>)}
       {model && <form className="space-y-3" onSubmit={event => {
         event.preventDefault()
+        if (busy) return
         mutation.mutate(async () => {
           await api.SaveModel(model)
           setModel(null)
@@ -176,6 +188,25 @@ export function AISettings() {
           onSelect={(name, displayName) => setModel({ ...model, name, displayName })} />}
         <Field><FieldLabel htmlFor="ai-model-id">模型 ID</FieldLabel><Input id="ai-model-id" required value={model.name} onChange={event => setModel({ ...model, name: event.target.value })} /></Field>
         <Field><FieldLabel htmlFor="ai-model-display">显示名称</FieldLabel><Input id="ai-model-display" value={model.displayName} onChange={event => setModel({ ...model, displayName: event.target.value })} /></Field>
+        <fieldset className="space-y-2" disabled={busy}>
+          <legend className="font-medium">思考档位</legend>
+          {reasoningLevels.map((level, index) => <div key={index} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2">
+            <Field>
+              <FieldLabel htmlFor={`ai-effort-label-${index}`}>显示名称</FieldLabel>
+              <Input id={`ai-effort-label-${index}`} required maxLength={32} value={level.label}
+                onChange={event => setModel({ ...model, reasoningLevels: reasoningLevels.map((entry, i) => i === index ? { ...entry, label: event.target.value } : entry) })} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`ai-effort-value-${index}`}>参数值</FieldLabel>
+              <Input id={`ai-effort-value-${index}`} required maxLength={64} value={level.value}
+                onChange={event => setModel({ ...model, reasoningLevels: reasoningLevels.map((entry, i) => i === index ? { ...entry, value: event.target.value } : entry) })} />
+            </Field>
+            <Button type="button" size="icon" variant="ghost" aria-label={`删除档位 ${level.label || index + 1}`}
+              onClick={() => setModel({ ...model, reasoningLevels: reasoningLevels.filter((_, i) => i !== index) })}><Trash2 /></Button>
+          </div>)}
+          <Button type="button" size="sm" variant="outline" disabled={reasoningLevels.length >= maxReasoningLevels}
+            onClick={() => setModel({ ...model, reasoningLevels: [...reasoningLevels, { label: '', value: '' }] })}><Plus />添加档位</Button>
+        </fieldset>
         <Field orientation="horizontal"><Switch id="ai-model-enabled" checked={model.enabled} disabled={busy} onCheckedChange={enabled => setModel({ ...model, enabled })} /><FieldLabel htmlFor="ai-model-enabled">启用模型</FieldLabel></Field>
         <div className="flex gap-2"><Button size="sm" type="submit" disabled={busy}>保存模型</Button><Button size="sm" type="button" variant="ghost" disabled={busy} onClick={() => setModel(null)}>取消</Button></div>
       </form>}
