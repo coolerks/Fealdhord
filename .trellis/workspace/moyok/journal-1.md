@@ -706,3 +706,25 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Next Steps
 
 - Windows 和 Linux 原生操作、macOS Dock 和状态栏点击继续实机验证。
+
+
+## Session 25: 全局 AI 助手工作区
+<!-- trellis-session: v=2 fp=5fdabf85f705606c -->
+
+**Date**: 2026-11-20
+**Task**: 全局 AI 助手工作区
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+交付会话侧栏、底部模型选择、Markdown 回复与独立代码块主题。前端 137 项测试及生产构建通过，Go 模型、聊天和设置相关测试与 vet 通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `dad634f` | feat: 重做全局 AI 助手工作区 |
+
+### Status
+
+[OK] **Completed**
