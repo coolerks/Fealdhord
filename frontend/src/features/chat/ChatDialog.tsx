@@ -147,8 +147,19 @@ function ChatSession({ target, close, workspace }: {
     return item.enabled && provider ? [{
       value: item.id, label: item.displayName, keywords: [item.name, provider.name],
       accessibleLabel: `${item.displayName} · ${provider.name} · ${item.name}`,
+      reasoningLevels: item.reasoningLevels ?? [],
     }] : []
   })
+  const modelSubmenus = Object.fromEntries(modelOptions.flatMap(({ value, label, reasoningLevels: levels }) => {
+    const effort = effortChoices[value]
+    if (levels.length === 0 && !effort) return []
+    return [[value, {
+      label: `${label}的思考强度`,
+      options: [defaultEffortOption, ...levels],
+      value: effort || defaultEffortOption.value,
+      summary: levels.find(level => level.value === effort)?.label,
+    }]]
+  }))
   const assigned = configuration.data?.assignments?.find(item => item.task === 'chat')?.modelId
   const defaultModelID = modelOptions.find(option => option.value === assigned)?.value ?? modelOptions[0]?.value
   const modelID = modelChoice ?? defaultModelID
@@ -364,17 +375,16 @@ function ChatSession({ target, close, workspace }: {
           }
           <div className={workspace ? 'chat-composer-actions' : undefined}>
             {workspace && (modelOptions.length ? <SearchableSelect label="聊天模型" className="chat-model" value={modelID ?? ''}
-              options={modelOptions} variant="ghost" announceSelection placeholder="选择模型" disabled={send.isPending} onValueChange={id => { setModelChoice(id); send.reset() }} />
+              options={modelOptions} variant="ghost" announceSelection placeholder="选择模型" disabled={send.isPending}
+              submenus={modelSubmenus} onValueChange={id => { setModelChoice(id); send.reset() }}
+              onSubValueChange={(id, effort) => {
+                setModelChoice(id)
+                setEffortChoices(current => ({ ...current, [id]: effort === defaultEffortOption.value ? '' : effort }))
+                send.reset()
+              }} />
               : configuration.isError ? <Button type="button" variant="ghost" onClick={() => void configuration.refetch()}>重新读取模型</Button>
                 : configuration.isPending ? <span role="status">正在读取模型…</span>
                   : <Button type="button" variant="ghost" onClick={() => showSettings('ai')}>配置模型</Button>)}
-            {workspace && modelID && modelReady && (effortLevels.length > 0 || reasoningEffort) &&
-              <SearchableSelect label="思考强度" className="chat-effort" value={reasoningEffort || defaultEffortOption.value}
-                variant="ghost" announceSelection options={[defaultEffortOption, ...effortLevels]} placeholder="选择档位"
-                disabled={send.isPending} onValueChange={effort => {
-                  setEffortChoices(current => ({ ...current, [modelID]: effort === defaultEffortOption.value ? '' : effort }))
-                  send.reset()
-                }} />}
             {workspace ? (active
               ? <Button type="button" size="icon" className="rounded-full" aria-label="停止回复" title="停止回复" disabled={cancel.isPending} onClick={() => cancel.mutate(conversationId)}><Square fill="currentColor" /></Button>
               : <Button type="submit" size="icon" className="rounded-full" aria-label="发送" title="发送" disabled={!canSend}><ArrowUp /></Button>)

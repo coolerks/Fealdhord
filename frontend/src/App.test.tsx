@@ -91,6 +91,7 @@ describe('Phase 1 阅读 Shell', () => {
           reasoningLevels: [{ label: '推理增强', value: 'deep-custom' }] },
         { id: 'second', providerId: 'provider', name: 'alternate-model', displayName: '备用模型', enabled: true,
           reasoningLevels: [{ label: '轻量', value: 'lite' }] },
+        { id: 'third', providerId: 'provider', name: 'simple-model', displayName: '基础模型', enabled: true },
       ],
       assignments: [{ task: 'chat', modelId: 'first' }],
     })
@@ -110,9 +111,18 @@ describe('Phase 1 阅读 Shell', () => {
     const model = screen.getByRole('button', { name: '聊天模型' })
     expect(model).toHaveTextContent('默认模型')
     expect(model).not.toHaveTextContent('本地服务')
-    const effort = screen.getByRole('button', { name: '思考强度' })
-    await user.click(effort)
-    await user.click(screen.getByRole('option', { name: '推理增强' }))
+    expect(screen.queryByRole('button', { name: '思考强度' })).not.toBeInTheDocument()
+    await user.click(model)
+    const modelSearch = screen.getByRole('combobox', { name: '搜索聊天模型' })
+    await user.keyboard('{ArrowRight}')
+    const effortSearch = screen.getByRole('combobox', { name: '搜索默认模型的思考强度' })
+    expect(effortSearch).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: '默认模型的思考强度' })).not.toBeInTheDocument()
+    await waitFor(() => expect(modelSearch).toHaveFocus())
+    await user.keyboard('{Enter}')
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(model).toHaveTextContent('默认模型推理增强')
     await user.type(input, '第一条')
     const send = screen.getByRole('button', { name: '发送' })
     expect(send).toHaveClass('rounded-full')
@@ -127,7 +137,11 @@ describe('Phase 1 阅读 Shell', () => {
     const alternate = screen.getByRole('option', { name: '备用模型 · 本地服务 · alternate-model' })
     expect(alternate).toHaveTextContent(/^备用模型$/)
     await user.click(alternate)
-    expect(effort).toHaveTextContent('使用服务默认')
+    const alternateEffort = screen.getByRole('dialog', { name: '备用模型的思考强度' })
+    const serviceDefault = within(alternateEffort).getByRole('option', { name: '使用服务默认' })
+    expect(serviceDefault).toHaveAttribute('aria-checked', 'true')
+    await user.click(serviceDefault)
+    expect(model).toHaveTextContent(/^备用模型$/)
     await user.type(input, '第二条{Enter}')
     expect(await screen.findByText('第二条回复')).toBeInTheDocument()
     expect(chat.Send).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: 'new', modelId: 'second', text: '第二条' }))
@@ -136,6 +150,10 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(screen.getByRole('button', { name: '停止回复' }))
     expect(await screen.findByText('已取消')).toBeInTheDocument()
     expect(chat.Cancel).toHaveBeenCalledExactlyOnceWith('new')
+    await user.click(model)
+    await user.click(screen.getByRole('option', { name: '基础模型 · 本地服务 · simple-model' }))
+    expect(model).toHaveTextContent(/^基础模型$/)
+    expect(screen.queryByRole('dialog', { name: '聊天模型' })).not.toBeInTheDocument()
     await user.click(within(sidebar).getByRole('button', { name: '已有会话' }))
     expect(await screen.findByText('历史回复')).toBeInTheDocument()
     expect(within(sidebar).queryByRole('button', { name: '返回阅读' })).not.toBeInTheDocument()

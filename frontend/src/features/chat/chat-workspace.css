@@ -168,12 +168,6 @@
   flex-shrink: 1;
 }
 
-.chat-effort {
-  max-width: 7rem;
-  flex-shrink: 1;
-  color: var(--muted-foreground);
-}
-
 .chat-composer > [role=alert] {
   font-size: 12px;
   color: var(--destructive);
