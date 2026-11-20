@@ -750,3 +750,25 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 27: 统一 AI 导航与下拉菜单
+<!-- trellis-session: v=2 fp=51ddd2628938e8a7 -->
+
+**Date**: 2026-11-20
+**Task**: 统一 AI 导航与下拉菜单
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+统一侧栏导航和图标动画，接入新对话快捷键、工作区双向过渡和下拉框长标签省略。前端 141 项测试、lint 和构建通过，Chrome 验证下拉菜单无横向溢出。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bfe6668` | fix: 统一 AI 侧栏和下拉菜单并加入模式切换动效 |
+
+### Status
+
+[OK] **Completed**

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 26
+- **Total Sessions**: 27
 - **Last Active**: 2026-11-20
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~752 | Active |
+| `journal-1.md` | ~774 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 27 | 2026-11-20 | 统一 AI 导航与下拉菜单 | `bfe6668` | `codex/interface-clarity` |
 | 26 | 2026-11-20 | 全局 AI 输入区与思考档位 | `e867381` | `codex/interface-clarity` |
 | 25 | 2026-11-20 | 全局 AI 助手工作区 | `dad634f` | `codex/interface-clarity` |
 | 24 | 2026-11-17 | 跨平台窗口关闭与 Windows 图标 | `525da8e` | `codex/interface-clarity` |
