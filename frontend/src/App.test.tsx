@@ -9,6 +9,7 @@ import { initialLibraryData,libraryArticles } from '@/lib/library-query'
 import type { LibraryData } from '@/lib/library-query'
 import { articleQueryKey } from '@/lib/library'
 import type { LibraryPage } from '@/lib/library'
+import type { Detail } from '@/lib/reader-api'
 
 const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),isWindows:vi.fn(()=>false),isMaximized:vi.fn(async()=>false),onMaximizeChange:vi.fn<(_listener: (value: boolean) => void) => () => void>(()=>()=>{}),onCommand:vi.fn(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(async()=>{}),minimize:vi.fn(async()=>{}),maximize:vi.fn(async()=>{}),fullscreen:vi.fn(),openURL:vi.fn(async()=>{}),openDevTools:vi.fn(async()=>{}),quit:vi.fn()}))
 vi.mock('@/lib/native',()=>({native:host}))
@@ -379,17 +380,35 @@ describe('Phase 1 阅读 Shell', () => {
     }), expect.any(Number)))
   })
 
-  it('阅读模式从工具栏重新提取正文', async () => {
-    reader.extract.mockResolvedValue({article_id:'a-0',html:'',text:'已提取正文',mode:'reader'})
+  it('工具栏重新提取时显示骨架屏，失败后恢复已提取正文', async () => {
+    let complete!: (detail: Detail) => void
+    let fail!: (error: Error) => void
+    reader.extract
+      .mockReturnValueOnce(new Promise<Detail>(resolve => { complete = resolve }))
+      .mockReturnValueOnce(new Promise<Detail>((_resolve, reject) => { fail = reject }))
+    reader.get.mockResolvedValue({article_id:'a-0',html:'',text:'订阅正文',mode:'feed',has_cached:false,has_original:true})
     const {client} = setup(true)
-    const items = articleFixtures(20).map(article => ({...article, url:'https://example.test/article'}))
+    const items = articleFixtures(20).map(article => ({...article, contentText:'', url:'https://example.test/article'}))
     client.setQueryData(articleQueryKey, initialLibraryData({items, hasMore:false}))
     await userEvent.click(await screen.findByRole('button',{name:'打开文章：测试文章 0'}))
-    const refresh=within(screen.getByRole('complementary',{name:'阅读面板'})).getByRole('button',{name:'重新提取正文'})
+    const panel = screen.getByRole('complementary',{name:'阅读面板'})
+    const refresh = within(panel).getByRole('button',{name:'重新提取正文'})
+    await within(panel).findByText('订阅正文')
     await userEvent.click(refresh)
-    await waitFor(() => expect(refresh).toBeEnabled())
-    expect(reader.extract).toHaveBeenCalledTimes(1)
+    expect(refresh).toBeDisabled()
+    expect(panel.querySelector('[data-slot="skeleton"]')).toHaveClass('animate-pulse')
+    expect(within(panel).queryByText('订阅正文')).not.toBeInTheDocument()
+    complete({article_id:'a-0',html:'',text:'已提取正文',mode:'reader',has_cached:true,has_original:true})
+    expect(await within(panel).findByText('已提取正文')).toBeInTheDocument()
+
     await userEvent.click(refresh)
+    expect(panel.querySelector('[data-slot="skeleton"]')).toBeInTheDocument()
+    expect(within(panel).queryByText('已提取正文')).not.toBeInTheDocument()
+    fail(new Error('重新提取失败'))
+    expect(await within(panel).findByRole('alert')).toHaveTextContent('重新提取失败')
+    expect(within(panel).getByText('已提取正文')).toBeInTheDocument()
+    expect(panel.querySelector('[data-slot="skeleton"]')).not.toBeInTheDocument()
+    expect(refresh).toBeEnabled()
     expect(reader.extract).toHaveBeenCalledTimes(2)
   })
 

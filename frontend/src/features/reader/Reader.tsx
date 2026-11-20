@@ -84,12 +84,16 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
   return ()=>observer.disconnect()
  },[articleID,view])
  const hasContent=Boolean(body.text.trim()||body.html)
+ const loading=body.extracting||(body.query.isFetching&&!hasContent)
  useLayoutEffect(()=>{save.current=onAnchor},[onAnchor])
- useLayoutEffect(()=>{if(content.current&&articleID)content.current.scrollTop=useWorkspace.getState().preferences?.scroll_anchors?.[`reader|${articleID}`]?.offset ?? 0},[articleID,body.mode,view,hasContent])
+ useLayoutEffect(()=>{
+  if(!content.current||!articleID)return
+  content.current.scrollTop=loading ? 0 : pending.current ?? useWorkspace.getState().preferences?.scroll_anchors?.[`reader|${articleID}`]?.offset ?? 0
+ },[articleID,body.mode,view,hasContent,loading])
  useEffect(()=>{if(overlay&&articleID)title.current?.focus({preventScroll:true})},[articleID,overlay])
  useEffect(()=>{
-  if(articleID&&preferences.reader_auto_read&&!article?.isRead&&hasContent&&!body.query.isError&&markedRef.current!==articleID){markedRef.current=articleID;onRead(articleID)}
- },[articleID,preferences.reader_auto_read,article?.isRead,hasContent,body.query.isError,onRead,markedRef])
+  if(articleID&&preferences.reader_auto_read&&!article?.isRead&&hasContent&&!loading&&!body.query.isError&&markedRef.current!==articleID){markedRef.current=articleID;onRead(articleID)}
+ },[articleID,preferences.reader_auto_read,article?.isRead,hasContent,loading,body.query.isError,onRead,markedRef])
  useLayoutEffect(()=>()=>{if(timer.current)clearTimeout(timer.current);if(articleID&&pending.current!==null)save.current(`reader|${articleID}`,{article_id:articleID,offset:pending.current});pending.current=null},[articleID])
  function openLink(resourceID=''){
   if(articleID)void readerAPI.open(articleID,resourceID).catch(error=>useWorkspace.setState({commandError:error instanceof Error?error.message:'无法打开链接。'}))
@@ -131,9 +135,9 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
   {article?<Tabs.Content value={view} asChild {...(!preferences.reader_toolbar_pinned.includes('view') && {
    'aria-labelledby': undefined, 'aria-label': readerViews.find(mode => mode.value === view)?.label,
   })}><div className="reader-stage">
-   <ReaderOutline mode={preferences.reader_outline} html={body.html} prose={prose} viewport={content} inert={Boolean(viewing)} />
+   {!loading && <ReaderOutline mode={preferences.reader_outline} html={body.html} prose={prose} viewport={content} inert={Boolean(viewing)} />}
    <div ref={content} className="reader-content" inert={Boolean(viewing)} aria-hidden={viewing ? true : undefined} onScroll={event=>{
-   if(!articleID||!hasContent)return
+   if(!articleID||!hasContent||loading)return
    const offset=event.currentTarget.scrollTop;pending.current=offset;if(timer.current)clearTimeout(timer.current)
    timer.current=setTimeout(()=>{pending.current=null;save.current(`reader|${articleID}`,{article_id:articleID,offset})},180)
   }}><article style={{maxWidth:preferences.reader_width,fontSize:preferences.reader_font_size,lineHeight:preferences.reader_line_height,fontFamily:preferences.reader_font_family==='serif'?'ui-serif, Georgia, "Songti SC", serif':preferences.reader_font_family==='monospace'?'ui-monospace, SFMono-Regular, monospace':undefined}}><p className="reader-byline">
@@ -141,7 +145,7 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
     {publicationDate && <time dateTime={publicationDate}><CalendarDays aria-hidden="true"/>{publicationDate}</time>}
    </p><h1 ref={title} tabIndex={-1}>{article.title}</h1>
    {(body.extracting||body.error)&&<div className="reader-operation" role="status">{body.extracting?<><span>正在提取网页正文…</span><Button variant="ghost" size="sm" onClick={body.cancel}>取消提取</Button></>:<p role="alert">{body.error}</p>}</div>}
-   <div ref={prose} className="reader-prose" data-images={imagesAllowed?'allowed':'blocked'} onClick={event=>{
+   <div ref={prose} className="reader-prose" aria-busy={loading || undefined} data-images={imagesAllowed?'allowed':'blocked'} onClick={event=>{
     if(!(event.target instanceof Element))return
     if(event.target instanceof HTMLImageElement && viewImage(event.target)){event.preventDefault();return}
     const link=event.target.closest<HTMLAnchorElement>('a[data-reader-link]')
@@ -152,7 +156,20 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
      event.stopPropagation()
     }
    }} onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)event.target.hidden=true}}>
-    {body.query.isError&&!hasContent?<div role="alert">正文读取失败。<Button variant="ghost" onClick={()=>{void body.query.refetch()}}>重试</Button></div>:body.query.isFetching&&!hasContent?<><Skeleton className="h-4 w-full"/><Skeleton className="h-4 w-3/4"/></>:body.html?<ArticleHTML html={body.html} imagesAllowed={imagesAllowed} theme={preferences.reader_code_theme} />:body.text.split(/\n\n+/).map((paragraph,index)=><p key={index}>{paragraph}</p>)}
+    {loading ? (
+     <div className="reader-body-skeleton space-y-[1.25em]" aria-hidden="true">
+      <div className="space-y-[0.65em]">
+       <Skeleton className="h-[0.8em] w-full" />
+       <Skeleton className="h-[0.8em] w-full" />
+       <Skeleton className="h-[0.8em] w-3/4" />
+      </div>
+      <div className="space-y-[0.65em]">
+       <Skeleton className="h-[0.8em] w-full" />
+       <Skeleton className="h-[0.8em] w-11/12" />
+       <Skeleton className="h-[0.8em] w-2/3" />
+      </div>
+     </div>
+    ) : body.query.isError&&!hasContent?<div role="alert">正文读取失败。<Button variant="ghost" onClick={()=>{void body.query.refetch()}}>重试</Button></div>:body.html?<ArticleHTML html={body.html} imagesAllowed={imagesAllowed} theme={preferences.reader_code_theme} />:body.text.split(/\n\n+/).map((paragraph,index)=><p key={index}>{paragraph}</p>)}
    </div></article></div>
    {viewing && <ReaderImageViewer images={viewing.images} initialIndex={viewing.index} origin={viewing.origin}
     wheelMode={preferences.reader_image_wheel} backdropClose={preferences.reader_image_backdrop_close} onClose={closeGallery} />}

@@ -92,11 +92,13 @@ it('取消提取保留订阅正文，迟到响应不能切换当前内容',async
  api.extract.mockImplementation((_id:string,next:AbortSignal)=>{signal=next;return new Promise(resolve=>{release=resolve})})
  setup();await screen.findByText('订阅正文')
  await selectReaderMode('阅读模式')
- expect(screen.getByText('订阅正文')).toBeInTheDocument()
+ expect(screen.getByRole('status')).toHaveTextContent('正在提取网页正文')
+ expect(screen.queryByText('订阅正文')).not.toBeInTheDocument()
  await userEvent.click(screen.getByRole('button',{name:'取消提取'}));expect(signal?.aborted).toBe(true)
  await act(async()=>release(extracted))
  expect(screen.getByText('订阅正文')).toBeInTheDocument();expect(screen.queryByText('提取后的正文')).not.toBeInTheDocument()
  expect(screen.getByRole('alert')).toHaveTextContent('提取已取消')
+ expect(document.querySelector('[data-slot="skeleton"]')).not.toBeInTheDocument()
 })
 it('提取成功缓存两种模式，往返切换不重复访问原网页',async()=>{
  api.extract.mockResolvedValue(extracted)
@@ -183,10 +185,17 @@ it('只有两个阅读标签页，键盘切换后仍可在浏览器打开原文'
  expect(api.open).toHaveBeenCalledWith('a-0','')
 })
 
-it('全文默认阅读模式时自动提取，严格模式只发一次请求',async()=>{
- api.extract.mockResolvedValue(extracted)
- setup({reader_open_mode:'full'})
+it('默认打开阅读模式时显示提取骨架屏，严格模式只发一次请求',async()=>{
+ let complete!: (detail: Detail) => void
+ api.extract.mockReturnValue(new Promise<Detail>(resolve => { complete = resolve }))
+ const {container}=setup({reader_open_mode:'full'})
+ expect(await screen.findByRole('status')).toHaveTextContent('正在提取网页正文')
+ expect(container.querySelector('.reader-prose')).toHaveAttribute('aria-busy','true')
+ expect(container.querySelector('[data-slot="skeleton"]')).toHaveClass('animate-pulse')
+ expect(screen.queryByText('订阅正文')).not.toBeInTheDocument()
+ complete(extracted)
  expect(await screen.findByText('提取后的正文')).toBeInTheDocument()
+ expect(container.querySelector('[data-slot="skeleton"]')).not.toBeInTheDocument()
  expect(api.extract).toHaveBeenCalledTimes(1)
 })
 

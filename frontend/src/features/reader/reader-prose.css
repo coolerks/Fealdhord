@@ -18,6 +18,7 @@
 }
 .reader-prose :where(p, ul, ol, dl, blockquote, pre, table, figure) { margin: 0 0 1.25em; }
 .reader-prose > p { white-space: pre-wrap; }
+html[data-motion=subtle] .reader-body-skeleton [data-slot=skeleton] { animation: none; }
 .reader-prose :where(h1, h2, h3, h4, h5, h6) {
   margin: 1.65em 0 .55em;
   font-weight: 650;
