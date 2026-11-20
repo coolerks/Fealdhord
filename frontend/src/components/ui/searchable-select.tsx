@@ -5,6 +5,7 @@ import { AnimatedGlyph } from '@/components/animated-glyph'
 import type { IconMeaning } from '@/components/animated-glyph'
 import { Button } from '@/components/ui/button'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 type Option = {
@@ -15,6 +16,37 @@ type Option = {
   icon?: LucideIcon
   meaning?: IconMeaning
   disabled?: boolean
+}
+
+function SelectOption({ option, checked, announceSelection, onSelect }: {
+  option: Option
+  checked: boolean
+  announceSelection: boolean
+  onSelect: () => void
+}) {
+  const text = useRef<HTMLSpanElement>(null)
+  const [open, setOpen] = useState(false)
+
+  return <Tooltip open={open} disableHoverableContent onOpenChange={next => {
+    const element = text.current
+    setOpen(next && Boolean(element && element.scrollWidth > element.clientWidth))
+  }}>
+    <TooltipTrigger asChild>
+      <div>
+        <CommandItem className="h-8 min-w-0 rounded-lg px-2 py-0" value={option.value}
+          keywords={[option.label, ...(option.keywords ?? [])]} disabled={option.disabled}
+          data-checked={checked} aria-checked={announceSelection ? checked : undefined}
+          aria-label={option.accessibleLabel} onSelect={onSelect}>
+          {option.icon && <AnimatedGlyph icon={option.icon} meaning={option.meaning} />}
+          <span ref={text} className="min-w-0 flex-1 truncate">{option.label}</span>
+        </CommandItem>
+      </div>
+    </TooltipTrigger>
+    <TooltipContent sideOffset={4} collisionPadding={8}
+      className="pointer-events-none max-w-[min(24rem,var(--radix-tooltip-content-available-width))] whitespace-normal wrap-anywhere">
+      {option.label}
+    </TooltipContent>
+  </Tooltip>
 }
 
 export function SearchableSelect({
@@ -69,17 +101,12 @@ export function SearchableSelect({
               : 'max-h-[min(18rem,calc(var(--radix-popover-content-available-height)-0.625rem))]')}>
             <CommandEmpty>没有匹配项</CommandEmpty>
             <CommandGroup className="p-0">
-              {options.map(option => <CommandItem className="h-8 min-w-0 rounded-lg px-2 py-0" key={option.value} value={option.value}
-                keywords={[option.label, ...(option.keywords ?? [])]} disabled={option.disabled}
-                data-checked={checked(option.value)} aria-checked={multiple || announceSelection ? checked(option.value) : undefined}
-                aria-label={option.accessibleLabel}
+              {options.map(option => <SelectOption key={option.value} option={option} checked={checked(option.value)}
+                announceSelection={multiple || announceSelection}
                 onSelect={() => {
                   onValueChange(option.value)
                   if (!multiple) changeOpen(false)
-                }}>
-                {option.icon && <AnimatedGlyph icon={option.icon} meaning={option.meaning} />}
-                <span className="min-w-0 flex-1 truncate">{option.label}</span>
-              </CommandItem>)}
+                }} />)}
             </CommandGroup>
           </CommandList>
         </Command>
