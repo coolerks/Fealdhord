@@ -530,7 +530,7 @@ it('切图等下一张就绪后按方向平推，动画结束才移除旧图', a
  }
 })
 
-it('看图隐藏阅读工具栏，悬浮返回按钮播放退出动画并恢复正文焦点', async () => {
+it('看图隐藏阅读工具栏，缩放滑杆旁的关闭按钮播放退出动画并恢复正文焦点', async () => {
  api.get.mockResolvedValue(illustrated)
  const previousObserver = ResizeObserver
  const previousMotion = document.documentElement.dataset.motion
@@ -549,8 +549,9 @@ it('看图隐藏阅读工具栏，悬浮返回按钮播放退出动画并恢复�
   expect(toolbar).toHaveAttribute('inert')
   expect(toolbar).toHaveAttribute('aria-hidden', 'true')
   expect(screen.queryByRole('button', { name: '重新提取正文' })).not.toBeInTheDocument()
-  const back = within(viewer).getByRole('button', { name: '退出看图' })
-  expect(back.closest('.reader-image-back')).toBeInTheDocument()
+  const close = within(viewer).getByRole('button', { name: '退出看图' })
+  const slider = within(viewer).getByRole('slider', { name: '图片缩放' })
+  expect(slider.closest('.reader-image-scale')?.nextElementSibling).toBe(close)
   expect(viewer.parentElement).toBe(toolbar?.parentElement)
   const picture = within(viewer).getByRole('img', { name: '第一张' })
   const cancel = vi.fn()
@@ -572,11 +573,12 @@ it('看图隐藏阅读工具栏，悬浮返回按钮播放退出动画并恢复�
   expect(source).toHaveClass('reader-image-source-hidden')
   const exit = { onfinish: null as (() => void) | null, cancel: vi.fn() }
   Object.defineProperty(viewer, 'animate', { value: vi.fn(() => exit) })
+  slider.focus()
   await userEvent.tab()
-  expect(back).toHaveFocus()
+  expect(close).toHaveFocus()
   await userEvent.keyboard('{Enter}')
   expect(viewer).toHaveAttribute('data-leaving', 'true')
-  expect(back).toBeDisabled()
+  expect(close).toBeDisabled()
   expect(viewer).toBeInTheDocument()
   expect(toolbar).toHaveAttribute('inert')
   expect(animate.mock.calls[1][0][1]).toEqual({ transform: 'translate(30px, 60px) scale(0.5, 0.5)', borderRadius: '6px' })

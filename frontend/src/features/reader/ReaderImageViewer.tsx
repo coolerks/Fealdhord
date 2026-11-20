@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import { ChevronLeft, ChevronRight, Copy, Minus, Plus, X } from 'lucide-react'
-import { SemanticButton } from '@/components/semantic-button'
 import { Button } from '@/components/ui/button'
 import { ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Slider } from '@/components/ui/slider'
@@ -330,9 +329,6 @@ export function ReaderImageViewer({ images, initialIndex, origin, readingViewpor
             </div>
           })}
         </div>
-        <div className="reader-image-back" inert={leaving}>
-          <SemanticButton icon={ChevronLeft} meaning="chevron-left" label="退出看图" onClick={close} disabled={leaving} />
-        </div>
         <div className="reader-image-controls" data-visible={controlsVisible} inert={leaving}>
           <Button variant="ghost" size="icon-sm" aria-label="上一张" disabled={index === 0} onClick={() => stepImage(-1)}><ChevronLeft /></Button>
           <span className="reader-image-count">{index + 1} / {images.length}</span>
@@ -343,6 +339,7 @@ export function ReaderImageViewer({ images, initialIndex, origin, readingViewpor
               onValueChange={([value]) => setZoomImmediately(value)} />
             <span>{Math.round(zoom)}%</span>
           </div>
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="退出看图" onClick={close} disabled={leaving}><X /></Button>
         </div>
       </section>
     </ContextMenuTrigger>

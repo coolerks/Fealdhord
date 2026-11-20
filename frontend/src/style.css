@@ -253,7 +253,7 @@
 .workspace-toolbar button, .workspace-toolbar input { --wails-draggable: no-drag; }
 [data-sidebar-collapsed=true] .articles-toolbar { padding-inline-start: var(--collapsed-toolbar-inset); }
 .reading-workspace { container-type: inline-size; }
-[data-sidebar-collapsed=true] .reader-overlay :is(.reader-toolbar, .reader-image-viewer) { padding-inline-start: max(14px, calc(var(--collapsed-toolbar-inset) - (100cqi - 100%))); }
+[data-sidebar-collapsed=true] .reader-overlay .reader-toolbar { padding-inline-start: max(14px, calc(var(--collapsed-toolbar-inset) - (100cqi - 100%))); }
 .articles-heading { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .articles-heading h1 { font-size: 14px; font-weight: 600; letter-spacing: -.01em; line-height: 1.25; white-space: nowrap; margin: 0; }
 .articles-heading > span { font-size: 10px; color: var(--muted-foreground); white-space: nowrap; }

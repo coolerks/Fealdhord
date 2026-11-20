@@ -229,7 +229,6 @@ html[data-motion=subtle] .reader-body-skeleton [data-slot=skeleton] { animation:
   z-index: 2;
   inset: 0;
   container-type: inline-size;
-  padding-inline-start: 14px;
   background-color: transparent;
   transition: background-color var(--duration-panel) var(--ease-standard);
   outline: none;
@@ -253,19 +252,6 @@ html[data-motion=off] .reader-image-viewer { background-color: var(--reader-back
 }
 .reader-image-canvas img { display: block; flex: none; max-width: none; transform-origin: top left; }
 .reader-image-canvas img[data-entry-pending=true] { opacity: 0; }
-.reader-image-back, .reader-image-controls {
-  color: var(--popover-foreground);
-  background: color-mix(in srgb, var(--popover) 84%, transparent);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-.reader-image-back {
-  position: relative;
-  display: flex;
-  width: max-content;
-  margin-block-start: calc((var(--workspace-toolbar-height, 50px) - 34px) / 2);
-}
 .reader-image-controls {
   position: absolute;
   inset-inline-start: 50%;
@@ -276,11 +262,16 @@ html[data-motion=off] .reader-image-viewer { background-color: var(--reader-back
   align-items: center;
   max-width: calc(100% - 12px);
   padding: 3px 6px;
+  color: var(--popover-foreground);
+  background: color-mix(in srgb, var(--popover) 84%, transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 10px;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 .reader-image-controls[data-visible=false]:not(:has(:focus-visible)) { opacity: 0; pointer-events: none; }
-.reader-image-viewer[data-leaving=true] :is(.reader-image-back, .reader-image-controls) {
+.reader-image-viewer[data-leaving=true] .reader-image-controls {
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--duration-fast) var(--ease-standard);
