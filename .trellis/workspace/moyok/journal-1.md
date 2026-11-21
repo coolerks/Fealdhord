@@ -1119,3 +1119,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 41: 在列表工具栏批量发送文章
+<!-- trellis-session: v=2 fp=c07b974ab0a7f368 -->
+
+**Date**: 2026-11-21
+**Task**: 在列表工具栏批量发送文章
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+新增右上角发送入口，持久化默认发送条数和摘要字数。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `381e50a` | feat(notification): 在列表工具栏批量发送文章 |
+
+### Testing
+
+- [OK] 162 项前端测试、生产构建、Go 全量测试及 vet、通知和偏好竞态检查通过。
+
+### Status
+
+[OK] **Completed**
