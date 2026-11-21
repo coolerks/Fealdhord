@@ -15,6 +15,7 @@ type Option = {
   accessibleLabel?: string
   keywords?: readonly string[]
   icon?: LucideIcon
+  graphic?: ReactNode
   meaning?: IconMeaning
   disabled?: boolean
 }
@@ -44,7 +45,7 @@ function SelectOption({ option, checked, announceSelection, onSelect, submenu, e
           data-checked={checked} aria-checked={announceSelection ? checked : undefined}
           data-expanded={expanded} aria-haspopup={submenu ? 'dialog' : undefined}
           aria-label={option.accessibleLabel} aria-description={submenu?.summary} onSelect={onSelect}>
-          {option.icon && <AnimatedGlyph icon={option.icon} meaning={option.meaning} />}
+          {option.graphic ?? (option.icon && <AnimatedGlyph icon={option.icon} meaning={option.meaning} />)}
           <span className="flex min-w-0 flex-1 items-center gap-2">
             <span ref={text} className="truncate">{option.label}</span>
             {submenu?.summary && <span className="max-w-24 shrink-0 truncate text-muted-foreground">{submenu.summary}</span>}
@@ -132,6 +133,7 @@ export function SearchableSelect({
       <Button type="button" id={id} aria-label={label} variant={variant} disabled={disabled}
         aria-description={announceSelection && selected ? [selected.accessibleLabel ?? selected.label, summary].filter(Boolean).join(' · ') : undefined}
         className={cn('min-w-0 justify-between font-normal', className)}>
+        {selected?.graphic}
         <span className={cn('truncate', !selected && !multiple && 'text-muted-foreground')}>{selected?.label ?? placeholder}</span>
         {summary && <span className="max-w-24 shrink-0 truncate text-muted-foreground">{summary}</span>}
         <AnimatedGlyph meaning="chevron-right" className="rotate-90 text-muted-foreground" />

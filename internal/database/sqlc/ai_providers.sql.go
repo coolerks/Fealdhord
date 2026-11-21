@@ -19,8 +19,8 @@ func (q *Queries) ClearModelAssignment(ctx context.Context, taskType string) err
 }
 
 const createAIModel = `-- name: CreateAIModel :one
-INSERT INTO ai_models (id,provider_id,model,display_name,enabled,created_at,updated_at,reasoning_levels)
-VALUES (?,?,?,?,?,?,?,?) RETURNING id, provider_id, model, display_name, enabled, revision, created_at, updated_at, reasoning_levels
+INSERT INTO ai_models (id,provider_id,model,display_name,enabled,created_at,updated_at,reasoning_levels,metadata)
+VALUES (?,?,?,?,?,?,?,?,?) RETURNING id, provider_id, model, display_name, enabled, revision, created_at, updated_at, reasoning_levels, metadata
 `
 
 type CreateAIModelParams struct {
@@ -32,6 +32,7 @@ type CreateAIModelParams struct {
 	CreatedAt       int64  `json:"created_at"`
 	UpdatedAt       int64  `json:"updated_at"`
 	ReasoningLevels string `json:"reasoning_levels"`
+	Metadata        string `json:"metadata"`
 }
 
 func (q *Queries) CreateAIModel(ctx context.Context, arg CreateAIModelParams) (AiModel, error) {
@@ -44,6 +45,7 @@ func (q *Queries) CreateAIModel(ctx context.Context, arg CreateAIModelParams) (A
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.ReasoningLevels,
+		arg.Metadata,
 	)
 	var i AiModel
 	err := row.Scan(
@@ -56,6 +58,7 @@ func (q *Queries) CreateAIModel(ctx context.Context, arg CreateAIModelParams) (A
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ReasoningLevels,
+		&i.Metadata,
 	)
 	return i, err
 }
@@ -158,7 +161,7 @@ func (q *Queries) GetAIProvider(ctx context.Context, id string) (AiProvider, err
 }
 
 const getEnabledAIModel = `-- name: GetEnabledAIModel :one
-SELECT ai_providers.id, ai_providers.name, ai_providers.protocol, ai_providers.base_url, ai_providers.credential_ref, ai_providers.enabled, ai_providers.revision, ai_providers.created_at, ai_providers.updated_at, ai_models.id, ai_models.provider_id, ai_models.model, ai_models.display_name, ai_models.enabled, ai_models.revision, ai_models.created_at, ai_models.updated_at, ai_models.reasoning_levels
+SELECT ai_providers.id, ai_providers.name, ai_providers.protocol, ai_providers.base_url, ai_providers.credential_ref, ai_providers.enabled, ai_providers.revision, ai_providers.created_at, ai_providers.updated_at, ai_models.id, ai_models.provider_id, ai_models.model, ai_models.display_name, ai_models.enabled, ai_models.revision, ai_models.created_at, ai_models.updated_at, ai_models.reasoning_levels, ai_models.metadata
 FROM ai_models JOIN ai_providers ON ai_providers.id=ai_models.provider_id
 WHERE ai_models.id=? AND ai_models.enabled=1 AND ai_providers.enabled=1
 `
@@ -190,12 +193,13 @@ func (q *Queries) GetEnabledAIModel(ctx context.Context, id string) (GetEnabledA
 		&i.AiModel.CreatedAt,
 		&i.AiModel.UpdatedAt,
 		&i.AiModel.ReasoningLevels,
+		&i.AiModel.Metadata,
 	)
 	return i, err
 }
 
 const listAIModels = `-- name: ListAIModels :many
-SELECT id, provider_id, model, display_name, enabled, revision, created_at, updated_at, reasoning_levels FROM ai_models ORDER BY created_at,id
+SELECT id, provider_id, model, display_name, enabled, revision, created_at, updated_at, reasoning_levels, metadata FROM ai_models ORDER BY created_at,id
 `
 
 func (q *Queries) ListAIModels(ctx context.Context) ([]AiModel, error) {
@@ -217,6 +221,7 @@ func (q *Queries) ListAIModels(ctx context.Context) ([]AiModel, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ReasoningLevels,
+			&i.Metadata,
 		); err != nil {
 			return nil, err
 		}
@@ -296,7 +301,7 @@ func (q *Queries) ListModelAssignments(ctx context.Context) ([]ModelAssignment, 
 }
 
 const resolveModelAssignment = `-- name: ResolveModelAssignment :one
-SELECT ai_providers.id, ai_providers.name, ai_providers.protocol, ai_providers.base_url, ai_providers.credential_ref, ai_providers.enabled, ai_providers.revision, ai_providers.created_at, ai_providers.updated_at, ai_models.id, ai_models.provider_id, ai_models.model, ai_models.display_name, ai_models.enabled, ai_models.revision, ai_models.created_at, ai_models.updated_at, ai_models.reasoning_levels
+SELECT ai_providers.id, ai_providers.name, ai_providers.protocol, ai_providers.base_url, ai_providers.credential_ref, ai_providers.enabled, ai_providers.revision, ai_providers.created_at, ai_providers.updated_at, ai_models.id, ai_models.provider_id, ai_models.model, ai_models.display_name, ai_models.enabled, ai_models.revision, ai_models.created_at, ai_models.updated_at, ai_models.reasoning_levels, ai_models.metadata
 FROM model_assignments
 JOIN ai_models ON ai_models.id=model_assignments.model_id
 JOIN ai_providers ON ai_providers.id=ai_models.provider_id
@@ -330,6 +335,7 @@ func (q *Queries) ResolveModelAssignment(ctx context.Context, taskType string) (
 		&i.AiModel.CreatedAt,
 		&i.AiModel.UpdatedAt,
 		&i.AiModel.ReasoningLevels,
+		&i.AiModel.Metadata,
 	)
 	return i, err
 }
@@ -355,8 +361,8 @@ func (q *Queries) SetModelAssignment(ctx context.Context, arg SetModelAssignment
 }
 
 const updateAIModel = `-- name: UpdateAIModel :one
-UPDATE ai_models SET model = ?, display_name = ?, enabled = ?, revision = revision+1, updated_at = ?, reasoning_levels = ?
-WHERE id = ? AND provider_id = ? AND revision = ? RETURNING id, provider_id, model, display_name, enabled, revision, created_at, updated_at, reasoning_levels
+UPDATE ai_models SET model = ?, display_name = ?, enabled = ?, revision = revision+1, updated_at = ?, reasoning_levels = ?, metadata = ?
+WHERE id = ? AND provider_id = ? AND revision = ? RETURNING id, provider_id, model, display_name, enabled, revision, created_at, updated_at, reasoning_levels, metadata
 `
 
 type UpdateAIModelParams struct {
@@ -365,6 +371,7 @@ type UpdateAIModelParams struct {
 	Enabled         int64  `json:"enabled"`
 	UpdatedAt       int64  `json:"updated_at"`
 	ReasoningLevels string `json:"reasoning_levels"`
+	Metadata        string `json:"metadata"`
 	ID              string `json:"id"`
 	ProviderID      string `json:"provider_id"`
 	Revision        int64  `json:"revision"`
@@ -377,6 +384,7 @@ func (q *Queries) UpdateAIModel(ctx context.Context, arg UpdateAIModelParams) (A
 		arg.Enabled,
 		arg.UpdatedAt,
 		arg.ReasoningLevels,
+		arg.Metadata,
 		arg.ID,
 		arg.ProviderID,
 		arg.Revision,
@@ -392,6 +400,7 @@ func (q *Queries) UpdateAIModel(ctx context.Context, arg UpdateAIModelParams) (A
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ReasoningLevels,
+		&i.Metadata,
 	)
 	return i, err
 }

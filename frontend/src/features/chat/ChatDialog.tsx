@@ -1,3 +1,8 @@
+import { ChatContext } from './ChatContext'
+import { ModelBrand } from '@/features/settings/ModelMetadata'
+import { skillsKey } from '@/features/settings/AIPlatformSettings'
+import { Switch } from '@/components/ui/switch'
+import { Skills } from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/api'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
@@ -62,6 +67,7 @@ const errorLabels: Record<string, string> = {
   ContextUnavailable: '有已选文章无法读取，请重新选择。',
   ConfigurationError: '请先分配聊天模型。',
   ChatModelUnavailable: '所选模型已不可用，请重新选择。',
+  ContextWindowExceeded: '本轮内容超过模型上下文限制，请缩短消息或减少附加内容。',
   ChatReasoningUnavailable: '所选思考档位已不可用，请重新选择。',
   ChatReasoningToolsUnavailable: '这个服务的自定义思考强度暂不支持本轮读取正文。请使用服务默认，或取消本轮读取授权。',
   ProviderHTTPError: '模型服务拒绝了请求，请检查模型设置及思考档位，或稍后重试。',
@@ -130,6 +136,8 @@ function ChatSession({ target, close, workspace }: {
   const [allowArticleReads, setAllowArticleReads] = useState(false)
   const [selection, setSelection] = useState(target.selection ?? '')
   const [sources, setSources] = useState<Article[]>([])
+  const [disableTools, setDisableTools] = useState(false)
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([])
   const [picking, setPicking] = useState(false)
   const [effortChoices, setEffortChoices] = useState<Record<string, string>>({})
   const [following, setFollowing] = useState(true)
@@ -142,12 +150,14 @@ function ChatSession({ target, close, workspace }: {
   const history = useQuery({ queryKey: listKey, queryFn: () => api.List(scope) })
   const model = useQuery({ queryKey: ['chat', 'model'], queryFn: () => api.Model(), enabled: !workspace, retry: false })
   const configuration = useQuery({ queryKey: aiConfigurationKey, queryFn: listAIConfiguration, enabled: Boolean(workspace), retry: false })
+  const skills = useQuery({ queryKey: skillsKey, queryFn: () => Skills(), enabled: Boolean(workspace && picking), retry: false })
   const providers = configuration.data?.providers ?? []
   const modelOptions = (configuration.data?.models ?? []).flatMap(item => {
     const provider = providers.find(service => service.id === item.providerId && service.enabled)
     return item.enabled && provider ? [{
       value: item.id, label: item.displayName, keywords: [item.name, provider.name],
       accessibleLabel: `${item.displayName} · ${provider.name} · ${item.name}`,
+      graphic: <ModelBrand brand={item.metadata?.brand} override={item.metadata?.brandOverride} />,
       reasoningLevels: item.reasoningLevels ?? [],
     }] : []
   })
@@ -166,7 +176,8 @@ function ChatSession({ target, close, workspace }: {
     modelOptions.find(option => option.value === assigned) ?? modelOptions[0]
   const modelID = selectedModel?.value
   const modelReady = workspace ? Boolean(selectedModel) : Boolean(model.data)
-  const effortLevels = configuration.data?.models?.find(item => item.id === modelID)?.reasoningLevels ?? []
+  const selectedConfig = configuration.data?.models?.find(item => item.id === modelID)
+  const effortLevels = selectedConfig?.reasoningLevels ?? []
   const reasoningEffort = modelID ? effortChoices[modelID] : undefined
   const invalidEffort = Boolean(reasoningEffort && !effortLevels.some(option => option.value === reasoningEffort))
   const conversationId = chosen ?? history.data?.[0]?.id ?? ''
@@ -186,6 +197,8 @@ function ChatSession({ target, close, workspace }: {
       await api.Send({
         conversationId: id, text: draft, includeContext, selection, allowArticleReads,
         articleIds: sources.map(article => article.id), ...(workspace && modelID ? { modelId: modelID } : {}),
+        ...(workspace && disableTools ? { disableTools: true } : {}),
+        ...(workspace && selectedSkills.length ? { skills: selectedSkills } : {}),
         ...(workspace && reasoningEffort ? { reasoningEffort } : {}),
       })
       await Promise.all([
@@ -335,16 +348,31 @@ function ChatSession({ target, close, workspace }: {
       setFollowing(true)
     }}><ArrowDown /></Button>}
     <div className={workspace ? 'chat-composer' : 'flex flex-col gap-3'}>
-      {workspace && (sources.length > 0 || picking) && <div className="chat-context">
+      {workspace && sources.length > 0 && <div className="chat-context">
         {sources.map(article => <div key={article.id} className="flex items-center justify-between gap-2">
           <span className="truncate" title={article.title}>{article.title}</span>
           <Button size="sm" variant="ghost" aria-label={`移除 ${article.title}`} disabled={send.isPending} onClick={() => { setSources(sources.filter(item => item.id !== article.id)); setAllowArticleReads(false) }}>移除</Button>
         </div>)}
-        {picking && <ArticlePicker selected={sources} disabled={send.isPending} onPick={article => {
+      </div>}
+      {workspace && <Dialog open={picking} onOpenChange={setPicking}>
+        {picking && <DialogContent aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>附加文章</DialogTitle></DialogHeader>
+        <ArticlePicker selected={sources} disabled={send.isPending} onPick={article => {
           setSources(items => items.length < 3 && !items.some(item => item.id === article.id) ? [...items, article] : items)
           setAllowArticleReads(false)
-        }} />}
-      </div>}
+        }} />
+          <div className="flex items-center gap-2">
+            <Switch id="chat-tools" checked={!disableTools} onCheckedChange={value => setDisableTools(!value)} />
+            <label htmlFor="chat-tools">可调用工具</label>
+          </div>
+          {skills.data?.some(skill => skill.enabled) && <SearchableSelect label="应用 Skills" value={selectedSkills}
+            placeholder={selectedSkills.length ? `已选 ${selectedSkills.length} 个 Skill` : '应用 Skills'}
+            options={skills.data.filter(skill => skill.enabled).map(skill => ({
+              value: skill.name, label: skill.name, keywords: [skill.description],
+              disabled: selectedSkills.length >= 3 && !selectedSkills.includes(skill.name),
+            }))} onValueChange={name => setSelectedSkills(current => current.includes(name) ? current.filter(item => item !== name) : [...current, name])} />}
+        </DialogContent>}
+      </Dialog>}
       {target.kind !== 'global' && <label htmlFor="chat-include-context" className="flex items-center gap-2 text-sm">
         <Checkbox id="chat-include-context" checked={includeContext} disabled={send.isPending} onCheckedChange={value => setIncludeContext(value === true)} />
         {target.kind === 'article' ? '附加订阅正文（最多 24 KiB）' : '附加当前分类最近 5 篇文章的摘要'}
@@ -376,6 +404,8 @@ function ChatSession({ target, close, workspace }: {
             <Button size="icon" type="button" variant="ghost" aria-label="附加文章" title="附加文章" aria-expanded={picking} disabled={send.isPending} onClick={() => setPicking(!picking)}><Plus /></Button>
           }
           <div className={workspace ? 'chat-composer-actions' : undefined}>
+            {workspace && selectedConfig && modelID && <ChatContext id={conversationId} modelId={modelID}
+              windowSize={selectedConfig.metadata?.context || 32768} disabled={active || send.isPending} />}
             {workspace && (modelOptions.length ? <SearchableSelect label="聊天模型" className="chat-model" value={modelID ?? ''}
               options={modelOptions} variant="ghost" announceSelection placeholder="选择模型" disabled={send.isPending}
               submenus={modelSubmenus} onValueChange={selectModel}

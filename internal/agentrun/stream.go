@@ -70,6 +70,9 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 	executed := make(map[string]previousCall)
 	var attempts, continuationBytes int
 	for turn := 0; turn < maxTurns; turn++ {
+		if err := request.Budget.Fit(&request); err != nil {
+			return err
+		}
 		reply, err := collect(ctx, model, &request, forward)
 		if err != nil {
 			return err

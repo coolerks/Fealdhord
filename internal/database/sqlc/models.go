@@ -18,6 +18,7 @@ type AiModel struct {
 	CreatedAt       int64  `json:"created_at"`
 	UpdatedAt       int64  `json:"updated_at"`
 	ReasoningLevels string `json:"reasoning_levels"`
+	Metadata        string `json:"metadata"`
 }
 
 type AiProvider struct {
@@ -181,12 +182,14 @@ type ChatToolAudit struct {
 }
 
 type Conversation struct {
-	ID        string `json:"id"`
-	ScopeType string `json:"scope_type"`
-	ScopeID   string `json:"scope_id"`
-	Title     string `json:"title"`
-	CreatedAt int64  `json:"created_at"`
-	UpdatedAt int64  `json:"updated_at"`
+	ID             string `json:"id"`
+	ScopeType      string `json:"scope_type"`
+	ScopeID        string `json:"scope_id"`
+	Title          string `json:"title"`
+	CreatedAt      int64  `json:"created_at"`
+	UpdatedAt      int64  `json:"updated_at"`
+	ContextAfter   int64  `json:"context_after"`
+	ContextSummary string `json:"context_summary"`
 }
 
 type EffectiveArticleCategory struct {

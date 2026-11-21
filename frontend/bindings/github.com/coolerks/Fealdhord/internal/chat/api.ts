@@ -17,8 +17,16 @@ export function Cancel(id: string): $CancellablePromise<void> {
     return $Call.ByID(1421854345, id);
 }
 
+export function ContextStatus(id: string, modelID: string): $CancellablePromise<$models.ContextStatus> {
+    return $Call.ByID(2370131800, id, modelID);
+}
+
 export function Create(scope: $models.Scope, title: string): $CancellablePromise<$models.Conversation> {
     return $Call.ByID(2751688823, scope, title);
+}
+
+export function GenerateContextSummary(id: string, modelID: string): $CancellablePromise<string> {
+    return $Call.ByID(1158139173, id, modelID);
 }
 
 export function List(scope: $models.Scope): $CancellablePromise<$models.Conversation[] | null> {
@@ -31,6 +39,10 @@ export function Messages(id: string): $CancellablePromise<$models.Message[] | nu
 
 export function Model(): $CancellablePromise<aiconfig$0.Model> {
     return $Call.ByID(686777260);
+}
+
+export function SaveContext(id: string, summary: string, restore: boolean): $CancellablePromise<void> {
+    return $Call.ByID(700997893, id, summary, restore);
 }
 
 export function Send(input: $models.SendInput): $CancellablePromise<void> {

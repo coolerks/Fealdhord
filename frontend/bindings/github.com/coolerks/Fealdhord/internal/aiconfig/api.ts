@@ -22,6 +22,14 @@ export function Assign(task: string, modelID: string): $CancellablePromise<void>
     return $Call.ByID(2967826316, task, modelID);
 }
 
+export function BrandIcon(brand: string): $CancellablePromise<string> {
+    return $Call.ByID(3291600195, brand);
+}
+
+export function Brands(): $CancellablePromise<string[] | null> {
+    return $Call.ByID(3098122271);
+}
+
 export function DeleteModel(id: string, revision: number): $CancellablePromise<void> {
     return $Call.ByID(3584623655, id, revision);
 }

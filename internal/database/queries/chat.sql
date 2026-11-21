@@ -54,3 +54,16 @@ SELECT a.* FROM chat_tool_audit a JOIN (
  SELECT id FROM messages WHERE conversation_id=? ORDER BY position DESC LIMIT 100
 ) recent ON recent.id=a.message_id
 ORDER BY a.rowid;
+
+-- name: ListContextMessages :many
+SELECT * FROM (
+ SELECT * FROM messages WHERE conversation_id = sqlc.arg(conversation_id)
+ AND position > sqlc.arg(context_after) ORDER BY position DESC LIMIT 200
+) ORDER BY position;
+
+-- name: SaveConversationContext :execrows
+UPDATE conversations SET context_after = (SELECT COALESCE(MAX(position),0) FROM messages WHERE conversation_id=sqlc.arg(id)),
+ context_summary = sqlc.arg(summary) WHERE id=sqlc.arg(id) AND scope_type='global';
+
+-- name: RestoreConversationContext :execrows
+UPDATE conversations SET context_after=0, context_summary='' WHERE id=? AND scope_type='global';

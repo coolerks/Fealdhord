@@ -32,8 +32,12 @@ vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/chat/api', () => cha
 const listAIConfiguration = vi.hoisted(() => vi.fn())
 const saveAIModel = vi.hoisted(() => vi.fn())
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/api', () => ({
-  List: listAIConfiguration, SaveModel: saveAIModel,
+  List: listAIConfiguration, SaveModel: saveAIModel, Brands: async () => [],
   FetchModels: () => Object.assign(Promise.resolve([]), { cancel: vi.fn() }),
+}))
+vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/appagent/api', () => ({
+  PendingActions: async () => [], Grants: async () => [], ToolList: async () => [], Skills: async () => [], MCPClients: async () => [],
+  MCPServer: async () => ({ url: '', config: { port: 8769, tools: [] } }),
 }))
 const copyImage = vi.hoisted(() => vi.fn())
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/media/api', () => ({ CopyInlineImage: copyImage }))

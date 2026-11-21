@@ -1,3 +1,5 @@
+import { ModelBrand, ModelCapabilities } from './ModelMetadata'
+import { AIPlatformSettings } from './AIPlatformSettings'
 import { ModelCatalogField } from './ModelCatalogField'
 import { notify } from '@/lib/notifications'
 import { invalidateRSS } from '@/lib/refresh'
@@ -31,6 +33,7 @@ const defaultReasoningLevels = [
   { label: '高', value: 'high' }, { label: '超高', value: 'xhigh' },
 ]
 const maxReasoningLevels = 16
+const commonBrands = ['anthropic', 'openai', 'google', 'deepseek', 'openrouter', 'nvidia', 'meta', 'mistral', 'alibaba', 'moonshotai', 'xai', 'zai']
 
 function configError(error: unknown) {
   const message = error instanceof Error ? error.message : ''
@@ -95,6 +98,7 @@ export function AISettings() {
   }
   const providers = configuration.data?.providers ?? []
   const models = configuration.data?.models ?? []
+  const brands = useQuery({ queryKey: ['ai-model-brands'], queryFn: () => api.Brands(), enabled: Boolean(model), retry: false, staleTime: 60 * 60 * 1000 })
   const modelProvider = providers.find(item => item.id === model?.providerId)
   const reasoningLevels = model?.reasoningLevels ?? []
   const activeModels = models.filter(item => item.enabled && providers.some(service => service.id === item.providerId && service.enabled))
@@ -150,10 +154,11 @@ export function AISettings() {
     <section className="space-y-3" aria-label="模型">
       <h3>模型</h3>
       {models.map(item => <div key={item.id} className="flex flex-wrap items-center gap-2">
-        <span className="mr-auto">{item.displayName} · {providers.find(service => service.id === item.providerId)?.name}{!item.enabled && '（已停用）'}</span>
+        <ModelBrand brand={item.metadata?.brand} override={item.metadata?.brandOverride} /><span className="mr-auto">{item.displayName} · {providers.find(service => service.id === item.providerId)?.name}{!item.enabled && '（已停用）'}</span>
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => { mutation.reset(); setModel(item) }}>编辑</Button>
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => setDeleting(item.id)}>删除</Button>
         <Button size="sm" variant="ghost" disabled={busy || !activeModels.includes(item) || !!testing} onClick={() => setTesting(item.id)}>测试连接</Button>
+        <div className="w-full"><ModelCapabilities metadata={item.metadata} /></div>
         {testing === item.id && <div className="w-full space-x-2">
           <span>将向服务发送一条测试消息，可能产生费用。</span>
           <Button size="sm" variant="outline" disabled={busy} onClick={() => void runTest(item.id)}>{testRunning ? '正在测试…' : '开始测试'}</Button>
@@ -185,9 +190,24 @@ export function AISettings() {
       }}>
         {modelProvider && <ModelCatalogField provider={modelProvider} value={model.name} disabled={busy}
           excluded={models.filter(item => item.providerId === model.providerId && item.id !== model.id).map(item => item.name)}
-          onSelect={(name, displayName) => setModel({ ...model, name, displayName })} />}
-        <Field><FieldLabel htmlFor="ai-model-id">模型 ID</FieldLabel><Input id="ai-model-id" required value={model.name} onChange={event => setModel({ ...model, name: event.target.value })} /></Field>
+          onSelect={(name, displayName, metadata) => setModel({ ...model, name, displayName, metadata })} />}
+        <Field><FieldLabel htmlFor="ai-model-id">模型 ID</FieldLabel><Input id="ai-model-id" required value={model.name} onChange={event => setModel({ ...model, name: event.target.value, metadata: undefined })} /></Field>
         <Field><FieldLabel htmlFor="ai-model-display">显示名称</FieldLabel><Input id="ai-model-display" value={model.displayName} onChange={event => setModel({ ...model, displayName: event.target.value })} /></Field>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(['context', 'outputLimit'] as const).map((field, index) => <Field key={field}>
+            <FieldLabel htmlFor={`ai-model-${field}`}>{index === 0 ? '上下文大小（令牌）' : '最大输出（令牌）'}</FieldLabel>
+            <Input id={`ai-model-${field}`} type="number" min={1} max={10_000_000} placeholder="自动获取"
+              value={model.metadata?.[field] ?? ''} onChange={event => setModel({ ...model, metadata: {
+                ...model.metadata, [field]: event.target.value ? Number(event.target.value) : undefined, source: '手动',
+              } })} />
+          </Field>)}
+        </div>
+        <Field><FieldLabel htmlFor="ai-model-brand">模型图标</FieldLabel>
+          <SearchableSelect id="ai-model-brand" label="模型图标" value={model.metadata?.brandOverride || 'auto'}
+            options={[{ value: 'auto', label: '自动匹配' }, { value: 'none', label: '通用图标' }, ...Array.from(new Set([...commonBrands, ...(brands.data ?? []), ...(model.metadata?.brand ? [model.metadata.brand] : [])])).map(brand => ({ value: brand, label: brand, graphic: <ModelBrand brand={brand} /> }))]}
+            onValueChange={brand => setModel({ ...model, metadata: { ...model.metadata, brandOverride: brand === 'auto' ? undefined : brand } })} />
+        </Field>
+        <ModelCapabilities metadata={model.metadata} />
         <fieldset className="space-y-2" disabled={busy}>
           <legend className="font-medium">思考档位</legend>
           {reasoningLevels.map((level, index) => <div key={index} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2">
@@ -238,5 +258,6 @@ export function AISettings() {
     {mutation.isError && <p role="alert">{configError(mutation.error)}</p>}
     <Separator />
     <ArticleAISettings />
+    <AIPlatformSettings />
   </FieldGroup>
 }

@@ -13,6 +13,7 @@ type Model interface {
 }
 
 type ModelRequest struct {
+	Budget          Budget
 	Model           string
 	ReasoningEffort string
 	System          string

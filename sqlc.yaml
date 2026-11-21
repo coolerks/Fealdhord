@@ -16,6 +16,8 @@ sql:
       - migrations/00013_chat_tool_audit.sql
       - migrations/00014_feed_custom_icon.sql
       - migrations/00015_ai_model_reasoning_levels.sql
+      - migrations/00016_ai_model_metadata.sql
+      - migrations/00017_chat_context.sql
     queries: internal/database/queries
     gen:
       go:

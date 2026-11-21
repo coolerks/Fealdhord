@@ -7,6 +7,7 @@ export {
 };
 
 export type {
+    ContextStatus,
     Conversation,
     Message,
     Scope,

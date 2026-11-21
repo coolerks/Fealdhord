@@ -115,7 +115,7 @@ func (q *Queries) CheckpointChatMessage(ctx context.Context, arg CheckpointChatM
 
 const createConversation = `-- name: CreateConversation :one
 INSERT INTO conversations (id,scope_type,scope_id,title,created_at,updated_at)
-VALUES (?,?,?,?,?,?) RETURNING id, scope_type, scope_id, title, created_at, updated_at
+VALUES (?,?,?,?,?,?) RETURNING id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary
 `
 
 type CreateConversationParams struct {
@@ -144,6 +144,8 @@ func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversation
 		&i.Title,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ContextAfter,
+		&i.ContextSummary,
 	)
 	return i, err
 }
@@ -197,7 +199,7 @@ func (q *Queries) FinishChatToolAudit(ctx context.Context, arg FinishChatToolAud
 }
 
 const getConversation = `-- name: GetConversation :one
-SELECT id, scope_type, scope_id, title, created_at, updated_at FROM conversations WHERE id=?
+SELECT id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary FROM conversations WHERE id=?
 `
 
 func (q *Queries) GetConversation(ctx context.Context, id string) (Conversation, error) {
@@ -210,6 +212,8 @@ func (q *Queries) GetConversation(ctx context.Context, id string) (Conversation,
 		&i.Title,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ContextAfter,
+		&i.ContextSummary,
 	)
 	return i, err
 }
@@ -271,6 +275,50 @@ func (q *Queries) ListChatToolAudit(ctx context.Context, conversationID string) 
 	return items, nil
 }
 
+const listContextMessages = `-- name: ListContextMessages :many
+SELECT id, conversation_id, position, role, content, status, error_code, model_name FROM (
+ SELECT id, conversation_id, position, role, content, status, error_code, model_name FROM messages WHERE conversation_id = ?1
+ AND position > ?2 ORDER BY position DESC LIMIT 200
+) ORDER BY position
+`
+
+type ListContextMessagesParams struct {
+	ConversationID string `json:"conversation_id"`
+	ContextAfter   int64  `json:"context_after"`
+}
+
+func (q *Queries) ListContextMessages(ctx context.Context, arg ListContextMessagesParams) ([]Message, error) {
+	rows, err := q.db.QueryContext(ctx, listContextMessages, arg.ConversationID, arg.ContextAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Message
+	for rows.Next() {
+		var i Message
+		if err := rows.Scan(
+			&i.ID,
+			&i.ConversationID,
+			&i.Position,
+			&i.Role,
+			&i.Content,
+			&i.Status,
+			&i.ErrorCode,
+			&i.ModelName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listConversationMessages = `-- name: ListConversationMessages :many
 SELECT id, conversation_id, position, role, content, status, error_code, model_name FROM (SELECT id, conversation_id, position, role, content, status, error_code, model_name FROM messages WHERE conversation_id=? ORDER BY position DESC LIMIT 100) ORDER BY position
 `
@@ -308,7 +356,7 @@ func (q *Queries) ListConversationMessages(ctx context.Context, conversationID s
 }
 
 const listConversations = `-- name: ListConversations :many
-SELECT id, scope_type, scope_id, title, created_at, updated_at FROM conversations WHERE scope_type=? AND scope_id=? ORDER BY updated_at DESC,id LIMIT 100
+SELECT id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary FROM conversations WHERE scope_type=? AND scope_id=? ORDER BY updated_at DESC,id LIMIT 100
 `
 
 type ListConversationsParams struct {
@@ -332,6 +380,8 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 			&i.Title,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ContextAfter,
+			&i.ContextSummary,
 		); err != nil {
 			return nil, err
 		}
@@ -344,6 +394,36 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 		return nil, err
 	}
 	return items, nil
+}
+
+const restoreConversationContext = `-- name: RestoreConversationContext :execrows
+UPDATE conversations SET context_after=0, context_summary='' WHERE id=? AND scope_type='global'
+`
+
+func (q *Queries) RestoreConversationContext(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, restoreConversationContext, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const saveConversationContext = `-- name: SaveConversationContext :execrows
+UPDATE conversations SET context_after = (SELECT COALESCE(MAX(position),0) FROM messages WHERE conversation_id=?1),
+ context_summary = ?2 WHERE id=?1 AND scope_type='global'
+`
+
+type SaveConversationContextParams struct {
+	ID      string `json:"id"`
+	Summary string `json:"summary"`
+}
+
+func (q *Queries) SaveConversationContext(ctx context.Context, arg SaveConversationContextParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, saveConversationContext, arg.ID, arg.Summary)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const startChatToolAudit = `-- name: StartChatToolAudit :exec

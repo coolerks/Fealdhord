@@ -1,8 +1,6 @@
 package ai
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -14,6 +12,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	anthropic "github.com/anthropics/anthropic-sdk-go"
+	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
+	openai "github.com/openai/openai-go/v3"
+	openaioption "github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/ssestream"
 )
 
 const (
@@ -134,28 +138,59 @@ func (c *ChatCompletions) request(ctx context.Context, req *ModelRequest, stream
 	return c.post(ctx, payload, false, stream)
 }
 
-func (c *modelClient) post(ctx context.Context, payload any, anthropic, stream bool) (*http.Response, error) {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, &ModelError{Code: "ValidationError"}
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, &ModelError{Code: "ValidationError"}
-	}
-	request.Header.Set("Content-Type", "application/json")
+// The raw SDK entry points preserve compatibility gateway fields and strict stream terminators.
+func (c *modelClient) post(ctx context.Context, payload any, messagesProtocol, stream bool) (*http.Response, error) {
+	client := c.client
+	accept := "application/json"
 	if stream {
-		request.Header.Set("Accept", "text/event-stream")
+		client.Timeout = 0
+		accept = "text/event-stream"
 	}
-	response, err := c.do(request, anthropic, stream)
+	doer := boundedModelHTTP{&client}
+	endpoint, err := url.Parse(c.endpoint)
 	if err != nil {
-		return nil, err
+		return nil, modelIOError(err, "ValidationError")
 	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
+	base := endpoint.Scheme + "://" + endpoint.Host + "/"
+	path := strings.TrimPrefix(endpoint.EscapedPath(), "/")
+	var response *http.Response
+	if messagesProtocol {
+		sdk := anthropic.Client{Options: []anthropicoption.RequestOption{
+			anthropicoption.WithBaseURL(base), anthropicoption.WithHTTPClient(doer), anthropicoption.WithMaxRetries(0),
+			anthropicoption.WithHeader("Accept", accept), anthropicoption.WithHeader("anthropic-version", "2023-06-01"),
+			anthropicoption.WithAPIKey(c.apiKey),
+		}}
+		err = sdk.Post(ctx, path, payload, &response)
+	} else {
+		sdk := openai.Client{Options: []openaioption.RequestOption{
+			openaioption.WithBaseURL(base), openaioption.WithHTTPClient(doer), openaioption.WithMaxRetries(0),
+			openaioption.WithHeader("Accept", accept), openaioption.WithAPIKey(c.apiKey),
+		}}
+		err = sdk.Post(ctx, path, payload, &response)
+	}
+	if response != nil && (response.StatusCode < 200 || response.StatusCode >= 300) {
 		response.Body.Close()
 		return nil, chatStatusError(response)
 	}
+	if err != nil {
+		return nil, modelIOError(err, "ProviderConnectionError")
+	}
 	return response, nil
+}
+
+type boundedModelHTTP struct{ client *http.Client }
+
+func (transport boundedModelHTTP) Do(request *http.Request) (*http.Response, error) {
+	response, err := transport.client.Do(request)
+	if err == nil && response.StatusCode >= 400 {
+		response.Body = limitedModelBody{Reader: io.LimitReader(response.Body, 64<<10), Closer: response.Body}
+	}
+	return response, err
+}
+
+type limitedModelBody struct {
+	io.Reader
+	io.Closer
 }
 
 func (c *modelClient) do(request *http.Request, anthropic, stream bool) (*http.Response, error) {
@@ -428,31 +463,19 @@ func readChatStream(body io.Reader, offered map[string]bool, send func(ModelEven
 }
 
 func readModelSSE(body io.Reader, handle func(string) (bool, error)) error {
-	const maxEventBytes = 256 << 10
-	scanner := bufio.NewScanner(io.LimitReader(body, maxResponseBytes))
-	scanner.Buffer(make([]byte, 4096), maxEventBytes)
-	var data strings.Builder
-	for scanner.Scan() {
-		line := scanner.Text()
-		if value, ok := strings.CutPrefix(line, "data:"); ok {
-			if data.Len()+len(value)+1 > maxEventBytes {
-				return protocolError()
-			}
-			if data.Len() > 0 {
-				data.WriteByte('\n')
-			}
-			data.WriteString(strings.TrimPrefix(value, " "))
+	decoder := ssestream.NewDecoder(&http.Response{Body: io.NopCloser(io.LimitReader(body, maxResponseBytes))})
+	for decoder.Next() {
+		data := decoder.Event().Data
+		if len(data) > 256<<10 {
+			return protocolError()
+		}
+		if len(data) == 0 {
 			continue
 		}
-		if line != "" || data.Len() == 0 {
-			continue
-		}
-		payload := data.String()
-		data.Reset()
-		done, err := handle(payload)
+		done, err := handle(strings.TrimSuffix(string(data), "\n"))
 		if done || err != nil {
 			return err
 		}
 	}
-	return modelIOError(scanner.Err(), "ProviderProtocolError")
+	return modelIOError(decoder.Err(), "ProviderProtocolError")
 }

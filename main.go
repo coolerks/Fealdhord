@@ -11,8 +11,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coolerks/Fealdhord/internal/ai"
 	"github.com/coolerks/Fealdhord/internal/aiconfig"
 	fealdhord "github.com/coolerks/Fealdhord/internal/app"
+	"github.com/coolerks/Fealdhord/internal/appagent"
 	"github.com/coolerks/Fealdhord/internal/articleai"
 	"github.com/coolerks/Fealdhord/internal/chat"
 	"github.com/coolerks/Fealdhord/internal/database"
@@ -89,6 +91,7 @@ func main() {
 	var articleAIService *articleai.Service
 	var aiConfig *aiconfig.Service
 	var chatService *chat.Service
+	var toolStore *database.Store
 	dataDir, pathErr := os.UserConfigDir()
 	if pathErr == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -97,6 +100,7 @@ func main() {
 		if err != nil {
 			slog.Error("本地设置初始化失败", "error", err)
 		} else {
+			toolStore = store
 			settingsRepository = store
 			libraryRepository = store
 			navigationRepository = store
@@ -106,6 +110,9 @@ func main() {
 			refreshRepository = store
 			mediaRepository = store
 			aiConfig = aiconfig.New(store.AIProviderQueries(), aiconfig.SystemCredentials{})
+			catalog := ai.NewCatalogIndex(filepath.Join(dataDir, "Fealdhord", "model-catalog"))
+			aiConfig.SetCatalog(catalog)
+			go catalog.Load(context.Background())
 			defer func() {
 				if err := store.Close(); err != nil {
 					slog.Error("关闭设置数据库失败", "error", err)
@@ -201,16 +208,38 @@ func main() {
 		}
 		return nil
 	})
+	libraryService := library.NewService(libraryRepository, func(ctx context.Context) bool { return policy(ctx).RemoteImages != "never" })
+	navigationService := navigation.NewService(navigationRepository, changed)
+	transferAPI := transfer.NewAPI(transferService)
+	articleAIAPI := articleai.NewAPI(articleAIService)
+	var platformDirectory string
+	if pathErr == nil {
+		platformDirectory = filepath.Join(dataDir, "Fealdhord", "ai-platform")
+	}
+	toolRegistry := appagent.Builtins(appagent.Services{
+		Store: toolStore, Library: libraryService, Feed: feedService, Navigation: navigationService, Reader: readerService,
+		Refresh: refreshService, Settings: settingsService, ArticleAI: articleAIAPI, Transfer: transferAPI,
+	})
+	platform := appagent.NewPlatform(toolRegistry, platformDirectory)
+	if chatService != nil {
+		chatService.SetToolSource(platform.RunTools)
+	}
 	for _, boundService := range []application.Service{
+		application.NewService(appagent.NewAPI(platform, func(ctx context.Context) (string, error) {
+			if mainWindow == nil || ctx.Err() != nil {
+				return "", context.Canceled
+			}
+			return desktop.Dialog.OpenFile().SetTitle("导入 Skill").AddFilter("Markdown", "*.md").AttachToWindow(mainWindow).PromptForSingleSelection()
+		})),
 		application.NewService(service), application.NewService(settingsService),
 		application.NewService(desktopintegration.NewNotifier()),
 		application.NewService(readerService),
 		application.NewService(aiconfig.NewAPI(aiConfig)),
 		application.NewService(chat.NewAPI(chatService)),
-		application.NewService(articleai.NewAPI(articleAIService)),
-		application.NewService(transfer.NewAPI(transferService)),
-		application.NewService(navigation.NewService(navigationRepository, changed)),
-		application.NewService(library.NewService(libraryRepository, func(ctx context.Context) bool { return policy(ctx).RemoteImages != "never" })),
+		application.NewService(articleAIAPI),
+		application.NewService(transferAPI),
+		application.NewService(navigationService),
+		application.NewService(libraryService),
 		application.NewService(feedService), application.NewService(refresh.NewAPI(refreshService)),
 		application.NewServiceWithOptions(media.NewAPI(mediaService, func(png []byte) error {
 			return desktopintegration.CopyImageToClipboard(mainWindow, png)
@@ -220,6 +249,7 @@ func main() {
 	}
 	desktop.OnShutdown(func() {
 		reopenWindow.Store(nil)
+		platform.Shutdown()
 		transferService.Close()
 		stop()
 		refreshService.Close()

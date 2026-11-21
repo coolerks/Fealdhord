@@ -22,12 +22,15 @@ import (
 type Service struct {
 	db           *sqlc.Queries
 	credentials  CredentialStore
+	catalog      *ai.CatalogIndex
 	credentialMu sync.Mutex
 }
 
 func New(db *sqlc.Queries, credentials CredentialStore) *Service {
 	return &Service{db: db, credentials: credentials}
 }
+
+func (s *Service) SetCatalog(index *ai.CatalogIndex) { s.catalog = index }
 
 type Provider struct {
 	ID            string `json:"id"`
@@ -52,6 +55,7 @@ type Model struct {
 	Enabled         bool             `json:"enabled"`
 	Revision        int64            `json:"revision"`
 	ReasoningLevels []ReasoningLevel `json:"reasoningLevels"`
+	Metadata        ai.Metadata      `json:"metadata,omitzero"`
 }
 
 type ReasoningLevel struct {
@@ -100,9 +104,20 @@ func publicProvider(row sqlc.AiProvider) Provider {
 
 func publicModel(row sqlc.AiModel) Model {
 	levels := []ReasoningLevel{}
+	var metadata ai.Metadata
+	_ = json.Unmarshal([]byte(row.Metadata), &metadata)
 	_ = json.Unmarshal([]byte(row.ReasoningLevels), &levels)
 	return Model{ID: row.ID, ProviderID: row.ProviderID, Name: row.Model, DisplayName: row.DisplayName,
-		Enabled: row.Enabled != 0, Revision: row.Revision, ReasoningLevels: levels}
+		Enabled: row.Enabled != 0, Revision: row.Revision, ReasoningLevels: levels, Metadata: metadata}
+}
+
+func (s *Service) modelWithMetadata(row sqlc.AiModel, baseURL string) Model {
+	model := publicModel(row)
+	model.Metadata = model.Metadata.WithFallback(s.catalog.Match(model.Name))
+	if model.Metadata.Brand == "" {
+		model.Metadata.Brand = ai.ProviderBrand(baseURL)
+	}
+	return model
 }
 
 func (s *Service) List(ctx context.Context) (Snapshot, error) {
@@ -119,11 +134,13 @@ func (s *Service) List(ctx context.Context) (Snapshot, error) {
 	if err != nil {
 		return out, storageError(err)
 	}
+	bases := make(map[string]string, len(providers))
 	for _, row := range providers {
 		out.Providers = append(out.Providers, publicProvider(row))
+		bases[row.ID] = row.BaseUrl
 	}
 	for _, row := range models {
-		out.Models = append(out.Models, publicModel(row))
+		out.Models = append(out.Models, s.modelWithMetadata(row, bases[row.ProviderID]))
 	}
 	for _, row := range assignments {
 		out.Assignments = append(out.Assignments, Assignment{Task: row.TaskType, ModelID: row.ModelID})
@@ -239,14 +256,22 @@ func (s *Service) SaveModel(ctx context.Context, input Model) (Model, error) {
 	if err != nil {
 		return Model{}, err
 	}
+	if input.Metadata.Context < 0 || input.Metadata.Context > 10_000_000 || input.Metadata.InputLimit < 0 || input.Metadata.InputLimit > 10_000_000 ||
+		input.Metadata.OutputLimit < 0 || input.Metadata.OutputLimit > 10_000_000 || (input.Metadata.Context > 0 && max(input.Metadata.InputLimit, input.Metadata.OutputLimit) > input.Metadata.Context) {
+		return Model{}, configError("ValidationError")
+	}
+	metadata, err := json.Marshal(input.Metadata)
+	if err != nil || len(metadata) > 4096 {
+		return Model{}, configError("ValidationError")
+	}
 	now := time.Now().UTC().UnixMilli()
 	var row sqlc.AiModel
 	if input.ID == "" {
 		row, err = s.db.CreateAIModel(ctx, sqlc.CreateAIModelParams{ID: rand.Text(), ProviderID: input.ProviderID,
-			Model: input.Name, DisplayName: input.DisplayName, Enabled: flag(input.Enabled), CreatedAt: now, UpdatedAt: now, ReasoningLevels: levels})
+			Model: input.Name, DisplayName: input.DisplayName, Enabled: flag(input.Enabled), CreatedAt: now, UpdatedAt: now, ReasoningLevels: levels, Metadata: string(metadata)})
 	} else {
 		row, err = s.db.UpdateAIModel(ctx, sqlc.UpdateAIModelParams{ID: input.ID, ProviderID: input.ProviderID, Revision: input.Revision,
-			Model: input.Name, DisplayName: input.DisplayName, Enabled: flag(input.Enabled), UpdatedAt: now, ReasoningLevels: levels})
+			Model: input.Name, DisplayName: input.DisplayName, Enabled: flag(input.Enabled), UpdatedAt: now, ReasoningLevels: levels, Metadata: string(metadata)})
 	}
 	if err != nil {
 		return Model{}, conflictError(err)
@@ -295,7 +320,7 @@ func (s *Service) AssignedModel(ctx context.Context, task string) (Model, error)
 	if err != nil {
 		return Model{}, storageError(err)
 	}
-	return publicModel(row.AiModel), nil
+	return s.modelWithMetadata(row.AiModel, row.AiProvider.BaseUrl), nil
 }
 
 func (s *Service) Resolve(ctx context.Context, task string) (Model, ai.Model, error) {
@@ -363,7 +388,7 @@ func (s *Service) adapter(p sqlc.AiProvider, model sqlc.AiModel) (Model, ai.Mode
 	default:
 		err = configError("ConfigurationError")
 	}
-	return publicModel(model), adapter, err
+	return s.modelWithMetadata(model, p.BaseUrl), adapter, err
 }
 
 // providerKey requires credentialMu while reading a saved provider.

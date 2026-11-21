@@ -55,3 +55,18 @@ func (a *API) TestConnection(ctx context.Context, modelID string) error {
 	}
 	return a.service.TestConnection(ctx, modelID)
 }
+
+func (a *API) BrandIcon(ctx context.Context, brand string) (string, error) {
+	if a.service == nil {
+		return "", configError("StorageError")
+	}
+	return a.service.catalog.BrandIcon(ctx, brand)
+}
+
+func (a *API) Brands(ctx context.Context) []string {
+	if a.service == nil || a.service.catalog == nil {
+		return nil
+	}
+	a.service.catalog.Load(ctx)
+	return a.service.catalog.Brands()
+}

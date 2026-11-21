@@ -1,3 +1,4 @@
+import type { Metadata } from '../../../bindings/github.com/coolerks/Fealdhord/internal/ai/models'
 import { useQuery } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
 import { SemanticButton } from '@/components/semantic-button'
@@ -11,7 +12,7 @@ export function ModelCatalogField({ provider, value, excluded, disabled, onSelec
   value: string
   excluded: string[]
   disabled: boolean
-  onSelect: (id: string, name: string) => void
+  onSelect: (id: string, name: string, metadata?: Metadata) => void
 }) {
   const catalog = useQuery({
     queryKey: ['ai-model-catalog', provider.id, provider.revision],
@@ -46,7 +47,7 @@ export function ModelCatalogField({ provider, value, excluded, disabled, onSelec
       }))}
       onValueChange={id => {
         const item = items.find(entry => entry.id === id)
-        if (item) onSelect(item.id, item.displayName)
+        if (item) onSelect(item.id, item.displayName, item.metadata)
       }} />
     {catalog.isError && <p role="status" className="text-muted-foreground">
       {String(catalog.error).includes('AuthenticationError') ? '获取模型失败，请检查服务密钥。' : '无法获取服务模型列表，可以手动填写。'}
