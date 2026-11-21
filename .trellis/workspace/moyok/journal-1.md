@@ -803,3 +803,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Next Steps
 
 - 总任务保留真实模型网关、跨设备 HTTPS 和 OAuth 客户端验收。
+
+
+## Session 29: 全屏设置工作区
+<!-- trellis-session: v=2 fp=8c42fd7ea8a4f0ee -->
+
+**Date**: 2026-11-21
+**Task**: 全屏设置工作区
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+新增默认全屏设置与可切换的对话框呈现，保留阅读和全局 AI 界面及设置编辑状态。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `95b074c` | feat: 支持全屏设置工作区及默认打开方式 |
+
+### Testing
+
+- [OK] 前端 151 项、设置数据库回归、Go vet 及桌面构建通过
+
+### Status
+
+[OK] **Completed**
