@@ -985,3 +985,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 36: 全量回查旧库 AI 回归
+<!-- trellis-session: v=2 fp=e92fdf1a57d5b753 -->
+
+**Date**: 2026-11-21
+**Task**: 全量回查旧库 AI 回归
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+从旧库和新库结构对照定位会话及文章评估缺项。第 22 版升级前备份，保留历史，开发库 SQLC 156 条语句预编译错误从 8 降到 0。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e2771a2` | fix: 修复旧库 AI 对话与文章评估结构 |
+
+### Testing
+
+- [OK] 旧库 Chat API、新建发送、本地文章工具、流式保存、文章评估候选与延期通过。Go 全量 test/vet、AI 相关竞态、前端 155 项、lint、类型、生产构建、Wails 绑定和 macOS 构建通过。真实供应商和外部通知账号未联测。
+
+### Status
+
+[OK] **Completed**
