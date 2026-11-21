@@ -1093,3 +1093,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Next Steps
 
 - 用授权手机账号复测扫码与微信消息送达。
+
+
+## Session 40: 新增文章手动发送
+<!-- trellis-session: v=2 fp=c5f5c4f947eba0a5 -->
+
+**Date**: 2026-11-21
+**Task**: 新增文章手动发送
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+阅读页和列表选择内容与通知渠道，全文分段入队，按渠道格式生成链接。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7b0c5c6` | feat(notification): 支持从阅读页和列表发送文章 |
+
+### Testing
+
+- [OK] 161 项前端测试、构建、Go 全量测试与 vet、通知竞态及模拟投递通过。
+
+### Status
+
+[OK] **Completed**
