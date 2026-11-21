@@ -855,3 +855,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 31: 多渠道通知与 AI 定时任务
+<!-- trellis-session: v=2 fp=25843c1f9f587776 -->
+
+**Date**: 2026-11-21
+**Task**: 多渠道通知与 AI 定时任务
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+实现九渠道适配、文章推送规则、进程恢复、定时任务与 AI 工具；真实机器人目标仍待验收。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `782b548` | feat: 接入多渠道文章通知和 AI 定时任务 |
+
+### Testing
+
+- [OK] Go 全量测试、关键包竞态检查、Go vet、前端 153 项测试、lint、生产构建和桌面构建通过
+
+### Status
+
+[OK] **Completed**
