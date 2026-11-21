@@ -829,3 +829,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 30: 全屏设置切换动效
+<!-- trellis-session: v=2 fp=8e97694744d1b27c -->
+
+**Date**: 2026-11-21
+**Task**: 全屏设置切换动效
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+从阅读或 AI 进入及退出全屏设置时，两栏同步按有效动效过渡。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `17b73a8` | feat: 为全屏设置添加双向切换动效 |
+
+### Testing
+
+- [OK] 前端 152 项测试、lint 和生产构建通过
+
+### Status
+
+[OK] **Completed**
