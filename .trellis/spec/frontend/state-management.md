@@ -61,3 +61,5 @@ library Query 迁移为 InfiniteData<LibraryPage>；libraryKey 包含 scope／se
 ## 设置工作区呈现
 
 `settings_open_mode` 是持久默认值，`settingsPresentation` 是本次打开的状态。入口打开时从偏好读取，临时全屏、返回及 Escape 不写默认值。全屏使用 Shell 的侧栏宿主与内容栏，遮挡的阅读与全局 AI 仍挂载并设为 inert。对话框与工作区共用设置分区及稳定的表单宿主，切换呈现不丢未提交的表单。退出时恢复焦点。
+
+进入和退出全屏设置时，当前侧栏和内容区由 `animateWorkspaceEntry` 同步播放入场。有效动效为完整时淡入并位移 6px，轻微时只淡入，关闭时即时显示。切换时立即更新可交互区域，取消离开界面尚未结束的动画，保留原有组件状态和焦点恢复。

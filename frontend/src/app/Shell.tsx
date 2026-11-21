@@ -20,6 +20,7 @@ import { ArticleViewTransition } from '@/features/articles/ArticleViewTransition
 import { Reader, ReaderEmpty } from '@/features/reader/Reader'
 import { useWorkspace } from '@/stores/workspace'
 import { effectiveMotion, useMediaQuery } from '@/lib/environment'
+import { animateWorkspaceEntry } from '@/lib/workspace-motion'
 import { useLibraryQuery } from '@/features/articles/use-library-query'
 import { findCachedArticle,libraryAnchorKey } from '@/lib/library-query'
 import { Sidebar } from './Sidebar'
@@ -113,7 +114,9 @@ export function Shell() {
   const [sidebarDraft, setSidebarDraft] = useState<number | null>(null)
   const [listDraft, setListDraft] = useState<number | null>(null)
   const [listLimit, setListLimit] = useState(listMaxWidth)
+  const shell = useRef<HTMLDivElement>(null)
   const workspace = useRef<HTMLElement>(null)
+  const wasSettingsWorkspace = useRef(false)
   const articleTransitionHost = useRef<HTMLDivElement>(null)
   const sidebarCollapsed = preferences.sidebar_collapsed && !settingsWorkspace
   const sidebarWidth = sidebarDraft ?? preferences.sidebar_width
@@ -237,6 +240,15 @@ export function Shell() {
   useLayoutEffect(() => {
     if (settingsWorkspace && workspace.current) clearSelectionWithin(workspace.current)
   }, [settingsWorkspace])
+  useLayoutEffect(() => {
+    const returning = wasSettingsWorkspace.current && !settingsWorkspace
+    wasSettingsWorkspace.current = settingsWorkspace
+    if (!returning) return
+
+    const sidebar = shell.current?.querySelector(chatVisible ? '.chat-sidebar' : '.sidebar-track > .workspace-mode-reading')
+    const content = chatVisible ? shell.current?.querySelector('.chat-workspace') : workspace.current
+    return animateWorkspaceEntry([sidebarCollapsed ? null : sidebar, content], mode, -6)
+  }, [settingsWorkspace, chatVisible, sidebarCollapsed, mode])
   const sidebarToggle = <SemanticButton id="sidebar-toggle" icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
     label={sidebarCollapsed ? '展开侧栏' : '折叠侧栏'} meaning={sidebarCollapsed ? 'expand' : 'collapse'}
     aria-expanded={!sidebarCollapsed} aria-controls="workspace-sidebar"
@@ -244,12 +256,12 @@ export function Shell() {
   return <MotionConfig reducedMotion={mode === 'full' ? 'never' : 'always'} transition={{ duration: mode === 'off' ? 0 : mode === 'subtle' ? .1 : .22, ease: [.22, 1, .36, 1] }}>
     <div className="desktop-shell" data-platform={platform}>
       {platform !== 'mac' && <ApplicationMenu windows={platform === 'windows'} windowsSidebarToggle={platform === 'windows' && !settingsWorkspace ? sidebarToggle : undefined} />}
-      <div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px`, '--list-width-cap': `${listMaxShare * 100}%` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={sidebarCollapsed} data-sidebar-resizing={sidebarDraft !== null}>
+      <div ref={shell} className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px`, '--list-width-cap': `${listMaxShare * 100}%` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={sidebarCollapsed} data-sidebar-resizing={sidebarDraft !== null}>
       {platform !== 'windows' && !settingsWorkspace && <div className="sidebar-toggle">{sidebarToggle}</div>}
       <div className="sidebar-track">
         <Sidebar motionMode={mode} inChat={chatVisible || settingsWorkspace} suspended={settingsWorkspace} />
         <div ref={setChatSidebar} className="chat-sidebar-host" inert={settingsWorkspace} hidden={settingsWorkspace} />
-        {settingsWorkspace && <div ref={setSettingsSidebar} className="settings-sidebar-host" />}
+        <div ref={setSettingsSidebar} className="settings-sidebar-host" hidden={!settingsWorkspace} />
       </div>
       {!sidebarCollapsed && !settingsWorkspace && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={360} onResize={setSidebarDraft}
         onCollapse={() => {
@@ -283,7 +295,7 @@ export function Shell() {
           {globalChat && <GlobalChat key="global-chat" sidebar={chatSidebar} collapsed={preferences.sidebar_collapsed} suspended={settingsWorkspace}
             theme={preferences.chat_code_theme} motionMode={mode} onReady={setChatReady} />}
         </AnimatePresence>
-        {settingsOpen && <SettingsDialog sidebar={settingsSidebar} />}{paletteOpen && <CommandPalette />}{chatKind && !globalChat && !settingsWorkspace && <ChatDialog />}
+        {settingsOpen && <SettingsDialog sidebar={settingsSidebar} motionMode={mode} />}{paletteOpen && <CommandPalette />}{chatKind && !globalChat && !settingsWorkspace && <ChatDialog />}
       </Suspense>
       <div className="sr-only" aria-live="polite">{preferences.article_view_mode === 'masonry' ? '已切换到瀑布流视图' : '已切换到列表视图'}</div>
       <Dialog open={diagnosticsOpen} onOpenChange={open => useWorkspace.setState({ diagnosticsOpen: open })}>

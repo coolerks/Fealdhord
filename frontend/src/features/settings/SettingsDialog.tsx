@@ -3,11 +3,13 @@ import { Authorize } from '../../../bindings/github.com/coolerks/Fealdhord/inter
 import { toast } from '@/components/ui/toast-manager'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import type { IconMeaning } from '@/components/animated-glyph'
-import { useCallback, useLayoutEffect, useState } from 'react'
+import { useCallback, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { SemanticButton } from '@/components/semantic-button'
 import { SidebarAction } from '@/components/sidebar-action'
 import { moveSidebarFocus } from '@/lib/sidebar-navigation'
+import type { effectiveMotion } from '@/lib/environment'
+import { animateWorkspaceEntry } from '@/lib/workspace-motion'
 import { BadgeAlert,Folder,Info, Maximize, Palette, Rss, SlidersHorizontal, Sparkles } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
@@ -52,7 +54,10 @@ const sections: { id: SettingsTab; title: string; icon: typeof Palette; meaning:
   { id: 'ai', title: 'AI 与扩展', icon: Sparkles, meaning:"ai" }, { id: 'about', title: '关于', icon: Info, meaning:"circle-help" },
 ]
 
-export function SettingsDialog({ sidebar }: { sidebar: HTMLElement | null }) {
+export function SettingsDialog({ sidebar, motionMode }: {
+  sidebar: HTMLElement | null
+  motionMode: ReturnType<typeof effectiveMotion>
+}) {
   const preferences = useWorkspace(state => state.preferences)
   const fullscreen = useWorkspace(state => state.settingsPresentation === 'full')
   const close = useWorkspace(state => state.closeSettings)
@@ -63,12 +68,19 @@ export function SettingsDialog({ sidebar }: { sidebar: HTMLElement | null }) {
   const retrySave = useWorkspace(state => state.retrySave)
   const initialize = useWorkspace(state => state.initialize)
   const [reloadError, setReloadError] = useState('')
+  const workspaceSidebar = useRef<HTMLElement>(null)
+  const workspaceMain = useRef<HTMLElement>(null)
   const [contentHost] = useState(() => document.createElement('div'))
   const attachContent = useCallback((section: HTMLElement | null) => {
     section?.append(contentHost)
   }, [contentHost])
+  const animateEntry = useEffectEvent(() =>
+    animateWorkspaceEntry([workspaceSidebar.current, workspaceMain.current], motionMode, 6),
+  )
   useLayoutEffect(() => {
-    if (fullscreen) sidebar?.querySelector<HTMLElement>('#settings-back')?.focus({ preventScroll: true })
+    if (!fullscreen || !sidebar) return
+    sidebar.querySelector<HTMLElement>('#settings-back')?.focus({ preventScroll: true })
+    return animateEntry()
   }, [fullscreen, sidebar])
   if (!preferences) return null
   const set = <K extends keyof Preferences>(key: K, value: Preferences[K]) => patch({ [key]: value })
@@ -161,14 +173,14 @@ export function SettingsDialog({ sidebar }: { sidebar: HTMLElement | null }) {
   return <>
     {content}
     {fullscreen ? <>
-    {sidebar && createPortal(<aside id="workspace-sidebar" className="glass-sidebar settings-workspace-sidebar" aria-label="设置侧栏">
+    {sidebar && createPortal(<aside ref={workspaceSidebar} id="workspace-sidebar" className="glass-sidebar settings-workspace-sidebar" aria-label="设置侧栏">
       <div className="sidebar-titlebar" />
       <div className="system-nav">
         <SidebarAction id="settings-back" label="返回" meaning="chevron-left" shortcut="Escape" onClick={close} />
       </div>
       {navigation}
     </aside>, sidebar)}
-    <main className="reading-workspace settings-workspace" aria-label="设置">
+    <main ref={workspaceMain} className="reading-workspace settings-workspace" aria-label="设置">
       <header className="workspace-toolbar settings-workspace-heading"><h1 className="truncate font-semibold">{title}</h1></header>
       <RefreshStatus />
       {body}

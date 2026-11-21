@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient } from '@tanstack/react-query'
 import { articleFixtures, preferencesFixture } from '@/test/fixtures'
 import { installGeometry } from '@/test/geometry'
+import * as workspaceMotion from '@/lib/workspace-motion'
 import { useWorkspace } from '@/stores/workspace'
 import { initialLibraryData,libraryArticles } from '@/lib/library-query'
 import type { LibraryData } from '@/lib/library-query'
@@ -72,6 +73,7 @@ function setup(withArticles = false) {
 
 describe('Phase 1 阅读 Shell', () => {
   it('全屏设置替换两栏并返回阅读，保存对话框为下次打开方式', async () => {
+    const animate = vi.spyOn(workspaceMotion, 'animateWorkspaceEntry')
     const user = userEvent.setup()
     host.isWindows.mockReturnValue(true)
     api.get.mockResolvedValue({ preferences: preferencesFixture({ settings_open_mode: 'full' }), revision: 0 })
@@ -81,6 +83,7 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(trigger)
     const sidebar = await screen.findByRole('complementary', { name: '设置侧栏' })
     const workspace = screen.getByRole('main', { name: '设置' })
+    expect(animate).toHaveBeenLastCalledWith([sidebar, workspace], 'full', 6)
     expect(screen.getByRole('group', { name: '窗口控制' })).toBeInTheDocument()
     expect(screen.queryByRole('dialog', { name: '设置' })).not.toBeInTheDocument()
     expect(screen.queryByRole('complementary', { name: '主导航' })).not.toBeInTheDocument()
@@ -96,13 +99,19 @@ describe('Phase 1 阅读 Shell', () => {
     expect(workspace).toBeInTheDocument()
     await user.click(back)
     expect(screen.getByRole('heading', { name: '测试文章 0' })).toBeInTheDocument()
+    expect(animate).toHaveBeenLastCalledWith([
+      screen.getByRole('complementary', { name: '主导航' }), screen.getByRole('main'),
+    ], 'full', -6)
     await waitFor(() => expect(trigger).toHaveFocus())
     await user.click(trigger)
     expect(await screen.findByRole('dialog', { name: '设置' })).toBeInTheDocument()
+    expect(animate).toHaveBeenCalledTimes(2)
   })
 
   it('从对话框展开设置时保留正在编辑的内容，退出后恢复 AI 草稿', async () => {
+    const animate = vi.spyOn(workspaceMotion, 'animateWorkspaceEntry')
     const user = userEvent.setup()
+    api.get.mockResolvedValue({ preferences: preferencesFixture({ animation: 'subtle' }), revision: 0 })
     setup()
     chat.List.mockResolvedValue([])
     await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
@@ -110,17 +119,22 @@ describe('Phase 1 阅读 Shell', () => {
     await user.type(chatInput, '未发送草稿')
     await user.click(screen.getByRole('button', { name: 'AI 设置' }))
     const dialog = await screen.findByRole('dialog', { name: '设置' })
+    expect(animate).not.toHaveBeenCalled()
     await user.click(await within(dialog).findByRole('button', { name: '添加服务' }))
     await user.type(within(dialog).getByRole('textbox', { name: '服务名称' }), '未保存服务')
     await user.click(within(dialog).getByRole('button', { name: '全屏设置' }))
     const sidebar = await screen.findByRole('complementary', { name: '设置侧栏' })
     const workspace = screen.getByRole('main', { name: '设置' })
+    expect(animate).toHaveBeenLastCalledWith([sidebar, workspace], 'subtle', 6)
     expect(within(sidebar).getByRole('button', { name: 'AI 与扩展' })).toHaveAttribute('aria-current', 'page')
     expect(within(workspace).getByRole('textbox', { name: '服务名称' })).toHaveValue('未保存服务')
     expect(screen.queryByRole('main', { name: 'AI 助手工作区' })).not.toBeInTheDocument()
     await user.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByRole('main', { name: '设置' })).not.toBeInTheDocument())
     expect(screen.getByRole('textbox', { name: '消息' })).toHaveValue('未发送草稿')
+    expect(animate).toHaveBeenLastCalledWith([
+      screen.getByRole('complementary', { name: 'AI 会话导航' }), screen.getByRole('main', { name: 'AI 助手工作区' }),
+    ], 'subtle', -6)
     expect(useWorkspace.getState().preferences?.settings_open_mode).toBe('dialog')
   })
 
