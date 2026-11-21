@@ -15,6 +15,8 @@ import { useChatTarget } from '@/features/chat/chat-scope'
 import { FealdhordChatUpdate } from '../bindings/events'
 import type { Message, SendInput, UpdateEvent } from '../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
 
+import type { Task } from '../bindings/github.com/coolerks/Fealdhord/internal/notification/models'
+
 const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),isWindows:vi.fn(()=>false),isMaximized:vi.fn(async()=>false),onMaximizeChange:vi.fn<(_listener: (value: boolean) => void) => () => void>(()=>()=>{}),onCommand:vi.fn(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(async()=>{}),minimize:vi.fn(async()=>{}),maximize:vi.fn(async()=>{}),fullscreen:vi.fn(),openURL:vi.fn(async()=>{}),openDevTools:vi.fn(async()=>{}),quit:vi.fn()}))
 vi.mock('@/lib/native',()=>({native:host}))
 const authorize = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
@@ -41,6 +43,9 @@ const notificationAPI = vi.hoisted(() => ({
   ListChannels: vi.fn().mockResolvedValue([]),
   ListRules: vi.fn().mockResolvedValue([]),
   ListTasks: vi.fn().mockResolvedValue([]),
+  ListRuns: vi.fn().mockResolvedValue([]),
+  SaveTask: vi.fn(),
+  DeleteTask: vi.fn(),
   SaveRule: vi.fn().mockResolvedValue(undefined),
   SaveChannel: vi.fn().mockResolvedValue(undefined),
 }))
@@ -58,6 +63,8 @@ let geometry: ReturnType<typeof installGeometry>
 beforeEach(() => {
   vi.clearAllMocks()
   notificationAPI.ListChannels.mockResolvedValue([])
+  notificationAPI.ListTasks.mockResolvedValue([])
+  notificationAPI.ListRuns.mockResolvedValue([])
   useChatTarget.setState({ target: null })
   listSkills.mockResolvedValue([])
   chat.ContextStatus.mockResolvedValue({
@@ -146,6 +153,64 @@ describe('Phase 1 阅读 Shell', () => {
       screen.getByRole('complementary', { name: 'AI 会话导航' }), screen.getByRole('main', { name: 'AI 助手工作区' }),
     ], 'subtle', -6)
     expect(useWorkspace.getState().preferences?.settings_open_mode).toBe('dialog')
+  })
+
+  it('从 AI 侧栏管理定时任务，返回后保留聊天草稿', async () => {
+    const user = userEvent.setup()
+    let tasks: Task[] = []
+    notificationAPI.ListTasks.mockImplementation(async () => tasks)
+    notificationAPI.SaveTask.mockImplementation(async (task: Task) => {
+      const saved = { ...task, id: 'daily', revision: task.revision + 1, next_at: Date.now() + 60_000 }
+      tasks = [saved]
+      return saved
+    })
+    notificationAPI.ListRuns.mockResolvedValue([{ occurrence: 1700000000000, state: 'complete', result: '已完成一次阅读提醒' }])
+    notificationAPI.DeleteTask.mockImplementation(async () => { tasks = [] })
+
+    setup()
+    chat.List.mockResolvedValue([])
+    await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    await user.type(await screen.findByRole('textbox', { name: '消息' }), '未发送的草稿')
+    const sidebar = within(await screen.findByRole('complementary', { name: 'AI 会话导航' }))
+    const taskEntry = sidebar.getByRole('button', { name: '定时任务' })
+    await user.click(taskEntry)
+    expect(taskEntry).toHaveAttribute('aria-current', 'page')
+    const manager = within(await screen.findByRole('region', { name: '定时任务' }))
+    expect(screen.queryByRole('textbox', { name: '消息' })).not.toBeInTheDocument()
+    await user.click(manager.getByRole('button', { name: '添加任务' }))
+    const create = within(await screen.findByRole('dialog', { name: '添加任务' }))
+    await user.type(create.getByRole('textbox', { name: '任务名称' }), '阅读提醒')
+    await user.type(create.getByRole('textbox', { name: '任务正文' }), '读一篇文章')
+    await user.click(create.getByRole('button', { name: '保存任务' }))
+    expect(await manager.findByRole('heading', { name: '阅读提醒' })).toBeInTheDocument()
+
+    await user.click(manager.getByRole('button', { name: '暂停' }))
+    expect(await manager.findByRole('button', { name: '恢复' })).toBeInTheDocument()
+    expect(notificationAPI.SaveTask).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'daily', enabled: false, revision: 1 }))
+    await user.click(manager.getByRole('button', { name: '恢复' }))
+    expect(await manager.findByRole('button', { name: '暂停' })).toBeInTheDocument()
+    await user.click(manager.getByRole('button', { name: '编辑' }))
+    const edit = within(await screen.findByRole('dialog', { name: '编辑任务' }))
+    const name = edit.getByRole('textbox', { name: '任务名称' })
+    await user.clear(name)
+    await user.type(name, '晚间阅读')
+    await user.click(edit.getByRole('button', { name: '保存任务' }))
+    expect(await manager.findByRole('heading', { name: '晚间阅读' })).toBeInTheDocument()
+    await user.click(manager.getByRole('button', { name: '运行记录' }))
+    expect(await manager.findByText('已完成一次阅读提醒')).toBeInTheDocument()
+    await user.click(manager.getByRole('button', { name: '删除' }))
+    const confirmation = within(await screen.findByRole('dialog', { name: '删除 晚间阅读？' }))
+    await user.click(confirmation.getByRole('button', { name: '删除任务' }))
+    expect(await manager.findByText('还没有定时任务')).toBeInTheDocument()
+    expect(notificationAPI.DeleteTask).toHaveBeenCalledWith('daily', 4)
+    await user.click(manager.getByRole('button', { name: '返回对话' }))
+    const input = screen.getByRole('textbox', { name: '消息' })
+    expect(input).toHaveValue('未发送的草稿')
+    await user.clear(input)
+    await user.type(input, '/schedule')
+    await user.keyboard('{Enter}')
+    expect(await screen.findByRole('region', { name: '定时任务' })).toBeInTheDocument()
+    expect(chat.Send).not.toHaveBeenCalled()
   })
 
   it('用斜杠选择技能和模型，不将命令或路径误当成对方', async () => {
@@ -923,6 +988,7 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(await screen.findByRole('button', { name: '打开设置' }))
     await user.click(await screen.findByRole('button', { name: '通知' }))
     const add = await screen.findByRole('button', { name: '添加规则' })
+    expect(screen.queryByRole('region', { name: '定时任务' })).not.toBeInTheDocument()
     await waitFor(() => expect(add).toBeEnabled())
     await user.click(add)
     await user.type(screen.getByRole('textbox', { name: '规则名称' }), '科技文章')

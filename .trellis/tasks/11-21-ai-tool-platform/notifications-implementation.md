@@ -20,7 +20,7 @@
 | RSS | `internal/database/library.go` 现有 `upsertArticle` 传出是否新增。 `internal/database/feeds.go` 的刷新事务在真新增且刷新已有基线时同事务追加事件。初次成功刷新覆盖直接订阅、OPML、新建和恢复场景；已有库升级保留其已完成的刷新基线。 `CommitFeed` 继续提供原文章 ID 列表给媒体。 `SetAfterCommit` 只用来唤醒通知处理。 |
 | Go 服务 | 拟新增 `internal/notification` 存放规则、消息格式、渠道适配与投递，`internal/schedule` 负责日历、到期领取和固定任务执行。通过窄接口互连。 `main.go` 装配、启动、绑定 Wails API，退出时停止接单并取消在途工作，最后关闭 Store。 |
 | AI | `internal/appagent/app_tools.go` 复用 Registry 注册工具，在模型上下文提供本机时间、时区及能力。后台执行复用已有 `ai.Model` 接口和模型配置选择，按任务范围查询文章。 |
-| 前端 | `frontend/src/features/settings/` 的「通知」增加连接、规则、历史入口。AI 对话复用工具确认，加入「定时任务」管理入口，显示下次执行、暂停态和历史。同步生成 `frontend/bindings`。 |
+| 前端 | `frontend/src/features/settings/` 的「通知」增加连接、规则、历史入口。AI 对话复用工具确认，AI 侧栏和斜杠命令打开同一个「定时任务」管理页，支持编辑、暂停、恢复和删除，并显示下次执行与运行历史。同步生成 `frontend/bindings`。 |
 
 RSS 恢复使用既有刷新服务的到期查询、并发限制和取消机制。启动时给恢复刷新批次附进程恢复标识，普通定时刷新沿用原行为。成功的订阅按自身进度结算，无需等所有源成功。对已经有过基线但恢复请求失败的订阅，保留恢复标识到该订阅下一次成功刷新或取消订阅，迟到文章走补充批次。
 

@@ -3,14 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
-import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Separator } from '@/components/ui/separator'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { defaultZone, FlagField, Selection, TextField, time, toggle, zones } from '@/features/notifications/notification-fields'
 import { navigationAPI, navigationQueryKey } from '@/lib/navigation-api'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/notification/api'
-import type { Channel, ChannelInput, Rule, Task, WeChatBinding } from '../../../bindings/github.com/coolerks/Fealdhord/internal/notification/models'
+import type { Channel, ChannelInput, Rule, WeChatBinding } from '../../../bindings/github.com/coolerks/Fealdhord/internal/notification/models'
 
 const key = ['notifications']
 const platforms = [
@@ -29,16 +27,8 @@ const recipientFields: Record<string, { label: string; example: string }> = {
   wecom: { label: '企业微信成员 UserID', example: 'zhangsan' },
   qq: { label: 'QQ 私聊 OpenID、群 OpenID 或子频道 ID', example: 'c2c:xxxxx\\ngroup:xxxxx\\nchannel:12345' },
 }
-const actions = [{ value: 'reminder', label: '提醒' }, { value: 'articles', label: '文章列表' }, { value: 'summary', label: 'AI 文章摘要' }]
-const frequencies = [{ value: 'once', label: '一次' }, { value: 'daily', label: '每天' }, { value: 'weekly', label: '指定星期' }]
-const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'].map((label, index) => ({ value: String(index), label }))
-const defaultZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
-const zones = [...new Set([defaultZone, 'UTC', ...(Intl.supportedValuesOf?.('timeZone') ?? [])])]
-  .map(value => ({ value, label: value }))
-const time = (value: number) => value > 0 ? new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(value) : ''
 const statusLabels: Record<string, string> = {
   accepted: '已接收', unknown: '结果未知', pending: '待发送', sending: '发送中', failed: '失败', cancelled: '已取消',
-  complete: '已完成', running: '运行中', interrupted: '中断',
 }
 const blankChannel: ChannelInput = {
   id: '', name: '', platform: 'telegram', target: '', mode: '', targets: [], recipients: [], address: '', signing: '', context: '', media_app_id: '', media_secret: '', enabled: true, verified: false, revision: 0,
@@ -47,49 +37,14 @@ const blankRule: Rule = {
   id: '', name: '', mode: 'instant', categories: [], channels: [], body: false, image: false,
   enabled: true, revision: 0, next_at: 0, timezone: defaultZone, send_at: '20:00', window_start: '00:00', window_end: '20:00',
 }
-const blankTask: Task = {
-  id: '', name: '', action: 'reminder', lookback_days: 1, text: '', categories: [], channels: [], enabled: true, revision: 0, next_at: 0,
-  calendar: { kind: 'daily', timezone: defaultZone, local_time: '20:00' },
-}
-
-function toggle<T>(items: T[] | null | undefined, item: T) {
-  return items?.includes(item) ? items.filter(value => value !== item) : [...(items ?? []), item]
-}
-
-function TextField({ id, label, value, onChange, type = 'text', disabled }: {
-  id: string; label: string; value: string; onChange(value: string): void; type?: string; disabled?: boolean
-}) {
-  return <Field>
-    <FieldLabel htmlFor={id}>{label}</FieldLabel>
-    <Input id={id} value={value} type={type} disabled={disabled} onChange={event => onChange(event.target.value)} />
-  </Field>
-}
-
-function FlagField({ id, label, value, onChange }: { id: string; label: string; value: boolean; onChange(value: boolean): void }) {
-  return <Field orientation="horizontal"><FieldLabel htmlFor={id}>{label}</FieldLabel><Switch id={id} checked={value} onCheckedChange={onChange} /></Field>
-}
-
-function Selection({ id, label, options, value, onChange, placeholder, disabled }: {
-  id: string; label: string; options: { value: string; label: string }[]; value: string | string[]
-  onChange(value: string): void; placeholder?: string; disabled?: boolean
-}) {
-  return <Field>
-    <FieldLabel htmlFor={id}>{label}</FieldLabel>
-    <SearchableSelect id={id} label={label} options={options} value={value} onValueChange={onChange}
-      className="w-full" placeholder={placeholder} disabled={disabled} />
-  </Field>
-}
-
 export function NotificationSettings() {
   const client = useQueryClient()
   const channels = useQuery({ queryKey: [...key, 'channels'], queryFn: () => api.ListChannels(), retry: false })
   const rules = useQuery({ queryKey: [...key, 'rules'], queryFn: () => api.ListRules(), retry: false })
-  const tasks = useQuery({ queryKey: [...key, 'tasks'], queryFn: () => api.ListTasks(), retry: false })
   const navigation = useQuery({ queryKey: navigationQueryKey, queryFn: () => navigationAPI.list() })
   const [channel, setChannel] = useState<ChannelInput>()
   const [recipientText, setRecipientText] = useState('')
   const [rule, setRule] = useState<Rule>()
-  const [task, setTask] = useState<Task>()
   const preview = useQuery({ queryKey: [...key, 'rule-preview', rule?.timezone, rule?.send_at, rule?.window_start, rule?.window_end],
     queryFn: () => api.PreviewRule(rule!), enabled: rule?.mode === 'daily', retry: false })
   const [wechat, setWeChat] = useState<WeChatBinding>()
@@ -108,10 +63,8 @@ export function NotificationSettings() {
   }, [client, wechatPoll.data?.status])
 
   const [showHistory, setShowHistory] = useState(false)
-  const [openedTask, setOpenedTask] = useState('')
   const [confirmation, setConfirmation] = useState<{ title: string; description: string; label: string; run: () => Promise<unknown> }>()
   const deliveries = useQuery({ queryKey: [...key, 'deliveries'], queryFn: () => api.ListDeliveries(), enabled: showHistory, refetchInterval: showHistory ? 5000 : false })
-  const runs = useQuery({ queryKey: [...key, 'runs', openedTask], queryFn: () => api.ListRuns(openedTask), enabled: Boolean(openedTask) })
   const mutation = useMutation({ mutationFn: (work: () => Promise<unknown>) => work(),
     onSettled: () => client.invalidateQueries({ queryKey: key, predicate: query => query.queryKey[1] !== 'wechat' }) })
   const channelOptions = (channels.data ?? []).filter(value => value.enabled && value.verified).map(value => ({ label: value.name, value: value.id }))
@@ -137,22 +90,11 @@ export function NotificationSettings() {
 
   const setChannelField = <K extends keyof ChannelInput,>(field: K, value: ChannelInput[K]) => setChannel(previous => previous && { ...previous, [field]: value })
   const setRuleField = <K extends keyof Rule,>(field: K, value: Rule[K]) => setRule(previous => previous && { ...previous, [field]: value })
-  const setTaskField = <K extends keyof Task,>(field: K, value: Task[K]) => setTask(previous => previous && { ...previous, [field]: value })
-  const setCalendar = (fields: Partial<Task['calendar']>) => setTask(previous => previous && { ...previous, calendar: { ...previous.calendar, ...fields } })
   function editChannel(value: Channel) {
     const targets = value.recipients?.map(recipient => recipient.target) ?? (value.target ? [value.target] : [])
     setChannel({ ...value, targets, address: '', signing: '', context: '', media_app_id: '', media_secret: '' })
     setRecipientText(targets.join('\n'))
   }
-  function saveTask() {
-    if (!task) return
-    const onceAt = task.calendar.once_at
-    mutation.mutate(async () => {
-      await api.SaveTask({ ...task, calendar: { ...task.calendar, once_at: onceAt } })
-      setTask(undefined)
-    })
-  }
-
   return <FieldGroup>
     <Separator />
     <section className="space-y-3" aria-label="通知渠道">
@@ -260,44 +202,6 @@ export function NotificationSettings() {
       </FieldGroup>}
     </section>
     <Separator />
-    <section className="space-y-3" aria-label="定时任务">
-      <div className="flex items-center justify-between gap-2"><h2 className="font-medium">定时任务</h2><Button size="sm" variant="outline" disabled={busy} onClick={() => setTask(blankTask)}>添加任务</Button></div>
-      {(tasks.data ?? []).map(value => <div key={value.id} className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div><p>{value.name}</p><p className="text-xs text-muted-foreground">{value.enabled ? time(value.next_at) || '已运行' : '已暂停'}</p></div>
-          <div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => setTask(value)}>编辑</Button>
-            <Button size="sm" variant="ghost" aria-expanded={openedTask === value.id} onClick={() => setOpenedTask(openedTask === value.id ? '' : value.id)}>运行记录</Button>
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => askDelete(value.name, () => api.DeleteTask(value.id, value.revision))}>删除</Button></div>
-        </div>
-        {openedTask === value.id && <div className="space-y-2 rounded-lg border p-3 text-sm">
-          {runs.isError && <p role="alert">暂时无法读取运行记录</p>}
-          {runs.data?.length === 0 && <p className="text-muted-foreground">还没有运行记录</p>}
-          {runs.data?.map(run => <div key={run.occurrence}><p>{time(run.occurrence)} · {statusLabels[run.state] ?? run.state}</p>
-            {run.result && <p className="whitespace-pre-wrap break-words text-muted-foreground">{run.result}</p>}</div>)}
-        </div>}
-      </div>)}
-      {task && <FieldGroup className="rounded-lg border p-3">
-        <TextField id="notification-task-name" label="任务名称" value={task.name} onChange={value => setTaskField('name', value)} />
-        <Selection id="notification-task-action" label="任务类型" value={task.action} options={actions} onChange={value => setTaskField('action', value)} />
-        <Selection id="notification-task-frequency" label="重复方式" value={task.calendar.kind} options={frequencies} onChange={value => setCalendar({ kind: value })} />
-        <Selection id="notification-task-timezone" label="时区" value={task.calendar.timezone} options={zones} onChange={value => setCalendar({ timezone: value })} />
-        {task.calendar.kind === 'once'
-          ? <TextField id="notification-task-once" label="执行时间" type="datetime-local" value={task.calendar.once_at?.slice(0, 16) ?? ''} onChange={value => setCalendar({ once_at: value })} />
-          : <TextField id="notification-task-at" label="执行时间" type="time" value={task.calendar.local_time} onChange={value => setCalendar({ local_time: value })} />}
-        {task.calendar.kind === 'weekly' && <Selection id="notification-task-days" label="星期" value={(task.calendar.weekdays ?? []).map(String)} options={weekdays} onChange={value => setCalendar({ weekdays: toggle(task.calendar.weekdays, Number(value)) })} />}
-        {task.action !== 'reminder' && <>
-          <Selection id="notification-task-categories" label="分类" value={task.categories ?? []} options={categoryOptions} placeholder="全部分类" onChange={value => setTaskField('categories', toggle(task.categories, value))} />
-          <TextField id="notification-task-lookback" label="回看天数（1 至 30 天）" type="number" value={String(task.lookback_days || 1)} onChange={value => setTaskField('lookback_days', Number(value))} />
-        </>}
-        <Selection id="notification-task-channels" label="接收渠道" value={task.channels ?? []} options={channelOptions} placeholder="仅应用内" onChange={value => setTaskField('channels', toggle(task.channels, value))} />
-        <Field><FieldLabel htmlFor="notification-task-text">{task.action === 'summary' ? '摘要要求' : '任务正文'}</FieldLabel>
-          <Textarea id="notification-task-text" value={task.text} onChange={event => setTaskField('text', event.target.value)} /></Field>
-        <FlagField id="notification-task-enabled" label="启用任务" value={task.enabled} onChange={value => setTaskField('enabled', value)} />
-        <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setTask(undefined)}>取消</Button>
-          <Button disabled={busy} onClick={saveTask}>保存任务</Button></div>
-      </FieldGroup>}
-    </section>
-    <Separator />
     <section aria-label="投递历史" className="space-y-2">
       <Button size="sm" variant="outline" aria-expanded={showHistory} onClick={() => setShowHistory(value => !value)}>投递历史</Button>
       {showHistory && deliveries.isError && <p role="alert">暂时无法读取投递历史</p>}
@@ -321,6 +225,6 @@ export function NotificationSettings() {
       </DialogContent>}
     </Dialog>
     {mutation.error && !confirmation && <p role="alert" className="text-destructive">{mutation.error.message}</p>}
-    {(channels.isError || rules.isError || tasks.isError) && <p role="alert" className="text-destructive">暂时无法读取通知配置</p>}
+    {(channels.isError || rules.isError) && <p role="alert" className="text-destructive">暂时无法读取通知配置</p>}
   </FieldGroup>
 }

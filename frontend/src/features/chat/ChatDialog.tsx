@@ -2,6 +2,7 @@ import { clearSelectionWithin } from '@/app/TextSelection'
 import { ChatSlashMenu } from './ChatSlashMenu'
 import type { SlashItem, SlashPage } from './ChatSlashMenu'
 import { ChatContext } from './ChatContext'
+import { ScheduledTasks } from './ScheduledTasks'
 import { ModelBrand } from '@/features/settings/ModelMetadata'
 import { skillsKey } from '@/features/settings/AIPlatformSettings'
 import { Switch } from '@/components/ui/switch'
@@ -146,6 +147,7 @@ function ChatSession({ target, close, workspace }: {
   const [slashPage, setSlashPage] = useState<SlashPage>('actions')
   const [highlightedSlash, setHighlightedSlash] = useState('')
   const [contextOpen, setContextOpen] = useState(false)
+  const [tasksOpen, setTasksOpen] = useState(false)
   const slashQuery = workspace && composerFocused && !slashDismissed ? slashCommand.exec(draft)?.[1] : undefined
   const [includeContext, setIncludeContext] = useState(false)
   const [allowArticleReads, setAllowArticleReads] = useState(false)
@@ -157,6 +159,7 @@ function ChatSession({ target, close, workspace }: {
   const [effortChoices, setEffortChoices] = useState<Record<string, string>>({})
   const [following, setFollowing] = useState(true)
   const [conversationsScrolled, setConversationsScrolled] = useState(false)
+  const chatContent = useRef<HTMLDivElement>(null)
   const composer = useRef<HTMLTextAreaElement>(null)
   const timeline = useRef<HTMLDivElement>(null)
   const follow = useRef(true)
@@ -252,12 +255,17 @@ function ChatSession({ target, close, workspace }: {
   useLayoutEffect(() => {
     const element = timeline.current
     if (element && follow.current) element.scrollTop = element.scrollHeight
-  }, [messages.data, conversationId, theme, following])
+  }, [messages.data, conversationId, theme, following, tasksOpen])
   const inWorkspace = Boolean(workspace?.present)
   useLayoutEffect(() => {
-    if (inWorkspace) composer.current?.focus({ preventScroll: true })
-  }, [inWorkspace])
+    if (inWorkspace && !tasksOpen) composer.current?.focus({ preventScroll: true })
+  }, [inWorkspace, tasksOpen])
+  function openTasks() {
+    if (chatContent.current) clearSelectionWithin(chatContent.current)
+    setTasksOpen(true)
+  }
   function choose(id: string) {
+    setTasksOpen(false)
     follow.current = true
     setFollowing(true)
     setChosen(id)
@@ -347,7 +355,7 @@ function ChatSession({ target, close, workspace }: {
       case 'attach': setPicking(true); break
       case 'context': setContextOpen(true); break
       case 'settings': showSettings('ai'); break
-      case 'tasks': showSettings('notifications'); break
+      case 'tasks': openTasks(); break
       case 'skill': toggleSkill(item.value); break
       case 'model': selectModel(item.value); break
       case 'effort':
@@ -366,6 +374,11 @@ function ChatSession({ target, close, workspace }: {
         <div className="sidebar-titlebar" />
         <div className="system-nav">
           <SidebarAction label="新对话" meaning="add" shortcut={newConversationShortcut} disabled={send.isPending} onClick={() => choose('')} />
+          <Button variant={tasksOpen ? 'secondary' : 'ghost'} className={cn('nav-item', tasksOpen && 'is-current')}
+            aria-current={tasksOpen ? 'page' : undefined} onClick={openTasks}>
+            {tasksOpen && <span className="nav-selected-surface" />}
+            <CalendarClock />定时任务
+          </Button>
         </div>
         <div className="sidebar-organize-wrap" data-scrolled={conversationsScrolled}>
         <nav className="sidebar-organize" aria-label="会话" onKeyDown={moveSidebarFocus}
@@ -373,7 +386,7 @@ function ChatSession({ target, close, workspace }: {
           <div className="nav-section-heading"><h2>会话</h2></div>
           {history.isPending && <p role="status">正在读取会话…</p>}
           <ul className="feed-nav">{history.data?.map(item => {
-            const current = item.id === conversationId
+            const current = !tasksOpen && item.id === conversationId
             return <li key={item.id}>
               <Button data-navigation={item.id} variant={current ? 'secondary' : 'ghost'} className={cn('nav-item', current && 'is-current')}
                 aria-current={current ? 'page' : undefined} disabled={send.isPending} onClick={() => choose(item.id)}>
@@ -389,10 +402,13 @@ function ChatSession({ target, close, workspace }: {
           <SemanticButton id="open-ai-settings" icon={Settings} meaning="settings" label="AI 设置" onClick={() => showSettings('ai')} />
         </div></footer>
       </motion.aside>, workspace.sidebar)}
+    {workspace && tasksOpen && <ScheduledTasks collapsed={workspace.collapsed} onBack={() => setTasksOpen(false)} />}
+    <div ref={chatContent} hidden={tasksOpen} className={tasksOpen ? undefined : 'contents'}>
     {workspace ? <header className="workspace-toolbar chat-header" data-sidebar-collapsed={workspace.collapsed}>
       {workspace.collapsed && <SemanticButton icon={BookOpen} meaning="book" label="阅读" onClick={close} />}
       <Sparkles className="chat-heading-icon" aria-hidden="true" />
       <h1>{history.data?.find(item => item.id === conversationId)?.title ?? (conversationId ? 'AI 助手' : '新对话')}</h1>
+      {workspace.collapsed && <Button type="button" variant="ghost" size="icon" aria-label="定时任务" title="定时任务" onClick={openTasks}><CalendarClock /></Button>}
       {workspace.collapsed && <SemanticButton icon={Plus} meaning="add" label="新对话" aria-keyshortcuts={newConversationShortcut}
         disabled={send.isPending} onClick={() => choose('')} />}
     </header> : <div className="flex flex-wrap items-center gap-3">
@@ -548,6 +564,7 @@ function ChatSession({ target, close, workspace }: {
       </form>
       {workspace && invalidEffort && !send.isError && <p role="alert">{errorLabels.ChatReasoningUnavailable}</p>}
       {(send.isError || cancel.isError) && <p role="alert">{errorText(send.error ?? cancel.error)}</p>}
+    </div>
     </div>
   </div>
 }
