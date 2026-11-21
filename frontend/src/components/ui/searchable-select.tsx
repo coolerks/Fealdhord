@@ -6,6 +6,7 @@ import { AnimatedGlyph } from '@/components/animated-glyph'
 import type { IconMeaning } from '@/components/animated-glyph'
 import { Button } from '@/components/ui/button'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
@@ -13,6 +14,7 @@ type Option = {
   value: string
   label: string
   accessibleLabel?: string
+  description?: string
   keywords?: readonly string[]
   icon?: LucideIcon
   graphic?: ReactNode
@@ -34,26 +36,35 @@ function SelectOption({ option, checked, announceSelection, onSelect, submenu, e
   const text = useRef<HTMLSpanElement>(null)
   const [open, setOpen] = useState(false)
 
+  const item = <div ref={anchor}>
+    <CommandItem className="h-8 min-w-0 rounded-lg px-2 py-0 data-[expanded=true]:bg-muted" value={option.value}
+      keywords={[option.label, ...(option.keywords ?? [])]} disabled={option.disabled}
+      data-checked={checked} aria-checked={announceSelection ? checked : undefined}
+      data-expanded={expanded} aria-haspopup={submenu ? 'dialog' : undefined}
+      aria-label={option.accessibleLabel} aria-description={option.description ?? submenu?.summary} onSelect={onSelect}>
+      {option.graphic ?? (option.icon && <AnimatedGlyph icon={option.icon} meaning={option.meaning} />)}
+      <span className="flex min-w-0 flex-1 items-center gap-2">
+        <span ref={text} className="truncate">{option.label}</span>
+        {submenu?.summary && <span className="max-w-24 shrink-0 truncate text-muted-foreground">{submenu.summary}</span>}
+      </span>
+      {submenu && !checked && <span data-slot="command-shortcut"><AnimatedGlyph meaning="chevron-right" /></span>}
+    </CommandItem>
+  </div>
+  if (option.description) {
+    return <HoverCard openDelay={250} closeDelay={0}>
+      <HoverCardTrigger asChild>{item}</HoverCardTrigger>
+      <HoverCardContent side="right" align="start" sideOffset={8} collisionPadding={8}
+        className="pointer-events-none max-w-[min(16rem,var(--radix-hover-card-content-available-width))]">
+        <p className="wrap-anywhere font-medium">{option.label}</p>
+        <p className="mt-1 whitespace-pre-line wrap-anywhere text-xs text-muted-foreground">{option.description}</p>
+      </HoverCardContent>
+    </HoverCard>
+  }
   return <Tooltip open={open} disableHoverableContent onOpenChange={next => {
     const element = text.current
     setOpen(next && Boolean(element && element.scrollWidth > element.clientWidth))
   }}>
-    <TooltipTrigger asChild>
-      <div ref={anchor}>
-        <CommandItem className="h-8 min-w-0 rounded-lg px-2 py-0 data-[expanded=true]:bg-muted" value={option.value}
-          keywords={[option.label, ...(option.keywords ?? [])]} disabled={option.disabled}
-          data-checked={checked} aria-checked={announceSelection ? checked : undefined}
-          data-expanded={expanded} aria-haspopup={submenu ? 'dialog' : undefined}
-          aria-label={option.accessibleLabel} aria-description={submenu?.summary} onSelect={onSelect}>
-          {option.graphic ?? (option.icon && <AnimatedGlyph icon={option.icon} meaning={option.meaning} />)}
-          <span className="flex min-w-0 flex-1 items-center gap-2">
-            <span ref={text} className="truncate">{option.label}</span>
-            {submenu?.summary && <span className="max-w-24 shrink-0 truncate text-muted-foreground">{submenu.summary}</span>}
-          </span>
-          {submenu && !checked && <span data-slot="command-shortcut"><AnimatedGlyph meaning="chevron-right" /></span>}
-        </CommandItem>
-      </div>
-    </TooltipTrigger>
+    <TooltipTrigger asChild>{item}</TooltipTrigger>
     <TooltipContent sideOffset={4} collisionPadding={8}
       className="pointer-events-none max-w-[min(24rem,var(--radix-tooltip-content-available-width))] whitespace-normal wrap-anywhere">
       {option.label}

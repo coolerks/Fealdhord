@@ -78,10 +78,10 @@ func Builtins(s Services) *Registry {
 		return result
 	})
 	for _, pair := range []struct {
-		name  string
-		value bool
-	}{{"mark_read", true}, {"mark_unread", false}} {
-		Register(r, "article."+pair.name, "批量设置文章已读状态", true, func(ctx context.Context, input ids) any {
+		name, description string
+		value             bool
+	}{{"mark_read", "将指定文章批量标为已读", true}, {"mark_unread", "将指定文章批量标为未读", false}} {
+		Register(r, "article."+pair.name, pair.description, true, func(ctx context.Context, input ids) any {
 			if len(input.IDs) == 0 || len(input.IDs) > 100 {
 				return "ValidationError"
 			}
@@ -96,15 +96,18 @@ func Builtins(s Services) *Registry {
 		})
 	}
 	for _, pair := range []struct {
-		name  string
-		value bool
-	}{{"favorite", true}, {"unfavorite", false}} {
-		Register(r, "article."+pair.name, "修改文章收藏状态", true, func(ctx context.Context, input id) library.StateResult {
+		name, description string
+		value             bool
+	}{{"favorite", "将指定文章加入收藏", true}, {"unfavorite", "将指定文章从收藏移除", false}} {
+		Register(r, "article."+pair.name, pair.description, true, func(ctx context.Context, input id) library.StateResult {
 			return s.Library.SetFavorite(ctx, library.StateRequest{ArticleID: input.ID, Value: pair.value})
 		})
 	}
-	for _, pair := range []struct{ name, state string }{{"add_category", "included"}, {"remove_category", "excluded"}} {
-		Register(r, "article."+pair.name, "修改文章的分类成员关系", true, func(ctx context.Context, input navigation.MembershipRequest) navigation.Result {
+	for _, pair := range []struct{ name, state, description string }{
+		{"add_category", "included", "将指定文章加入分类"},
+		{"remove_category", "excluded", "将指定文章从分类移除"},
+	} {
+		Register(r, "article."+pair.name, pair.description, true, func(ctx context.Context, input navigation.MembershipRequest) navigation.Result {
 			input.State = pair.state
 			return s.Navigation.SetMembership(ctx, input)
 		})

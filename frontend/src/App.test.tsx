@@ -27,7 +27,7 @@ vi.mock('@/lib/rss-api',()=>({feedsQueryKey:['rss','feeds'],rssAPI:{list:vi.fn(a
 vi.mock('@/lib/navigation-api',()=>({navigationQueryKey:['navigation'],navigationAPI:{list:vi.fn(async()=>({categories:[],feeds:[],totals:{total:0,unread:0,favorites:0}}))}}))
 const reader=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
 vi.mock('@/lib/reader-api',()=>({readerAPI:reader}))
-const chat = vi.hoisted(() => ({ List: vi.fn(), Create: vi.fn(), Messages: vi.fn(), Send: vi.fn(), Cancel: vi.fn(), Model: vi.fn() }))
+const chat = vi.hoisted(() => ({ List: vi.fn(), Create: vi.fn(), Messages: vi.fn(), Send: vi.fn(), Cancel: vi.fn(), Model: vi.fn(), ContextStatus: vi.fn() }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/chat/api', () => chat)
 const listAIConfiguration = vi.hoisted(() => vi.fn())
 const saveAIModel = vi.hoisted(() => vi.fn())
@@ -47,6 +47,10 @@ let geometry: ReturnType<typeof installGeometry>
 beforeEach(() => {
   vi.clearAllMocks()
   useChatTarget.setState({ target: null })
+  chat.ContextStatus.mockResolvedValue({
+    budget: { context: 32768, inputLimit: 24064, outputReserve: 8192, estimated: true },
+    history: 0, used: 0, contextAfter: 0, summary: '', pins: [], lastInput: 0, autoCompact: false, lastModel: '',
+  })
   listAIConfiguration.mockResolvedValue({ providers: [], models: [], assignments: [] })
   host.isMac.mockReturnValue(false)
   host.isWindows.mockReturnValue(false)
@@ -65,6 +69,41 @@ function setup(withArticles = false) {
 }
 
 describe('Phase 1 阅读 Shell', () => {
+  it('会话自动重试，悬停上下文圆环查看用量并在回复结束后更新', async () => {
+    const user = userEvent.setup()
+    setup()
+    chat.List.mockRejectedValueOnce(new Error('StorageError')).mockResolvedValue([{ id: 'context-chat', title: '会话记录' }])
+    chat.Messages.mockResolvedValue([])
+    const status = {
+      budget: { context: 2048, inputLimit: 1500, outputReserve: 500, estimated: false },
+      history: 1, used: 375, contextAfter: 0, summary: '', pins: [], lastInput: 0, autoCompact: false, lastModel: '',
+    }
+    chat.ContextStatus.mockResolvedValue(status)
+    listAIConfiguration.mockResolvedValue({
+      providers: [{ id: 'provider', name: '本地服务', enabled: true }],
+      models: [{ id: 'model', providerId: 'provider', name: 'model', displayName: '模型', enabled: true }],
+      assignments: [],
+    })
+    await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    const sidebar = await screen.findByRole('complementary', { name: 'AI 会话导航' })
+    expect(await within(sidebar).findByRole('button', { name: '会话记录' })).toBeInTheDocument()
+    expect(within(sidebar).queryByRole('button', { name: '重新读取历史' })).not.toBeInTheDocument()
+    const ring = screen.getByRole('button', { name: '会话上下文' })
+    await waitFor(() => expect(ring).toHaveAccessibleDescription('已占用输入预算 25%（估算）'))
+    expect(ring).toHaveTextContent(/^$/)
+    expect(ring.querySelector('circle[pathLength]')).toHaveAttribute('stroke-dasharray', '25 100')
+    await user.hover(ring)
+    expect(await screen.findByText('375 / 1,500')).toBeInTheDocument()
+    chat.ContextStatus.mockResolvedValue({ ...status, used: 750 })
+    const runtime: { dispatchWailsEvent: (event: { name: string; data: UpdateEvent }) => void } = Reflect.get(window, '_wails')
+    act(() => runtime.dispatchWailsEvent({ name: FealdhordChatUpdate, data: { conversationId: 'context-chat', messageId: 'reply', offset: 0, delta: '', done: true } }))
+    expect(await screen.findByText('750 / 1,500')).toBeInTheDocument()
+    expect(ring.querySelector('circle[pathLength]')).toHaveAttribute('stroke-dasharray', '50 100')
+    await user.click(ring)
+    expect(await screen.findByRole('dialog', { name: '会话上下文' })).toBeInTheDocument()
+    expect(screen.queryByText('750 / 1,500')).not.toBeInTheDocument()
+  })
+
   it('全局 AI 工作区切换会话和本轮模型，停止后返回原阅读位置', async () => {
     const user = userEvent.setup()
     const { client, container } = setup(true)
@@ -254,7 +293,9 @@ describe('Phase 1 阅读 Shell', () => {
     const providers = [{ id: 'provider', name: '本地服务', protocol: 'chat_completions', enabled: true, revision: 0 }]
     listAIConfiguration.mockResolvedValue({ providers, models: [], assignments: [] })
     saveAIModel.mockImplementation(async input => {
-      const saved = { ...input, id: 'saved', revision: 1 }
+      const saved = { ...input, id: 'saved', revision: 1,
+        metadata: { context: 256000, modalities: ['text', 'image'], source: 'Pi', promptPrice: 0, referencePrice: true },
+      }
       listAIConfiguration.mockResolvedValue({ providers, models: [saved], assignments: [] })
       return saved
     })
@@ -277,6 +318,12 @@ describe('Phase 1 阅读 Shell', () => {
         { label: '超高', value: 'xhigh' }, { label: '深度', value: 'custom_max' }],
     }))
     const models = screen.getByRole('region', { name: '模型' })
+    const name = await within(models).findByText('实验模型')
+    expect(within(models).getByRole('img', { name: '图片' })).toBeInTheDocument()
+    expect(screen.queryByText('目录参考价 / 百万令牌')).not.toBeInTheDocument()
+    await user.hover(name)
+    expect(await screen.findByText('目录参考价 / 百万令牌')).toBeInTheDocument()
+    expect(screen.getByText('Pi')).toBeInTheDocument()
     await user.click(await within(models).findByRole('button', { name: '编辑' }))
     expect(screen.getByRole('button', { name: '删除档位 深度' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '删除档位 中' })).not.toBeInTheDocument()

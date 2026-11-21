@@ -5,6 +5,7 @@ import { FealdhordChatUpdate } from '../../../bindings/events'
 import { Messages } from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/api'
 import type { Message } from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
 
+export const chatContextKey = (id: string) => ['chat-context', id] as const
 export const chatMessagesKey = (id: string) => ['chat', 'messages', id] as const
 
 export function useChatMessages(id: string) {
@@ -24,6 +25,7 @@ export function useChatMessages(id: string) {
       if (event.conversationId !== id) return
       if (event.done) {
         void cache.invalidateQueries({ queryKey: key, exact: true })
+        void cache.invalidateQueries({ queryKey: chatContextKey(id) })
         return
       }
       const saved = cache.getQueryData<Message[]>(key)?.find(message => message.id === event.messageId)

@@ -1,4 +1,5 @@
-import { ModelBrand, ModelCapabilities } from './ModelMetadata'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
+import { ModelBrand, ModelCapabilities, ModelDetails } from './ModelMetadata'
 import { AIPlatformSettings } from './AIPlatformSettings'
 import { ModelCatalogField } from './ModelCatalogField'
 import { notify } from '@/lib/notifications'
@@ -153,12 +154,35 @@ export function AISettings() {
     <Separator />
     <section className="space-y-3" aria-label="模型">
       <h3>模型</h3>
-      {models.map(item => <div key={item.id} className="flex flex-wrap items-center gap-2">
-        <ModelBrand brand={item.metadata?.brand} override={item.metadata?.brandOverride} /><span className="mr-auto">{item.displayName} · {providers.find(service => service.id === item.providerId)?.name}{!item.enabled && '（已停用）'}</span>
-        <Button size="sm" variant="ghost" disabled={busy} onClick={() => { mutation.reset(); setModel(item) }}>编辑</Button>
-        <Button size="sm" variant="ghost" disabled={busy} onClick={() => setDeleting(item.id)}>删除</Button>
-        <Button size="sm" variant="ghost" disabled={busy || !activeModels.includes(item) || !!testing} onClick={() => setTesting(item.id)}>测试连接</Button>
-        <div className="w-full"><ModelCapabilities metadata={item.metadata} /></div>
+      <ul className="divide-y divide-border">
+      {models.map(item => <li key={item.id} className="flex flex-col gap-2 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div className="flex min-w-0 flex-[1_1_12rem] items-start gap-2">
+            <span className="mt-0.5 shrink-0"><ModelBrand brand={item.metadata?.brand} override={item.metadata?.brandOverride} /></span>
+            <div className="min-w-0">
+              <HoverCard openDelay={250}>
+                <HoverCardTrigger asChild>
+                  <span className="block truncate font-medium">{item.displayName}</span>
+                </HoverCardTrigger>
+                <HoverCardContent align="start" side="top">
+                  <div className="flex flex-col gap-2">
+                    <p className="wrap-anywhere font-medium">{item.displayName}</p>
+                    <ModelDetails metadata={item.metadata} />
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
+                <span>{providers.find(service => service.id === item.providerId)?.name}{!item.enabled && '（已停用）'}</span>
+                <ModelCapabilities metadata={item.metadata} />
+              </div>
+            </div>
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => { mutation.reset(); setModel(item) }}>编辑</Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => setDeleting(item.id)}>删除</Button>
+            <Button size="sm" variant="ghost" disabled={busy || !activeModels.includes(item) || !!testing} onClick={() => setTesting(item.id)}>测试连接</Button>
+          </div>
+        </div>
         {testing === item.id && <div className="w-full space-x-2">
           <span>将向服务发送一条测试消息，可能产生费用。</span>
           <Button size="sm" variant="outline" disabled={busy} onClick={() => void runTest(item.id)}>{testRunning ? '正在测试…' : '开始测试'}</Button>
@@ -179,7 +203,8 @@ export function AISettings() {
           })}>确认删除</Button>
           <Button size="sm" variant="ghost" onClick={() => setDeleting('')}>取消</Button>
         </div>}
-      </div>)}
+      </li>)}
+      </ul>
       {model && <form className="space-y-3" onSubmit={event => {
         event.preventDefault()
         if (busy) return
@@ -207,7 +232,7 @@ export function AISettings() {
             options={[{ value: 'auto', label: '自动匹配' }, { value: 'none', label: '通用图标' }, ...Array.from(new Set([...commonBrands, ...(brands.data ?? []), ...(model.metadata?.brand ? [model.metadata.brand] : [])])).map(brand => ({ value: brand, label: brand, graphic: <ModelBrand brand={brand} /> }))]}
             onValueChange={brand => setModel({ ...model, metadata: { ...model.metadata, brandOverride: brand === 'auto' ? undefined : brand } })} />
         </Field>
-        <ModelCapabilities metadata={model.metadata} />
+        <ModelDetails metadata={model.metadata} />
         <fieldset className="space-y-2" disabled={busy}>
           <legend className="font-medium">思考档位</legend>
           {reasoningLevels.map((level, index) => <div key={index} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2">

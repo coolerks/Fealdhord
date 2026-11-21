@@ -75,3 +75,25 @@ it('shows the full label on hover only when the option text overflows', async ()
   await user.hover(screen.getByRole('option', { name: '短名称' }))
   await waitFor(() => expect(tooltip()).toBeNull())
 })
+
+it('previews a tool description beside its option without changing selection', async () => {
+  const user = userEvent.setup()
+  const choose = vi.fn()
+  const description = '将指定文章批量标为未读'
+  render(<TooltipProvider><SearchableSelect label="公开工具" value={[]} onValueChange={choose} options={[
+    { value: 'article.mark_unread', label: 'article.mark_unread', description, keywords: [description] },
+    { value: 'article.list', label: 'article.list' },
+  ]} /></TooltipProvider>)
+  await user.click(screen.getByRole('button', { name: '公开工具' }))
+  const option = screen.getByRole('option', { name: 'article.mark_unread' })
+  expect(option).toHaveAccessibleDescription(description)
+  expect(screen.queryByText(description)).not.toBeInTheDocument()
+  await user.hover(option)
+  const preview = await screen.findByText(description)
+  expect(preview.closest('[data-slot=hover-card-content]')).toHaveAttribute('data-side', 'right')
+  expect(choose).not.toHaveBeenCalled()
+  await user.click(option)
+  expect(choose).toHaveBeenCalledExactlyOnceWith('article.mark_unread')
+  await user.keyboard('{Escape}')
+  expect(screen.queryByText(description)).not.toBeInTheDocument()
+})

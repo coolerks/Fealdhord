@@ -2,18 +2,23 @@ import { Switch } from '@/components/ui/switch'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
+import { chatContextKey } from './useChatMessages'
 import { Textarea } from '@/components/ui/textarea'
 import { ContextStatus, GenerateContextSummary, PinContextArticle, SaveContext, SetAutomaticCompaction } from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/api'
 
-export function ChatContext({ id, modelId, windowSize, disabled, attachments }: {
-  id: string; modelId: string; windowSize: number; disabled: boolean; attachments: { id: string; title: string }[]
+const formatPercent = new Intl.NumberFormat(undefined, { style: 'percent', maximumFractionDigits: 1 })
+
+export function ChatContext({ id, modelId, modelRevision, disabled, attachments }: {
+  id: string; modelId: string; modelRevision: number; disabled: boolean; attachments: { id: string; title: string }[]
 }) {
   const cache = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [preview, setPreview] = useState(false)
   const [summary, setSummary] = useState<string>()
-  const key = ['chat-context', id, modelId]
-  const state = useQuery({ queryKey: key, queryFn: () => ContextStatus(id, modelId), enabled: open, retry: false, staleTime: 0 })
+  const key = [...chatContextKey(id), modelId, modelRevision]
+  const state = useQuery({ queryKey: key, queryFn: () => ContextStatus(id, modelId), retry: false })
   const save = useMutation({
     mutationFn: (restore: boolean) => Promise.resolve(SaveContext(id, summary ?? state.data?.summary ?? '', restore)),
     onSuccess: async () => { await cache.invalidateQueries({ queryKey: key }); setSummary(undefined) },
@@ -31,11 +36,40 @@ export function ChatContext({ id, modelId, windowSize, disabled, attachments }: 
     onSuccess: () => cache.invalidateQueries({ queryKey: key }),
   })
   const pins = state.data?.pins ?? []
-  return <>
-    <Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={() => { setSummary(undefined); setOpen(true) }}>
-      {windowSize.toLocaleString()} 上下文
-    </Button>
-    <Dialog open={open} onOpenChange={setOpen}>
+  const ratio = state.data && state.data.budget.inputLimit > 0
+    ? state.data.used / state.data.budget.inputLimit : undefined
+  const percent = ratio === undefined ? undefined : ratio > 0 && ratio < 0.001 ? `<${formatPercent.format(0.001)}` : formatPercent.format(ratio)
+  return (
+    <Dialog open={open} onOpenChange={next => {
+      setOpen(next)
+      if (next) {
+        setPreview(false)
+        setSummary(undefined)
+      }
+    }}>
+      <HoverCard open={preview && !open} onOpenChange={setPreview} openDelay={250}>
+        <HoverCardTrigger asChild>
+          <DialogTrigger asChild>
+            <Button type="button" size="icon-sm" variant="ghost" aria-label="会话上下文"
+              aria-description={percent ? `已占用输入预算 ${percent}（估算）` : undefined}>
+              <svg viewBox="0 0 24 24" fill="none" strokeWidth="3" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" className="stroke-muted-foreground/25" />
+                {ratio !== undefined && ratio > 0 && <circle cx="12" cy="12" r="9" pathLength="100"
+                  transform="rotate(-90 12 12)" strokeLinecap="round" className="stroke-muted-foreground"
+                  strokeDasharray={`${Math.min(ratio, 1) * 100} 100`} />}
+              </svg>
+            </Button>
+          </DialogTrigger>
+        </HoverCardTrigger>
+        <HoverCardContent side="top" sideOffset={8} className="w-auto min-w-48">
+          {state.data && percent ? <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1">
+            <dt className="font-medium">上下文占用（估算）</dt><dd className="text-right tabular-nums">{percent}</dd>
+            <dt className="text-muted-foreground">已用 / 输入预算</dt>
+            <dd className="text-right tabular-nums">{state.data.used.toLocaleString()} / {state.data.budget.inputLimit.toLocaleString()}</dd>
+            <dt className="text-muted-foreground">模型窗口</dt><dd className="text-right tabular-nums">{state.data.budget.context.toLocaleString()}</dd>
+          </dl> : <p className="text-muted-foreground">{state.isPending ? '正在读取上下文…' : '上下文用量不可用'}</p>}
+        </HoverCardContent>
+      </HoverCard>
       <DialogContent>
         <DialogHeader><DialogTitle>会话上下文</DialogTitle>
           <DialogDescription>可以保留可见聊天记录，并从当前消息之后重新积累模型上下文。</DialogDescription></DialogHeader>
@@ -85,5 +119,5 @@ export function ChatContext({ id, modelId, windowSize, disabled, attachments }: 
         </>}
       </DialogContent>
     </Dialog>
-  </>
+  )
 }

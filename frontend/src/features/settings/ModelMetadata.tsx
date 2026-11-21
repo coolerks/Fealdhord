@@ -13,19 +13,34 @@ const modalities = {
   text: [TextCursor, '文字'], image: [Image, '图片'], audio: [AudioLines, '音频'],
   video: [Film, '视频'], pdf: [FileText, 'PDF'],
 } as const
+const compactNumber = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 })
 const price = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 6 })
 
 export function ModelCapabilities({ metadata }: { metadata?: Metadata }) {
-  if (!metadata) return null
-  return <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-    {metadata.modalities?.map(input => {
+  return <>
+    {metadata?.modalities?.map(input => {
       const [Icon, label] = modalities[input as keyof typeof modalities] ?? [FileText, input]
-      return <span key={input} role="img" title={label} aria-label={label}><Icon className="size-4" /></span>
+      return <span key={input} role="img" title={label} aria-label={label}><Icon className="size-3.5" /></span>
     })}
-    {metadata.context ? <span>{metadata.context.toLocaleString()} 上下文</span> : null}
-    {metadata.source && <span title={metadata.updatedAt ? new Date(metadata.updatedAt).toLocaleString() : undefined}>{metadata.source}</span>}
-    {metadata.referencePrice && (metadata.promptPrice != null || metadata.completionPrice != null) && <span>目录参考价</span>}
-    {metadata.promptPrice != null && <span>输入 {price.format(metadata.promptPrice)}/百万令牌</span>}
-    {metadata.completionPrice != null && <span>输出 {price.format(metadata.completionPrice)}/百万令牌</span>}
-  </span>
+    {metadata?.context ? <span className="whitespace-nowrap">{compactNumber.format(metadata.context)} 上下文</span> : null}
+  </>
+}
+
+export function ModelDetails({ metadata }: { metadata?: Metadata }) {
+  if (!metadata) return null
+  const inputPrice = metadata.promptPrice
+  const outputPrice = metadata.completionPrice
+  const hasPrices = inputPrice != null || outputPrice != null
+  return <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5 text-xs">
+    {metadata.context ? <><dt className="text-muted-foreground">上下文窗口</dt><dd className="text-right tabular-nums">{metadata.context.toLocaleString()}</dd></> : null}
+    {metadata.outputLimit ? <><dt className="text-muted-foreground">最大输出</dt><dd className="text-right tabular-nums">{metadata.outputLimit.toLocaleString()}</dd></> : null}
+    {hasPrices && <>
+      <dt className="col-span-2 text-muted-foreground">{metadata.referencePrice ? '目录参考价' : '价格'} / 百万令牌</dt>
+      {inputPrice != null && <><dt className="text-muted-foreground">输入</dt><dd className="text-right tabular-nums">{price.format(inputPrice)}</dd></>}
+      {outputPrice != null && <><dt className="text-muted-foreground">输出</dt><dd className="text-right tabular-nums">{price.format(outputPrice)}</dd></>}
+    </>}
+    {metadata.source && <><dt className="text-muted-foreground">来源</dt>
+      <dd className="text-right" title={metadata.updatedAt ? new Date(metadata.updatedAt).toLocaleString() : undefined}>{metadata.source}</dd>
+    </>}
+  </dl>
 }

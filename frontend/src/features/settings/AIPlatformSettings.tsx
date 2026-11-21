@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/api'
-import type { ClientConfig, ServerConfig, Skill } from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/models'
+import type { ClientConfig, ServerConfig, Skill, Tool } from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/models'
 
 const platformKey = ['ai-platform']
 export const skillsKey = [...platformKey, 'skills']
@@ -22,6 +22,17 @@ const auditStatuses: Record<string, string> = {
 }
 const newClient: ClientConfig = { name: '', endpoint: '', command: '', args: [] }
 const newSkill = { markdown: '---\nname: my-skill\ndescription: 描述何时使用\n---\n', enabled: true }
+
+function toolOption(name: string, tool?: Tool) {
+  const description = tool?.description
+  return {
+    value: name,
+    label: name,
+    keywords: description ? [description] : undefined,
+    description: description && tool?.requiresApproval && !description.includes('确认')
+      ? `${description}\n运行前需确认` : description,
+  }
+}
 
 export function AIPlatformSettings() {
   const cache = useQueryClient()
@@ -76,7 +87,7 @@ export function AIPlatformSettings() {
         </>}
         <Field><FieldLabel htmlFor="mcp-tools">公开工具</FieldLabel>
           <SearchableSelect id="mcp-tools" label="公开工具" value={config.tools ?? []} placeholder={config.tools?.length ? `已选 ${config.tools.length} 项` : '选择工具'}
-            options={(tools.data ?? []).map(tool => ({ value: tool.name, label: tool.name, keywords: [tool.description] }))}
+            options={(tools.data ?? []).map(tool => toolOption(tool.name, tool))}
             onValueChange={name => {
               const selected = config.tools ?? []
               setDraft({ ...config, tools: selected.includes(name) ? selected.filter(item => item !== name) : [...selected, name] })
@@ -117,7 +128,7 @@ export function AIPlatformSettings() {
           </Field>
           <Field><FieldLabel htmlFor="mcp-grant-tools">允许的工具</FieldLabel>
             <SearchableSelect id="mcp-grant-tools" label="允许的工具" placeholder={grantTools.length ? `已选 ${grantTools.length} 项` : '选择工具'}
-              value={grantTools} options={allowedGrantTools.map(name => ({ value: name, label: name }))}
+              value={grantTools} options={allowedGrantTools.map(name => toolOption(name, tools.data?.find(tool => tool.name === name)))}
               onValueChange={name => setGrantTools(current => current.includes(name) ? current.filter(item => item !== name) : [...current, name])} />
           </Field>
           <Button type="submit" size="sm" variant="outline" disabled={busy || grantTools.length === 0}>生成客户端令牌</Button>

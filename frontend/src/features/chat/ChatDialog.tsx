@@ -147,7 +147,13 @@ function ChatSession({ target, close, workspace }: {
   const follow = useRef(true)
   const scope = { kind: target.kind, id: target.id }
   const listKey = ['chat', 'conversations', scope.kind, scope.id] as const
-  const history = useQuery({ queryKey: listKey, queryFn: () => api.List(scope) })
+  const history = useQuery({
+    queryKey: listKey,
+    queryFn: () => api.List(scope),
+    retry: 2,
+    retryDelay: attempt => 500 * (attempt + 1),
+    refetchOnWindowFocus: true,
+  })
   const model = useQuery({ queryKey: ['chat', 'model'], queryFn: () => api.Model(), enabled: !workspace, retry: false })
   const configuration = useQuery({ queryKey: aiConfigurationKey, queryFn: listAIConfiguration, enabled: Boolean(workspace), retry: false })
   const skills = useQuery({ queryKey: skillsKey, queryFn: () => Skills(), enabled: Boolean(workspace && picking), retry: false })
@@ -271,7 +277,6 @@ function ChatSession({ target, close, workspace }: {
   const newConversationShortcut = native.isMac() ? 'Meta+Shift+N' : 'Control+Shift+N'
   const canSend = !active && Boolean(draft.trim()) && modelReady && !invalidEffort && !send.isPending && !history.isPending &&
     !(conversationId && messages.isPending)
-  const retryHistory = <Button size="sm" variant="ghost" onClick={() => void history.refetch()}>重新读取历史</Button>
   return <div className={workspace ? 'chat-session reader-html' : 'flex min-h-0 flex-col gap-3'} data-code-theme={workspace ? theme : undefined}>
     {workspace?.sidebar && createPortal(
       <motion.aside id={workspace.present ? 'workspace-sidebar' : undefined} className="glass-sidebar chat-sidebar workspace-mode-chat"
@@ -286,7 +291,7 @@ function ChatSession({ target, close, workspace }: {
           onScroll={event => setConversationsScrolled(event.currentTarget.scrollTop > 0)}>
           <div className="nav-section-heading"><h2>会话</h2></div>
           {history.isPending && <p role="status">正在读取会话…</p>}
-          {history.isError && retryHistory}
+          {history.isError && <p role="status" className="text-sm text-muted-foreground">会话暂时无法读取</p>}
           <ul className="feed-nav">{history.data?.map(item => {
             const current = item.id === conversationId
             return <li key={item.id}>
@@ -320,7 +325,7 @@ function ChatSession({ target, close, workspace }: {
           { value: 'new-conversation', label: '新对话' },
           ...(history.data ?? []).map(item => ({ value: item.id, label: item.title })),
         ]} />
-      {history.isError && retryHistory}
+      {history.isError && <p role="status" className="text-sm text-muted-foreground">会话暂时无法读取</p>}
     </div>}
     <div className={workspace ? 'chat-timeline' : 'h-[min(40vh,400px)] min-h-20 space-y-3 overflow-y-auto'}
       ref={timeline} role={workspace ? 'region' : undefined} aria-label="对话消息" tabIndex={workspace ? -1 : undefined} onScroll={event => {
@@ -404,8 +409,8 @@ function ChatSession({ target, close, workspace }: {
             <Button size="icon" type="button" variant="ghost" aria-label="附加文章" title="附加文章" aria-expanded={picking} disabled={send.isPending} onClick={() => setPicking(!picking)}><Plus /></Button>
           }
           <div className={workspace ? 'chat-composer-actions' : undefined}>
-            {workspace && selectedConfig && modelID && <ChatContext id={conversationId} modelId={modelID}
-              windowSize={selectedConfig.metadata?.context || 32768} disabled={active || send.isPending} attachments={sources} />}
+            {workspace && selectedConfig && modelID && <ChatContext id={conversationId} modelId={modelID} modelRevision={selectedConfig.revision}
+              disabled={active || send.isPending} attachments={sources} />}
             {workspace && (modelOptions.length ? <SearchableSelect label="聊天模型" className="chat-model" value={modelID ?? ''}
               options={modelOptions} variant="ghost" announceSelection placeholder="选择模型" disabled={send.isPending}
               submenus={modelSubmenus} onValueChange={selectModel}
