@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Splitter } from '@/components/splitter'
 import { ArticleCollection } from '@/features/articles/ArticleCollection'
 import { ArticleShareDialog } from '@/features/notifications/ArticleShareDialog'
+import { maxArticleShareCount } from '@/features/notifications/article-share-preferences'
 import type { Article } from '@/lib/library'
 import { ArticleViewTransition } from '@/features/articles/ArticleViewTransition'
 import { Reader, ReaderEmpty } from '@/features/reader/Reader'
@@ -83,8 +84,8 @@ export function Shell() {
   const [chatSidebar, setChatSidebar] = useState<HTMLDivElement | null>(null)
   const [settingsSidebar, setSettingsSidebar] = useState<HTMLDivElement | null>(null)
   const [chatReady, setChatReady] = useState(false)
-  const [sharing, setSharing] = useState<{ article: Article; trigger: HTMLButtonElement } | null>(null)
-  const shareArticle = useCallback((article: Article, trigger: HTMLButtonElement) => setSharing({ article, trigger }), [])
+  const [sharing, setSharing] = useState<{ articles: Article[]; batch: boolean; trigger: HTMLButtonElement } | null>(null)
+  const shareArticle = useCallback((article: Article, trigger: HTMLButtonElement) => setSharing({ articles: [article], batch: false, trigger }), [])
   const chatVisible = globalChat && chatReady
   const preferences = useWorkspace(state => state.preferences)!
   const patch = useWorkspace(state => state.patch)
@@ -276,7 +277,11 @@ export function Shell() {
         }} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
       <main ref={workspace} className={cn('reading-workspace workspace-mode-reading', !overlay && 'reader-columns', chatVisible && 'chat-obscured', settingsWorkspace && 'settings-obscured')}
         hidden={settingsWorkspace} inert={chatVisible || settingsWorkspace} aria-hidden={chatVisible || settingsWorkspace || undefined}>
-        <section className="article-pane" aria-label="文章浏览" inert={fillReader && readerVisible} aria-hidden={fillReader && readerVisible || undefined}><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />{!settingsOpen && <RefreshStatus />}
+        <section className="article-pane" aria-label="文章浏览" inert={fillReader && readerVisible} aria-hidden={fillReader && readerVisible || undefined}>
+          <Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)}
+            shareDisabled={articles.length === 0 || library.searchPending}
+            onShare={trigger => setSharing({ articles: articles.slice(0, maxArticleShareCount), batch: true, trigger })} />
+          {!settingsOpen && <RefreshStatus />}
           <ArticleViewTransition view={preferences.article_view_mode} motion={mode} host={articleTransitionHost}>
             {articles.length > 0 || library.hasNextPage ? <ArticleCollection feedIcons={feedIcons} articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onShare={shareArticle} onAnchor={saveAnchor} nextCursor={library.nextCursor} loadingMore={library.isFetchingNextPage} onLoadMore={loadMore} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
           </ArticleViewTransition>
@@ -303,9 +308,10 @@ export function Shell() {
         </AnimatePresence>
         {settingsOpen && <SettingsDialog sidebar={settingsSidebar} motionMode={mode} />}{paletteOpen && <CommandPalette />}{chatKind && !globalChat && !settingsWorkspace && <ChatDialog />}
       </Suspense>
-      {sharing && <ArticleShareDialog article={sharing.article} onClose={() => setSharing(null)} onCloseAutoFocus={event => {
+      {sharing && <ArticleShareDialog articles={sharing.articles} batch={sharing.batch} defaultCount={preferences.article_share_count}
+        summaryLimit={preferences.article_share_summary_limit} onClose={() => setSharing(null)} onCloseAutoFocus={event => {
         event.preventDefault()
-        const fallback = document.querySelector<HTMLElement>(`[data-article-trigger="${CSS.escape(sharing.article.id)}"]`)
+        const fallback = document.querySelector<HTMLElement>(`[data-article-trigger="${CSS.escape(sharing.articles[0].id)}"]`)
         ;(sharing.trigger.isConnected ? sharing.trigger : fallback)?.focus({ preventScroll: true })
       }} />}
       <div className="sr-only" aria-live="polite">{preferences.article_view_mode === 'masonry' ? '已切换到瀑布流视图' : '已切换到列表视图'}</div>

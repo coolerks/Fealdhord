@@ -18,6 +18,8 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { maxArticleShareCount, maxArticleShareSummaryLimit } from '@/features/notifications/article-share-preferences'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { ToggleGroupItem } from '@/components/ui/toggle-group'
 import { SearchableSelect } from '@/components/ui/searchable-select'
@@ -273,6 +275,14 @@ export function SettingsDialog({ sidebar, motionMode }: {
       </>}
       {tab === 'notifications' && <>
         <NotificationPreferences mode={preferences.notification_mode} autoDismiss={preferences.refresh_toast_auto_dismiss} patch={patch} />
+        <SettingSection title="文章发送">
+          <SettingCard>
+            <ArticleSharePreference id="article-share-default-count" label="默认发送条数"
+              value={preferences.article_share_count} max={maxArticleShareCount} onChange={value => set('article_share_count', value)} />
+            <ArticleSharePreference id="article-share-summary-limit" label="默认摘要字数"
+              value={preferences.article_share_summary_limit} max={maxArticleShareSummaryLimit} onChange={value => set('article_share_summary_limit', value)} />
+          </SettingCard>
+        </SettingSection>
         <Suspense fallback={null}><NotificationSettings /></Suspense>
       </>}
       {tab === 'data' && <>
@@ -355,6 +365,23 @@ export function SettingsDialog({ sidebar, motionMode }: {
       </Dialog>
     )}
   </>
+}
+
+function ArticleSharePreference({ id, label, value, max, onChange }: {
+  id: string; label: string; value: number; max: number; onChange: (value: number) => void
+}) {
+  const [draft, setDraft] = useState<string | null>(null)
+  return <SettingRow>
+    <FieldLabel htmlFor={id} className="font-normal">{label}</FieldLabel>
+    <Input id={id} className="w-24" type="number" min={1} max={max} step={1} value={draft ?? value}
+      onChange={event => setDraft(event.target.value)}
+      onBlur={event => {
+        const next = event.currentTarget.valueAsNumber
+        if (Number.isInteger(next) && next >= 1 && next <= max && next !== value) onChange(next)
+        setDraft(null)
+      }}
+      onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }} />
+  </SettingRow>
 }
 
 function NotificationPreferences({ mode, autoDismiss, patch }: {

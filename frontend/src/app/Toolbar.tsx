@@ -1,5 +1,5 @@
 import { openChat } from '@/features/chat/chat-scope'
-import { ArrowDownWideNarrow, LayoutGrid, List, PanelRightClose, PanelRightOpen, RefreshCw, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react'
+import { ArrowDownWideNarrow, LayoutGrid, List, PanelRightClose, PanelRightOpen, RefreshCw, Search, Send, SlidersHorizontal, Sparkles, X } from 'lucide-react'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { Button } from '@/components/ui/button'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -12,7 +12,10 @@ import { scopes } from './Sidebar'
 import { runCommand } from '@/lib/commands'
 import { useQueryClient } from '@tanstack/react-query'
 
-export function Toolbar({ count, overlay, hasSelection }: { count: number; overlay: boolean; hasSelection: boolean }) {
+export function Toolbar({ count, overlay, hasSelection, shareDisabled, onShare }: {
+  count: number; overlay: boolean; hasSelection: boolean
+  shareDisabled: boolean; onShare: (trigger: HTMLButtonElement) => void
+}) {
   const client=useQueryClient()
   const navigation=useNavigation()
   const preferences = useWorkspace(state => state.preferences)!
@@ -27,6 +30,7 @@ export function Toolbar({ count, overlay, hasSelection }: { count: number; overl
     {preferences.selected_scope === 'category' && <SemanticButton icon={Sparkles} meaning="ai" label="分类 AI 助手" onClick={() => openChat({kind:'category', id:preferences.selected_scope_id, label:title})}/>}
     <SemanticButton icon={RefreshCw} label="刷新所有订阅" meaning="refresh" onClick={()=>runCommand('refresh',client)} />
     <SemanticButton icon={Search} label="搜索文章" meaning="search" active={searchOpen} onClick={() => {if(searchOpen)useWorkspace.setState({searchOpen:false});else runCommand('search',client)}} />
+    <SemanticButton icon={Send} label="发送列表文章" meaning="send" disabled={shareDisabled} onClick={event => onShare(event.currentTarget)} />
     <SemanticButton id="reader-toggle" disabled={overlay && !hasSelection} icon={preferences.reader_open ? PanelRightClose : PanelRightOpen} label={overlay && !hasSelection ? '选择文章后打开阅读面板' : preferences.reader_open ? '收起阅读面板' : '展开阅读面板'} meaning="panel-right-open" onClick={() => patch({ reader_open: !preferences.reader_open })} />
   <div className="view-toolbar"><ToggleGroup type="single" value={preferences.article_view_mode} onValueChange={value => { if (value === 'list' || value === 'masonry') patch({ article_view_mode: value }) }} spacing={0} variant="outline" aria-label="文章视图"><ToggleGroupItem value="list" aria-label="列表视图" title="列表视图" className="meaning-list"><AnimatedGlyph icon={List} meaning="list"/></ToggleGroupItem><ToggleGroupItem value="masonry" aria-label="瀑布流视图" title="瀑布流视图" className="meaning-grid"><AnimatedGlyph icon={LayoutGrid} meaning="grid"/></ToggleGroupItem></ToggleGroup>
     <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="排序与筛选选项"><AnimatedGlyph icon={SlidersHorizontal} meaning="sliders-horizontal"/></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuGroup><DropdownMenuLabel>排序</DropdownMenuLabel><DropdownMenuRadioGroup value={sort} onValueChange={value => { if (value === 'newest' || value === 'oldest' || value==='relevance') useWorkspace.setState({ sort: value }) }}><DropdownMenuRadioItem value="relevance"><AnimatedGlyph meaning="search"/>搜索相关性</DropdownMenuRadioItem><DropdownMenuRadioItem value="newest"><AnimatedGlyph icon={ArrowDownWideNarrow} meaning="arrow-down-0-1"/>最新在前</DropdownMenuRadioItem><DropdownMenuRadioItem value="oldest"><AnimatedGlyph icon={ArrowDownWideNarrow} meaning="arrow-down-1-0"/>最早在前</DropdownMenuRadioItem></DropdownMenuRadioGroup></DropdownMenuGroup><DropdownMenuSeparator /><DropdownMenuGroup><DropdownMenuLabel>阅读状态</DropdownMenuLabel><DropdownMenuRadioGroup value={readFilter} onValueChange={value=>{if(value==='all'||value==='read'||value==='unread')useWorkspace.setState({readFilter:value})}}><DropdownMenuRadioItem value="all"><AnimatedGlyph meaning="book"/>全部状态</DropdownMenuRadioItem><DropdownMenuRadioItem value="unread"><AnimatedGlyph meaning="unread"/>仅未读</DropdownMenuRadioItem><DropdownMenuRadioItem value="read"><AnimatedGlyph meaning="read"/>仅已读</DropdownMenuRadioItem></DropdownMenuRadioGroup></DropdownMenuGroup><DropdownMenuSeparator/><DropdownMenuGroup><DropdownMenuLabel>收藏状态</DropdownMenuLabel><DropdownMenuRadioGroup value={favoriteFilter} onValueChange={value=>{if(value==='all'||value==='favorites'||value==='unstarred')useWorkspace.setState({favoriteFilter:value})}}><DropdownMenuRadioItem value="all"><AnimatedGlyph meaning="book"/>不限收藏</DropdownMenuRadioItem><DropdownMenuRadioItem value="favorites"><AnimatedGlyph meaning="favorite"/>仅收藏</DropdownMenuRadioItem><DropdownMenuRadioItem value="unstarred"><AnimatedGlyph meaning="favorite"/>未收藏</DropdownMenuRadioItem></DropdownMenuRadioGroup></DropdownMenuGroup><DropdownMenuSeparator /><DropdownMenuGroup><DropdownMenuItem onSelect={() => showSettings('appearance')}><AnimatedGlyph meaning="palette"/>外观与显示设置</DropdownMenuItem></DropdownMenuGroup></DropdownMenuContent></DropdownMenu>

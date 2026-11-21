@@ -97,3 +97,61 @@ func TestArticleShareLinkOnlyUsesChannelFormat(t *testing.T) {
 		t.Fatal("plain-text channels should receive the raw URL")
 	}
 }
+
+func TestArticleShareBatchUsesRequestedOrderAndTruncatesSummary(t *testing.T) {
+	s, now := newTestNotification(t)
+	ctx := t.Context()
+	var sent []string
+	s.transport.client.Transport = sender(func(request *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(request.Body)
+		if err != nil {
+			return nil, err
+		}
+		sent = append(sent, string(body))
+		if request.URL.Host == "hooks.slack.com" {
+			return response(200, "ok"), nil
+		}
+		return response(200, `{"ok":true}`), nil
+	})
+	targets := setupChannels(t, s)
+	sent = nil
+	_, err := s.store.AddSubscription(ctx, database.SubscriptionInput{Title: "RSS", URL: "https://example.com/feed"}, []database.ArticleInput{
+		{GUID: "a", Title: "带摘要", Summary: "第一段中文说明"},
+		{GUID: "b", Title: "纯标题"},
+	}, database.FeedCheck{At: now.UnixMilli()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	articles, err := s.q.ListArticles(ctx, 2)
+	if err != nil || len(articles) != 2 {
+		t.Fatalf("expected two articles, got %d, %v", len(articles), err)
+	}
+	ids := make(map[string]string, len(articles))
+	for _, article := range articles {
+		ids[article.Title] = article.ID
+	}
+	input := ArticleShare{
+		ArticleIDs: []string{ids["纯标题"], ids["带摘要"]}, ChannelIDs: targets[1:],
+		Title: true, Summary: true, Link: true, SummaryLimit: 4,
+	}
+	if err := s.sendArticle(ctx, input, nil); err != nil {
+		t.Fatal(err)
+	}
+	*now = now.Add(time.Second)
+	for range 2 {
+		if delivered, err := s.deliver(ctx); !delivered || err != nil {
+			t.Fatalf("deliver = %t, %v", delivered, err)
+		}
+	}
+	if len(sent) != 2 || !strings.Contains(sent[0], "纯标题") || !strings.Contains(sent[1], "第一段中…") ||
+		strings.Contains(sent[1], "文说明") {
+		t.Fatalf("unexpected batch messages: %v", sent)
+	}
+	input.ArticleIDs[1] = input.ArticleIDs[0]
+	if err := s.sendArticle(ctx, input, nil); err == nil {
+		t.Fatal("duplicate article accepted")
+	}
+	if delivered, err := s.deliver(ctx); delivered || err != nil {
+		t.Fatalf("rejected batch queued a delivery = %t, %v", delivered, err)
+	}
+}

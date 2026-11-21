@@ -42,6 +42,8 @@ func TestPreferencesPersistAndReopen(t *testing.T) {
 	prefs := got.Data.Preferences
 	prefs.Theme = "dark"
 	prefs.RefreshToastAutoDismiss = true
+	prefs.ArticleShareCount = 18
+	prefs.ArticleShareSummaryLimit = 75
 	prefs.ArticleViewMode = "masonry"
 	prefs.SidebarWidth = 340
 	prefs.ListWidth = 760
@@ -65,6 +67,9 @@ func TestPreferencesPersistAndReopen(t *testing.T) {
 	}
 	if snapshot.Data.Preferences.ChatModelID != "SAVEDMODELID" {
 		t.Fatalf("重开丢失聊天模型：%+v", snapshot.Data.Preferences)
+	}
+	if snapshot.Data.Preferences.ArticleShareCount != 18 || snapshot.Data.Preferences.ArticleShareSummaryLimit != 75 {
+		t.Fatalf("重开丢失文章发送偏好：%+v", snapshot.Data.Preferences)
 	}
 }
 

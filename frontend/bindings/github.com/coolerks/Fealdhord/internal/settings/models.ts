@@ -11,6 +11,8 @@ export interface Preferences {
     "refresh_interval_minutes": number;
     "notification_mode": string;
     "refresh_toast_auto_dismiss": boolean;
+    "article_share_count": number;
+    "article_share_summary_limit": number;
     "web_image_fallback": boolean;
     "remote_images": string;
     "media_cache_enabled": boolean;

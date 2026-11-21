@@ -18,6 +18,8 @@ type Preferences struct {
 	RefreshIntervalMinutes   int                     `json:"refresh_interval_minutes"`
 	NotificationMode         string                  `json:"notification_mode"`
 	RefreshToastAutoDismiss  bool                    `json:"refresh_toast_auto_dismiss"`
+	ArticleShareCount        int                     `json:"article_share_count"`
+	ArticleShareSummaryLimit int                     `json:"article_share_summary_limit"`
 	WebImageFallback         bool                    `json:"web_image_fallback"`
 	RemoteImages             string                  `json:"remote_images"`
 	MediaCacheEnabled        bool                    `json:"media_cache_enabled"`
@@ -55,7 +57,7 @@ type Preferences struct {
 }
 
 func Defaults() Preferences {
-	return Preferences{RefreshIntervalMinutes: 30, NotificationMode: "toast", ReaderLayout: "fill", ReaderOpenMode: "feed", ReaderAutoRead: true, ReaderFontFamily: "sans", RemoteImages: "subscriptions", MediaCacheEnabled: true,
+	return Preferences{RefreshIntervalMinutes: 30, NotificationMode: "toast", ArticleShareCount: 10, ArticleShareSummaryLimit: DefaultArticleShareSummaryLimit, ReaderLayout: "fill", ReaderOpenMode: "feed", ReaderAutoRead: true, ReaderFontFamily: "sans", RemoteImages: "subscriptions", MediaCacheEnabled: true,
 		Theme: "system", SettingsOpenMode: "full", ArticleViewMode: "list", ListDensity: "compact", ListThumbnail: "none",
 		MasonryImageMode: "original_ratio", Animation: "full", FollowSystemReduceMotion: true,
 		SidebarWidth: 248, ListWidth: 360, ReaderOpen: false, SelectedScope: "all",
@@ -77,8 +79,11 @@ func oneOf(value string, choices ...string) bool {
 var codeThemeID = regexp.MustCompile(`^(base16/)?[a-z0-9][a-z0-9-]{0,70}$`)
 
 const (
-	maxListWidth   = 760
-	maxChatModelID = 128
+	maxListWidth                    = 760
+	maxChatModelID                  = 128
+	MaxArticleShareCount            = 50
+	DefaultArticleShareSummaryLimit = 50
+	MaxArticleShareSummaryLimit     = 500
 )
 
 func validReaderToolbarPinned(actions []string) bool {
@@ -110,6 +115,10 @@ func (p Preferences) Validate() error {
 	}
 	if !oneOf(p.NotificationMode, "toast", "native") {
 		return errors.New("通知方式无效。")
+	}
+	if p.ArticleShareCount < 1 || p.ArticleShareCount > MaxArticleShareCount ||
+		p.ArticleShareSummaryLimit < 1 || p.ArticleShareSummaryLimit > MaxArticleShareSummaryLimit {
+		return errors.New("文章发送条数或摘要字数超出允许范围。")
 	}
 	if !oneOf(p.ReaderLayout, "fill", "drawer", "split") {
 		return errors.New("阅读布局无效。")
@@ -167,6 +176,12 @@ func (p *Preferences) normalize() {
 	}
 	if !oneOf(p.NotificationMode, "toast", "native") {
 		p.NotificationMode = d.NotificationMode
+	}
+	if p.ArticleShareCount < 1 || p.ArticleShareCount > MaxArticleShareCount {
+		p.ArticleShareCount = d.ArticleShareCount
+	}
+	if p.ArticleShareSummaryLimit < 1 || p.ArticleShareSummaryLimit > MaxArticleShareSummaryLimit {
+		p.ArticleShareSummaryLimit = d.ArticleShareSummaryLimit
 	}
 	if p.ReaderLayout == "" && p.ReaderPinned {
 		p.ReaderLayout = "split"

@@ -1109,11 +1109,11 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(await screen.findByRole('option', { name: '微信通知' }))
     expect(screen.queryByRole('option', { name: '待测试渠道' })).not.toBeInTheDocument()
     await user.keyboard('{Escape}')
-    await user.click(dialog.getByRole('checkbox', { name: '摘要' }))
+    expect(dialog.getByRole('checkbox', { name: '摘要' })).toBeChecked()
     await user.click(dialog.getByRole('button', { name: '发送' }))
     await waitFor(() => expect(listSend).toHaveFocus())
     expect(notificationAPI.SendArticle).toHaveBeenLastCalledWith({
-      article_id: 'a-0', channel_ids: ['wechat'], title: true, summary: true, link: true, full_text: false,
+      article_id: 'a-0', channel_ids: ['wechat'], title: true, summary: true, link: true, full_text: false, summary_limit: 50,
     })
 
     await user.click(openArticle)
@@ -1124,12 +1124,57 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(await second.findByRole('checkbox', { name: '全部渠道' }))
     await user.click(second.getByRole('checkbox', { name: '标题' }))
     await user.click(second.getByRole('checkbox', { name: '链接' }))
+    await user.click(second.getByRole('checkbox', { name: '摘要' }))
     await user.click(second.getByRole('checkbox', { name: '全文' }))
     await user.click(second.getByRole('button', { name: '发送' }))
     await waitFor(() => expect(more).toHaveFocus())
     expect(notificationAPI.SendArticle).toHaveBeenLastCalledWith({
-      article_id: 'a-0', channel_ids: ['telegram', 'wechat'], title: false, summary: false, link: false, full_text: true,
+      article_id: 'a-0', channel_ids: ['telegram', 'wechat'], title: false, summary: false, link: false, full_text: true, summary_limit: 50,
     })
+  })
+
+  it('列表工具栏按当前顺序发送前几篇并使用通知设置的摘要字数', async () => {
+    const user = userEvent.setup()
+    notificationAPI.ListChannels.mockResolvedValue([{ id: 'wechat', name: '微信通知', enabled: true, verified: true }])
+    setup(true)
+    const toolbar = within(await screen.findByRole('group', { name: '文章操作' }))
+    const trigger = toolbar.getByRole('button', { name: '发送列表文章' })
+    await user.click(trigger)
+    const defaultDialog = within(await screen.findByRole('dialog', { name: '发送到' }))
+    expect(defaultDialog.getByRole('spinbutton', { name: '发送前几篇' })).toHaveValue(10)
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(trigger).toHaveFocus())
+    const settingsTrigger = screen.getByRole('button', { name: '打开设置' })
+    await act(async () => {
+      await user.click(settingsTrigger)
+      await import('@/features/settings/SettingsDialog')
+    })
+    const settings = within(await screen.findByRole('dialog', { name: '设置' }))
+    await user.click(settings.getByRole('button', { name: '通知' }))
+    const count = await screen.findByRole('spinbutton', { name: '默认发送条数' })
+    const summary = screen.getByRole('spinbutton', { name: '默认摘要字数' })
+    expect(summary).toHaveValue(50)
+    await user.clear(count)
+    await user.type(count, '3')
+    await user.clear(summary)
+    await user.type(summary, '25{Enter}')
+    await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      article_share_count: 3, article_share_summary_limit: 25,
+    }), expect.any(Number)))
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(settingsTrigger).toHaveFocus())
+    await user.click(trigger)
+    const share = within(await screen.findByRole('dialog', { name: '发送到' }))
+    expect(share.getByRole('spinbutton', { name: '发送前几篇' })).toHaveValue(3)
+    for (const field of ['标题', '链接', '摘要']) {
+      expect(share.getByRole('checkbox', { name: field })).toBeChecked()
+    }
+    await user.click(await share.findByRole('checkbox', { name: '全部渠道' }))
+    await user.click(share.getByRole('button', { name: '发送' }))
+    await waitFor(() => expect(notificationAPI.SendArticle).toHaveBeenLastCalledWith({
+      article_ids: ['a-0', 'a-1', 'a-2'], channel_ids: ['wechat'],
+      title: true, link: true, summary: true, full_text: false, summary_limit: 25,
+    }))
   })
 
   it('微信绑定失败后显示具体原因，并停止自动轮询', async () => {

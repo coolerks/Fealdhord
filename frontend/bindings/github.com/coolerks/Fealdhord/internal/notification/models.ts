@@ -6,12 +6,14 @@
 import * as schedule$0 from "../schedule/models.js";
 
 export interface ArticleShare {
-    "article_id": string;
+    "article_id"?: string;
+    "article_ids"?: string[] | null;
     "channel_ids": string[] | null;
     "title": boolean;
     "summary": boolean;
     "link": boolean;
     "full_text": boolean;
+    "summary_limit"?: number;
 }
 
 export interface Channel {
