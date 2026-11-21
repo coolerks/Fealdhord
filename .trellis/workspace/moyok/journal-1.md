@@ -772,3 +772,34 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 28: AI 斜杠命令与界面精简
+<!-- trellis-session: v=2 fp=ac88d8d5108f95e4 -->
+
+**Date**: 2026-11-21
+**Task**: AI 斜杠命令与界面精简
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+增加上下文圆环、工具和模型悬停预览及斜杠命令，精简状态提示并修复返回列表后的残留选区。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a6e721d` | feat: 精简 AI 界面并添加上下文与工具预览 |
+| `5c0a1bd` | feat: 添加聊天斜杠命令并精简界面状态 |
+
+### Testing
+
+- [OK] 前端全量 149 项、最终定向 7 项及类型检查、lint、生产构建通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 总任务保留真实模型网关、跨设备 HTTPS 和 OAuth 客户端验收。

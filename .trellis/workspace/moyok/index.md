@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 27
-- **Last Active**: 2026-11-20
+- **Total Sessions**: 28
+- **Last Active**: 2026-11-21
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~774 | Active |
+| `journal-1.md` | ~805 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 28 | 2026-11-21 | AI 斜杠命令与界面精简 | `a6e721d`, `5c0a1bd` | `codex/interface-clarity` |
 | 27 | 2026-11-20 | 统一 AI 导航与下拉菜单 | `bfe6668` | `codex/interface-clarity` |
 | 26 | 2026-11-20 | 全局 AI 输入区与思考档位 | `e867381` | `codex/interface-clarity` |
 | 25 | 2026-11-20 | 全局 AI 助手工作区 | `dad634f` | `codex/interface-clarity` |
