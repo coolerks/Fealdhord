@@ -24,6 +24,7 @@ import { useLibraryQuery } from '@/features/articles/use-library-query'
 import { findCachedArticle,libraryAnchorKey } from '@/lib/library-query'
 import { Sidebar } from './Sidebar'
 import { Toolbar } from './Toolbar'
+import { clearSelectionWithin } from './TextSelection'
 import { cn } from '@/lib/utils'
 
 const DiagnosticPanel = lazy(() => import('@/features/settings/DiagnosticPanel'))
@@ -48,6 +49,12 @@ function ReaderTransition({ children, className, mode }: {
 }) {
   const present = useIsPresent()
   const layer = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const element = layer.current
+    if (!element) return
+    if (!present) clearSelectionWithin(element)
+    return () => clearSelectionWithin(element)
+  }, [present])
   const outside = mode === 'full' ? { x: '100%', opacity: 1 } : { x: '0%', opacity: 0 }
   const inside = { x: '0%', opacity: 1 }
   const withTiming = (target: typeof inside) => {

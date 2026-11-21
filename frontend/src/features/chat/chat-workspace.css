@@ -133,11 +133,22 @@
 }
 
 .chat-composer-form {
+  position: relative;
   padding: 6px;
   border: 1px solid var(--border);
   border-radius: 18px;
   background: var(--card);
   box-shadow: 0 2px 9px color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.chat-slash-menu {
+  position: absolute;
+  inset-inline: 0;
+  bottom: calc(100% + 6px);
+  z-index: 2;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 
 .chat-input[data-slot=textarea] {

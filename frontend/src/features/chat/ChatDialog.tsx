@@ -1,3 +1,5 @@
+import { ChatSlashMenu } from './ChatSlashMenu'
+import type { SlashItem, SlashPage } from './ChatSlashMenu'
 import { ChatContext } from './ChatContext'
 import { ModelBrand } from '@/features/settings/ModelMetadata'
 import { skillsKey } from '@/features/settings/AIPlatformSettings'
@@ -10,7 +12,7 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 're
 import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, useIsPresent } from 'motion/react'
-import { ArrowDown, ArrowUp, BookOpen, Plus, Settings, Sparkles, Square } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, Box, Brain, Gauge, Paperclip, Plus, Settings, Sparkles, Square, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { SemanticButton } from '@/components/semantic-button'
@@ -34,6 +36,7 @@ import './chat-workspace.css'
 
 const globalTarget = { kind: 'global', id: '', label: 'AI 助手' }
 const defaultEffortOption = { value: ':default', label: '使用服务默认' }
+const slashCommand = /^\/([^\s/\\]*)$/u
 type WorkspaceView = {
   sidebar: HTMLElement | null; collapsed: boolean; theme: string
   motionMode: 'full' | 'subtle' | 'off'; present: boolean
@@ -132,6 +135,12 @@ function ChatSession({ target, close, workspace }: {
   const patchPreferences = useWorkspace(state => state.patch)
   const [chosen, setChosen] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  const [composerFocused, setComposerFocused] = useState(false)
+  const [slashDismissed, setSlashDismissed] = useState(false)
+  const [slashPage, setSlashPage] = useState<SlashPage>('actions')
+  const [highlightedSlash, setHighlightedSlash] = useState('')
+  const [contextOpen, setContextOpen] = useState(false)
+  const slashQuery = workspace && composerFocused && !slashDismissed ? slashCommand.exec(draft)?.[1] : undefined
   const [includeContext, setIncludeContext] = useState(false)
   const [allowArticleReads, setAllowArticleReads] = useState(false)
   const [selection, setSelection] = useState(target.selection ?? '')
@@ -150,13 +159,13 @@ function ChatSession({ target, close, workspace }: {
   const history = useQuery({
     queryKey: listKey,
     queryFn: () => api.List(scope),
-    retry: 2,
-    retryDelay: attempt => 500 * (attempt + 1),
-    refetchOnWindowFocus: true,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
   const model = useQuery({ queryKey: ['chat', 'model'], queryFn: () => api.Model(), enabled: !workspace, retry: false })
   const configuration = useQuery({ queryKey: aiConfigurationKey, queryFn: listAIConfiguration, enabled: Boolean(workspace), retry: false })
-  const skills = useQuery({ queryKey: skillsKey, queryFn: () => Skills(), enabled: Boolean(workspace && picking), retry: false })
+  const skills = useQuery({ queryKey: skillsKey, queryFn: () => Skills(), enabled: Boolean(workspace && (picking || slashQuery !== undefined)), retry: false })
   const providers = configuration.data?.providers ?? []
   const modelOptions = (configuration.data?.models ?? []).flatMap(item => {
     const provider = providers.find(service => service.id === item.providerId && service.enabled)
@@ -247,6 +256,8 @@ function ChatSession({ target, close, workspace }: {
     setFollowing(true)
     setChosen(id)
     if (workspace && id !== conversationId) {
+      setSlashPage('actions')
+      setHighlightedSlash('')
       setDraft('')
       setSources([])
       setPicking(false)
@@ -274,8 +285,70 @@ function ChatSession({ target, close, workspace }: {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [inWorkspace])
+  function toggleSkill(name: string) {
+    setSelectedSkills(current => current.includes(name) ? current.filter(item => item !== name) :
+      current.length < 3 ? [...current, name] : current)
+  }
+  const skillCommands: SlashItem[] = (skills.data ?? []).filter(skill => skill.enabled)
+    .filter(skill => selectedSkills.length < 3 || selectedSkills.includes(skill.name))
+    .map(skill => ({
+      key: `skill:${skill.name}`, label: skill.name, icon: Sparkles,
+      detail: selectedSkills.includes(skill.name) ? '移除此技能' : skill.description,
+      action: 'skill', value: skill.name,
+    }))
+  const actions: SlashItem[] = [
+    { key: 'skills', label: '技能', icon: Sparkles, detail: '应用已启用的技能', aliases: ['skill'], page: 'skills' },
+    { key: 'new', label: '新对话', icon: Plus, detail: '开启空白对话', aliases: ['new-chat'], action: 'new' },
+    { key: 'attach', label: '附加文章', icon: Paperclip, detail: '从本地文章中选择', aliases: ['article'], action: 'attach' },
+    ...(modelOptions.length ? [{ key: 'model', label: '模型', icon: Box, page: 'models' } satisfies SlashItem] : []),
+    ...(effortLevels.length ? [{ key: 'reasoning', label: '思考档位', icon: Brain, detail: selectedModel && modelSubmenus[selectedModel.value]?.summary,
+      aliases: ['effort', '推理'], page: 'effort' } satisfies SlashItem] : []),
+    ...(modelReady ? [{ key: 'context', label: '上下文', icon: Gauge, detail: '查看用量、整理或重置上下文',
+      aliases: ['status', 'compact', '压缩', '整理'], action: 'context' } satisfies SlashItem] : []),
+    { key: 'settings', label: 'AI 设置', icon: Settings, action: 'settings' },
+    ...skillCommands,
+  ]
+  const pages: Record<SlashPage, SlashItem[]> = {
+    actions,
+    skills: [...skillCommands, { key: 'manage-skills', label: '管理技能', icon: Settings, action: 'settings' }],
+    models: modelOptions.map(option => ({ key: option.value, label: option.label, aliases: option.keywords, icon: Box,
+      detail: option.value === modelID ? '当前模型' : undefined, action: 'model', value: option.value })),
+    effort: modelID ? [defaultEffortOption, ...effortLevels].map(level => ({
+      key: level.value, label: level.label, icon: Brain,
+      detail: (reasoningEffort || defaultEffortOption.value) === level.value ? '当前档位' : undefined,
+      action: 'effort', value: level.value,
+    })) : [],
+  }
+  const slashItems = slashQuery === undefined ? [] : pages[slashPage].filter(item =>
+    [item.key, item.label, item.detail ?? '', ...(item.aliases ?? [])].some(text => text.toLowerCase().includes(slashQuery.toLowerCase())),
+  )
+  const slashActive = slashItems.find(item => item.key === highlightedSlash) ?? slashItems[0]
+  const slashOpen = slashQuery !== undefined && !send.isPending &&
+    (slashQuery === '' || slashItems.length > 0 || slashPage !== 'actions')
+  const slashLabel = { actions: '斜杠命令', skills: '选择技能', models: '切换模型', effort: '选择思考档位' }[slashPage]
+  function chooseSlash(item: SlashItem) {
+    setHighlightedSlash('')
+    if ('page' in item) {
+      setSlashPage(item.page)
+      setDraft('/')
+      return
+    }
+    setDraft('')
+    setSlashPage('actions')
+    switch (item.action) {
+      case 'new': choose(''); break
+      case 'attach': setPicking(true); break
+      case 'context': setContextOpen(true); break
+      case 'settings': showSettings('ai'); break
+      case 'skill': toggleSkill(item.value); break
+      case 'model': selectModel(item.value); break
+      case 'effort':
+        if (modelID) setEffortChoices(current => ({ ...current, [modelID]: item.value === defaultEffortOption.value ? '' : item.value }))
+        break
+    }
+  }
   const newConversationShortcut = native.isMac() ? 'Meta+Shift+N' : 'Control+Shift+N'
-  const canSend = !active && Boolean(draft.trim()) && modelReady && !invalidEffort && !send.isPending && !history.isPending &&
+  const canSend = !slashOpen && !active && Boolean(draft.trim()) && modelReady && !invalidEffort && !send.isPending && !history.isPending &&
     !(conversationId && messages.isPending)
   return <div className={workspace ? 'chat-session reader-html' : 'flex min-h-0 flex-col gap-3'} data-code-theme={workspace ? theme : undefined}>
     {workspace?.sidebar && createPortal(
@@ -291,7 +364,6 @@ function ChatSession({ target, close, workspace }: {
           onScroll={event => setConversationsScrolled(event.currentTarget.scrollTop > 0)}>
           <div className="nav-section-heading"><h2>会话</h2></div>
           {history.isPending && <p role="status">正在读取会话…</p>}
-          {history.isError && <p role="status" className="text-sm text-muted-foreground">会话暂时无法读取</p>}
           <ul className="feed-nav">{history.data?.map(item => {
             const current = item.id === conversationId
             return <li key={item.id}>
@@ -325,7 +397,6 @@ function ChatSession({ target, close, workspace }: {
           { value: 'new-conversation', label: '新对话' },
           ...(history.data ?? []).map(item => ({ value: item.id, label: item.title })),
         ]} />
-      {history.isError && <p role="status" className="text-sm text-muted-foreground">会话暂时无法读取</p>}
     </div>}
     <div className={workspace ? 'chat-timeline' : 'h-[min(40vh,400px)] min-h-20 space-y-3 overflow-y-auto'}
       ref={timeline} role={workspace ? 'region' : undefined} aria-label="对话消息" tabIndex={workspace ? -1 : undefined} onScroll={event => {
@@ -353,6 +424,12 @@ function ChatSession({ target, close, workspace }: {
       setFollowing(true)
     }}><ArrowDown /></Button>}
     <div className={workspace ? 'chat-composer' : 'flex flex-col gap-3'}>
+      {workspace && selectedSkills.length > 0 && <div className="flex flex-wrap gap-1.5">
+        {selectedSkills.map(name => <div key={name} className="flex items-center gap-1 rounded-md bg-muted pl-2 text-xs">
+          <span>{name}</span>
+          <Button type="button" size="icon-xs" variant="ghost" aria-label={`移除技能 ${name}`} disabled={send.isPending} onClick={() => toggleSkill(name)}><X /></Button>
+        </div>)}
+      </div>}
       {workspace && sources.length > 0 && <div className="chat-context">
         {sources.map(article => <div key={article.id} className="flex items-center justify-between gap-2">
           <span className="truncate" title={article.title}>{article.title}</span>
@@ -375,7 +452,7 @@ function ChatSession({ target, close, workspace }: {
             options={skills.data.filter(skill => skill.enabled).map(skill => ({
               value: skill.name, label: skill.name, keywords: [skill.description],
               disabled: selectedSkills.length >= 3 && !selectedSkills.includes(skill.name),
-            }))} onValueChange={name => setSelectedSkills(current => current.includes(name) ? current.filter(item => item !== name) : [...current, name])} />}
+            }))} onValueChange={toggleSkill} />}
         </DialogContent>}
       </Dialog>}
       {target.kind !== 'global' && <label htmlFor="chat-include-context" className="flex items-center gap-2 text-sm">
@@ -396,12 +473,44 @@ function ChatSession({ target, close, workspace }: {
         event.preventDefault()
         if (canSend) send.mutate()
       }}>
-        <Textarea ref={composer} className={workspace ? 'chat-input' : 'max-h-40 resize-y'} aria-label="消息" placeholder="输入消息…" value={draft} onChange={event => setDraft(event.target.value)} maxLength={2700}
+        {slashOpen && <ChatSlashMenu composer={composer} label={slashLabel} active={slashActive} items={slashItems}
+          onHighlight={setHighlightedSlash} onChoose={chooseSlash} />}
+        <Textarea ref={composer} className={workspace ? 'chat-input' : 'max-h-40 resize-y'} aria-label="消息" placeholder="输入消息…" value={draft}
+          onFocus={workspace ? () => setComposerFocused(true) : undefined}
+          onBlur={workspace ? () => setComposerFocused(false) : undefined}
+          onChange={event => {
+            const next = event.target.value
+            setDraft(next)
+            setSlashDismissed(false)
+            setHighlightedSlash('')
+            if (!slashCommand.test(next)) setSlashPage('actions')
+          }} maxLength={2700}
           readOnly={Boolean(workspace && send.isPending)} disabled={!workspace && send.isPending}
           onKeyDown={workspace ? event => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
+            if (event.nativeEvent.isComposing || event.keyCode === 229) return
+            if (slashOpen && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
               event.preventDefault()
-              if (canSend) send.mutate()
+              const current = slashActive ? slashItems.indexOf(slashActive) : -1
+              const next = current + (event.key === 'ArrowDown' ? 1 : -1)
+              if (slashItems.length) setHighlightedSlash(slashItems[(next + slashItems.length) % slashItems.length].key)
+              return
+            }
+            if (slashOpen && (event.key === 'Escape' || event.key === 'Backspace' && slashPage !== 'actions' && draft === '/')) {
+              event.preventDefault()
+              event.stopPropagation()
+              if (slashPage === 'actions') setSlashDismissed(true)
+              else {
+                setSlashPage('actions')
+                setHighlightedSlash('')
+                setDraft('/')
+              }
+              return
+            }
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault()
+              if (slashOpen) {
+                if (slashActive) chooseSlash(slashActive)
+              } else if (canSend) send.mutate()
             }
           } : undefined} />
         <div className={workspace ? 'chat-composer-toolbar' : undefined}>
@@ -410,7 +519,7 @@ function ChatSession({ target, close, workspace }: {
           }
           <div className={workspace ? 'chat-composer-actions' : undefined}>
             {workspace && selectedConfig && modelID && <ChatContext id={conversationId} modelId={modelID} modelRevision={selectedConfig.revision}
-              disabled={active || send.isPending} attachments={sources} />}
+              disabled={active || send.isPending} attachments={sources} open={contextOpen} onOpenChange={setContextOpen} />}
             {workspace && (modelOptions.length ? <SearchableSelect label="聊天模型" className="chat-model" value={modelID ?? ''}
               options={modelOptions} variant="ghost" announceSelection placeholder="选择模型" disabled={send.isPending}
               submenus={modelSubmenus} onValueChange={selectModel}

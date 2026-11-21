@@ -96,3 +96,7 @@ macOS 侧栏交互使用半透明状态色。以 `aria-current=page` 统一阅�
 ## 工具选项和上下文的悬停预览
 
 模型与工具的补充说明使用共享 radix-nova Hover Card。SearchableSelect 只有提供 description 的选项才显示用途卡片，卡片优先放在右侧，空间不足时由 Radix 处理碰撞。说明通过 aria-description 提供给键盘和辅助技术；悬停不提交选择，未提供说明的选项继续使用截断提示。卡片中的数据与选项共用业务来源，不重复维护描述。上下文圆环把图形放在有可访问名称的按钮里，比例按历史及摘要估算量除以输入预算；完整模型窗口作为补充信息显示。
+
+全局聊天的斜杠命令在单独的命令前缀下出现，焦点留在 Textarea。共享 Command 使用 cmdk 生成的真实 ID，再由菜单将 aria-controls 与 aria-activedescendant 关联到 Textarea。方向键和 Enter 仅在可见命令菜单内拦截，输入法组字不触发选择。
+
+文章选择底色在全局 Portal 内绘制，离场阅读面板需要在过渡开始或卸载时释放其原生选区及 Portal 高亮。只清理归属该阅读层的选区；保持同一篇文章在右键菜单中的选区快照。

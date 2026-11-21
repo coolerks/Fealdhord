@@ -35,8 +35,9 @@ vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/api', () =>
   List: listAIConfiguration, SaveModel: saveAIModel, Brands: async () => [],
   FetchModels: () => Object.assign(Promise.resolve([]), { cancel: vi.fn() }),
 }))
+const listSkills = vi.hoisted(() => vi.fn())
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/appagent/api', () => ({
-  PendingActions: async () => [], Grants: async () => [], ToolList: async () => [], Skills: async () => [], MCPClients: async () => [],
+  PendingActions: async () => [], Grants: async () => [], ToolList: async () => [], Skills: listSkills, MCPClients: async () => [],
   MCPServer: async () => ({ url: '', config: { port: 8769, tools: [] } }),
 }))
 const copyImage = vi.hoisted(() => vi.fn())
@@ -47,6 +48,7 @@ let geometry: ReturnType<typeof installGeometry>
 beforeEach(() => {
   vi.clearAllMocks()
   useChatTarget.setState({ target: null })
+  listSkills.mockResolvedValue([])
   chat.ContextStatus.mockResolvedValue({
     budget: { context: 32768, inputLimit: 24064, outputReserve: 8192, estimated: true },
     history: 0, used: 0, contextAfter: 0, summary: '', pins: [], lastInput: 0, autoCompact: false, lastModel: '',
@@ -69,10 +71,64 @@ function setup(withArticles = false) {
 }
 
 describe('Phase 1 阅读 Shell', () => {
-  it('会话自动重试，悬停上下文圆环查看用量并在回复结束后更新', async () => {
+  it('用斜杠选择技能和模型，不将命令或路径误当成对方', async () => {
     const user = userEvent.setup()
     setup()
-    chat.List.mockRejectedValueOnce(new Error('StorageError')).mockResolvedValue([{ id: 'context-chat', title: '会话记录' }])
+    chat.List.mockResolvedValue([{ id: 'slash-chat', title: '命令测试' }])
+    chat.Messages.mockResolvedValue([])
+    chat.Send.mockResolvedValue(undefined)
+    listSkills.mockResolvedValue([{ name: 'reading-notes', description: '整理阅读笔记', enabled: true }])
+    listAIConfiguration.mockResolvedValue({
+      providers: [{ id: 'provider', name: '本地服务', enabled: true }],
+      models: [
+        { id: 'first', providerId: 'provider', name: 'first-model', displayName: '默认模型', enabled: true },
+        { id: 'second', providerId: 'provider', name: 'second-model', displayName: '备用模型', enabled: true },
+      ],
+      assignments: [],
+    })
+    await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    const input = await screen.findByRole('textbox', { name: '消息' })
+    await user.type(input, '/skills')
+    expect(screen.getByRole('option', { name: '技能' })).toBeInTheDocument()
+    await user.keyboard('{Enter}')
+    const skill = await screen.findByRole('option', { name: 'reading-notes' })
+    expect(input).toHaveFocus()
+    expect(document.getElementById(input.getAttribute('aria-controls')!)).toBeInTheDocument()
+    await user.click(skill)
+    expect(screen.getByRole('button', { name: '移除技能 reading-notes' })).toBeInTheDocument()
+    expect(input).toHaveValue('')
+    expect(chat.Send).not.toHaveBeenCalled()
+
+    await user.type(input, '/model')
+    await user.keyboard('{Enter}')
+    await user.keyboard('{ArrowDown}')
+    const highlighted = document.getElementById(input.getAttribute('aria-activedescendant')!)
+    expect(highlighted).toHaveAccessibleName('备用模型')
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('button', { name: '聊天模型' })).toHaveTextContent('备用模型')
+    await user.type(input, '/tmp/article.txt')
+    expect(screen.queryByRole('listbox', { name: '斜杠命令' })).not.toBeInTheDocument()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(chat.Send).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      conversationId: 'slash-chat', modelId: 'second', text: '/tmp/article.txt', skills: ['reading-notes'],
+    })))
+  })
+
+  it('会话列表读取失败时不添加提示或触发再次读取', async () => {
+    const { client } = setup()
+    chat.List.mockRejectedValue(new Error('StorageError'))
+    await userEvent.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    const sidebar = await screen.findByRole('complementary', { name: 'AI 会话导航' })
+    await waitFor(() => expect(client.getQueryState(['chat', 'conversations', 'global', ''])?.status).toBe('error'))
+    expect(sidebar).not.toHaveTextContent('会话暂时无法读取')
+    expect(within(sidebar).queryByRole('button', { name: '重新读取历史' })).not.toBeInTheDocument()
+    expect(chat.List).toHaveBeenCalledTimes(1)
+  })
+
+  it('悬停上下文圆环查看用量并在回复结束后更新', async () => {
+    const user = userEvent.setup()
+    setup()
+    chat.List.mockResolvedValue([{ id: 'context-chat', title: '会话记录' }])
     chat.Messages.mockResolvedValue([])
     const status = {
       budget: { context: 2048, inputLimit: 1500, outputReserve: 500, estimated: false },
@@ -317,11 +373,12 @@ describe('Phase 1 阅读 Shell', () => {
       reasoningLevels: [{ label: '低', value: 'low' }, { label: '高', value: 'high' },
         { label: '超高', value: 'xhigh' }, { label: '深度', value: 'custom_max' }],
     }))
+    expect(screen.queryByText('已保存', { exact: true })).not.toBeInTheDocument()
     const models = screen.getByRole('region', { name: '模型' })
-    const name = await within(models).findByText('实验模型')
-    expect(within(models).getByRole('img', { name: '图片' })).toBeInTheDocument()
+    expect(await within(models).findByText('实验模型')).toBeInTheDocument()
+    const inputCapability = within(models).getByRole('img', { name: '图片' })
     expect(screen.queryByText('目录参考价 / 百万令牌')).not.toBeInTheDocument()
-    await user.hover(name)
+    await user.hover(inputCapability)
     expect(await screen.findByText('目录参考价 / 百万令牌')).toBeInTheDocument()
     expect(screen.getByText('Pi')).toBeInTheDocument()
     await user.click(await within(models).findByRole('button', { name: '编辑' }))
@@ -806,6 +863,39 @@ describe('Phase 1 阅读 Shell', () => {
     await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(expect.objectContaining({
       reader_toolbar_pinned: ['refresh', 'translate', 'ai', 'categories'],
     }), expect.any(Number)))
+  })
+
+  it.each(['full', 'off'] as const)('从瀑布流阅读返回时清除所选正文（%s）', async animation => {
+    const user = userEvent.setup()
+    api.get.mockResolvedValue({ preferences: preferencesFixture({ article_view_mode: 'masonry', reader_layout: 'fill', animation }), revision: 0 })
+    reader.get.mockResolvedValue({ article_id: 'a-0', html: '<p>返回前选中的正文文字</p>', text: '返回前选中的正文文字', mode: 'feed',
+      has_cached: false, has_original: false })
+    const { client } = setup()
+    const articles = articleFixtures(1).map(article => ({ ...article, contentText: '' }))
+    act(() => client.setQueryData(articleQueryKey, initialLibraryData({ items: articles, hasMore: false })))
+    await user.click(await screen.findByRole('button', { name: '打开文章：测试文章 0' }))
+    const text = await screen.findByText('返回前选中的正文文字')
+    const selection = window.getSelection()!
+    const range = document.createRange()
+    range.selectNodeContents(text)
+    const previousRects = Object.getOwnPropertyDescriptor(Range.prototype, 'getClientRects')
+    Object.defineProperty(Range.prototype, 'getClientRects', { configurable: true, value: () => [new DOMRect(30, 40, 50, 16)] })
+    const prose = text.closest('.reader-content')!
+    Object.defineProperties(prose, { clientWidth: { value: 100 }, clientHeight: { value: 100 } })
+    try {
+      selection.removeAllRanges()
+      selection.addRange(range)
+      fireEvent(document, new Event('selectionchange'))
+      await waitFor(() => expect(document.querySelector('.text-selection > span')).toBeInTheDocument())
+      fireEvent.click(screen.getByRole('button', { name: '返回文章浏览' }))
+      expect(selection.isCollapsed).toBe(true)
+      expect(document.querySelector('.text-selection > span')).not.toBeInTheDocument()
+      expect(document.documentElement).not.toHaveAttribute('data-text-selection-painted')
+    } finally {
+      selection.removeAllRanges()
+      if (previousRects) Object.defineProperty(Range.prototype, 'getClientRects', previousRects)
+      else Reflect.deleteProperty(Range.prototype, 'getClientRects')
+    }
   })
 
   it('正文右键在浏览器清除选区后仍保留底色和复制内容', async () => {

@@ -10,11 +10,10 @@ import { ContextStatus, GenerateContextSummary, PinContextArticle, SaveContext, 
 
 const formatPercent = new Intl.NumberFormat(undefined, { style: 'percent', maximumFractionDigits: 1 })
 
-export function ChatContext({ id, modelId, modelRevision, disabled, attachments }: {
-  id: string; modelId: string; modelRevision: number; disabled: boolean; attachments: { id: string; title: string }[]
+export function ChatContext({ id, modelId, modelRevision, disabled, attachments, open, onOpenChange }: {
+  id: string; modelId: string; modelRevision: number; disabled: boolean; attachments: { id: string; title: string }[]; open: boolean; onOpenChange: (open: boolean) => void
 }) {
   const cache = useQueryClient()
-  const [open, setOpen] = useState(false)
   const [preview, setPreview] = useState(false)
   const [summary, setSummary] = useState<string>()
   const key = [...chatContextKey(id), modelId, modelRevision]
@@ -41,11 +40,9 @@ export function ChatContext({ id, modelId, modelRevision, disabled, attachments 
   const percent = ratio === undefined ? undefined : ratio > 0 && ratio < 0.001 ? `<${formatPercent.format(0.001)}` : formatPercent.format(ratio)
   return (
     <Dialog open={open} onOpenChange={next => {
-      setOpen(next)
-      if (next) {
-        setPreview(false)
-        setSummary(undefined)
-      }
+      onOpenChange(next)
+      setPreview(false)
+      setSummary(undefined)
     }}>
       <HoverCard open={preview && !open} onOpenChange={setPreview} openDelay={250}>
         <HoverCardTrigger asChild>

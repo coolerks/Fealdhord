@@ -12,11 +12,18 @@ function containingElement(node: Node) {
   return node instanceof Element ? node : node.parentElement
 }
 
-function proseRange() {
-  const range = selectedTextRange()
-  if (!range) return
+function activeProseRange(range = selectedTextRange()) {
+  if (!range || range.collapsed) return
   const surface = containingElement(range.startContainer)?.closest('.chat-timeline, .reader-content')
-  if (surface?.contains(range.endContainer)) return range
+  if (surface?.isConnected && !surface.closest('[inert]') && surface.contains(range.endContainer)) return range
+}
+
+export function clearSelectionWithin(root: HTMLElement) {
+  const range = selectedTextRange()
+  if (range && (root.contains(range.startContainer) || root.contains(range.endContainer))) {
+    window.getSelection()?.removeAllRanges()
+  }
+  document.dispatchEvent(new Event('selectionchange'))
 }
 
 function joinLines(rects: Bounds[], lineHeight: number) {
@@ -124,7 +131,7 @@ export function TextSelection({ menuRange }: { menuRange?: Range }) {
     let frame = 0
     function paint() {
       frame = 0
-      const range = menuRange ?? proseRange()
+      const range = activeProseRange(menuRange)
       const rects = range && !range.collapsed && typeof range.getClientRects === 'function' ? selectionRects(range) : []
       const fragments = rects.map(({ left, top, right, bottom }) => {
         const fragment = document.createElement('span')
@@ -140,13 +147,22 @@ export function TextSelection({ menuRange }: { menuRange?: Range }) {
       if (!frame) frame = requestAnimationFrame(paint)
     }
 
+    function selectionChanged() {
+      if (activeProseRange(menuRange)) {
+        queuePaint()
+      } else {
+        cancelAnimationFrame(frame)
+        paint()
+      }
+    }
+
     paint()
-    document.addEventListener('selectionchange', queuePaint)
+    document.addEventListener('selectionchange', selectionChanged)
     window.addEventListener('scroll', queuePaint, true)
     window.addEventListener('resize', queuePaint)
     return () => {
       cancelAnimationFrame(frame)
-      document.removeEventListener('selectionchange', queuePaint)
+      document.removeEventListener('selectionchange', selectionChanged)
       window.removeEventListener('scroll', queuePaint, true)
       window.removeEventListener('resize', queuePaint)
       document.documentElement.removeAttribute('data-text-selection-painted')

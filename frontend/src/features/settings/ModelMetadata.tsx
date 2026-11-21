@@ -20,7 +20,7 @@ export function ModelCapabilities({ metadata }: { metadata?: Metadata }) {
   return <>
     {metadata?.modalities?.map(input => {
       const [Icon, label] = modalities[input as keyof typeof modalities] ?? [FileText, input]
-      return <span key={input} role="img" title={label} aria-label={label}><Icon className="size-3.5" /></span>
+      return <span key={input} role="img" aria-label={label}><Icon className="size-3.5" /></span>
     })}
     {metadata?.context ? <span className="whitespace-nowrap">{compactNumber.format(metadata.context)} 上下文</span> : null}
   </>
@@ -32,6 +32,8 @@ export function ModelDetails({ metadata }: { metadata?: Metadata }) {
   const outputPrice = metadata.completionPrice
   const hasPrices = inputPrice != null || outputPrice != null
   return <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5 text-xs">
+    {metadata.modalities?.length ? <><dt className="text-muted-foreground">支持输入</dt>
+      <dd className="text-right">{metadata.modalities.map(input => modalities[input as keyof typeof modalities]?.[1] ?? input).join('、')}</dd></> : null}
     {metadata.context ? <><dt className="text-muted-foreground">上下文窗口</dt><dd className="text-right tabular-nums">{metadata.context.toLocaleString()}</dd></> : null}
     {metadata.outputLimit ? <><dt className="text-muted-foreground">最大输出</dt><dd className="text-right tabular-nums">{metadata.outputLimit.toLocaleString()}</dd></> : null}
     {hasPrices && <>

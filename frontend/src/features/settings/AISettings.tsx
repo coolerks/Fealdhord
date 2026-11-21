@@ -157,26 +157,26 @@ export function AISettings() {
       <ul className="divide-y divide-border">
       {models.map(item => <li key={item.id} className="flex flex-col gap-2 py-2.5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <div className="flex min-w-0 flex-[1_1_12rem] items-start gap-2">
-            <span className="mt-0.5 shrink-0"><ModelBrand brand={item.metadata?.brand} override={item.metadata?.brandOverride} /></span>
-            <div className="min-w-0">
-              <HoverCard openDelay={250}>
-                <HoverCardTrigger asChild>
+          <HoverCard openDelay={250}>
+            <HoverCardTrigger asChild>
+              <div className="flex min-w-0 flex-[1_1_12rem] items-start gap-2">
+                <span className="mt-0.5 shrink-0"><ModelBrand brand={item.metadata?.brand} override={item.metadata?.brandOverride} /></span>
+                <div className="min-w-0">
                   <span className="block truncate font-medium">{item.displayName}</span>
-                </HoverCardTrigger>
-                <HoverCardContent align="start" side="top">
-                  <div className="flex flex-col gap-2">
-                    <p className="wrap-anywhere font-medium">{item.displayName}</p>
-                    <ModelDetails metadata={item.metadata} />
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
+                    <span>{providers.find(service => service.id === item.providerId)?.name}{!item.enabled && '（已停用）'}</span>
+                    <ModelCapabilities metadata={item.metadata} />
                   </div>
-                </HoverCardContent>
-              </HoverCard>
-              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
-                <span>{providers.find(service => service.id === item.providerId)?.name}{!item.enabled && '（已停用）'}</span>
-                <ModelCapabilities metadata={item.metadata} />
+                </div>
               </div>
-            </div>
-          </div>
+            </HoverCardTrigger>
+            <HoverCardContent align="start" side="top">
+              <div className="flex flex-col gap-2">
+                <p className="wrap-anywhere font-medium">{item.displayName}</p>
+                <ModelDetails metadata={item.metadata} />
+              </div>
+            </HoverCardContent>
+          </HoverCard>
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => { mutation.reset(); setModel(item) }}>编辑</Button>
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => setDeleting(item.id)}>删除</Button>

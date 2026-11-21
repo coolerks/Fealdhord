@@ -121,7 +121,21 @@ export function SettingsDialog() {
           onDeveloperModeChange={enabled => set('developer_mode', enabled)} />}
       </section>
     </div>
-    <div className="settings-save" aria-live="polite"><span>{saveStatus === 'saving' ? '正在保存…' : saveStatus === 'error' ? '有未保存的更改' : '已保存'}</span>{saveError && <><p role="alert">{saveError}</p><Button size="sm" variant="outline" onClick={retrySave}>重试保存</Button><Button size="sm" variant="ghost" onClick={() => { void preferencesAPI.get().then(snapshot => { initialize(snapshot); setReloadError('') }).catch(() => setReloadError('重新载入失败，请稍后重试。')) }}>重新载入</Button></>}{reloadError && <p role="alert">{reloadError}</p>}</div>
+    {(saveStatus !== 'saved' || saveError || reloadError) && <div className="settings-save" aria-live="polite">
+      {saveStatus === 'saving' && <span>正在保存…</span>}
+      {saveStatus === 'error' && <span>有未保存的更改</span>}
+      {saveError && <>
+        <p role="alert">{saveError}</p>
+        <Button size="sm" variant="outline" onClick={retrySave}>重试保存</Button>
+        <Button size="sm" variant="ghost" onClick={() => {
+          void preferencesAPI.get().then(snapshot => {
+            initialize(snapshot)
+            setReloadError('')
+          }).catch(() => setReloadError('重新载入失败，请稍后重试。'))
+        }}>重新载入</Button>
+      </>}
+      {reloadError && <p role="alert">{reloadError}</p>}
+    </div>}
   </DialogContent></Dialog>
 }
 
