@@ -12,6 +12,7 @@ import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/n
 import type { Channel, ChannelInput, Rule, WeChatBinding } from '../../../bindings/github.com/coolerks/Fealdhord/internal/notification/models'
 
 const key = ['notifications']
+const terminalWeChatStatuses = ['connected', 'expired', 'verify_code_blocked', 'binded_redirect']
 const platforms = [
   { value: 'telegram', label: 'Telegram' }, { value: 'discord', label: 'Discord' }, { value: 'slack', label: 'Slack' },
   { value: 'dingtalk', label: '钉钉' }, { value: 'feishu', label: '飞书' }, { value: 'lark', label: 'Lark' },
@@ -60,13 +61,21 @@ export function NotificationSettings() {
   })
   const [wechat, setWeChat] = useState<WeChatBinding>()
   const [pin, setPin] = useState('')
-  const [verifiedPin, setVerifiedPin] = useState('')
+  const [verifiedPin, setVerifiedPin] = useState<{ value: string; attempt: number }>()
   const wechatPoll = useQuery({
-    queryKey: [...key, 'wechat', wechat?.id, verifiedPin],
-    queryFn: () => api.PollWeChatBinding(wechat!.id, verifiedPin, channel!.name),
+    queryKey: [...key, 'wechat', wechat?.id, verifiedPin?.attempt],
+    queryFn: async ({ signal }) => {
+      const request = api.PollWeChatBinding(wechat!.id, verifiedPin?.value ?? '', channel!.name)
+      const cancel = () => { void request.cancel() }
+      if (signal.aborted) cancel()
+      else signal.addEventListener('abort', cancel, { once: true })
+      try { return await request } finally { signal.removeEventListener('abort', cancel) }
+    },
     enabled: Boolean(wechat?.id) && channel?.platform === 'wechat' && !channel.id,
     retry: false,
-    refetchInterval: query => ['connected', 'expired', 'verify_code_blocked', 'binded_redirect'].includes(query.state.data?.status ?? '') ||
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchInterval: query => query.state.status === 'error' || terminalWeChatStatuses.includes(query.state.data?.status ?? '') ||
       query.state.data?.status.includes('need_verifycode') ? false : 1200,
   })
   useEffect(() => {
@@ -118,10 +127,13 @@ export function NotificationSettings() {
   }
 
   function closeChannelDialog() {
-    if (wechat?.id && bindingStatus !== 'connected') void api.CancelWeChatBinding(wechat.id)
+    if (wechat?.id && bindingStatus !== 'connected') {
+      void client.cancelQueries({ queryKey: [...key, 'wechat', wechat.id] })
+      void api.CancelWeChatBinding(wechat.id)
+    }
     setWeChat(undefined)
     setPin('')
-    setVerifiedPin('')
+    setVerifiedPin(undefined)
     setChannel(undefined)
     mutation.reset()
   }
@@ -255,8 +267,8 @@ export function NotificationSettings() {
             <DialogTitle>{channel.id ? '编辑渠道' : '添加渠道'}</DialogTitle>
           </DialogHeader>
           <FieldGroup>
-            <TextField id="channel-name" label="渠道名称" value={channel.name} onChange={value => setChannelField('name', value)} />
-            <Selection id="channel-platform" label="平台" options={platforms} value={channel.platform} disabled={Boolean(channel.id)} onChange={value => {
+            <TextField id="channel-name" label="渠道名称" value={channel.name} disabled={Boolean(wechat) || busy} onChange={value => setChannelField('name', value)} />
+            <Selection id="channel-platform" label="平台" options={platforms} value={channel.platform} disabled={Boolean(channel.id || wechat) || busy} onChange={value => {
               setChannel({ ...blankChannel, platform: value, name: channel.name })
               setRecipientText('')
             }} />
@@ -349,24 +361,27 @@ export function NotificationSettings() {
             )}
             {bindingMode && (
               <div className="flex flex-col items-center gap-3 rounded-lg border border-border bg-muted/25 p-4 text-center">
-                {wechat?.image && !['connected', 'expired', 'verify_code_blocked', 'binded_redirect'].includes(bindingStatus ?? '') && (
+                {wechat?.image && !wechatPoll.isError && !terminalWeChatStatuses.includes(bindingStatus ?? '') && (
                   <img src={wechat.image} width={192} height={192} alt="微信绑定二维码" className="rounded-lg border border-border bg-white p-2" />
                 )}
-                {bindingStatus === 'wait' && <p className="text-[13px] text-muted-foreground">用微信扫描二维码</p>}
-                {bindingStatus === 'scaned' && <StatusBadge tone="active">请在微信确认绑定</StatusBadge>}
-                {bindingStatus === 'await_message' && <p className="text-[13px] text-muted-foreground">绑定后，在微信私聊里给机器人发一条消息</p>}
+                {!wechatPoll.isError && bindingStatus === 'wait' && <p className="text-[13px] text-muted-foreground">用微信扫描二维码</p>}
+                {!wechatPoll.isError && bindingStatus === 'scaned' && <StatusBadge tone="active">请在微信确认绑定</StatusBadge>}
+                {!wechatPoll.isError && bindingStatus === 'await_message' && <p className="text-[13px] text-muted-foreground">微信已确认。请在「微信 ClawBot」私聊里发送一条消息，折栈收到后会完成绑定。</p>}
                 {bindingStatus === 'connected' && <p role="status" className="text-[13px] font-medium">微信已绑定，可以发送测试</p>}
-                {['expired', 'verify_code_blocked', 'binded_redirect'].includes(bindingStatus ?? '') && <FieldError>绑定未完成，请重新扫码</FieldError>}
-                {bindingStatus?.includes('need_verifycode') && (
+                {['expired', 'verify_code_blocked'].includes(bindingStatus ?? '') && <FieldError>绑定已失效，请重新生成二维码</FieldError>}
+                {bindingStatus === 'binded_redirect' && <FieldError>微信报告此机器人已绑定，没有发放新的凭据</FieldError>}
+                {!wechatPoll.isError && bindingStatus?.includes('need_verifycode') && (
                   <div className="flex w-full items-end gap-2 text-left">
                     <TextField id="wechat-pin" label="微信验证码" value={pin} onChange={setPin} />
-                    <Button size="sm" onClick={() => setVerifiedPin(pin)}>确认验证码</Button>
+                    <Button size="sm" disabled={!/^\d{1,12}$/.test(pin.trim())} onClick={() => {
+                      setVerifiedPin(previous => ({ value: pin.trim(), attempt: (previous?.attempt ?? 0) + 1 }))
+                    }}>确认验证码</Button>
                   </div>
                 )}
-                {wechatPoll.isError && <FieldError>无法完成微信绑定，请重试</FieldError>}
+                {wechatPoll.isError && <FieldError>{wechatPoll.error.message}</FieldError>}
               </div>
             )}
-            <FlagField id="channel-enable" label="启用渠道" value={channel.enabled} onChange={value => setChannelField('enabled', value)} />
+            {!bindingMode && <FlagField id="channel-enable" label="启用渠道" value={channel.enabled} onChange={value => setChannelField('enabled', value)} />}
             {mutation.error && <FieldError>{mutation.error.message}</FieldError>}
             <DialogFooter>
               <Button variant="outline" size="sm" disabled={busy} onClick={closeChannelDialog}>
@@ -374,8 +389,13 @@ export function NotificationSettings() {
               </Button>
               {bindingMode ? (
                 <Button size="sm" disabled={busy || !channel.name.trim() || bindingStatus === 'connected'} onClick={() => mutation.mutate(async () => {
+                  if (wechat) {
+                    setWeChat(undefined)
+                    await client.cancelQueries({ queryKey: [...key, 'wechat', wechat.id] })
+                    await api.CancelWeChatBinding(wechat.id)
+                  }
                   setPin('')
-                  setVerifiedPin('')
+                  setVerifiedPin(undefined)
                   setWeChat(await api.StartWeChatBinding())
                 })}>
                   {wechat ? '重新生成二维码' : '生成微信二维码'}

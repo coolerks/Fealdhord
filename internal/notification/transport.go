@@ -58,7 +58,10 @@ var webhooks = map[string]webhook{
 var webhookSegments = map[string]int{"discord": 2, "slack": 3, "feishu": 1, "lark": 1}
 
 var tokenPattern = regexp.MustCompile(`^[0-9A-Za-z_:-]+$`)
-var wechatTokenPattern = regexp.MustCompile(`^[0-9A-Za-z._~+/:=-]+$`)
+var discordTokenPattern = regexp.MustCompile(`^[0-9A-Za-z._~+/:=-]+$`)
+
+// WeChat issues opaque credentials. Reject whitespace and control characters in the Bearer value.
+var wechatTokenPattern = regexp.MustCompile(`^[!-~]+$`)
 var qqTargetPattern = regexp.MustCompile(`^(group|c2c|channel):[0-9A-Za-z_-]+$`)
 
 type connectionSecret struct {
@@ -106,8 +109,11 @@ func checkConnection(platform, target string, secret connectionSecret) error {
 		}
 		return nil
 	case "wechat":
-		if target == "" || secret.Context == "" || !wechatTokenPattern.MatchString(secret.Address) {
+		if target == "" || secret.Context == "" {
 			return errors.New("微信需要已绑定私聊的会话令牌")
+		}
+		if !wechatTokenPattern.MatchString(secret.Address) {
+			return errors.New("微信返回的机器人令牌无效")
 		}
 		return nil
 	case "qq":

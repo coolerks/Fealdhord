@@ -40,18 +40,52 @@ func TestWebhookFormatsAndCredentialHost(t *testing.T) {
 
 func TestWeChatBindingKeepsTokenInCredentialStore(t *testing.T) {
 	service, _ := newTestNotification(t)
+	const botToken = "synthetic@region|opaque"
+	var polls int
 	service.transport.client.Transport = sender(func(r *http.Request) (*http.Response, error) {
 		switch r.URL.Path {
 		case "/ilink/bot/get_bot_qrcode":
-			if r.Method != http.MethodPost {
-				t.Fatal(r.Method)
+			if r.Method != http.MethodPost || r.Header.Get("iLink-App-Id") != "bot" ||
+				r.Header.Get("iLink-App-ClientVersion") != "196609" || r.Header.Get("X-WECHAT-UIN") == "" ||
+				r.Header.Get("AuthorizationType") != "ilink_bot_token" || r.Header.Get("Authorization") != "" {
+				t.Fatal("invalid QR creation request")
 			}
 			return response(200, `{"qrcode":"sample-code","qrcode_img_content":"sample-qr-payload"}`), nil
 		case "/ilink/bot/get_qrcode_status":
-			return response(200, `{"status":"confirmed","ilink_user_id":"owner@im.wechat","bot_token":"local_token","baseurl":"https://ilinkai.weixin.qq.com"}`), nil
+			polls++
+			if r.Method != http.MethodGet || r.Header.Get("iLink-App-Id") != "bot" ||
+				r.Header.Get("iLink-App-ClientVersion") != "196609" || r.Header.Get("AuthorizationType") != "" {
+				t.Fatal("invalid QR status request")
+			}
+			if polls == 1 {
+				return response(200, `{"status":"scaned_but_redirect","redirect_host":"node.weixin.qq.com"}`), nil
+			}
+			if r.URL.Hostname() != "node.weixin.qq.com" {
+				t.Fatal("poll did not use the assigned binding host")
+			}
+			code := r.URL.Query().Get("verify_code")
+			switch polls {
+			case 2:
+				return response(200, `{"status":"need_verifycode"}`), nil
+			case 3:
+				if code != "1234" {
+					t.Fatal("PIN missing from verification request")
+				}
+				return response(200, `{"status":"scaned"}`), nil
+			}
+			if code != "" {
+				t.Fatal("poll resent an accepted PIN")
+			}
+			return response(200, `{"status":"confirmed","ilink_user_id":"owner@im.wechat","bot_token":"`+botToken+`","baseurl":"https://ilinkai.weixin.qq.com"}`), nil
 		case "/ilink/bot/getupdates":
+			if r.Header.Get("Authorization") != "Bearer "+botToken {
+				t.Fatal("getupdates did not preserve opaque token")
+			}
 			return response(200, `{"ret":0,"msgs":[{"from_user_id":"other","context_token":"wrong"},{"from_user_id":"owner@im.wechat","context_token":"local_context"}]}`), nil
 		case "/ilink/bot/sendmessage":
+			if r.Header.Get("Authorization") != "Bearer "+botToken {
+				t.Fatal("sendmessage did not use the stored token")
+			}
 			body, _ := io.ReadAll(r.Body)
 			if !strings.Contains(string(body), "local_context") || strings.Contains(string(body), "wrong") {
 				t.Fatalf("incorrect context: %s", body)
@@ -66,15 +100,46 @@ func TestWeChatBindingKeepsTokenInCredentialStore(t *testing.T) {
 	if err != nil || !strings.HasPrefix(qr.Image, "data:image/png;base64,") {
 		t.Fatalf("QR error=%v", err)
 	}
-	result, err := service.pollWeChatBinding(t.Context(), qr.ID, "", "我的微信")
+	for _, step := range []struct{ pin, status string }{{"", "scaned"}, {"", "need_verifycode"}, {"1234", "scaned"}} {
+		got, err := service.pollWeChatBinding(t.Context(), qr.ID, step.pin, "我的微信")
+		if err != nil || got.Status != step.status {
+			t.Fatalf("expected %s, got %s, err=%v", step.status, got.Status, err)
+		}
+	}
+	result, err := service.pollWeChatBinding(t.Context(), qr.ID, "1234", "我的微信")
 	if err != nil || result.Status != "connected" || result.Channel == nil || result.Channel.Verified {
 		t.Fatalf("result=%+v err=%v", result, err)
 	}
 	data, _ := json.Marshal(result)
-	if strings.Contains(string(data), "local_token") || strings.Contains(string(data), "local_context") {
+	if strings.Contains(string(data), botToken) || strings.Contains(string(data), "local_context") {
 		t.Fatal("credential returned to frontend")
 	}
 	if err := service.TestChannel(t.Context(), result.Channel.ID); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestWeChatBindingStopsOnRevokedBotSession(t *testing.T) {
+	service, _ := newTestNotification(t)
+	service.transport.client.Transport = sender(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/ilink/bot/get_bot_qrcode":
+			return response(200, `{"qrcode":"sample-code","qrcode_img_content":"sample-qr-payload"}`), nil
+		case "/ilink/bot/get_qrcode_status":
+			return response(200, `{"status":"confirmed","ilink_user_id":"owner@im.wechat","bot_token":"sample","baseurl":"https://ilinkai.weixin.qq.com"}`), nil
+		case "/ilink/bot/getupdates":
+			return response(200, `{"errcode":-14}`), nil
+		default:
+			t.Fatalf("unexpected request %s", r.URL.Path)
+			return nil, nil
+		}
+	})
+	qr, err := service.startWeChatBinding(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := service.pollWeChatBinding(t.Context(), qr.ID, "", "微信")
+	if err != nil || status.Status != "expired" || status.Channel != nil {
+		t.Fatalf("expected terminal expired status, got %s, err=%v", status.Status, err)
 	}
 }

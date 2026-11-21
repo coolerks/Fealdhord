@@ -50,6 +50,9 @@ const notificationAPI = vi.hoisted(() => ({
   DeleteTask: vi.fn(),
   SaveRule: vi.fn().mockResolvedValue(undefined),
   SaveChannel: vi.fn().mockResolvedValue(undefined),
+  StartWeChatBinding: vi.fn(),
+  PollWeChatBinding: vi.fn(),
+  CancelWeChatBinding: vi.fn(),
 }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/notification/api', () => notificationAPI)
 const listSkills = vi.hoisted(() => vi.fn())
@@ -1083,6 +1086,27 @@ describe('Phase 1 阅读 Shell', () => {
     await waitFor(() => expect(notificationAPI.SaveChannel).toHaveBeenCalledWith(expect.objectContaining({
       platform: 'telegram', targets: ['123456', '-100123456'],
     })))
+  })
+
+  it('微信绑定失败后显示具体原因，并停止自动轮询', async () => {
+    notificationAPI.StartWeChatBinding.mockResolvedValue({ id: 'wechat-qr', status: 'wait' })
+    notificationAPI.PollWeChatBinding.mockImplementation(() => Object.assign(
+      Promise.reject(new Error('无法读取微信私聊消息')), { cancel: vi.fn() },
+    ))
+    const user = userEvent.setup()
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    await user.click(await screen.findByRole('button', { name: '通知' }))
+    await user.click(await screen.findByRole('button', { name: '添加渠道' }))
+    await user.type(screen.getByRole('textbox', { name: '渠道名称' }), '微信测试')
+    await user.click(screen.getByRole('button', { name: '平台' }))
+    await user.click(await screen.findByRole('option', { name: '微信' }))
+    await user.click(screen.getByRole('button', { name: '生成微信二维码' }))
+    expect(await screen.findByText('无法读取微信私聊消息')).toBeInTheDocument()
+    expect(screen.queryByText('用微信扫描二维码')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重新生成二维码' })).toBeEnabled()
+    await act(() => new Promise(resolve => window.setTimeout(resolve, 1350)))
+    expect(notificationAPI.PollWeChatBinding).toHaveBeenCalledTimes(1)
   })
 
   it('通过更多打开工具栏设置，搜索并保存常驻操作', async () => {

@@ -39,7 +39,7 @@ func feishuRecipient(target string) (string, string, bool) {
 func validAppCredentials(platform string, secret connectionSecret) bool {
 	switch platform {
 	case "discord":
-		return wechatTokenPattern.MatchString(secret.Address)
+		return discordTokenPattern.MatchString(secret.Address)
 	case "slack":
 		return strings.HasPrefix(secret.Address, "xoxb-") && tokenPattern.MatchString(secret.Address)
 	case "dingtalk":

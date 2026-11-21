@@ -4,11 +4,14 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,17 +22,19 @@ import (
 
 const wechatBase = "https://ilinkai.weixin.qq.com"
 const wechatVersion = "3.0.1"
+const wechatClientVersion = "196609" // 3.0.1 encoded as 0x00MMNNPP.
 
 type wechatBinding struct {
-	mu         sync.Mutex
-	id         string
-	qr         string
-	owner      string
-	token      string
-	base       string
-	statusBase string
-	cursor     string
-	expiry     time.Time
+	mu          sync.Mutex
+	id          string
+	qr          string
+	owner       string
+	token       string
+	base        string
+	statusBase  string
+	cursor      string
+	expiry      time.Time
+	pinAccepted bool
 }
 
 type WeChatBinding struct {
@@ -53,7 +58,13 @@ func trustedWeChatOrigin(raw string) string {
 }
 
 func (s *Service) startWeChatBinding(ctx context.Context) (WeChatBinding, error) {
-	response, data, err := s.transport.post(ctx, wechatBase+"/ilink/bot/get_bot_qrcode?bot_type=3", map[string]any{"local_token_list": []string{}}, nil)
+	var randomUIN [4]byte
+	rand.Read(randomUIN[:])
+	uin := strconv.FormatUint(uint64(binary.BigEndian.Uint32(randomUIN[:])), 10)
+	response, data, err := s.transport.post(ctx, wechatBase+"/ilink/bot/get_bot_qrcode?bot_type=3", map[string]any{"local_token_list": []string{}}, map[string]string{
+		"iLink-App-Id": "bot", "iLink-App-ClientVersion": wechatClientVersion,
+		"AuthorizationType": "ilink_bot_token", "X-WECHAT-UIN": base64.StdEncoding.EncodeToString([]byte(uin)),
+	})
 	var qr ilink.QRCodeResponse
 	if err != nil || response.StatusCode != http.StatusOK || json.Unmarshal(data, &qr) != nil ||
 		qr.QRCode == "" || qr.QRCodeImgContent == "" || len(qr.QRCodeImgContent) > 2048 {
@@ -68,6 +79,7 @@ func (s *Service) startWeChatBinding(ctx context.Context) (WeChatBinding, error)
 	defer s.wechat.mu.Unlock()
 	s.wechat.id, s.wechat.qr, s.wechat.expiry = id, qr.QRCode, s.now().Add(8*time.Minute)
 	s.wechat.owner, s.wechat.token, s.wechat.cursor, s.wechat.base, s.wechat.statusBase = "", "", "", "", wechatBase
+	s.wechat.pinAccepted = false
 	return WeChatBinding{ID: id, Status: "wait", Image: "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)}, nil
 }
 
@@ -88,7 +100,7 @@ func (s *Service) pollWeChatBinding(ctx context.Context, id, pin, name string) (
 	}
 	if session.token == "" {
 		params := url.Values{"qrcode": {session.qr}}
-		if pin != "" {
+		if pin != "" && !session.pinAccepted {
 			if len(pin) > 12 || strings.Trim(pin, "0123456789") != "" {
 				return WeChatBinding{}, errors.New("请输入数字验证码")
 			}
@@ -99,20 +111,26 @@ func (s *Service) pollWeChatBinding(ctx context.Context, id, pin, name string) (
 		if err != nil {
 			return WeChatBinding{}, errors.New("无法读取微信绑定状态")
 		}
+		req.Header.Set("iLink-App-Id", "bot")
+		req.Header.Set("iLink-App-ClientVersion", wechatClientVersion)
 		response, err := s.transport.client.Do(req)
 		if err != nil {
-			return WeChatBinding{ID: id, Status: "wait"}, nil
+			var timeout net.Error
+			if ctx.Err() == nil && errors.As(err, &timeout) && timeout.Timeout() {
+				return WeChatBinding{ID: id, Status: "wait"}, nil
+			}
+			return WeChatBinding{}, errors.New("无法连接微信绑定服务")
 		}
-		data, readErr := io.ReadAll(io.LimitReader(response.Body, maxWireResponse))
+		data, readErr := io.ReadAll(io.LimitReader(response.Body, maxWireResponse+1))
 		_ = response.Body.Close()
 		var status ilink.QRStatusResponse
-		if readErr != nil || response.StatusCode != http.StatusOK || json.Unmarshal(data, &status) != nil {
-			return WeChatBinding{ID: id, Status: "wait"}, nil
+		if readErr != nil || len(data) > maxWireResponse || response.StatusCode != http.StatusOK || json.Unmarshal(data, &status) != nil || status.Status == "" {
+			return WeChatBinding{}, errors.New("微信绑定服务返回异常，请重新扫码")
 		}
 		switch status.Status {
 		case "confirmed":
 			base := trustedWeChatOrigin(status.BaseURL)
-			if base == "" || status.BotToken == "" || status.ILinkUserID == "" {
+			if base == "" || !wechatTokenPattern.MatchString(status.BotToken) || status.ILinkUserID == "" {
 				return WeChatBinding{}, errors.New("微信返回的绑定信息无效")
 			}
 			session.owner, session.token, session.base = status.ILinkUserID, status.BotToken, base
@@ -123,13 +141,27 @@ func (s *Service) pollWeChatBinding(ctx context.Context, id, pin, name string) (
 			}
 			return WeChatBinding{}, errors.New("微信绑定节点不可用")
 		default:
+			if status.Status == "scaned" && params.Get("verify_code") != "" {
+				session.pinAccepted = true
+			} else if strings.Contains(status.Status, "need_verifycode") {
+				session.pinAccepted = false
+			} else if status.Status != "wait" && status.Status != "scaned" && status.Status != "expired" &&
+				status.Status != "verify_code_blocked" && status.Status != "binded_redirect" {
+				return WeChatBinding{}, errors.New("微信返回了未知绑定状态，请重新扫码")
+			}
 			return WeChatBinding{ID: id, Status: status.Status}, nil
 		}
 	}
 	client := s.transport.wechatClient(session.token, session.base)
 	updates, err := client.GetUpdates(ctx, session.cursor, 8000)
 	if err != nil || updates == nil {
-		return WeChatBinding{ID: id, Status: "await_message"}, nil
+		return WeChatBinding{}, errors.New("无法读取微信私聊消息")
+	}
+	if updates.Ret == -14 || updates.ErrCode == -14 {
+		return WeChatBinding{ID: id, Status: "expired"}, nil
+	}
+	if updates.Ret != 0 || updates.ErrCode != 0 {
+		return WeChatBinding{}, errors.New("微信暂时无法读取私聊消息")
 	}
 	if updates.GetUpdatesBuf != "" {
 		session.cursor = updates.GetUpdatesBuf
