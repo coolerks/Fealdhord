@@ -71,6 +71,59 @@ function setup(withArticles = false) {
 }
 
 describe('Phase 1 阅读 Shell', () => {
+  it('全屏设置替换两栏并返回阅读，保存对话框为下次打开方式', async () => {
+    const user = userEvent.setup()
+    host.isWindows.mockReturnValue(true)
+    api.get.mockResolvedValue({ preferences: preferencesFixture({ settings_open_mode: 'full' }), revision: 0 })
+    setup(true)
+    await user.click(await screen.findByRole('button', { name: '打开文章：测试文章 0' }))
+    const trigger = screen.getByRole('button', { name: '打开设置' })
+    await user.click(trigger)
+    const sidebar = await screen.findByRole('complementary', { name: '设置侧栏' })
+    const workspace = screen.getByRole('main', { name: '设置' })
+    expect(screen.getByRole('group', { name: '窗口控制' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: '设置' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: '主导航' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '测试文章 0' })).not.toBeInTheDocument()
+    const back = within(sidebar).getByRole('button', { name: '返回' })
+    expect(back).toHaveFocus()
+    const modes = within(workspace).getByRole('radiogroup', { name: '设置打开方式' })
+    expect(within(modes).getByRole('radio', { name: '全屏' })).toBeChecked()
+    await user.click(within(modes).getByRole('radio', { name: '对话框' }))
+    await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ settings_open_mode: 'dialog' }), expect.any(Number),
+    ))
+    expect(workspace).toBeInTheDocument()
+    await user.click(back)
+    expect(screen.getByRole('heading', { name: '测试文章 0' })).toBeInTheDocument()
+    await waitFor(() => expect(trigger).toHaveFocus())
+    await user.click(trigger)
+    expect(await screen.findByRole('dialog', { name: '设置' })).toBeInTheDocument()
+  })
+
+  it('从对话框展开设置时保留正在编辑的内容，退出后恢复 AI 草稿', async () => {
+    const user = userEvent.setup()
+    setup()
+    chat.List.mockResolvedValue([])
+    await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    const chatInput = await screen.findByRole('textbox', { name: '消息' })
+    await user.type(chatInput, '未发送草稿')
+    await user.click(screen.getByRole('button', { name: 'AI 设置' }))
+    const dialog = await screen.findByRole('dialog', { name: '设置' })
+    await user.click(await within(dialog).findByRole('button', { name: '添加服务' }))
+    await user.type(within(dialog).getByRole('textbox', { name: '服务名称' }), '未保存服务')
+    await user.click(within(dialog).getByRole('button', { name: '全屏设置' }))
+    const sidebar = await screen.findByRole('complementary', { name: '设置侧栏' })
+    const workspace = screen.getByRole('main', { name: '设置' })
+    expect(within(sidebar).getByRole('button', { name: 'AI 与扩展' })).toHaveAttribute('aria-current', 'page')
+    expect(within(workspace).getByRole('textbox', { name: '服务名称' })).toHaveValue('未保存服务')
+    expect(screen.queryByRole('main', { name: 'AI 助手工作区' })).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('main', { name: '设置' })).not.toBeInTheDocument())
+    expect(screen.getByRole('textbox', { name: '消息' })).toHaveValue('未发送草稿')
+    expect(useWorkspace.getState().preferences?.settings_open_mode).toBe('dialog')
+  })
+
   it('用斜杠选择技能和模型，不将命令或路径误当成对方', async () => {
     const user = userEvent.setup()
     setup()
@@ -1097,6 +1150,7 @@ describe('菜单图标与快捷键',()=>{
   await user.click(developerMode)
   await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ developer_mode: true }), expect.any(Number)))
   await user.keyboard('{Escape}')
+  await waitFor(() => expect(screen.getByRole('button', { name: '打开设置' })).toHaveFocus())
 
   await user.click(help)
   await user.click(await screen.findByRole('menuitem', { name: '开发者工具' }))

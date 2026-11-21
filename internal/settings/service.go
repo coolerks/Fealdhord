@@ -80,6 +80,9 @@ func (s *Service) Update(ctx context.Context, req UpdateRequest) Result {
 	if req.Revision < 0 {
 		return failure("ValidationError", "设置版本无效。", false)
 	}
+	if req.Preferences.SettingsOpenMode == "" {
+		req.Preferences.SettingsOpenMode = Defaults().SettingsOpenMode
+	}
 	if err := req.Preferences.Validate(); err != nil {
 		return failure("ValidationError", err.Error(), false)
 	}

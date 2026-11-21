@@ -28,7 +28,7 @@ export const scopes = [
 function Section({ title, onAdd,children }: { title: string; onAdd: () => void;children?:ReactNode }) {
   return <section className="nav-section"><div className="nav-section-heading"><h2>{title}</h2><SemanticButton icon={Plus} label={`管理${title}`} meaning="add" onClick={onAdd} /></div>{children}</section>
 }
-export function Sidebar({ motionMode, inChat = false }: { motionMode: 'full' | 'subtle' | 'off'; inChat?: boolean }) {
+export function Sidebar({ motionMode, inChat = false, suspended = false }: { motionMode: 'full' | 'subtle' | 'off'; inChat?: boolean; suspended?: boolean }) {
   const client = useQueryClient()
   const navigation=useNavigation()
   const [organizeScrolled, setOrganizeScrolled] = useState(false)
@@ -43,7 +43,7 @@ export function Sidebar({ motionMode, inChat = false }: { motionMode: 'full' | '
   const selectScope = useWorkspace(state => state.selectScope)
   const showSettings = useWorkspace(state => state.showSettings)
   const collapsed = preferences.sidebar_collapsed
-  return <aside id={inChat ? undefined : 'workspace-sidebar'} className={cn('glass-sidebar workspace-mode-reading', inChat && 'chat-obscured')} aria-label="主导航" inert={collapsed || inChat} aria-hidden={collapsed || inChat || undefined}>
+  return <aside id={inChat ? undefined : 'workspace-sidebar'} className={cn('glass-sidebar workspace-mode-reading', inChat && 'chat-obscured', suspended && 'settings-obscured')} hidden={suspended} aria-label="主导航" inert={collapsed || inChat} aria-hidden={collapsed || inChat || undefined}>
     <div className="sidebar-titlebar" />
     <nav className="system-nav" aria-label="阅读视图" onKeyDown={moveSidebarFocus}>
     <SidebarAction id="open-command" label="命令面板" meaning="search" shortcut={native.isMac() ? 'Meta+K' : 'Control+K'} aria-haspopup="dialog" onClick={openCommands} />

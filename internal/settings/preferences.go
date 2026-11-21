@@ -39,6 +39,7 @@ type Preferences struct {
 	SelectedArticleID        string                  `json:"selected_article_id"`
 	ScrollAnchors            map[string]ScrollAnchor `json:"scroll_anchors"`
 	ReaderToolbarPinned      []string                `json:"reader_toolbar_pinned"`
+	SettingsOpenMode         string                  `json:"settings_open_mode"`
 	ReaderOpenMode           string                  `json:"reader_open_mode"`
 	ReaderAutoRead           bool                    `json:"reader_auto_read"`
 	ReaderFontFamily         string                  `json:"reader_font_family"`
@@ -55,7 +56,7 @@ type Preferences struct {
 
 func Defaults() Preferences {
 	return Preferences{RefreshIntervalMinutes: 30, NotificationMode: "toast", ReaderLayout: "fill", ReaderOpenMode: "feed", ReaderAutoRead: true, ReaderFontFamily: "sans", RemoteImages: "subscriptions", MediaCacheEnabled: true,
-		Theme: "system", ArticleViewMode: "list", ListDensity: "compact", ListThumbnail: "none",
+		Theme: "system", SettingsOpenMode: "full", ArticleViewMode: "list", ListDensity: "compact", ListThumbnail: "none",
 		MasonryImageMode: "original_ratio", Animation: "full", FollowSystemReduceMotion: true,
 		SidebarWidth: 248, ListWidth: 360, ReaderOpen: false, SelectedScope: "all",
 		ReaderToolbarPinned: []string{"refresh", "favorite", "translate", "ai"},
@@ -113,6 +114,9 @@ func (p Preferences) Validate() error {
 	if !oneOf(p.ReaderLayout, "fill", "drawer", "split") {
 		return errors.New("阅读布局无效。")
 	}
+	if !oneOf(p.SettingsOpenMode, "full", "dialog") {
+		return errors.New("设置打开方式无效。")
+	}
 	if !oneOf(p.ReaderOpenMode, "feed", "full") {
 		return errors.New("文章打开方式无效。")
 	}
@@ -169,6 +173,9 @@ func (p *Preferences) normalize() {
 	}
 	if !oneOf(p.ReaderLayout, "fill", "drawer", "split") {
 		p.ReaderLayout = d.ReaderLayout
+	}
+	if !oneOf(p.SettingsOpenMode, "full", "dialog") {
+		p.SettingsOpenMode = d.SettingsOpenMode
 	}
 	if !oneOf(p.ReaderOpenMode, "feed", "full") {
 		p.ReaderOpenMode = d.ReaderOpenMode

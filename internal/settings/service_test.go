@@ -354,3 +354,31 @@ func TestLegacyMediaDefaultsAndScopedNotification(t *testing.T) {
 		t.Fatal("媒体策略未通知")
 	}
 }
+
+func TestSettingsOpenModeDefaultsAndPersists(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t, filepath.Join(t.TempDir(), "settings-mode.db"))
+	service := NewService(store)
+	initial := service.Get(ctx)
+	if !initial.OK || initial.Data.Preferences.SettingsOpenMode != "full" {
+		t.Fatalf("新设置应默认全屏：%+v", initial)
+	}
+	if ok, err := store.SavePreferences(ctx, `{"theme":"dark"}`, initial.Data.Revision, 0); err != nil || !ok {
+		t.Fatalf("写入旧设置失败：%v", err)
+	}
+	legacy := service.Get(ctx)
+	if !legacy.OK || legacy.Data.Preferences.SettingsOpenMode != "full" || legacy.Data.Preferences.Theme != "dark" {
+		t.Fatalf("旧设置应新增全屏默认值并保留已有偏好：%+v", legacy)
+	}
+	prefs := legacy.Data.Preferences
+	prefs.SettingsOpenMode = "dialog"
+	saved := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: legacy.Data.Revision})
+	reloaded := NewService(store).Get(ctx)
+	if !saved.OK || !reloaded.OK || reloaded.Data.Preferences.SettingsOpenMode != "dialog" {
+		t.Fatalf("对话框偏好未持久化：%+v", reloaded)
+	}
+	prefs.SettingsOpenMode = "invalid"
+	if rejected := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: reloaded.Data.Revision}); rejected.OK || rejected.Error.Code != "ValidationError" {
+		t.Fatalf("非法打开方式未被拒绝：%+v", rejected)
+	}
+}

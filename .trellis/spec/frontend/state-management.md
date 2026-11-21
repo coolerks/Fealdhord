@@ -57,3 +57,7 @@ library Query 迁移为 InfiniteData<LibraryPage>；libraryKey 包含 scope／se
 `reader_toolbar_pinned` 通过既有 SettingsService 和 `workspace.patch` 持久化。偏好包含稳定操作 ID。空数组表示全部收进菜单。读取旧记录时，缺失或无效字段使用默认四项。字段定义、写入校验与测试见[偏好契约](../../../docs/04-specs/preferences.md)。
 
 通知方式和订阅结果 Toast 的自动收起开关由「通知」设置页通过 `workspace.patch` 独立保存。旧记录缺少 `refresh_toast_auto_dismiss` 时按 `false` 读取。Toast 超时是单条通知的参数，全局 Provider 默认值继续供其他通知使用。
+
+## 设置工作区呈现
+
+`settings_open_mode` 是持久默认值，`settingsPresentation` 是本次打开的状态。入口打开时从偏好读取，临时全屏、返回及 Escape 不写默认值。全屏使用 Shell 的侧栏宿主与内容栏，遮挡的阅读与全局 AI 仍挂载并设为 inert。对话框与工作区共用设置分区及稳定的表单宿主，切换呈现不丢未提交的表单。退出时恢复焦点。

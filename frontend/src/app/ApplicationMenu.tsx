@@ -17,10 +17,10 @@ const groups: {title:string;sections:CommandID[][]}[] = [
  {title:'文章',sections:[['previous','next'],['reader-mode','open-original'],['favorite','read']]},
  {title:'窗口',sections:[['minimize','maximize'],['palette']]},
 ]
-export function ApplicationMenu({ windowsSidebarToggle }: { windowsSidebarToggle?: ReactNode }) {
+export function ApplicationMenu({ windows, windowsSidebarToggle }: { windows: boolean; windowsSidebarToggle?: ReactNode }) {
  const client=useQueryClient()
  const developerMode = useWorkspace(state => state.preferences?.developer_mode)
- const menuClassName = windowsSidebarToggle ? "action-menu windows-menu-popover" : "action-menu"
+ const menuClassName = windows ? "action-menu windows-menu-popover" : "action-menu"
  const text=useRef<ReturnType<typeof captureTextTarget> | null>(null)
  const command=(id:CommandID)=><MenubarItem key={id} aria-keyshortcuts={commandShortcut(id,native.isMac())?.keys} onSelect={()=>runCommand(id,client)}><CommandPresentation id={id}/></MenubarItem>
  return <div className="application-menu" onPointerDownCapture={()=>{text.current=captureTextTarget()}} onFocusCapture={event=>{if(event.relatedTarget instanceof HTMLInputElement||event.relatedTarget instanceof HTMLTextAreaElement)text.current=captureTextTarget(event.relatedTarget)}}>
@@ -35,7 +35,7 @@ export function ApplicationMenu({ windowsSidebarToggle }: { windowsSidebarToggle
  {groups.slice(1).map(renderGroup)}
  {renderGroup({ title: '帮助', sections: developerMode ? [['help', 'about', 'diagnostics'], ['devtools']] : [['help', 'about', 'diagnostics']] })}
  </Menubar>
- {windowsSidebarToggle && <>
+ {windows && <>
    <div className="window-drag-area" onDoubleClick={() => runCommand('maximize',client)} />
    <WindowControls />
  </>}

@@ -3,6 +3,8 @@ import { preferencesAPI } from '@/lib/preferences'
 import type { Preferences, Snapshot } from '@/lib/preferences'
 import { PreferenceWriter } from '@/lib/preference-writer'
 
+type SettingsPresentation = 'full' | 'dialog'
+
 export type SettingsTab = 'appearance' | 'reader' | 'data' | 'categories' | 'feeds' | 'notifications' | 'ai' | 'about'
 type Workspace = {
   preferences: Preferences | null
@@ -20,6 +22,7 @@ type Workspace = {
   activeArticleQueryKey:readonly unknown[]|null
   settingsTab: SettingsTab
   settingsOpen: boolean
+  settingsPresentation: SettingsPresentation
   paletteOpen: boolean
   searchOpen: boolean
   helpOpen: boolean
@@ -31,11 +34,13 @@ type Workspace = {
   initialize: (snapshot: Snapshot) => void
   retrySave: () => void
   showSettings: (tab?: SettingsTab) => void
+  closeSettings: () => void
 }
 let writer: PreferenceWriter | null = null
 let settingsFocusReturn: HTMLElement | null = null
 export function restoreSettingsFocus() {
-  const fallbackID = useWorkspace.getState().preferences?.sidebar_collapsed ? 'sidebar-toggle' : 'open-settings'
+  const fallbackID = useWorkspace.getState().preferences?.sidebar_collapsed ? 'sidebar-toggle' :
+    document.querySelector('.chat-workspace:not([inert])') ? 'open-ai-settings' : 'open-settings'
   const target = settingsFocusReturn?.isConnected && !settingsFocusReturn.closest('[hidden], [inert]')
     ? settingsFocusReturn : document.getElementById(fallbackID)
   target?.focus()
@@ -44,7 +49,7 @@ export function restoreSettingsFocus() {
 
 export const useWorkspace = create<Workspace>((set, get) => ({
   preferences: null, revision: 0, version: 0, savedVersion: 0, saveError: null, saveStatus: 'saved',
-  search: '', sort: 'relevance', activeArticleQueryKey:null,readerModeRequestID:null,transferIntent:null,readFilter:'all',favoriteFilter:'all', settingsTab: 'appearance', settingsOpen: false, paletteOpen: false, searchOpen: false, aiOpen: false, helpOpen: false, diagnosticsOpen: false, commandError: null,
+  search: '', sort: 'relevance', activeArticleQueryKey:null,readerModeRequestID:null,transferIntent:null,readFilter:'all',favoriteFilter:'all', settingsTab: 'appearance', settingsOpen: false, settingsPresentation: 'full', paletteOpen: false, searchOpen: false, aiOpen: false, helpOpen: false, diagnosticsOpen: false, commandError: null,
   initialize(snapshot) {
     writer = new PreferenceWriter(snapshot.revision, preferencesAPI.update,
       (saved, version) => set(state => ({ revision: saved.revision, savedVersion: version, saveStatus: state.version > version ? 'saving' : 'saved' })),
@@ -69,5 +74,20 @@ export const useWorkspace = create<Workspace>((set, get) => ({
     const { preferences, version } = get()
     if (preferences) { set({ saveError: null, saveStatus: 'saving' }); writer?.enqueue(preferences, version) }
   },
-  showSettings(tab = 'appearance') { settingsFocusReturn = document.activeElement instanceof HTMLElement ? document.activeElement : null; set({ settingsOpen: true, settingsTab: tab }) },
+  showSettings(tab = 'appearance') {
+    if (get().settingsOpen) {
+      set({ settingsTab: tab })
+      return
+    }
+    const active = document.activeElement
+    settingsFocusReturn = active instanceof HTMLElement && active !== document.body ? active : null
+    const settingsPresentation = get().preferences?.settings_open_mode === 'dialog' ? 'dialog' : 'full'
+    set({ settingsOpen: true, settingsTab: tab, settingsPresentation })
+  },
+  closeSettings() {
+    set({ settingsOpen: false })
+    requestAnimationFrame(() => {
+      if (!get().settingsOpen) restoreSettingsFocus()
+    })
+  },
 }))

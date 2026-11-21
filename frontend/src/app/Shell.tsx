@@ -76,6 +76,7 @@ export function Shell() {
   const chatKind = useChatTarget(state => state.target?.kind)
   const globalChat = chatKind === 'global'
   const [chatSidebar, setChatSidebar] = useState<HTMLDivElement | null>(null)
+  const [settingsSidebar, setSettingsSidebar] = useState<HTMLDivElement | null>(null)
   const [chatReady, setChatReady] = useState(false)
   const chatVisible = globalChat && chatReady
   const preferences = useWorkspace(state => state.preferences)!
@@ -86,6 +87,7 @@ export function Shell() {
   const diagnosticsOpen = useWorkspace(state => state.diagnosticsOpen)
   const commandError=useWorkspace(state=>state.commandError)
   const settingsOpen = useWorkspace(state => state.settingsOpen)
+  const settingsWorkspace = useWorkspace(state => state.settingsOpen && state.settingsPresentation === 'full')
   const paletteOpen = useWorkspace(state => state.paletteOpen)
   const saveStatus = useWorkspace(state => state.saveStatus)
   useEffect(() => {
@@ -113,7 +115,7 @@ export function Shell() {
   const [listLimit, setListLimit] = useState(listMaxWidth)
   const workspace = useRef<HTMLElement>(null)
   const articleTransitionHost = useRef<HTMLDivElement>(null)
-  const sidebarCollapsed = preferences.sidebar_collapsed
+  const sidebarCollapsed = preferences.sidebar_collapsed && !settingsWorkspace
   const sidebarWidth = sidebarDraft ?? preferences.sidebar_width
   const listWidth = listDraft ?? preferences.list_width
   const queryKey = libraryAnchorKey(library.key)
@@ -163,13 +165,22 @@ export function Shell() {
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
       if (event.isComposing || event.defaultPrevented) return
-      if (!useWorkspace.getState().settingsOpen && !native.isMac() && event.key === 'F10') {
+      const settings = useWorkspace.getState()
+      if (settings.settingsOpen) {
+        if (settings.settingsPresentation === 'full' && event.key === 'Escape' &&
+          !(event.target instanceof Element && event.target.closest('[role=dialog], [role=menu]'))) {
+          event.preventDefault()
+          settings.closeSettings()
+        }
+        return
+      }
+      if (!native.isMac() && event.key === 'F10') {
         event.preventDefault()
         document.querySelector<HTMLElement>('[data-slot=menubar-trigger]')?.focus()
         return
       }
       if (globalChat) {
-        if (!native.isMac() && !useWorkspace.getState().settingsOpen && (event.metaKey || event.ctrlKey) && event.key === ',') {
+        if (!native.isMac() && (event.metaKey || event.ctrlKey) && event.key === ',') {
           event.preventDefault()
           showSettings('ai')
         }
@@ -179,12 +190,11 @@ export function Shell() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a' &&
         !(event.target instanceof Element && event.target.closest('input, textarea, [contenteditable=true]'))) {
         event.preventDefault()
-        if (readerVisible && !useWorkspace.getState().settingsOpen && !useWorkspace.getState().paletteOpen) {
+        if (readerVisible && !settings.paletteOpen) {
           void editText('selectAll', captureTextTarget())
         }
         return
       }
-      if (useWorkspace.getState().settingsOpen) return
       if ((event.metaKey||event.ctrlKey) && !native.isMac()) {
         const id=event.key===','?'settings':event.key.toLowerCase()==='f'?'search':event.key==='1'?'all':event.key==='2'?'unread':event.key==='3'?'favorites':null
         if(id){event.preventDefault();runCommand(id,client);return}
@@ -224,26 +234,30 @@ export function Shell() {
   const platform = native.isMac() ? 'mac' : native.isWindows() ? 'windows' : 'other'
   const reader = readerVisible && <Reader feedIcon={selectedFeedIcon} article={selected} preferences={preferences} overlay={overlay}
     onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} />
+  useLayoutEffect(() => {
+    if (settingsWorkspace && workspace.current) clearSelectionWithin(workspace.current)
+  }, [settingsWorkspace])
   const sidebarToggle = <SemanticButton id="sidebar-toggle" icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
     label={sidebarCollapsed ? '展开侧栏' : '折叠侧栏'} meaning={sidebarCollapsed ? 'expand' : 'collapse'}
     aria-expanded={!sidebarCollapsed} aria-controls="workspace-sidebar"
     onClick={() => runCommand('sidebar', client)} />
   return <MotionConfig reducedMotion={mode === 'full' ? 'never' : 'always'} transition={{ duration: mode === 'off' ? 0 : mode === 'subtle' ? .1 : .22, ease: [.22, 1, .36, 1] }}>
     <div className="desktop-shell" data-platform={platform}>
-      {platform !== 'mac' && <ApplicationMenu windowsSidebarToggle={platform === 'windows' ? sidebarToggle : undefined} />}
+      {platform !== 'mac' && <ApplicationMenu windows={platform === 'windows'} windowsSidebarToggle={platform === 'windows' && !settingsWorkspace ? sidebarToggle : undefined} />}
       <div className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px`, '--list-width-cap': `${listMaxShare * 100}%` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={sidebarCollapsed} data-sidebar-resizing={sidebarDraft !== null}>
-      {platform !== 'windows' && <div className="sidebar-toggle">{sidebarToggle}</div>}
+      {platform !== 'windows' && !settingsWorkspace && <div className="sidebar-toggle">{sidebarToggle}</div>}
       <div className="sidebar-track">
-        <Sidebar motionMode={mode} inChat={chatVisible} />
-        <div ref={setChatSidebar} className="chat-sidebar-host" />
+        <Sidebar motionMode={mode} inChat={chatVisible || settingsWorkspace} suspended={settingsWorkspace} />
+        <div ref={setChatSidebar} className="chat-sidebar-host" inert={settingsWorkspace} hidden={settingsWorkspace} />
+        {settingsWorkspace && <div ref={setSettingsSidebar} className="settings-sidebar-host" />}
       </div>
-      {!preferences.sidebar_collapsed && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={360} onResize={setSidebarDraft}
+      {!sidebarCollapsed && !settingsWorkspace && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={360} onResize={setSidebarDraft}
         onCollapse={() => {
           patch({ sidebar_collapsed: true })
           document.getElementById('sidebar-toggle')?.focus()
         }} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
-      <main ref={workspace} className={cn('reading-workspace workspace-mode-reading', !overlay && 'reader-columns', chatVisible && 'chat-obscured')}
-        inert={chatVisible} aria-hidden={chatVisible || undefined}>
+      <main ref={workspace} className={cn('reading-workspace workspace-mode-reading', !overlay && 'reader-columns', chatVisible && 'chat-obscured', settingsWorkspace && 'settings-obscured')}
+        hidden={settingsWorkspace} inert={chatVisible || settingsWorkspace} aria-hidden={chatVisible || settingsWorkspace || undefined}>
         <section className="article-pane" aria-label="文章浏览" inert={fillReader && readerVisible} aria-hidden={fillReader && readerVisible || undefined}><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />{!settingsOpen && <RefreshStatus />}
           <ArticleViewTransition view={preferences.article_view_mode} motion={mode} host={articleTransitionHost}>
             {articles.length > 0 || library.hasNextPage ? <ArticleCollection feedIcons={feedIcons} articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} nextCursor={library.nextCursor} loadingMore={library.isFetchingNextPage} onLoadMore={loadMore} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
@@ -266,10 +280,10 @@ export function Shell() {
       </main>
       <Suspense fallback={null}>
         <AnimatePresence>
-          {globalChat && <GlobalChat key="global-chat" sidebar={chatSidebar} collapsed={sidebarCollapsed}
+          {globalChat && <GlobalChat key="global-chat" sidebar={chatSidebar} collapsed={preferences.sidebar_collapsed} suspended={settingsWorkspace}
             theme={preferences.chat_code_theme} motionMode={mode} onReady={setChatReady} />}
         </AnimatePresence>
-        {settingsOpen && <SettingsDialog />}{paletteOpen && <CommandPalette />}{chatKind && !globalChat && <ChatDialog />}
+        {settingsOpen && <SettingsDialog sidebar={settingsSidebar} />}{paletteOpen && <CommandPalette />}{chatKind && !globalChat && !settingsWorkspace && <ChatDialog />}
       </Suspense>
       <div className="sr-only" aria-live="polite">{preferences.article_view_mode === 'masonry' ? '已切换到瀑布流视图' : '已切换到列表视图'}</div>
       <Dialog open={diagnosticsOpen} onOpenChange={open => useWorkspace.setState({ diagnosticsOpen: open })}>

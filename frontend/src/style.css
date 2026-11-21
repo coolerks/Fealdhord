@@ -387,6 +387,24 @@ html[data-motion=subtle] .reader-toolbar-title { transform: none; }
 .reader-drawer { width: min(860px, 88%); border-left: 1px solid var(--border); box-shadow: -12px 0 30px color-mix(in srgb,var(--foreground) 6%,transparent); }
 .settings-dialog { width: min(900px,calc(100vw - 48px)); max-width: min(900px,calc(100vw - 48px)); height: min(700px,calc(100vh - 64px)); top: clamp(44px, calc((100vh - 740px) / 2), 64px); translate: -50% 0; padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 12px; }
 .settings-dialog > [data-slot=dialog-header] { min-height: 26px; justify-content: center; padding-inline-end: 34px; }
+.settings-expand { position: absolute; inset-block-start: 10px; inset-inline-end: 44px; }
+.settings-obscured { visibility: hidden; }
+.settings-sidebar-host { position: absolute; inset: 0; }
+.settings-workspace-sidebar { height: 100%; }
+.settings-workspace-nav { min-height: 0; overflow-y: auto; }
+.app-shell > .settings-workspace {
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  background: var(--background);
+}
+.settings-workspace-heading { justify-content: flex-start; }
+.settings-workspace .settings-body,
+.settings-workspace .settings-save {
+  width: min(100%, 56rem);
+  margin-inline: auto;
+  padding-inline: clamp(20px, 4vw, 48px);
+}
+.settings-workspace .settings-body { grid-row: 3; padding-block: 16px 24px; }
+.settings-workspace .settings-save { grid-row: 4; padding-block-end: 12px; }
 .settings-layout { display: grid; grid-template-columns: 160px minmax(0,1fr); flex: 1; min-height: 0; gap: 18px; }
 .settings-nav { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: auto; }
 .settings-nav [data-slot=button] { justify-content: start; gap: 10px; }

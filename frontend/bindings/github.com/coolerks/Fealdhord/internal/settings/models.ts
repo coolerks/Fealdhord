@@ -32,6 +32,7 @@ export interface Preferences {
     "selected_article_id": string;
     "scroll_anchors": { [_ in string]?: ScrollAnchor } | null;
     "reader_toolbar_pinned": string[] | null;
+    "settings_open_mode": string;
     "reader_open_mode": string;
     "reader_auto_read": boolean;
     "reader_font_family": string;

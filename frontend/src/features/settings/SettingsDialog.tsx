@@ -3,8 +3,12 @@ import { Authorize } from '../../../bindings/github.com/coolerks/Fealdhord/inter
 import { toast } from '@/components/ui/toast-manager'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import type { IconMeaning } from '@/components/animated-glyph'
-import { useState } from 'react'
-import { BadgeAlert,Folder,Info, Palette, Rss, SlidersHorizontal, Sparkles } from 'lucide-react'
+import { useCallback, useLayoutEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { SemanticButton } from '@/components/semantic-button'
+import { SidebarAction } from '@/components/sidebar-action'
+import { moveSidebarFocus } from '@/lib/sidebar-navigation'
+import { BadgeAlert,Folder,Info, Maximize, Palette, Rss, SlidersHorizontal, Sparkles } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { SegmentedControl } from '@/components/ui/segmented-control'
@@ -17,7 +21,7 @@ import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { AISettings } from './AISettings'
-import { restoreSettingsFocus, useWorkspace } from '@/stores/workspace'
+import { useWorkspace } from '@/stores/workspace'
 import type { SettingsTab } from '@/stores/workspace'
 import { preferencesAPI } from '@/lib/preferences'
 import type { Preferences } from '@/lib/preferences'
@@ -48,9 +52,10 @@ const sections: { id: SettingsTab; title: string; icon: typeof Palette; meaning:
   { id: 'ai', title: 'AI 与扩展', icon: Sparkles, meaning:"ai" }, { id: 'about', title: '关于', icon: Info, meaning:"circle-help" },
 ]
 
-export function SettingsDialog() {
+export function SettingsDialog({ sidebar }: { sidebar: HTMLElement | null }) {
   const preferences = useWorkspace(state => state.preferences)
-  const open = useWorkspace(state => state.settingsOpen)
+  const fullscreen = useWorkspace(state => state.settingsPresentation === 'full')
+  const close = useWorkspace(state => state.closeSettings)
   const tab = useWorkspace(state => state.settingsTab)
   const patch = useWorkspace(state => state.patch)
   const saveStatus = useWorkspace(state => state.saveStatus)
@@ -58,13 +63,31 @@ export function SettingsDialog() {
   const retrySave = useWorkspace(state => state.retrySave)
   const initialize = useWorkspace(state => state.initialize)
   const [reloadError, setReloadError] = useState('')
+  const [contentHost] = useState(() => document.createElement('div'))
+  const attachContent = useCallback((section: HTMLElement | null) => {
+    section?.append(contentHost)
+  }, [contentHost])
+  useLayoutEffect(() => {
+    if (fullscreen) sidebar?.querySelector<HTMLElement>('#settings-back')?.focus({ preventScroll: true })
+  }, [fullscreen, sidebar])
   if (!preferences) return null
   const set = <K extends keyof Preferences>(key: K, value: Preferences[K]) => patch({ [key]: value })
-  return <Dialog open={open} onOpenChange={value => useWorkspace.setState({ settingsOpen: value })}><DialogContent aria-describedby={undefined} className="settings-dialog" onCloseAutoFocus={event => { event.preventDefault(); restoreSettingsFocus() }}><DialogHeader><DialogTitle>设置</DialogTitle></DialogHeader><RefreshStatus />
-    <div className="settings-layout"><nav aria-label="设置分区" className="settings-nav">{sections.map(({ id, title, icon: Icon, meaning }) => <Button key={id} variant={tab === id ? 'secondary' : 'ghost'} aria-pressed={tab === id} onClick={() => useWorkspace.setState({ settingsTab: id })}><AnimatedGlyph icon={Icon} meaning={meaning}/>{title}</Button>)}</nav>
-      <section className="settings-body" aria-label={sections.find(section => section.id === tab)?.title}>
+  const title = sections.find(section => section.id === tab)?.title
+  const navigation = <nav aria-label="设置分区" className={fullscreen ? 'system-nav settings-workspace-nav' : 'settings-nav'}
+    onKeyDown={fullscreen ? moveSidebarFocus : undefined}>
+    {sections.map(({ id, title, icon: Icon, meaning }) => <Button key={id}
+      variant={tab === id ? 'secondary' : 'ghost'} className={fullscreen ? 'nav-item' : undefined}
+      data-navigation={fullscreen ? id : undefined} aria-current={fullscreen && tab === id ? 'page' : undefined}
+      aria-pressed={fullscreen ? undefined : tab === id}
+      onClick={() => useWorkspace.setState({ settingsTab: id })}><AnimatedGlyph icon={Icon} meaning={meaning} />{title}</Button>)}
+  </nav>
+  const body = <section ref={attachContent} className="settings-body" aria-label={title} />
+  const content = createPortal(<>
         {tab === 'appearance' && <FieldGroup>
           <Choice name="theme" label="主题" value={preferences.theme} choices={[["light", "浅色","sun"], ["dark", "深色","moon"], ["system", "跟随系统","monitor-cog"]]} onChange={value => set('theme', value)} />
+          <Choice name="settings-open-mode" label="设置打开方式" value={preferences.settings_open_mode ?? 'full'}
+            choices={[[ 'full', '全屏', 'maximize' ], [ 'dialog', '对话框', 'layers' ]]}
+            onChange={value => set('settings_open_mode', value)} />
           <Choice name="window-close" label="关闭窗口时" value={preferences.quit_on_window_close ? 'quit' : 'background'}
             choices={[[ 'background', '在后台运行', 'minimize' ], [ 'quit', '退出应用', 'x' ]]}
             onChange={value => set('quit_on_window_close', value === 'quit')} />
@@ -119,9 +142,8 @@ export function SettingsDialog() {
         </FieldGroup>}
         {tab === 'about' && <AboutPanel developerMode={preferences.developer_mode}
           onDeveloperModeChange={enabled => set('developer_mode', enabled)} />}
-      </section>
-    </div>
-    {(saveStatus !== 'saved' || saveError || reloadError) && <div className="settings-save" aria-live="polite">
+  </>, contentHost)
+  const status = (saveStatus !== 'saved' || saveError || reloadError) && <div className="settings-save" aria-live="polite">
       {saveStatus === 'saving' && <span>正在保存…</span>}
       {saveStatus === 'error' && <span>有未保存的更改</span>}
       {saveError && <>
@@ -135,8 +157,36 @@ export function SettingsDialog() {
         }}>重新载入</Button>
       </>}
       {reloadError && <p role="alert">{reloadError}</p>}
-    </div>}
-  </DialogContent></Dialog>
+    </div>
+  return <>
+    {content}
+    {fullscreen ? <>
+    {sidebar && createPortal(<aside id="workspace-sidebar" className="glass-sidebar settings-workspace-sidebar" aria-label="设置侧栏">
+      <div className="sidebar-titlebar" />
+      <div className="system-nav">
+        <SidebarAction id="settings-back" label="返回" meaning="chevron-left" shortcut="Escape" onClick={close} />
+      </div>
+      {navigation}
+    </aside>, sidebar)}
+    <main className="reading-workspace settings-workspace" aria-label="设置">
+      <header className="workspace-toolbar settings-workspace-heading"><h1 className="truncate font-semibold">{title}</h1></header>
+      <RefreshStatus />
+      {body}
+      {status}
+    </main>
+    </> : <Dialog open onOpenChange={value => { if (!value) close() }}>
+    <DialogContent aria-describedby={undefined} className="settings-dialog" onCloseAutoFocus={event => event.preventDefault()}>
+      <DialogHeader><DialogTitle>设置</DialogTitle></DialogHeader>
+      <div className="settings-expand">
+        <SemanticButton icon={Maximize} meaning="maximize" label="全屏设置"
+          onClick={() => useWorkspace.setState({ settingsPresentation: 'full' })} />
+      </div>
+      <RefreshStatus />
+      <div className="settings-layout">{navigation}{body}</div>
+      {status}
+    </DialogContent>
+  </Dialog>}
+  </>
 }
 
 function NotificationPreferences({ mode, autoDismiss, patch }: {

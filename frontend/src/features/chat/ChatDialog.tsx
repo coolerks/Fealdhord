@@ -1,3 +1,4 @@
+import { clearSelectionWithin } from '@/app/TextSelection'
 import { ChatSlashMenu } from './ChatSlashMenu'
 import type { SlashItem, SlashPage } from './ChatSlashMenu'
 import { ChatContext } from './ChatContext'
@@ -105,10 +106,15 @@ export function ChatDialog() {
   </Dialog>
 }
 
-export function GlobalChat({ sidebar, collapsed, theme, motionMode, onReady }: Omit<WorkspaceView, 'present'> & {
+export function GlobalChat({ sidebar, collapsed, theme, motionMode, onReady, suspended }: Omit<WorkspaceView, 'present'> & {
   onReady: (ready: boolean) => void
+  suspended: boolean
 }) {
   const present = useIsPresent()
+  const surface = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    if (suspended && surface.current) clearSelectionWithin(surface.current)
+  }, [suspended])
   useLayoutEffect(() => {
     onReady(true)
     return () => onReady(false)
@@ -120,9 +126,9 @@ export function GlobalChat({ sidebar, collapsed, theme, motionMode, onReady }: O
       document.getElementById(collapsed ? 'sidebar-toggle' : 'open-global-chat')?.focus({ preventScroll: true })
     })
   }
-  return <motion.main className="reading-workspace chat-workspace workspace-mode-chat" aria-label="AI 助手工作区"
-    inert={!present} aria-hidden={!present || undefined} {...chatTransition(motionMode)}>
-    <ChatSession target={globalTarget} close={returnToReading} workspace={{ sidebar, collapsed, theme, motionMode, present }} />
+  return <motion.main ref={surface} hidden={suspended} className={cn('reading-workspace chat-workspace workspace-mode-chat', suspended && 'settings-obscured')} aria-label="AI 助手工作区"
+    inert={!present || suspended} aria-hidden={!present || suspended || undefined} {...chatTransition(motionMode)}>
+    <ChatSession target={globalTarget} close={returnToReading} workspace={{ sidebar, collapsed, theme, motionMode, present: present && !suspended }} />
   </motion.main>
 }
 
@@ -378,7 +384,7 @@ function ChatSession({ target, close, workspace }: {
         </div>
         <footer className="sidebar-footer"><div className="sidebar-bottom">
           <Button variant="ghost" className="sidebar-ai" onClick={close}><AnimatedGlyph icon={BookOpen} meaning="book" />阅读</Button>
-          <SemanticButton icon={Settings} meaning="settings" label="AI 设置" onClick={() => showSettings('ai')} />
+          <SemanticButton id="open-ai-settings" icon={Settings} meaning="settings" label="AI 设置" onClick={() => showSettings('ai')} />
         </div></footer>
       </motion.aside>, workspace.sidebar)}
     {workspace ? <header className="workspace-toolbar chat-header" data-sidebar-collapsed={workspace.collapsed}>

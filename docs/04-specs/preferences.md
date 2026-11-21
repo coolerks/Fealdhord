@@ -30,6 +30,14 @@ migrations/00001_ui_preferences.sql 通过 goose 创建 app_settings，sqlc v1.3
 
 `preferences.quit_on_window_close` 保存「外观与浏览 → 关闭窗口时」的选项。`false` 对应「在后台运行」，用于新安装及缺字段的旧记录。`true` 对应「退出应用」。三端窗口关闭事件只使用已保存的最新 revision。
 
+### 设置打开方式
+
+- 范围为设置入口及其偏好恢复。打开方式通过现有 `Settings.Update({preferences, revision})` 的 `preferences.settings_open_mode` 持久化在设置 JSON 中，沿用 revision 冲突检测。
+- `full` 使用主窗口侧栏和内容区，`dialog` 使用设置对话框。新安装、旧记录缺字段，以及无法识别的旧字段值使用 `full`。旧调用提交空值按默认值保存。提交其他值返回 `ValidationError`，过期 revision 返回冲突并保留已保存方式。
+- 对话框的「全屏设置」只切换本次打开方式，保留当前分区和正在编辑的表单。「外观与浏览」中的选项决定下一次打开方式。全屏设置的「返回」和 Escape 关闭当前设置，恢复阅读或 AI 工作区。
+- 回归应覆盖新旧配置默认全屏、偏好保存后重开、非法值拒绝，以及对话框切换到全屏时保留编辑内容。设置工作区复用已有表单，与系统窗口全屏独立。
+
+
 ## 4. 错误
 
 非法枚举／尺寸／超限锚点→ValidationError，零写入；旧 revision→Conflict，原子拒绝；未来 schema→ConfigurationError；I/O→DatabaseError。读取旧字段分别回退安全默认，不覆盖有效字段；未知未来 schema 不允许旧客户端写回。常驻项含未知 ID、重复 ID 或超过八项时拒绝写入，旧记录中的无效值和缺失值分别恢复默认。系统通知授权被拒或请求失败时保留当前方式，发送失败时回退到应用内通知。开发者模式保存冲突不触发原生菜单更新。
