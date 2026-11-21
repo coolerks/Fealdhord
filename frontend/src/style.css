@@ -410,7 +410,17 @@ html[data-motion=subtle] .reader-toolbar-title { transform: none; }
 .settings-workspace .settings-save { grid-row: 4; padding-block-end: 12px; }
 .settings-layout { display: grid; grid-template-columns: 176px minmax(0,1fr); flex: 1; min-height: 0; gap: 18px; }
 .settings-nav { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: auto; padding-inline-end: 4px; }
+.settings-nav .animated-glyph,
+.settings-nav .animated-glyph svg { width: 16px; height: 16px; }
+.settings-nav .animated-glyph { color: var(--muted-foreground); }
+.settings-nav button[aria-pressed=true] .animated-glyph { color: var(--primary); }
 .settings-body { overflow: auto; min-height: 0; padding: 4px 16px 20px 4px; }
+.settings-body button .animated-glyph,
+.settings-body button .animated-glyph svg { width: 16px; height: 16px; }
+.settings-body button:is([data-size=sm], [data-size=icon-sm]) .animated-glyph,
+.settings-body button:is([data-size=sm], [data-size=icon-sm]) .animated-glyph svg { width: 14px; height: 14px; }
+.settings-body button:is([data-size=xs], [data-size=icon-xs]) .animated-glyph,
+.settings-body button:is([data-size=xs], [data-size=icon-xs]) .animated-glyph svg { width: 12px; height: 12px; }
 .settings-body [data-slot=field-group] { gap: 16px; }
 .settings-body [data-slot=toggle-group] { flex-wrap: wrap; }
 .range-value { margin-left: auto; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }

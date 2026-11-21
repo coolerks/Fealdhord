@@ -1,6 +1,6 @@
-import { Box, Plus, Server, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AnimatedGlyph } from '@/components/animated-glyph'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -142,11 +142,11 @@ export function AISettings() {
   return <div className="space-y-6">
     <SettingSection
       title="AI 服务"
-      actions={<Button size="sm" variant="outline" disabled={busy} onClick={() => editProvider(newProvider)}><Plus />添加服务</Button>}
+      actions={<Button size="sm" variant="outline" disabled={busy} onClick={() => editProvider(newProvider)}><AnimatedGlyph meaning="plus" />添加服务</Button>}
     >
       <SettingCard>
         {providers.length === 0 ? (
-          <SettingEmpty icon={<Server />} title="还没有配置 AI 服务" />
+          <SettingEmpty icon={<AnimatedGlyph meaning="server" />} title="还没有配置 AI 服务" />
         ) : providers.map(item => (
           <SettingRow key={item.id}>
             <div className="min-w-0 flex-1 space-y-0.5">
@@ -170,7 +170,7 @@ export function AISettings() {
     <SettingSection title="模型">
       {models.length === 0 ? (
         <SettingCard divided={false}>
-          <SettingEmpty icon={<Box />} title={providers.length ? '还没有添加模型' : '先添加 AI 服务，再添加模型'} />
+          <SettingEmpty icon={<AnimatedGlyph meaning="box" />} title={providers.length ? '还没有添加模型' : '先添加 AI 服务，再添加模型'} />
         </SettingCard>
       ) : (
         <div className="space-y-3">
@@ -182,7 +182,7 @@ export function AISettings() {
                   {!service.enabled && <StatusBadge tone="muted">服务已停用</StatusBadge>}
                 </div>
                 <Button size="xs" variant="ghost" disabled={busy} onClick={() => openNewModel(service.id)}>
-                  <Plus />添加模型
+                  <AnimatedGlyph meaning="plus" />添加模型
                 </Button>
               </div>
               <ul className="divide-y divide-border">
@@ -395,13 +395,13 @@ export function AISettings() {
                     </Field>
                     <Button type="button" size="icon" variant="ghost" aria-label={`删除档位 ${level.label || index + 1}`}
                       onClick={() => setModel({ ...model, reasoningLevels: reasoningLevels.filter((_, i) => i !== index) })}>
-                      <Trash2 />
+                      <AnimatedGlyph meaning="delete" />
                     </Button>
                   </div>
                 ))}
                 <Button type="button" size="sm" variant="outline" disabled={reasoningLevels.length >= maxReasoningLevels}
                   onClick={() => setModel({ ...model, reasoningLevels: [...reasoningLevels, { label: '', value: '' }] })}>
-                  <Plus />添加档位
+                  <AnimatedGlyph meaning="plus" />添加档位
                 </Button>
               </fieldset>
               <Field orientation="horizontal">

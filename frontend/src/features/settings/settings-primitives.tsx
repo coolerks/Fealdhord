@@ -80,9 +80,9 @@ export function SettingEmpty({
   className?: string
 }) {
   return (
-    <div className={cn('flex flex-col items-center justify-center gap-2.5 px-4 py-8 text-center', className)}>
+    <div className={cn('flex flex-col items-center justify-center gap-2.5 px-4 py-8 text-center', className)} data-animated-trigger>
       {icon && (
-        <span className="flex size-9 items-center justify-center rounded-lg bg-muted/80 text-muted-foreground [&_svg]:size-4">
+        <span className="flex size-9 items-center justify-center rounded-lg bg-muted/80 text-muted-foreground [&_.animated-glyph]:size-4 [&_svg]:size-4">
           {icon}
         </span>
       )}

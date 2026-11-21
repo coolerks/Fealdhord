@@ -1,4 +1,3 @@
-import { Rss, Search } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatedGlyph } from '@/components/animated-glyph'
@@ -236,8 +235,8 @@ export function FeedSettings() {
       }
     >
       {allItems.length > 0 && (
-        <InputGroup>
-          <InputGroupAddon><Search className="size-3.5 text-muted-foreground" aria-hidden="true" /></InputGroupAddon>
+        <InputGroup data-animated-trigger>
+          <InputGroupAddon><AnimatedGlyph meaning="search" className="size-3.5 [&_svg]:size-3.5" /></InputGroupAddon>
           <InputGroupInput
             aria-label="筛选订阅"
             placeholder="按名称或地址筛选…"
@@ -259,7 +258,7 @@ export function FeedSettings() {
         )}
         {query.isSuccess && visibleFeeds.length === 0 && (
           <SettingEmpty
-            icon={<Rss />}
+            icon={<AnimatedGlyph meaning="radio-tower" />}
             title={filter.trim() || statusFilter === 'error' ? '没有匹配的订阅' : '暂无订阅'}
           />
         )}

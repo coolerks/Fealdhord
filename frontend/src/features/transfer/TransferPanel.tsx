@@ -1,4 +1,3 @@
-import { Download, Upload } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatedGlyph } from '@/components/animated-glyph'
@@ -162,10 +161,10 @@ export function TransferPanel() {
         <span className="text-[13px]">导入或导出订阅与分类结构</span>
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" disabled={!!busy} onClick={() => { void choose('import') }}>
-            <Upload />导入 OPML
+            <AnimatedGlyph meaning="upload" />导入 OPML
           </Button>
           <Button size="sm" variant="outline" disabled={!!busy} onClick={() => { void choose('export') }}>
-            <Download />导出 OPML
+            <AnimatedGlyph meaning="download" />导出 OPML
           </Button>
           {(busy || preview) && <Button size="sm" variant="ghost" onClick={cancel}>取消</Button>}
         </div>

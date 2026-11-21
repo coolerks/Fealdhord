@@ -1,6 +1,6 @@
-import { FlaskConical } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AnimatedGlyph } from '@/components/animated-glyph'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
@@ -218,7 +218,7 @@ export function ArticleAISettings() {
         <SettingRow>
           <span className="text-[13px]">选取近期文章测试当前分类或精选规则</span>
           <Button size="sm" variant="outline" onClick={() => setSampleOpen(true)}>
-            <FlaskConical />试跑一篇文章
+            <AnimatedGlyph meaning="flask" />试跑一篇文章
           </Button>
         </SettingRow>
       </SettingCard>

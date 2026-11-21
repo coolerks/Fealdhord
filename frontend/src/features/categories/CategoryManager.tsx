@@ -1,4 +1,3 @@
-import { FolderTree } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { AnimatedGlyph } from '@/components/animated-glyph'
@@ -95,7 +94,7 @@ export function CategoryManager() {
           </SettingRow>
         )}
         {query.isSuccess && orderedCategories.length === 0 && (
-          <SettingEmpty icon={<FolderTree />} title="暂无分类" />
+          <SettingEmpty icon={<AnimatedGlyph meaning="folder-tree" />} title="暂无分类" />
         )}
         {orderedCategories.length > 0 && (
           <ul className="divide-y divide-border">

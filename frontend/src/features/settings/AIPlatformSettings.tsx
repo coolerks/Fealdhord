@@ -1,6 +1,6 @@
-import { Blocks, Check, ChevronDown, ChevronRight, Copy, History, KeyRound, Plug, Plus, Upload } from 'lucide-react'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AnimatedGlyph } from '@/components/animated-glyph'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
@@ -73,7 +73,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
         })
       }}
     >
-      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+      <AnimatedGlyph meaning={copied ? 'check' : 'copy'} />
     </Button>
   )
 }
@@ -251,13 +251,13 @@ export function MCPSettings() {
           mutation.reset()
           setGrantEditor({ name: '', tools: [], scope: 'all', editing: false })
         }}>
-          <Plus />新建授权
+          <AnimatedGlyph meaning="plus" />新建授权
         </Button>
       }
     >
       <SettingCard>
         {(grants.data ?? []).length === 0 ? (
-          <SettingEmpty icon={<KeyRound />} title="还没有客户端授权" />
+          <SettingEmpty icon={<AnimatedGlyph meaning="key" />} title="还没有客户端授权" />
         ) : (grants.data ?? []).map(grant => (
           <SettingRow key={grant.name}>
             <div className="min-w-0 flex-1 space-y-0.5">
@@ -291,13 +291,13 @@ export function MCPSettings() {
           mutation.reset()
           setClientEditor({ config: newClient, kind: 'http', args: '', editing: false })
         }}>
-          <Plus />添加连接
+          <AnimatedGlyph meaning="plus" />添加连接
         </Button>
       }
     >
       <SettingCard>
         {(clients.data ?? []).length === 0 ? (
-          <SettingEmpty icon={<Plug />} title="还没有外部 MCP 连接" />
+          <SettingEmpty icon={<AnimatedGlyph meaning="webhook" />} title="还没有外部 MCP 连接" />
         ) : (clients.data ?? []).map(item => {
           const toolCount = item.tools?.length ?? 0
           const resourceCount = item.resources?.length ?? 0
@@ -326,7 +326,9 @@ export function MCPSettings() {
                         aria-expanded={expanded}
                         onClick={() => toggleClientDetails(item.name)}
                       >
-                        {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
+                        <span className="inline-flex" style={{ rotate: expanded ? '90deg' : undefined }}>
+                          <AnimatedGlyph meaning="chevron-right" />
+                        </span>
                         {summaryParts.join(' · ')}
                       </Button>
                     )}
@@ -383,14 +385,14 @@ export function MCPSettings() {
       title="工具记录"
       actions={
         <Button size="sm" variant="outline" disabled={audit.isFetching} onClick={() => void audit.refetch()}>
-          <History />{audit.data ? '刷新记录' : '查看最近记录'}
+          <AnimatedGlyph meaning="history" />{audit.data ? '刷新记录' : '查看最近记录'}
         </Button>
       }
     >
       {audit.data && (
         <SettingCard>
           {audit.data.length === 0 ? (
-            <SettingEmpty icon={<History />} title="暂无工具记录" />
+            <SettingEmpty icon={<AnimatedGlyph meaning="history" />} title="暂无工具记录" />
           ) : audit.data.map(entry => {
             const badge = auditStatuses[entry.status] ?? { label: entry.status, tone: 'muted' as const }
             const when = formatAuditTime(entry.startedAt)
@@ -638,17 +640,17 @@ export function SkillsSettings() {
       actions={
         <>
           <Button size="sm" variant="outline" disabled={busy} onClick={() => mutation.mutate(async () => { setSkill(await api.ImportSkill()) })}>
-            <Upload />导入 Skill
+            <AnimatedGlyph meaning="upload" />导入 Skill
           </Button>
           <Button size="sm" variant="outline" disabled={busy} onClick={() => { mutation.reset(); setSkill(newSkill) }}>
-            <Plus />添加 Skill
+            <AnimatedGlyph meaning="plus" />添加 Skill
           </Button>
         </>
       }
     >
       <SettingCard>
         {(skills.data ?? []).length === 0 ? (
-          <SettingEmpty icon={<Blocks />} title="还没有已安装的 Skill" />
+          <SettingEmpty icon={<AnimatedGlyph meaning="blocks" />} title="还没有已安装的 Skill" />
         ) : (skills.data ?? []).map(item => (
           <SettingRow key={item.name}>
             <div className="min-w-0 flex-1 space-y-0.5">

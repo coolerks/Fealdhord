@@ -1,5 +1,5 @@
-import { Activity, Copy, ExternalLink } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
+import { AnimatedGlyph } from '@/components/animated-glyph'
 import { Button } from '@/components/ui/button'
 import { FieldLabel } from '@/components/ui/field'
 import { Switch } from '@/components/ui/switch'
@@ -36,16 +36,16 @@ export function AboutPanel({ developerMode, onDeveloperModeChange }: {
       {info.isError && <Button variant="ghost" size="sm" onClick={() => { void info.refetch() }}>重试读取版本</Button>}
       <div className="mt-3 flex flex-wrap justify-center gap-2">
         <Button asChild variant="outline" size="sm">
-          <a href={sourceURL} onClick={event => {
+          <a href={sourceURL} data-animated-trigger onClick={event => {
             event.preventDefault()
             void native.openURL(sourceURL).catch(() => { void notify('无法打开源码仓库', undefined, true) })
           }}>
-            <ExternalLink />查看源码
+            <AnimatedGlyph meaning="external-link" />查看源码
           </a>
         </Button>
         {info.data && (
           <Button type="button" variant="outline" size="sm" onClick={copyVersion}>
-            <Copy />复制版本
+            <AnimatedGlyph meaning="copy" />复制版本
           </Button>
         )}
       </div>
@@ -56,7 +56,7 @@ export function AboutPanel({ developerMode, onDeveloperModeChange }: {
         <SettingRow>
           <span className="text-[13px]">连接诊断</span>
           <Button type="button" variant="outline" size="sm" onClick={() => useWorkspace.setState({ diagnosticsOpen: true })}>
-            <Activity />运行诊断
+            <AnimatedGlyph meaning="activity" />运行诊断
           </Button>
         </SettingRow>
         <SettingRow>

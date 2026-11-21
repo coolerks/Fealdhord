@@ -1,6 +1,6 @@
-import { BellRing, History, Plus, Send } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AnimatedGlyph } from '@/components/animated-glyph'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
@@ -135,13 +135,13 @@ export function NotificationSettings() {
           setRecipientText('')
           setChannel(blankChannel)
         }}>
-          <Plus />添加渠道
+          <AnimatedGlyph meaning="plus" />添加渠道
         </Button>
       }
     >
       <SettingCard>
         {(channels.data ?? []).length === 0 ? (
-          <SettingEmpty icon={<Send />} title="还没有配置外部通知渠道" />
+          <SettingEmpty icon={<AnimatedGlyph meaning="send" />} title="还没有配置外部通知渠道" />
         ) : (channels.data ?? []).map(value => (
           <SettingRow key={value.id}>
             <div className="min-w-0 flex-1 space-y-0.5">
@@ -171,13 +171,13 @@ export function NotificationSettings() {
       title="文章推送规则"
       actions={
         <Button size="sm" variant="outline" disabled={!channelOptions.length || busy} onClick={() => { mutation.reset(); setRule(blankRule) }}>
-          <Plus />添加规则
+          <AnimatedGlyph meaning="plus" />添加规则
         </Button>
       }
     >
       <SettingCard>
         {(rules.data ?? []).length === 0 ? (
-          <SettingEmpty icon={<BellRing />} title={channelOptions.length ? '还没有文章推送规则' : '先添加并测试通知渠道，再创建推送规则'} />
+          <SettingEmpty icon={<AnimatedGlyph meaning="bell" />} title={channelOptions.length ? '还没有文章推送规则' : '先添加并测试通知渠道，再创建推送规则'} />
         ) : (rules.data ?? []).map(value => (
           <SettingRow key={value.id}>
             <div className="min-w-0 flex-1 space-y-0.5">
@@ -204,14 +204,14 @@ export function NotificationSettings() {
       title="投递历史"
       actions={
         <Button size="sm" variant="outline" aria-expanded={showHistory} onClick={() => setShowHistory(value => !value)}>
-          <History />投递历史
+          <AnimatedGlyph meaning="history" />投递历史
         </Button>
       }
     >
       {showHistory && (
         <SettingCard>
           {deliveries.isError && <div className="p-3.5"><FieldError>暂时无法读取投递历史</FieldError></div>}
-          {deliveries.data?.length === 0 && <SettingEmpty icon={<History />} title="还没有投递记录" />}
+          {deliveries.data?.length === 0 && <SettingEmpty icon={<AnimatedGlyph meaning="history" />} title="还没有投递记录" />}
           {(deliveries.data ?? []).map(value => {
             const badge = statusLabels[value.state] ?? { label: value.state, tone: 'muted' as const }
             return (

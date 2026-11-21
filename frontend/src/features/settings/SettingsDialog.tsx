@@ -70,7 +70,7 @@ function RangeRow({ name, label, value, min, max, step = 1, unit = '', onChange 
   )
 }
 
-type SectionEntry = { id: SettingsTab; title: string; icon: LucideIcon; meaning?: IconMeaning }
+type SectionEntry = { id: SettingsTab; title: string; icon: LucideIcon; meaning: IconMeaning }
 type SectionGroup = { label: string; items: SectionEntry[] }
 
 const sectionGroups: SectionGroup[] = [
@@ -79,24 +79,24 @@ const sectionGroups: SectionGroup[] = [
     items: [
       { id: 'appearance', title: '外观与浏览', icon: Palette, meaning: 'palette' },
       { id: 'reader', title: '阅读排版', icon: SlidersHorizontal, meaning: 'sliders-horizontal' },
-      { id: 'notifications', title: '通知', icon: Bell },
+      { id: 'notifications', title: '通知', icon: Bell, meaning: 'bell' },
     ],
   },
   {
     label: '内容与数据',
     items: [
       { id: 'feeds', title: '订阅', icon: Rss, meaning: 'radio-tower' },
-      { id: 'categories', title: '分类', icon: FolderTree },
-      { id: 'data', title: '媒体与数据', icon: Database },
+      { id: 'categories', title: '分类', icon: FolderTree, meaning: 'folder-tree' },
+      { id: 'data', title: '媒体与数据', icon: Database, meaning: 'database-backup' },
     ],
   },
   {
     label: 'AI 与扩展',
     items: [
       { id: 'ai', title: '服务与模型', icon: Sparkles, meaning: 'ai' },
-      { id: 'article-ai', title: '文章 AI', icon: Bot },
-      { id: 'mcp', title: 'MCP 与权限', icon: Plug },
-      { id: 'skills', title: 'Skills', icon: Blocks },
+      { id: 'article-ai', title: '文章 AI', icon: Bot, meaning: 'bot' },
+      { id: 'mcp', title: 'MCP 与权限', icon: Plug, meaning: 'webhook' },
+      { id: 'skills', title: 'Skills', icon: Blocks, meaning: 'blocks' },
     ],
   },
   {
@@ -156,7 +156,7 @@ export function SettingsDialog({ sidebar, motionMode }: {
                 aria-pressed={fullscreen ? undefined : tab === id}
                 onClick={() => useWorkspace.setState({ settingsTab: id })}
               >
-                {meaning ? <AnimatedGlyph icon={Icon} meaning={meaning} /> : <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+                <AnimatedGlyph icon={Icon} meaning={meaning} />
                 <span className="truncate">{itemTitle}</span>
               </Button>
             ))}

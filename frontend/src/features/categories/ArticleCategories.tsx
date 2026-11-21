@@ -1,4 +1,3 @@
-import { FolderTree } from 'lucide-react'
 import type { ComponentProps } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatedGlyph } from '@/components/animated-glyph'
@@ -81,7 +80,7 @@ export function ArticleCategories({ articleID, open, onOpenChange, onCloseAutoFo
             </SettingCard>
           </div>
         )}
-        {query.isSuccess && !query.data.length && <SettingEmpty icon={<FolderTree />} title="暂无分类" />}
+        {query.isSuccess && !query.data.length && <SettingEmpty icon={<AnimatedGlyph meaning="folder-tree" />} title="暂无分类" />}
         {mutation.error && <FieldError>{mutation.error.message}</FieldError>}
       </DialogContent>
     </Dialog>
