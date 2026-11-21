@@ -20,7 +20,7 @@ const platforms = [
 ]
 const appPlatforms = ['discord', 'slack', 'dingtalk', 'feishu', 'lark', 'wecom']
 const recipientFields: Record<string, { label: string; example: string }> = {
-  telegram: { label: 'Telegram Chat ID', example: '123456789\\n-100123456789' },
+  telegram: { label: 'Telegram 用户 ID 或会话 ID', example: '123456789\n-100123456789' },
   discord: { label: 'Discord 用户 ID', example: '123456789012345678' },
   slack: { label: 'Slack 工作区成员 ID', example: 'U012ABCDEF' },
   dingtalk: { label: '钉钉企业成员 UserID', example: 'user123' },

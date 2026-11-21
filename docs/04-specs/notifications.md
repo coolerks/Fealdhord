@@ -8,7 +8,7 @@
 
 | 平台 | 私发或指定收件目标 | 群或频道 Webhook | 内容 |
 | --- | --- | --- | --- |
-| [Telegram](https://core.telegram.org/bots/api#sendmessage) | Bot Token 与 Chat ID。私聊、群使用数字 ID，公开频道也支持 `@频道用户名` | — | 可点击标题、正文与图片 |
+| [Telegram](https://core.telegram.org/bots/api#sendmessage) | Bot Token 与收件 ID。私聊填数字用户 ID，群填会话 ID，公开频道也支持 `@频道用户名` | — | 可点击标题、正文与图片 |
 | [Discord](https://docs.discord.com/developers/resources/user#create-dm) | Bot Token 与 Discord 用户 ID，机器人建立私聊 | 频道 Webhook | Embed 标题链接、正文与图片 |
 | [Slack](https://docs.slack.dev/reference/methods/conversations.open/) | Bot Token 与工作区成员 ID（`U…` 或 `W…`），应用需有打开单人私聊和发消息的权限 | Incoming Webhook | Block Kit 链接、正文与图片 |
 | [钉钉](https://open.dingtalk.com/document/orgapp/chatbots-send-one-on-one-chat-messages-in-batches) | AppKey、AppSecret、可选 RobotCode，以及企业成员 UserID | 群 Webhook 与可选加签密钥 | Markdown 链接、正文与图片外链 |
@@ -16,6 +16,8 @@
 | [企业微信](https://developer.work.weixin.qq.com/document/path/90236) | CorpID、应用 Secret、AgentID，以及应用可见范围内的企业成员 UserID（`touser`） | 群 Webhook | Markdown 链接、正文或图文卡片 |
 | [个人微信](https://github.com/Tencent/openclaw-weixin/blob/main/docs/protocol.md) | 每个私聊扫码绑定并主动发一句消息。白名单可从已绑定私聊中多选 | — | 纯文本链接与 iLink 图片上传 |
 | [QQ](https://github.com/tencent-connect/bot-docs/blob/main/docs/develop/api-v2/server-inter/message/send-receive/send.md) | AppID、AppSecret 与 `c2c:用户 OpenID`、`group:群 OpenID` 或 `channel:子频道 ID` | — | 文本链接，按目标能力生成图片消息 |
+
+Telegram 私聊可直接使用数字用户 ID，每行一个。每位收件人首次接收前，需打开用于推送的机器人并点「开始」或发一条消息。详见 [Telegram 会话 ID](https://core.telegram.org/api/bots/ids#user-ids)和[机器人私聊规则](https://core.telegram.org/bots#how-are-bots-different-from-humans)。
 
 群或频道 Webhook 固定投递给绑定会话。需要个人定向收件时，添加相应的应用机器人连接。规则和 AI 工具选择已配置渠道，每个渠道会投递给其中已验证的收件目标。发送测试也只使用保存的目标。
 

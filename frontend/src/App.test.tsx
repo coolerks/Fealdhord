@@ -936,14 +936,14 @@ describe('Phase 1 阅读 Shell', () => {
     })))
   })
 
-  it('通知渠道可以保存多个 Chat ID', async () => {
+  it('Telegram 通知可同时保存用户 ID 和群会话 ID', async () => {
     const user = userEvent.setup()
     setup()
     await user.click(await screen.findByRole('button', { name: '打开设置' }))
     await user.click(await screen.findByRole('button', { name: '通知' }))
     await user.click(await screen.findByRole('button', { name: '添加渠道' }))
     await user.type(screen.getByRole('textbox', { name: '渠道名称' }), 'Telegram 私聊')
-    await user.type(screen.getByRole('textbox', { name: 'Telegram Chat ID' }), '123456{Enter}-100123456')
+    await user.type(screen.getByRole('textbox', { name: 'Telegram 用户 ID 或会话 ID' }), '123456{Enter}-100123456')
     await user.type(screen.getByLabelText('Bot Token'), '1234:local-test')
     await user.click(screen.getByRole('button', { name: '保存渠道' }))
     await waitFor(() => expect(notificationAPI.SaveChannel).toHaveBeenCalledWith(expect.objectContaining({
