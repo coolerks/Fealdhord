@@ -1063,3 +1063,33 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 39: 修复微信通知绑定
+<!-- trellis-session: v=2 fp=01f370da2502106f -->
+
+**Date**: 2026-11-21
+**Task**: 修复微信通知绑定
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+补齐 iLink 扫码请求头，兼容机器人令牌，绑定失败时停止轮询。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ca6ce30` | fix(notification): 修复微信扫码绑定和会话令牌校验 |
+
+### Testing
+
+- [OK] Go 全量测试与 vet、通知竞态测试、160 项前端测试及生产构建通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 用授权手机账号复测扫码与微信消息送达。
