@@ -881,3 +881,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 32: 通知渠道收件白名单
+<!-- trellis-session: v=2 fp=a85b1c080d1c072a -->
+
+**Date**: 2026-11-21
+**Task**: 通知渠道收件白名单
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+配置多个已验证收件目标，支持平台特定 ID、应用机器人私发和逐目标队列，迁移旧目标。外部实机送达待授权目标。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0283f8e` | feat: 支持通知渠道收件白名单 |
+
+### Testing
+
+- [OK] Go 全包 test/vet，通知与数据库竞态测试，前端 154 项测试、类型、lint、生产构建，Wails 绑定与 macOS 原生构建通过。
+
+### Status
+
+[OK] **Completed**

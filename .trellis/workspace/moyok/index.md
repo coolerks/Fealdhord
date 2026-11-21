@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 31
+- **Total Sessions**: 32
 - **Last Active**: 2026-11-21
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~883 | Active |
+| `journal-1.md` | ~909 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 32 | 2026-11-21 | 通知渠道收件白名单 | `0283f8e` | `codex/interface-clarity` |
 | 31 | 2026-11-21 | 多渠道通知与 AI 定时任务 | `782b548` | `codex/interface-clarity` |
 | 30 | 2026-11-21 | 全屏设置切换动效 | `17b73a8` | `codex/interface-clarity` |
 | 29 | 2026-11-21 | 全屏设置工作区 | `95b074c` | `codex/interface-clarity` |
