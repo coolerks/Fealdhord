@@ -39,8 +39,10 @@ type Store struct {
 var ErrDatabaseInUse = errors.New("数据库正在被另一个实例使用")
 
 func Open(ctx context.Context, filename string) (*Store, error) {
-	repair := goose.NewGoMigration(21, &goose.GoFunc{RunTx: repairNotificationSchema}, nil)
-	return openWithMigrations(ctx, filename, migrations.Files, goose.WithGoMigrations(repair))
+	return openWithMigrations(ctx, filename, migrations.Files, goose.WithGoMigrations(
+		goose.NewGoMigration(21, &goose.GoFunc{RunTx: repairNotificationSchema}, nil),
+		goose.NewGoMigration(22, &goose.GoFunc{RunTx: repairAISchema}, nil),
+	))
 }
 
 func openWithMigrations(ctx context.Context, filename string, files fs.FS, options ...goose.ProviderOption) (_ *Store, err error) {

@@ -3,29 +3,17 @@ package database
 import (
 	"context"
 	"database/sql"
-	"fmt"
 )
 
 // Version 19 was used by dev builds before the notification schema was final.
 func repairNotificationSchema(ctx context.Context, tx *sql.Tx) error {
-	for _, field := range []struct {
-		table, column, definition string
-	}{
-		{"notification_article_events", "offline_since", "INTEGER NOT NULL DEFAULT 0"},
-		{"notification_article_events", "resumed_at", "INTEGER NOT NULL DEFAULT 0"},
-		{"scheduled_runs", "task_revision", "INTEGER NOT NULL DEFAULT 0"},
-		{"scheduled_runs", "local_pending", "INTEGER NOT NULL DEFAULT 0 CHECK(local_pending IN (0,1))"},
-	} {
-		var exists bool
-		err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM pragma_table_info(?) WHERE name=?)", field.table, field.column).Scan(&exists)
-		if err != nil {
-			return err
-		}
-		if !exists {
-			if _, err := tx.ExecContext(ctx, fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", field.table, field.column, field.definition)); err != nil {
-				return err
-			}
-		}
+	if err := addMissingColumns(ctx, tx,
+		migrationColumn{"notification_article_events", "offline_since", "INTEGER NOT NULL DEFAULT 0"},
+		migrationColumn{"notification_article_events", "resumed_at", "INTEGER NOT NULL DEFAULT 0"},
+		migrationColumn{"scheduled_runs", "task_revision", "INTEGER NOT NULL DEFAULT 0"},
+		migrationColumn{"scheduled_runs", "local_pending", "INTEGER NOT NULL DEFAULT 0 CHECK(local_pending IN (0,1))"},
+	); err != nil {
+		return err
 	}
 	_, err := tx.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS notification_runtime (
