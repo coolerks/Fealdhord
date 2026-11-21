@@ -42,3 +42,5 @@ Open 持有进程文件锁，有待升级时先一致快照；禁止覆盖现有
 
 
 Phase 3：UpsertArticle 与 CommitFeed 复用同一个事务内 upsertArticle；整源文章、别名、FTS、继承分类与 validator 同一事务。CommitFeed 复核未归档及预期 normalized_url，避免旧 URL 请求污染新配置。304 只更新源检查状态，不更新文章或清空 validator。00004_feed_refresh 新增 last_error_code，429 的重试窗口不得被手动刷新或重启绕过；sqlc schema 列表需包含新增迁移，生成文件不手改。
+
+通知迁移 00019：`CommitFeed` 在已有刷新基线的新增文章事务内记事件，媒体摄取继续消费原 ID 列表。通知规则游标与入队同事务，任务领取和唯一运行记录同事务，结果与待发片段同事务。外部调用在事务外，发送中断转结果未知。相关恢复及平台行为见 [通知契约](../../../docs/04-specs/notifications.md)。

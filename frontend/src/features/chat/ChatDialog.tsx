@@ -13,7 +13,7 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 're
 import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, useIsPresent } from 'motion/react'
-import { ArrowDown, ArrowUp, BookOpen, Box, Brain, Gauge, Paperclip, Plus, Settings, Sparkles, Square, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, Box, Brain, CalendarClock, Gauge, Paperclip, Plus, Settings, Sparkles, Square, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { SemanticButton } from '@/components/semantic-button'
@@ -311,6 +311,7 @@ function ChatSession({ target, close, workspace }: {
       aliases: ['effort', '推理'], page: 'effort' } satisfies SlashItem] : []),
     ...(modelReady ? [{ key: 'context', label: '上下文', icon: Gauge, detail: '查看用量、整理或重置上下文',
       aliases: ['status', 'compact', '压缩', '整理'], action: 'context' } satisfies SlashItem] : []),
+    { key: 'tasks', label: '定时任务', icon: CalendarClock, detail: '查看或修改计划', aliases: ['schedule'], action: 'tasks' },
     { key: 'settings', label: 'AI 设置', icon: Settings, action: 'settings' },
     ...skillCommands,
   ]
@@ -346,6 +347,7 @@ function ChatSession({ target, close, workspace }: {
       case 'attach': setPicking(true); break
       case 'context': setContextOpen(true); break
       case 'settings': showSettings('ai'); break
+      case 'tasks': showSettings('notifications'); break
       case 'skill': toggleSkill(item.value); break
       case 'model': selectModel(item.value); break
       case 'effort':

@@ -14,7 +14,9 @@ require (
 	github.com/mmcdole/gofeed v1.5.0
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/openai/openai-go/v3 v3.61.0
+	github.com/openilink/openilink-sdk-go v0.6.0
 	github.com/pressly/goose/v3 v3.28.0
+	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/wailsapp/wails/v3 v3.0.0
 	github.com/zalando/go-keyring v0.2.6
 	go.yaml.in/yaml/v4 v4.0.0-rc.2

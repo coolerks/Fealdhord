@@ -14,7 +14,7 @@ export type SlashItem = {
   icon: LucideIcon
 } & (
   { page: SlashPage } |
-  { action: 'new' | 'attach' | 'context' | 'settings' } |
+  { action: 'new' | 'attach' | 'context' | 'settings' | 'tasks' } |
   { action: 'skill' | 'model' | 'effort'; value: string }
 )
 

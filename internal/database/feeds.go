@@ -137,7 +137,7 @@ func saveDetails(ctx context.Context, q *sqlc.Queries, id string, revision int64
 	}
 	return setCategories(ctx, q, id, input.CategoryIDs)
 }
-func commitFeed(ctx context.Context, q *sqlc.Queries, id, expectedURL string, items []ArticleInput, check FeedCheck) ([]string, error) {
+func commitFeed(ctx context.Context, q *sqlc.Queries, id, expectedURL string, items []ArticleInput, check FeedCheck, notify bool) ([]string, error) {
 	current, err := q.GetFeed(ctx, id)
 	if err != nil {
 		return nil, err
@@ -152,9 +152,17 @@ func commitFeed(ctx context.Context, q *sqlc.Queries, id, expectedURL string, it
 	for _, item := range items {
 		item.FeedID = id
 		item.FetchedAt = check.At
-		articleID, err := upsertArticle(ctx, q, item)
+		articleID, created, err := upsertArticle(ctx, q, item)
 		if err != nil {
 			return nil, err
+		}
+		if notify && created && current.LastSuccessAt.Valid {
+			err = q.RecordNotificationArticle(ctx, sqlc.RecordNotificationArticleParams{
+				ArticleID: articleID, DiscoveredAt: check.At, PublishedAt: nullTime(item.PublishedAt), FeedID: id,
+			})
+			if err != nil {
+				return nil, err
+			}
 		}
 		ids = append(ids, articleID)
 	}
@@ -170,7 +178,10 @@ func commitFeed(ctx context.Context, q *sqlc.Queries, id, expectedURL string, it
 	return ids, err
 }
 func (s *Store) CommitFeed(ctx context.Context, id, expectedURL string, items []ArticleInput, check FeedCheck) (ids []string, err error) {
-	err = s.transaction(ctx, func(q *sqlc.Queries) error { ids, err = commitFeed(ctx, q, id, expectedURL, items, check); return err })
+	err = s.transaction(ctx, func(q *sqlc.Queries) error {
+		ids, err = commitFeed(ctx, q, id, expectedURL, items, check, true)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +216,7 @@ func (s *Store) AddSubscription(ctx context.Context, input SubscriptionInput, it
 		} else {
 			return loadErr
 		}
-		_, err := commitFeed(ctx, q, id, input.URL, items, check)
+		_, err := commitFeed(ctx, q, id, input.URL, items, check, false)
 		return err
 	})
 	if err != nil {

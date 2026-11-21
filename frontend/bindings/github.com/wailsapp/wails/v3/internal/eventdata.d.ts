@@ -19,6 +19,9 @@ import type * as chat$0 from "../../../../coolerks/Fealdhord/internal/chat/model
 import type * as desktop$0 from "../../../../coolerks/Fealdhord/internal/desktop/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import type * as notification$0 from "../../../../coolerks/Fealdhord/internal/notification/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import type * as refresh$0 from "../../../../coolerks/Fealdhord/internal/refresh/models.js";
 
 declare module "@wailsio/runtime" {
@@ -29,6 +32,7 @@ declare module "@wailsio/runtime" {
             "fealdhord:event": app$0.OperationEvent;
             "fealdhord:library-changed": main$0.LibraryChanged;
             "fealdhord:refresh": refresh$0.Event;
+            "fealdhord:scheduled-notice": notification$0.LocalNotice;
         }
     }
 }

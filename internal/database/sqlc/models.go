@@ -252,6 +252,73 @@ type ModelAssignment struct {
 	ModelID  string `json:"model_id"`
 }
 
+type NotificationArticleEvent struct {
+	Seq          int64         `json:"seq"`
+	ArticleID    string        `json:"article_id"`
+	DiscoveredAt int64         `json:"discovered_at"`
+	PublishedAt  sql.NullInt64 `json:"published_at"`
+	OfflineSince int64         `json:"offline_since"`
+	ResumedAt    int64         `json:"resumed_at"`
+}
+
+type NotificationChannel struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Platform      string `json:"platform"`
+	Target        string `json:"target"`
+	CredentialRef string `json:"credential_ref"`
+	Enabled       int64  `json:"enabled"`
+	Verified      int64  `json:"verified"`
+	Revision      int64  `json:"revision"`
+}
+
+type NotificationDelivery struct {
+	ID             string `json:"id"`
+	ChannelID      string `json:"channel_id"`
+	SourceID       string `json:"source_id"`
+	SourceRevision int64  `json:"source_revision"`
+	Payload        string `json:"payload"`
+	State          string `json:"state"`
+	DueAt          int64  `json:"due_at"`
+	CreatedAt      int64  `json:"created_at"`
+	Attempts       int64  `json:"attempts"`
+	Detail         string `json:"detail"`
+}
+
+type NotificationDigestItem struct {
+	ID           int64  `json:"id"`
+	RuleID       string `json:"rule_id"`
+	RuleRevision int64  `json:"rule_revision"`
+	ArticleID    string `json:"article_id"`
+	Occurrence   int64  `json:"occurrence"`
+	Recovery     int64  `json:"recovery"`
+	Payload      string `json:"payload"`
+	Queued       int64  `json:"queued"`
+}
+
+type NotificationRule struct {
+	ID            string `json:"id"`
+	Configuration string `json:"configuration"`
+	Enabled       int64  `json:"enabled"`
+	Revision      int64  `json:"revision"`
+	EventCursor   int64  `json:"event_cursor"`
+	NextAt        int64  `json:"next_at"`
+}
+
+type NotificationRuleCandidate struct {
+	RuleID       string `json:"rule_id"`
+	RuleRevision int64  `json:"rule_revision"`
+	EventSeq     int64  `json:"event_seq"`
+	ExpiresAt    int64  `json:"expires_at"`
+}
+
+type NotificationRuntime struct {
+	ID           int64 `json:"id"`
+	LastSeen     int64 `json:"last_seen"`
+	OfflineSince int64 `json:"offline_since"`
+	ResumedAt    int64 `json:"resumed_at"`
+}
+
 type ReaderContent struct {
 	ArticleID        string `json:"article_id"`
 	SanitizedHtml    string `json:"sanitized_html"`
@@ -277,6 +344,23 @@ type ReadingState struct {
 	ReadAt    sql.NullInt64 `json:"read_at"`
 	UpdatedAt int64         `json:"updated_at"`
 	Revision  int64         `json:"revision"`
+}
+
+type ScheduledRun struct {
+	TaskID       string `json:"task_id"`
+	Occurrence   int64  `json:"occurrence"`
+	TaskRevision int64  `json:"task_revision"`
+	State        string `json:"state"`
+	Result       string `json:"result"`
+	LocalPending int64  `json:"local_pending"`
+}
+
+type ScheduledTask struct {
+	ID            string `json:"id"`
+	Configuration string `json:"configuration"`
+	Enabled       int64  `json:"enabled"`
+	Revision      int64  `json:"revision"`
+	NextAt        int64  `json:"next_at"`
 }
 
 type SearchState struct {

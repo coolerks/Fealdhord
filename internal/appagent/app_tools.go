@@ -11,6 +11,7 @@ import (
 	"github.com/coolerks/Fealdhord/internal/feed"
 	"github.com/coolerks/Fealdhord/internal/library"
 	"github.com/coolerks/Fealdhord/internal/navigation"
+	"github.com/coolerks/Fealdhord/internal/notification"
 	"github.com/coolerks/Fealdhord/internal/reader"
 	"github.com/coolerks/Fealdhord/internal/refresh"
 	"github.com/coolerks/Fealdhord/internal/settings"
@@ -18,15 +19,16 @@ import (
 )
 
 type Services struct {
-	Store      *database.Store
-	Transfer   *transfer.API
-	Library    *library.Service
-	Feed       *feed.Service
-	Navigation *navigation.Service
-	Reader     *reader.Service
-	Refresh    *refresh.Service
-	Settings   *settings.Service
-	ArticleAI  *articleai.API
+	Store         *database.Store
+	Transfer      *transfer.API
+	Library       *library.Service
+	Feed          *feed.Service
+	Navigation    *navigation.Service
+	Reader        *reader.Service
+	Refresh       *refresh.Service
+	Settings      *settings.Service
+	ArticleAI     *articleai.API
+	Notifications *notification.Service
 }
 
 type empty struct{}
@@ -39,6 +41,9 @@ type ids struct {
 
 func Builtins(s Services) *Registry {
 	r := NewRegistry()
+	if s.Notifications != nil {
+		registerNotificationTools(r, s.Notifications)
+	}
 	if s.Store != nil {
 		r.scopeDB = s.Store.ChatQueries()
 	}

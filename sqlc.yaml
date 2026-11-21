@@ -19,6 +19,7 @@ sql:
       - migrations/00016_ai_model_metadata.sql
       - migrations/00017_chat_context.sql
       - migrations/00018_chat_context_details.sql
+      - migrations/00019_notifications.sql
     queries: internal/database/queries
     gen:
       go:

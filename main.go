@@ -24,6 +24,7 @@ import (
 	"github.com/coolerks/Fealdhord/internal/media"
 	"github.com/coolerks/Fealdhord/internal/navigation"
 	"github.com/coolerks/Fealdhord/internal/netpolicy"
+	"github.com/coolerks/Fealdhord/internal/notification"
 	"github.com/coolerks/Fealdhord/internal/reader"
 	"github.com/coolerks/Fealdhord/internal/refresh"
 	"github.com/coolerks/Fealdhord/internal/settings"
@@ -45,6 +46,7 @@ func init() {
 	application.RegisterEvent[fealdhord.OperationEvent](fealdhord.EventName)
 	application.RegisterEvent[desktopintegration.CommandEvent](desktopintegration.CommandEventName)
 	application.RegisterEvent[chat.UpdateEvent](chat.UpdateEventName)
+	application.RegisterEvent[notification.LocalNotice](notification.EventName)
 }
 
 func main() {
@@ -131,6 +133,14 @@ func main() {
 	} else {
 		slog.Error("无法定位用户数据目录", "error", pathErr)
 	}
+	notifications := notification.New(toolStore, aiconfig.SystemCredentials{}, notification.ArticleSummarizer(aiConfig))
+	var stopNotifications func()
+	notifications.SetLocalNotice(func(event notification.LocalNotice) { desktop.Event.Emit(notification.EventName, event) })
+	defer func() {
+		if stopNotifications != nil {
+			stopNotifications()
+		}
+	}()
 	client := netpolicy.New()
 	var mediaService *media.Service
 	var setDeveloperMenu func(bool, int64)
@@ -155,6 +165,7 @@ func main() {
 		prefs := result.Data.Preferences
 		return media.Policy{RemoteImages: prefs.RemoteImages, CacheEnabled: prefs.MediaCacheEnabled, WebFallback: prefs.WebImageFallback}
 	}
+	notifications.SetImageFetcher(client, func(ctx context.Context) bool { return policy(ctx).RemoteImages != "never" })
 	cacheDir := ""
 	if directory, err := os.UserCacheDir(); err == nil {
 		cacheDir = filepath.Join(directory, "Fealdhord", "media")
@@ -184,6 +195,7 @@ func main() {
 		if mediaService != nil {
 			mediaService.Ingest(ctx, id, document, ids)
 		}
+		notifications.Wake()
 	})
 	readerService := reader.NewService(readerRepository, client, func(ctx context.Context, article database.ReaderArticle) bool {
 		value := policy(ctx)
@@ -218,7 +230,7 @@ func main() {
 	}
 	toolRegistry := appagent.Builtins(appagent.Services{
 		Store: toolStore, Library: libraryService, Feed: feedService, Navigation: navigationService, Reader: readerService,
-		Refresh: refreshService, Settings: settingsService, ArticleAI: articleAIAPI, Transfer: transferAPI,
+		Refresh: refreshService, Settings: settingsService, ArticleAI: articleAIAPI, Transfer: transferAPI, Notifications: notifications,
 	})
 	platform := appagent.NewPlatform(toolRegistry, platformDirectory)
 	if chatService != nil {
@@ -231,7 +243,7 @@ func main() {
 			}
 			return desktop.Dialog.OpenFile().SetTitle("导入 Skill").AddFilter("Skill（Markdown 或 ZIP）", "*.md;*.zip").AttachToWindow(mainWindow).PromptForSingleSelection()
 		})),
-		application.NewService(service), application.NewService(settingsService),
+		application.NewService(service), application.NewService(settingsService), application.NewService(notification.NewAPI(notifications)),
 		application.NewService(desktopintegration.NewNotifier()),
 		application.NewService(readerService),
 		application.NewService(aiconfig.NewAPI(aiConfig)),
@@ -253,12 +265,16 @@ func main() {
 		transferService.Close()
 		stop()
 		refreshService.Close()
+		stopNotifications()
 		if mediaService != nil {
 			mediaService.Close()
 		}
 		client.CloseIdleConnections()
 	})
-	refreshService.StartScheduler()
+	if err := notifications.Prepare(context.Background()); err != nil {
+		slog.Warn("本地通知恢复标记不可用")
+	}
+	stopNotifications = notifications.Start(context.Background(), refreshService.StartScheduler())
 	if articleAIService != nil {
 		defer articleAIService.Start(context.Background())()
 	}

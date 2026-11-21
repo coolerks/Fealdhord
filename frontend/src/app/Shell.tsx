@@ -1,4 +1,5 @@
 import { notify } from '@/lib/notifications'
+import { useScheduledNotices } from './use-scheduled-notices'
 import { ShortcutKeys } from '@/components/shortcut-keys'
 import { useChatTarget } from '@/features/chat/chat-scope'
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -74,6 +75,7 @@ function ReaderTransition({ children, className, mode }: {
 
 export function Shell() {
   useRSSSync()
+  useScheduledNotices()
   const chatKind = useChatTarget(state => state.target?.kind)
   const globalChat = chatKind === 'global'
   const [chatSidebar, setChatSidebar] = useState<HTMLDivElement | null>(null)

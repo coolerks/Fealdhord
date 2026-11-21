@@ -33,3 +33,8 @@ export const FealdhordLibraryChanged = "fealdhord:library-changed";
  */
 export const FealdhordRefresh = "fealdhord:refresh";
 
+/**
+ * Name of the custom event "fealdhord:scheduled-notice".
+ */
+export const FealdhordScheduledNotice = "fealdhord:scheduled-notice";
+

@@ -36,6 +36,14 @@ vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/api', () =>
   List: listAIConfiguration, SaveModel: saveAIModel, Brands: async () => [],
   FetchModels: () => Object.assign(Promise.resolve([]), { cancel: vi.fn() }),
 }))
+const notificationAPI = vi.hoisted(() => ({
+  ListLocalNotices: vi.fn().mockResolvedValue([]),
+  ListChannels: vi.fn().mockResolvedValue([]),
+  ListRules: vi.fn().mockResolvedValue([]),
+  ListTasks: vi.fn().mockResolvedValue([]),
+  SaveRule: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/notification/api', () => notificationAPI)
 const listSkills = vi.hoisted(() => vi.fn())
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/appagent/api', () => ({
   PendingActions: async () => [], Grants: async () => [], ToolList: async () => [], Skills: listSkills, MCPClients: async () => [],
@@ -48,6 +56,7 @@ import App from './App'
 let geometry: ReturnType<typeof installGeometry>
 beforeEach(() => {
   vi.clearAllMocks()
+  notificationAPI.ListChannels.mockResolvedValue([])
   useChatTarget.setState({ target: null })
   listSkills.mockResolvedValue([])
   chat.ContextStatus.mockResolvedValue({
@@ -901,6 +910,29 @@ describe('Phase 1 阅读 Shell', () => {
 
     await user.click(dialog.getByRole('button', { name: '订阅' }))
     expect(dialog.queryByRole('radiogroup', { name: '通知方式' })).not.toBeInTheDocument()
+  })
+
+  it('文章推送规则可同时选择多个已验证渠道', async () => {
+    const user = userEvent.setup()
+    notificationAPI.ListChannels.mockResolvedValue([
+      { id: 'telegram', name: 'Telegram 测试', enabled: true, verified: true },
+      { id: 'slack', name: 'Slack 测试', enabled: true, verified: true },
+    ])
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    await user.click(await screen.findByRole('button', { name: '通知' }))
+    const add = await screen.findByRole('button', { name: '添加规则' })
+    await waitFor(() => expect(add).toBeEnabled())
+    await user.click(add)
+    await user.type(screen.getByRole('textbox', { name: '规则名称' }), '科技文章')
+    await user.click(screen.getByRole('button', { name: '接收渠道' }))
+    await user.click(await screen.findByText('Telegram 测试', { selector: '[cmdk-item] span.truncate' }))
+    await user.click(await screen.findByText('Slack 测试', { selector: '[cmdk-item] span.truncate' }))
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: '保存规则' }))
+    await waitFor(() => expect(notificationAPI.SaveRule).toHaveBeenCalledWith(expect.objectContaining({
+      name: '科技文章', mode: 'instant', channels: ['telegram', 'slack'],
+    })))
   })
 
   it('通过更多打开工具栏设置，搜索并保存常驻操作', async () => {

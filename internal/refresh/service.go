@@ -437,11 +437,13 @@ func retryAfter(raw string, now time.Time) time.Duration {
 	}
 	return 0
 }
-func (s *Service) StartScheduler() {
+func (s *Service) StartScheduler() <-chan struct{} {
+	ready := make(chan struct{})
 	s.mu.Lock()
 	if s.closed || s.scheduled {
 		s.mu.Unlock()
-		return
+		close(ready)
+		return ready
 	}
 	s.scheduled = true
 	s.wg.Add(1)
@@ -450,7 +452,13 @@ func (s *Service) StartScheduler() {
 		defer s.wg.Done()
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
-		s.refreshDue()
+		if initial := s.refreshDue(); initial != nil {
+			select {
+			case <-initial.Done():
+			case <-s.ctx.Done():
+			}
+		}
+		close(ready)
 		for {
 			select {
 			case <-s.ctx.Done():
@@ -460,21 +468,31 @@ func (s *Service) StartScheduler() {
 			}
 		}
 	}()
+	return ready
 }
-func (s *Service) refreshDue() {
+func (s *Service) refreshDue() context.Context {
 	if s.repository == nil {
-		return
+		return nil
 	}
 	rows, err := s.repository.DueSubscriptions(s.ctx, s.now().UTC().UnixMilli(), s.refreshInterval(s.ctx).Milliseconds())
 	if err != nil {
-		return
+		return nil
 	}
 	ids := []string{}
 	for _, row := range rows {
 		ids = append(ids, row.ID)
 	}
-	if len(ids) > 0 {
-		s.Start(s.ctx, StartRequest{FeedIDs: ids})
+	if len(ids) == 0 {
+		return nil
 	}
+	result := s.Start(s.ctx, StartRequest{FeedIDs: ids})
+	if result.OK && result.Data != nil {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if operation := s.history[result.Data.OperationID]; operation != nil {
+			return operation.ctx
+		}
+	}
+	return nil
 }
 func (s *Service) Close() { s.mu.Lock(); s.closed = true; s.cancel(); s.mu.Unlock(); s.wg.Wait() }

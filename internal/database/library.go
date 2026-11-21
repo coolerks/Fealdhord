@@ -129,23 +129,22 @@ func articleHash(input ArticleInput) string {
 type identity struct{ kind, value string }
 
 func (s *Store) UpsertArticle(ctx context.Context, input ArticleInput) (id string, err error) {
-	err = s.transaction(ctx, func(q *sqlc.Queries) error { id, err = upsertArticle(ctx, q, input); return err })
+	err = s.transaction(ctx, func(q *sqlc.Queries) error { id, _, err = upsertArticle(ctx, q, input); return err })
 	if err != nil {
 		return "", err
 	}
 	return id, nil
 }
 
-func upsertArticle(ctx context.Context, q *sqlc.Queries, input ArticleInput) (id string, err error) {
-	created := false
+func upsertArticle(ctx context.Context, q *sqlc.Queries, input ArticleInput) (id string, created bool, err error) {
 	if input.FeedID == "" || len(input.GUID) > 4096 || len(input.URL) > 8192 || len(input.Title) > 4096 || len(input.Summary) > 16384 || len(input.Author) > 1024 || len(input.Text)+len(input.HTML) > 4<<20 {
-		return "", ErrInvalidInput
+		return "", false, ErrInvalidInput
 	}
 	canonical := ""
 	if input.URL != "" {
 		canonical, err = normalizeURL(input.URL)
 		if err != nil {
-			return "", err
+			return "", false, err
 		}
 	}
 	hash := articleHash(input)
@@ -218,9 +217,9 @@ func upsertArticle(ctx context.Context, q *sqlc.Queries, input ArticleInput) (id
 		return q.InheritFeedCategories(ctx, sqlc.InheritFeedCategoriesParams{ArticleID: id, FeedID: input.FeedID, CreatedAt: input.FetchedAt, UpdatedAt: input.FetchedAt})
 	}()
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
-	return id, nil
+	return id, created, nil
 }
 
 func (s *Store) ListArticles(ctx context.Context, limit int64) ([]sqlc.ListArticlesRow, error) {
