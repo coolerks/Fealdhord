@@ -23,6 +23,9 @@ type Skill struct {
 	Resources   []SkillResource `json:"resources,omitempty"`
 }
 
+// JSON can expand each input byte and also stores the parsed front matter.
+const maxStoredSkill = 12*maxSkillText + 6*maxSkillResources + (32 << 10)
+
 var skillName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$`)
 
 func parseSkill(markdown string, enabled bool) (Skill, error) {
@@ -52,9 +55,6 @@ func (a *Platform) Skills() []Skill {
 		if !entry.Type().IsRegular() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
-		if info, err := entry.Info(); err != nil || info.Size() > 512<<10 {
-			continue
-		}
 		value, err := readSkill(filepath.Join(dir, entry.Name()))
 		if err == nil {
 			values = append(values, value)
@@ -68,7 +68,10 @@ func (a *Platform) saveSkill(markdown string, enabled bool) (Skill, error) {
 	if err != nil {
 		return Skill{}, err
 	}
-	prior, _ := readSkill(filepath.Join(a.dir, "skills", value.Name+".json"))
+	prior, err := readSkill(filepath.Join(a.dir, "skills", value.Name+".json"))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return Skill{}, errors.New("StorageError")
+	}
 	return a.saveSkillResources(markdown, enabled, prior.Resources)
 }
 
@@ -84,7 +87,11 @@ func (a *Platform) saveSkillResources(markdown string, enabled bool, resources [
 	if a.dir == "" {
 		return Skill{}, errors.New("StorageError")
 	}
-	if err = atomicJSON(filepath.Join(a.dir, "skills"), value.Name+".json", value); err != nil {
+	data, err := json.Marshal(value)
+	if err != nil || len(data) > maxStoredSkill {
+		return Skill{}, errors.New("InvalidSkillPackage")
+	}
+	if err = atomicFile(filepath.Join(a.dir, "skills"), value.Name+".json", data); err != nil {
 		return Skill{}, errors.New("StorageError")
 	}
 	return value, nil
@@ -150,7 +157,10 @@ func filterTools(tools []agentrun.ReadTool, allowed map[string]bool) []agentrun.
 
 func readSkill(path string) (Skill, error) {
 	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Size() > 512<<10 {
+	if err != nil {
+		return Skill{}, err
+	}
+	if !info.Mode().IsRegular() || info.Size() > maxStoredSkill {
 		return Skill{}, errors.New("InvalidSkill")
 	}
 	file, err := os.Open(path)
@@ -158,8 +168,9 @@ func readSkill(path string) (Skill, error) {
 		return Skill{}, err
 	}
 	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, maxStoredSkill+1))
 	var stored Skill
-	if json.NewDecoder(io.LimitReader(file, 512<<10)).Decode(&stored) != nil {
+	if err != nil || len(data) > maxStoredSkill || json.Unmarshal(data, &stored) != nil {
 		return Skill{}, errors.New("InvalidSkill")
 	}
 	value, err := parseSkill(stored.Markdown, stored.Enabled)

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/netip"
 	"os"
@@ -18,7 +19,10 @@ import (
 
 	"github.com/coolerks/Fealdhord/internal/agentrun"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/zalando/go-keyring"
 )
+
+const maxMCPClientSettings = 512 << 10
 
 var clientName = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,32}$`)
 
@@ -64,12 +68,19 @@ func (a *Platform) connectMCP(ctx context.Context, config ClientConfig) (ClientS
 		(config.Command == "") == (config.Endpoint == "") {
 		return ClientStatus{}, errors.New("InvalidClientSettings")
 	}
+	values, err := a.savedClients()
+	if err != nil {
+		return ClientStatus{}, err
+	}
+	previous, exists := values[config.Name]
+	if !exists && len(values) >= 32 {
+		return ClientStatus{}, errors.New("TooManyClients")
+	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	var transport mcp.Transport
 	bearer := config.Bearer
 	if bearer == "" && config.Endpoint != "" {
-		previous, exists := a.savedClient(config.Name)
 		if exists && previous.Endpoint == config.Endpoint {
 			bearer, _ = a.credentials.Get(clientCredentialRef(config))
 		}
@@ -130,7 +141,7 @@ func (a *Platform) connectMCP(ctx context.Context, config ClientConfig) (ClientS
 			}
 		}
 	}
-	if err := a.persistClient(config); err != nil {
+	if err := a.persistClient(config, values); err != nil {
 		_ = session.Close()
 		return ClientStatus{}, err
 	}
@@ -153,10 +164,13 @@ func (a *Platform) connectMCP(ctx context.Context, config ClientConfig) (ClientS
 	return conn.status, nil
 }
 
-func (a *Platform) MCPClients() []ClientStatus {
+func (a *Platform) MCPClients() ([]ClientStatus, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	settings := a.savedClients()
+	settings, err := a.savedClients()
+	if err != nil {
+		return nil, err
+	}
 	values := make([]ClientStatus, 0, len(a.clients)+len(settings))
 	for name, config := range settings {
 		if a.clients[name] == nil {
@@ -167,42 +181,65 @@ func (a *Platform) MCPClients() []ClientStatus {
 		values = append(values, conn.status)
 	}
 	slices.SortFunc(values, func(a, b ClientStatus) int { return strings.Compare(a.Name, b.Name) })
-	return values
+	return values, nil
 }
 
-func (a *Platform) savedClients() map[string]ClientConfig {
-	values := make(map[string]ClientConfig)
-	if info, err := os.Stat(filepath.Join(a.dir, "mcp-clients.json")); err != nil || info.Size() > 512<<10 {
-		return values
-	}
-	data, _ := os.ReadFile(filepath.Join(a.dir, "mcp-clients.json"))
-	_ = json.Unmarshal(data, &values)
-	return values
-}
-
-func (a *Platform) savedClient(name string) (ClientConfig, bool) {
-	config, ok := a.savedClients()[name]
-	return config, ok
-}
-
-func (a *Platform) persistClient(config ClientConfig) error {
+func (a *Platform) savedClients() (map[string]ClientConfig, error) {
+	failure := errors.New("StorageError")
 	if a.dir == "" {
-		return errors.New("StorageError")
+		return nil, failure
 	}
-	values := a.savedClients()
-	if _, exists := values[config.Name]; !exists && len(values) >= 32 {
-		return errors.New("TooManyClients")
+	values := make(map[string]ClientConfig)
+	path := filepath.Join(a.dir, "mcp-clients.json")
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return values, nil
 	}
+	if err != nil || !info.Mode().IsRegular() || info.Size() > maxMCPClientSettings {
+		return nil, failure
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, failure
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, maxMCPClientSettings+1))
+	if err != nil || len(data) > maxMCPClientSettings || json.Unmarshal(data, &values) != nil || values == nil {
+		return nil, failure
+	}
+	return values, nil
+}
+
+func (a *Platform) persistClient(config ClientConfig, values map[string]ClientConfig) error {
+	previous, exists := values[config.Name]
 	ref := clientCredentialRef(config)
-	if config.Bearer != "" {
-		if a.credentials.Set(ref, config.Bearer) != nil {
+	bearer := config.Bearer
+	config.Bearer = ""
+	values[config.Name] = config
+	data, err := json.Marshal(values)
+	if err != nil || len(data) > maxMCPClientSettings {
+		return errors.New("ClientSettingsTooLarge")
+	}
+	var previousBearer string
+	if bearer != "" {
+		if exists && previous.Endpoint == config.Endpoint {
+			previousBearer, err = a.credentials.Get(ref)
+			if err != nil && !errors.Is(err, keyring.ErrNotFound) {
+				return errors.New("CredentialError")
+			}
+		}
+		if err := a.credentials.Set(ref, bearer); err != nil {
 			return errors.New("CredentialError")
 		}
 	}
-	previous, exists := values[config.Name]
-	config.Bearer = ""
-	values[config.Name] = config
-	if err := atomicJSON(a.dir, "mcp-clients.json", values); err != nil {
+	if err := atomicFile(a.dir, "mcp-clients.json", data); err != nil {
+		if bearer != "" {
+			if previousBearer == "" {
+				_ = a.credentials.Delete(ref)
+			} else if a.credentials.Set(ref, previousBearer) != nil {
+				return errors.New("CredentialRestoreError")
+			}
+		}
 		return errors.New("StorageError")
 	}
 	if exists && previous.Endpoint != config.Endpoint {
@@ -222,7 +259,10 @@ func (a *Platform) ForgetMCP(name string) error {
 	}
 	a.clientEdit.Lock()
 	defer a.clientEdit.Unlock()
-	values := a.savedClients()
+	values, err := a.savedClients()
+	if err != nil {
+		return err
+	}
 	previous, exists := values[name]
 	delete(values, name)
 	if err := atomicJSON(a.dir, "mcp-clients.json", values); err != nil {

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -25,6 +26,8 @@ import (
 	"github.com/coolerks/Fealdhord/internal/aiconfig"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+const maxMCPServerSettings = 64 << 10
 
 type ServerConfig struct {
 	Enabled     bool     `json:"enabled"`
@@ -66,12 +69,30 @@ func (h *sharedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	(*h.current.Load()).ServeHTTP(w, r)
 }
 
+// A port stays bound while switching TLS or replacing a certificate.
+type mcpListener struct {
+	net.Listener
+	tlsConfig atomic.Pointer[tls.Config]
+}
+
+func (l *mcpListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	if config := l.tlsConfig.Load(); config != nil {
+		return tls.Server(conn, config), nil
+	}
+	return conn, nil
+}
+
 type Platform struct {
 	registry     *Registry
 	dir          string
 	mu           sync.Mutex
 	state        serverSettings
 	server       *http.Server
+	listener     *mcpListener
 	stopRequests context.CancelFunc
 	endpoint     string
 	clients      map[string]*clientConnection
@@ -83,11 +104,15 @@ func NewPlatform(registry *Registry, dir string) *Platform {
 	a := &Platform{registry: registry, dir: dir, clients: make(map[string]*clientConnection), credentials: aiconfig.SystemCredentials{}}
 	registry.auditDir = dir
 	a.state.Config.Port = 8769
-	if data, err := os.ReadFile(filepath.Join(dir, "mcp-server.json")); err == nil && len(data) < 64<<10 {
-		_ = json.Unmarshal(data, &a.state)
-		if a.state.Config.Enabled {
-			if err := a.configure(a.state); err != nil {
-				a.state.Config.Enabled = false
+	var stored serverSettings
+	if dir != "" {
+		filename := filepath.Join(dir, "mcp-server.json")
+		if info, err := os.Stat(filename); err == nil && info.Mode().IsRegular() && info.Size() <= maxMCPServerSettings {
+			if data, err := os.ReadFile(filename); err == nil && len(data) <= maxMCPServerSettings && json.Unmarshal(data, &stored) == nil {
+				a.state = stored
+				if stored.Config.Enabled && a.configure(stored, true) != nil {
+					a.state.Config.Enabled = false
+				}
 			}
 		}
 	}
@@ -103,7 +128,8 @@ func (a *Platform) Shutdown() {
 	}
 	if a.server != nil {
 		_ = a.server.Close()
-		a.server = nil
+		a.server, a.listener = nil, nil
+		a.endpoint = ""
 	}
 	for _, client := range a.clients {
 		_ = client.session.Close()
@@ -124,8 +150,11 @@ func (a *Platform) SaveMCPServer(config ServerConfig) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	next := a.state
+	if config.Enabled && !a.state.Config.Enabled && next.TokenDigest == "" && len(next.Clients) == 0 {
+		return errors.New("CreateCredentialFirst")
+	}
 	next.Config = config
-	return a.configure(next)
+	return a.configure(next, true)
 }
 
 func (a *Platform) RotateMCPToken() (string, error) {
@@ -135,7 +164,7 @@ func (a *Platform) RotateMCPToken() (string, error) {
 	digest := sha256.Sum256([]byte(value))
 	next := a.state
 	next.TokenDigest = hex.EncodeToString(digest[:])
-	if err := a.configure(next); err != nil {
+	if err := a.configure(next, false); err != nil {
 		return "", err
 	}
 	return value, nil
@@ -146,7 +175,11 @@ func atomicJSON(dir, name string, value any) error {
 	if err != nil {
 		return err
 	}
-	if err = os.MkdirAll(dir, 0700); err != nil {
+	return atomicFile(dir, name, data)
+}
+
+func atomicFile(dir, name string, data []byte) error {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
 	file, err := os.CreateTemp(dir, "write-*.json")
@@ -161,7 +194,7 @@ func atomicJSON(dir, name string, value any) error {
 	return os.Rename(file.Name(), filepath.Join(dir, name))
 }
 
-func (a *Platform) configure(next serverSettings) error {
+func (a *Platform) configure(next serverSettings, reloadCertificate bool) error {
 	config := next.Config
 	if a.dir == "" || config.Port < 1024 || config.Port > 65535 {
 		return errors.New("InvalidServerSettings")
@@ -171,7 +204,11 @@ func (a *Platform) configure(next serverSettings) error {
 			return errors.New("UnknownTool")
 		}
 	}
-	var listener net.Listener
+	data, err := json.Marshal(next)
+	if err != nil || len(data) > maxMCPServerSettings {
+		return errors.New("ServerSettingsTooLarge")
+	}
+	var listener *mcpListener
 	var server *http.Server
 	var stopRequests context.CancelFunc
 	var endpoint string
@@ -184,57 +221,54 @@ func (a *Platform) configure(next serverSettings) error {
 			}
 			address = chosen
 		}
-		if next.TokenDigest == "" && len(next.Clients) == 0 {
-			return errors.New("CreateCredentialFirst")
-		}
-		var certificate tls.Certificate
+		var tlsConfig *tls.Config
 		scheme := "http"
 		if config.TLS {
-			var err error
-			certificate, err = tls.LoadX509KeyPair(config.Certificate, config.PrivateKey)
-			if err != nil {
-				return errors.New("InvalidTLSCertificate")
-			}
 			scheme = "https"
+			if !reloadCertificate && a.listener != nil {
+				tlsConfig = a.listener.tlsConfig.Load()
+			}
+			if tlsConfig == nil {
+				certificate, err := tls.LoadX509KeyPair(config.Certificate, config.PrivateKey)
+				if err != nil {
+					return errors.New("InvalidTLSCertificate")
+				}
+				leaf, err := x509.ParseCertificate(certificate.Certificate[0])
+				now := time.Now()
+				if err != nil || now.Before(leaf.NotBefore) || !now.Before(leaf.NotAfter) || leaf.VerifyHostname(address.String()) != nil {
+					return errors.New("InvalidTLSCertificate")
+				}
+				tlsConfig = &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{certificate}}
+			}
 		}
 		host := net.JoinHostPort(address.String(), strconv.Itoa(config.Port))
 		endpoint = scheme + "://" + host + "/mcp"
-		if a.server != nil && a.server.Addr == host && config.TLS == a.state.Config.TLS &&
-			config.Certificate == a.state.Config.Certificate && config.PrivateKey == a.state.Config.PrivateKey {
-			if atomicJSON(a.dir, "mcp-server.json", next) != nil {
+		if a.server != nil && a.server.Addr == host {
+			if atomicFile(a.dir, "mcp-server.json", data) != nil {
 				return errors.New("StorageError")
 			}
 			handler, stop := a.cancellableHandler(next, host, scheme)
-			a.server.Handler.(*sharedHandler).current.Store(&handler)
 			if a.stopRequests != nil {
 				a.stopRequests()
 			}
-			a.stopRequests = stop
-			a.state = next
+			a.listener.tlsConfig.Store(tlsConfig)
+			a.server.Handler.(*sharedHandler).current.Store(&handler)
+			a.state, a.endpoint, a.stopRequests = next, endpoint, stop
 			return nil
 		}
-		var err error
-		// A replacement on the same socket needs the old listener to release its port.
-		// New settings are validated above before closing the old server.
-		if a.server != nil && a.server.Addr == host {
-			_ = a.server.Close()
-			a.server = nil
-			a.endpoint = ""
-		}
-		listener, err = net.Listen("tcp", host)
+		bound, err := net.Listen("tcp", host)
 		if err != nil {
 			return errors.New("ListenFailed")
 		}
-		if config.TLS {
-			listener = tls.NewListener(listener, &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{certificate}})
-		}
+		listener = &mcpListener{Listener: bound}
+		listener.tlsConfig.Store(tlsConfig)
 		handler, stop := a.cancellableHandler(next, host, scheme)
 		stopRequests = stop
 		shared := &sharedHandler{}
 		shared.current.Store(&handler)
 		server = &http.Server{Addr: host, Handler: shared, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 150 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 	}
-	if err := atomicJSON(a.dir, "mcp-server.json", next); err != nil {
+	if err := atomicFile(a.dir, "mcp-server.json", data); err != nil {
 		if stopRequests != nil {
 			stopRequests()
 		}
@@ -249,7 +283,7 @@ func (a *Platform) configure(next serverSettings) error {
 	if a.stopRequests != nil {
 		a.stopRequests()
 	}
-	a.state, a.server, a.endpoint, a.stopRequests = next, server, endpoint, stopRequests
+	a.state, a.server, a.listener, a.endpoint, a.stopRequests = next, server, listener, endpoint, stopRequests
 	if server != nil {
 		go func() { _ = server.Serve(listener) }()
 	}
@@ -280,7 +314,7 @@ func (a *Platform) SaveGrant(grant MCPGrant, revoke bool) (string, error) {
 	}
 	if revoke {
 		delete(next.Clients, grant.Name)
-		return "", a.configure(next)
+		return "", a.configure(next, false)
 	}
 	if (grant.Scope.Kind != "" && (grant.Scope.Kind != "feed" && grant.Scope.Kind != "category" || grant.Scope.ID == "")) || len(grant.Scope.ID) > 128 {
 		return "", errors.New("InvalidClientScope")
@@ -296,7 +330,7 @@ func (a *Platform) SaveGrant(grant MCPGrant, revoke bool) (string, error) {
 	value := rand.Text() + rand.Text()
 	digest := sha256.Sum256([]byte(value))
 	next.Clients[grant.Name] = clientGrant{Digest: hex.EncodeToString(digest[:]), Tools: slices.Clone(grant.Tools), Scope: grant.Scope}
-	if err := a.configure(next); err != nil {
+	if err := a.configure(next, false); err != nil {
 		return "", err
 	}
 	return value, nil
@@ -367,6 +401,12 @@ func (a *Platform) handler(config serverSettings, host, scheme string) http.Hand
 	}, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
 	slots := make(chan struct{}, 8)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Existing keep-alive connections can predate a protocol change.
+		if (r.TLS != nil) != config.Config.TLS {
+			w.Header().Set("Connection", "close")
+			http.Error(w, "Transport changed", http.StatusForbidden)
+			return
+		}
 		if r.URL.Path != "/mcp" {
 			http.NotFound(w, r)
 			return

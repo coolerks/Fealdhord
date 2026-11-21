@@ -23,9 +23,9 @@ func (a *API) RotateMCPToken() (string, error)         { return a.platform.Rotat
 func (a *API) ConnectMCP(ctx context.Context, config ClientConfig) (ClientStatus, error) {
 	return a.platform.ConnectMCP(ctx, config)
 }
-func (a *API) MCPClients() []ClientStatus { return a.platform.MCPClients() }
-func (a *API) DisconnectMCP(name string)  { a.platform.DisconnectMCP(name) }
-func (a *API) Skills() []Skill            { return a.platform.Skills() }
+func (a *API) MCPClients() ([]ClientStatus, error) { return a.platform.MCPClients() }
+func (a *API) DisconnectMCP(name string)           { a.platform.DisconnectMCP(name) }
+func (a *API) Skills() []Skill                     { return a.platform.Skills() }
 func (a *API) SaveSkill(markdown string, enabled bool) (Skill, error) {
 	return a.platform.saveSkill(markdown, enabled)
 }

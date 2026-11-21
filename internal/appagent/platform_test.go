@@ -3,6 +3,8 @@ package appagent
 import (
 	"archive/zip"
 	"context"
+	"crypto"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
@@ -10,12 +12,14 @@ import (
 	"encoding/pem"
 	"errors"
 	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -23,6 +27,7 @@ import (
 	"github.com/coolerks/Fealdhord/internal/database"
 	"github.com/coolerks/Fealdhord/internal/library"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/zalando/go-keyring"
 )
 
 func TestBuiltinToolsHaveDistinctWireNames(t *testing.T) {
@@ -268,17 +273,219 @@ func TestMCPServerHTTPS(t *testing.T) {
 	if _, err := p.RotateMCPToken(); err != nil {
 		t.Fatal(err)
 	}
-	err = p.SaveMCPServer(ServerConfig{Enabled: true, Port: port, TLS: true, Certificate: certPath, PrivateKey: keyPath})
+	httpConfig := ServerConfig{Enabled: true, Port: port}
+	if err := p.SaveMCPServer(httpConfig); err != nil {
+		t.Fatal(err)
+	}
+	previous := p.MCPServer().URL
+	badCertPath := filepath.Join(dir, "other-host.pem")
+	other := &x509.Certificate{
+		SerialNumber: big.NewInt(1), NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour),
+		DNSNames: []string{"elsewhere.test"},
+	}
+	signer := certificate.PrivateKey.(crypto.Signer)
+	encoded, err := x509.CreateCertificate(rand.Reader, other, other, signer.Public(), certificate.PrivateKey)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(badCertPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: encoded}), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.SaveMCPServer(ServerConfig{Enabled: true, Port: port, TLS: true, Certificate: badCertPath, PrivateKey: keyPath}); err == nil || err.Error() != "InvalidTLSCertificate" {
+		t.Fatalf("expected wrong-host certificate rejection, got %v", err)
+	}
+	path := filepath.Join(dir, "mcp-server.json")
+	if err := os.Rename(path, path+".backup"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	httpsConfig := ServerConfig{Enabled: true, Port: port, TLS: true, Certificate: certPath, PrivateKey: keyPath}
+	if err := p.SaveMCPServer(httpsConfig); err == nil || err.Error() != "StorageError" {
+		t.Fatalf("expected settings write failure, got %v", err)
+	}
+	if current := p.MCPServer().URL; current != previous {
+		t.Fatalf("failed save changed endpoint: %q", current)
+	}
+	httpClient := &http.Client{Timeout: 3 * time.Second}
+	response, err := httpClient.Get(previous)
+	if err != nil {
+		t.Fatalf("old HTTP listener unavailable: %v", err)
+	}
+	io.Copy(io.Discard, response.Body)
+	response.Body.Close()
+	if response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("old listener returned %d", response.StatusCode)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.SaveMCPServer(httpsConfig); err != nil {
+		t.Fatal(err)
+	}
+	response, err = httpClient.Get(previous)
+	if err != nil {
+		t.Fatalf("existing HTTP connection: %v", err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("plaintext connection survived TLS activation: %d", response.StatusCode)
+	}
+
 	endpoint := p.MCPServer().URL
-	response, err := prototype.Client().Get(endpoint)
+	response, err = prototype.Client().Get(endpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer response.Body.Close()
 	if !strings.HasPrefix(endpoint, "https://127.0.0.1:") || response.TLS == nil || response.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("HTTPS handshake or authentication failed: %s %d", endpoint, response.StatusCode)
+	}
+	if err := os.Remove(certPath); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.RotateMCPToken(); err != nil {
+		t.Fatalf("credential changes should use the loaded certificate: %v", err)
+	}
+}
+
+func TestMCPRevokesOnlyClientAndRemainsClosedToItAfterRestart(t *testing.T) {
+	bound, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := bound.Addr().(*net.TCPAddr).Port
+	bound.Close()
+	dir := t.TempDir()
+	p := NewPlatform(NewRegistry(), dir)
+	defer p.Shutdown()
+	config := ServerConfig{Enabled: true, Port: port}
+	if err := p.SaveMCPServer(config); err == nil || err.Error() != "CreateCredentialFirst" {
+		t.Fatalf("initial enable should require credentials: %v", err)
+	}
+	token, err := p.SaveGrant(MCPGrant{Name: "only"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.SaveMCPServer(config); err != nil {
+		t.Fatal(err)
+	}
+	httpClient := &http.Client{Transport: bearerTransport{token: token}, Timeout: 3 * time.Second}
+	assertRevoked := func(p *Platform) {
+		t.Helper()
+		state := p.MCPServer()
+		if !state.Config.Enabled || state.URL == "" || len(p.Grants()) != 0 {
+			t.Fatalf("unexpected state: %+v, grants: %v", state, p.Grants())
+		}
+		response, err := httpClient.Get(state.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		if response.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("revoked token returned %d", response.StatusCode)
+		}
+	}
+	if _, err := p.SaveGrant(MCPGrant{Name: "only"}, true); err != nil {
+		t.Fatal(err)
+	}
+	assertRevoked(p)
+	p.Shutdown()
+	reopened := NewPlatform(NewRegistry(), dir)
+	defer reopened.Shutdown()
+	assertRevoked(reopened)
+}
+
+type mockMCPClientCredentials map[string]string
+
+func (c mockMCPClientCredentials) Get(ref string) (string, error) {
+	value, ok := c[ref]
+	if !ok {
+		return "", keyring.ErrNotFound
+	}
+	return value, nil
+}
+
+func (c mockMCPClientCredentials) Set(ref, value string) error {
+	c[ref] = value
+	return nil
+}
+
+func (c mockMCPClientCredentials) Delete(ref string) error {
+	delete(c, ref)
+	return nil
+}
+
+func TestMCPClientSettingsRejectUnreadableAndOversizedChanges(t *testing.T) {
+	dir := t.TempDir()
+	p := NewPlatform(NewRegistry(), dir)
+	old := []byte(`{"example":{"name":"example","command":"old"}`)
+	path := filepath.Join(dir, "mcp-clients.json")
+	if err := os.WriteFile(path, old, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.MCPClients(); err == nil {
+		t.Fatal("corrupt settings reported as empty")
+	}
+	if err := p.ForgetMCP("example"); err == nil {
+		t.Fatal("removing a connection would overwrite corrupt settings")
+	}
+	if _, err := p.ConnectMCP(t.Context(), ClientConfig{Name: "example", Command: "does-not-exist"}); err == nil || err.Error() != "StorageError" {
+		t.Fatalf("connect should stop before opening a new connection: %v", err)
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != string(old) {
+		t.Fatalf("existing file changed: %v", err)
+	}
+	prior := ClientConfig{Name: "example", Endpoint: "https://example.test/mcp"}
+	values := map[string]ClientConfig{prior.Name: prior}
+	if err := atomicJSON(dir, "mcp-clients.json", values); err != nil {
+		t.Fatal(err)
+	}
+	large := ClientConfig{Name: "large", Command: "test", Args: []string{strings.Repeat("x", maxMCPClientSettings)}}
+	if err := p.persistClient(large, values); err == nil || err.Error() != "ClientSettingsTooLarge" {
+		t.Fatalf("oversized settings write: %v", err)
+	}
+	clients, err := p.MCPClients()
+	if err != nil || len(clients) != 1 || clients[0].Name != prior.Name {
+		t.Fatalf("saved clients: %+v, %v", clients, err)
+	}
+	ref := clientCredentialRef(prior)
+	credentials := mockMCPClientCredentials{ref: "old-key"}
+	p.credentials = credentials
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	prior.Bearer = "new-key"
+	delete(values, "large")
+	if err := p.persistClient(prior, values); err == nil || credentials[ref] != "old-key" {
+		t.Fatalf("failed save should preserve old credential: %v", err)
+	}
+}
+
+func TestLargePreviouslySavedSkillCanBeListedAndToggled(t *testing.T) {
+	p := NewPlatform(NewRegistry(), t.TempDir())
+	markdown := "---\nname: big-skill\ndescription: test\n---\n" + strings.Repeat("<tag>", 40000)
+	old, err := parseSkill(markdown, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old.Resources = []SkillResource{{Path: "references/example.txt", Text: "保留引用"}}
+	data, err := json.Marshal(old)
+	if err != nil || len(data) <= 512<<10 {
+		t.Fatalf("expected encoded fixture beyond the old limit: %d, %v", len(data), err)
+	}
+	if err := atomicFile(filepath.Join(p.dir, "skills"), old.Name+".json", data); err != nil {
+		t.Fatal(err)
+	}
+	if skills := p.Skills(); len(skills) != 1 || skills[0].Name != old.Name {
+		t.Fatalf("expected previously stored Skill to be readable, got %d entries", len(skills))
+	}
+	saved, err := p.saveSkill(markdown, false)
+	if err != nil || saved.Enabled || !slices.Equal(saved.Resources, old.Resources) {
+		t.Fatalf("toggle should retain references, error: %v", err)
 	}
 }

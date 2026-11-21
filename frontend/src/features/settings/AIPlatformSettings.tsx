@@ -138,6 +138,7 @@ export function AIPlatformSettings() {
     <Separator />
     <section className="space-y-3" aria-label="MCP 连接">
       <h3>MCP 连接</h3>
+      {clients.isError && <p role="alert" className="text-sm text-destructive">无法读取本地 MCP 连接配置</p>}
       {(clients.data ?? []).map(item => <div key={item.name} className="flex flex-wrap items-center gap-2">
         <span className="mr-auto">{item.name} · {item.connected ? `${item.tools?.length ?? 0} 项工具` : '已断开'}</span>
         {item.connected
