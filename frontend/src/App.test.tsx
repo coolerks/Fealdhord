@@ -50,6 +50,7 @@ const notificationAPI = vi.hoisted(() => ({
   DeleteTask: vi.fn(),
   SaveRule: vi.fn().mockResolvedValue(undefined),
   SaveChannel: vi.fn().mockResolvedValue(undefined),
+  SendArticle: vi.fn().mockResolvedValue(undefined),
   StartWeChatBinding: vi.fn(),
   PollWeChatBinding: vi.fn(),
   CancelWeChatBinding: vi.fn(),
@@ -1086,6 +1087,49 @@ describe('Phase 1 阅读 Shell', () => {
     await waitFor(() => expect(notificationAPI.SaveChannel).toHaveBeenCalledWith(expect.objectContaining({
       platform: 'telegram', targets: ['123456', '-100123456'],
     })))
+  })
+
+  it('从文章列表单选渠道，从阅读菜单发送到全部可用渠道', async () => {
+    const user = userEvent.setup()
+    notificationAPI.ListChannels.mockResolvedValue([
+      { id: 'telegram', name: 'Telegram 通知', enabled: true, verified: true },
+      { id: 'wechat', name: '微信通知', enabled: true, verified: true },
+      { id: 'unverified', name: '待测试渠道', enabled: true, verified: false },
+    ])
+    const { client } = setup(true)
+    client.setQueryData(articleQueryKey, initialLibraryData({
+      items: [{ ...articleFixtures(1)[0], url: 'https://example.com/story' }], hasMore: false,
+    }))
+    const openArticle = await screen.findByRole('button', { name: '打开文章：测试文章 0' })
+    const listSend = screen.getByRole('button', { name: '发送到' })
+    await user.click(listSend)
+    const first = await screen.findByRole('dialog', { name: '发送到' })
+    const dialog = within(first)
+    await user.click(await dialog.findByRole('button', { name: '通知渠道' }))
+    await user.click(await screen.findByRole('option', { name: '微信通知' }))
+    expect(screen.queryByRole('option', { name: '待测试渠道' })).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await user.click(dialog.getByRole('checkbox', { name: '摘要' }))
+    await user.click(dialog.getByRole('button', { name: '发送' }))
+    await waitFor(() => expect(listSend).toHaveFocus())
+    expect(notificationAPI.SendArticle).toHaveBeenLastCalledWith({
+      article_id: 'a-0', channel_ids: ['wechat'], title: true, summary: true, link: true, full_text: false,
+    })
+
+    await user.click(openArticle)
+    const more = within(await screen.findByRole('complementary', { name: '阅读面板' })).getByRole('button', { name: '更多' })
+    await user.click(more)
+    await user.click(await screen.findByRole('menuitem', { name: '发送到…' }))
+    const second = within(await screen.findByRole('dialog', { name: '发送到' }))
+    await user.click(await second.findByRole('checkbox', { name: '全部渠道' }))
+    await user.click(second.getByRole('checkbox', { name: '标题' }))
+    await user.click(second.getByRole('checkbox', { name: '链接' }))
+    await user.click(second.getByRole('checkbox', { name: '全文' }))
+    await user.click(second.getByRole('button', { name: '发送' }))
+    await waitFor(() => expect(more).toHaveFocus())
+    expect(notificationAPI.SendArticle).toHaveBeenLastCalledWith({
+      article_id: 'a-0', channel_ids: ['telegram', 'wechat'], title: false, summary: false, link: false, full_text: true,
+    })
   })
 
   it('微信绑定失败后显示具体原因，并停止自动轮询', async () => {

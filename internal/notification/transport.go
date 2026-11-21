@@ -156,6 +156,9 @@ func plainMessage(m Message) string {
 }
 
 func markdownLink(title, raw string) string {
+	if title == "" {
+		title = linkURL(raw)
+	}
 	title = markdownText(title)
 	if target := linkURL(raw); target != "" {
 		target = strings.NewReplacer("(", "%28", ")", "%29").Replace(target)
@@ -173,6 +176,9 @@ func markdownMessage(m Message) string {
 }
 
 func htmlLink(title, raw string) string {
+	if title == "" {
+		title = linkURL(raw)
+	}
 	title = html.EscapeString(title)
 	if target := linkURL(raw); target != "" {
 		return "<a href=\"" + html.EscapeString(target) + "\">" + title + "</a>"
@@ -202,12 +208,19 @@ func formatMessage(m Message) Message {
 }
 
 func discordPayload(m Message) map[string]any {
-	embed := map[string]any{"title": m.Title}
+	embed := map[string]any{}
+	if m.Title != "" {
+		embed["title"] = m.Title
+	}
 	if m.Text != "" {
 		embed["description"] = m.Text
 	}
 	if m.URL != "" {
-		embed["url"] = m.URL
+		if m.Title == "" {
+			embed["description"] = strings.TrimSpace(markdownLink("", m.URL) + "\n\n" + m.Text)
+		} else {
+			embed["url"] = m.URL
+		}
 	}
 	if len(m.Links) != 0 {
 		embed["description"] = markdownMessage(Message{Links: m.Links})
@@ -222,10 +235,14 @@ func slackPayload(m Message) map[string]any {
 	escape := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 	title := escape.Replace(m.Title)
 	if m.URL != "" {
+		if title == "" {
+			title = escape.Replace(m.URL)
+		}
 		title = "<" + strings.ReplaceAll(escape.Replace(m.URL), "|", "%7C") + "|" + strings.ReplaceAll(title, "|", "｜") + ">"
 	}
-	blocks := []any{
-		map[string]any{"type": "section", "text": map[string]string{"type": "mrkdwn", "text": title}},
+	var blocks []any
+	if title != "" {
+		blocks = append(blocks, map[string]any{"type": "section", "text": map[string]string{"type": "mrkdwn", "text": title}})
 	}
 	if m.Text != "" {
 		blocks = append(blocks, map[string]any{"type": "section", "text": map[string]string{"type": "plain_text", "text": m.Text}})
@@ -240,15 +257,21 @@ func slackPayload(m Message) map[string]any {
 	if m.Image != "" {
 		blocks = append(blocks, map[string]string{"type": "image", "image_url": m.Image, "alt_text": m.Title})
 	}
-	return map[string]any{"text": escape.Replace(m.Title), "blocks": blocks, "unfurl_links": false, "unfurl_media": false}
+	return map[string]any{"text": escape.Replace(plainMessage(m)), "blocks": blocks, "unfurl_links": false, "unfurl_media": false}
 }
 
 func larkPost(m Message) map[string]any {
 	title := map[string]string{"tag": "text", "text": m.Title}
 	if m.URL != "" {
 		title["tag"], title["href"] = "a", m.URL
+		if m.Title == "" {
+			title["text"] = m.URL
+		}
 	}
-	content := [][]map[string]string{{title}}
+	var content [][]map[string]string
+	if title["text"] != "" {
+		content = append(content, []map[string]string{title})
+	}
 	if m.Text != "" {
 		content = append(content, []map[string]string{{"tag": "text", "text": m.Text}})
 	}
@@ -327,7 +350,7 @@ func makeRequest(platform, target string, secret connectionSecret, m Message, no
 		if m.Image != "" {
 			text += "\n\n![](" + m.Image + ")"
 		}
-		return u.String(), map[string]any{"msgtype": "markdown", "markdown": map[string]string{"title": m.Title, "text": text}}, nil
+		return u.String(), map[string]any{"msgtype": "markdown", "markdown": map[string]string{"title": dingTalkTitle(m), "text": text}}, nil
 	case "feishu", "lark":
 		payload := map[string]any{"msg_type": "post", "content": map[string]any{"post": larkPost(m)}}
 		if secret.Signing != "" {
@@ -340,6 +363,13 @@ func makeRequest(platform, target string, secret connectionSecret, m Message, no
 	default:
 		return "", nil, errors.New("未知通知渠道")
 	}
+}
+
+func dingTalkTitle(m Message) string {
+	if m.Title == "" {
+		return "文章"
+	}
+	return clip(m.Title, 200)
 }
 
 type transport struct {

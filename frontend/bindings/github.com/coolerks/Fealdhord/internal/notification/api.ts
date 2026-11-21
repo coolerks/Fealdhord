@@ -85,6 +85,10 @@ export function SaveTask(input: $models.Task): $CancellablePromise<$models.Task>
     return $Call.ByID(2218215256, input);
 }
 
+export function SendArticle(input: $models.ArticleShare): $CancellablePromise<void> {
+    return $Call.ByID(974845944, input);
+}
+
 export function StartWeChatBinding(): $CancellablePromise<$models.WeChatBinding> {
     return $Call.ByID(621958475);
 }

@@ -200,7 +200,7 @@ func (t transport) sendDingTalkApp(ctx context.Context, target string, secret co
 	if message.Image != "" {
 		text += "\n\n![](" + strings.ReplaceAll(message.Image, ")", "%29") + ")"
 	}
-	param, _ := json.Marshal(map[string]string{"title": clip(message.Title, 200), "text": text})
+	param, _ := json.Marshal(map[string]string{"title": dingTalkTitle(message), "text": text})
 	reply, result = t.appPost(ctx, base+"robot/oToMessages/batchSend", map[string]any{
 		"robotCode": robot, "userIds": []string{target}, "msgKey": "sampleMarkdown", "msgParam": string(param),
 	}, map[string]string{"x-acs-dingtalk-access-token": reply.AccessToken}, true)

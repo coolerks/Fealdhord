@@ -24,7 +24,7 @@ import { ReaderOutline } from './ReaderOutline'
 import { ArticleHTML } from './ArticleHTML'
 import './reader-prose.css'
 
-type ReaderProps={feedIcon?:string;article?:Article;preferences:Preferences;overlay:boolean;onClose:()=>void;onFavorite:(id:string)=>void;onRead:(id:string)=>void;onAnchor:(key:string,anchor:{article_id:string;offset:number})=>void}
+type ReaderProps={feedIcon?:string;article?:Article;preferences:Preferences;overlay:boolean;onClose:()=>void;onFavorite:(id:string)=>void;onRead:(id:string)=>void;onShare?:(article:Article,trigger:HTMLButtonElement)=>void;onAnchor:(key:string,anchor:{article_id:string;offset:number})=>void}
 export function Reader(props:ReaderProps){
  const markedRef=useRef('')
  return <ReaderPane key={`${props.article?.id}:${props.article?.revision ?? 0}:${props.preferences.reader_open_mode}`} {...props} markedRef={markedRef}/>
@@ -34,7 +34,7 @@ export function ReaderEmpty() {
  return <Empty className="reader-empty"><EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={BookOpen} meaning="book"/></EmptyMedia><EmptyTitle>选择文章</EmptyTitle></EmptyHeader></Empty>
 }
 
-function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onRead,onAnchor,markedRef}:ReaderProps&{markedRef:RefObject<string>}){
+function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onRead,onShare,onAnchor,markedRef}:ReaderProps&{markedRef:RefObject<string>}){
  const content=useRef<HTMLDivElement>(null),timer=useRef<ReturnType<typeof setTimeout>|null>(null),pending=useRef<number|null>(null),save=useRef(onAnchor),title=useRef<HTMLHeadingElement>(null)
  const articleID=article?.id
  const publicationDate=article?.publishedAt.slice(0,10)
@@ -130,6 +130,7 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
      isFavorite={article.isFavorite} isRead={article.isRead} extracting={body.extracting} hasOriginal={Boolean(article.url || body.query.data?.has_original)}
      onRefresh={() => { setGallery(undefined); started.current = true; setView('reader'); void body.extract() }}
      onFavorite={() => onFavorite(article.id)} onRead={() => onRead(article.id)} onOriginal={() => openLink()}
+     onShare={onShare && (trigger => onShare(article, trigger))}
      readSelection={readSelection} onAI={selection => openChat({ kind: 'article', id: article.id, label: article.title, selection })} />
   </header>}
   {article?<Tabs.Content value={view} asChild {...(!preferences.reader_toolbar_pinned.includes('view') && {

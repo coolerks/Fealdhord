@@ -243,7 +243,7 @@ func main() {
 			}
 			return desktop.Dialog.OpenFile().SetTitle("导入 Skill").AddFilter("Skill（Markdown 或 ZIP）", "*.md;*.zip").AttachToWindow(mainWindow).PromptForSingleSelection()
 		})),
-		application.NewService(service), application.NewService(settingsService), application.NewService(notification.NewAPI(notifications)),
+		application.NewService(service), application.NewService(settingsService), application.NewService(notification.NewAPI(notifications, readerService)),
 		application.NewService(desktopintegration.NewNotifier()),
 		application.NewService(readerService),
 		application.NewService(aiconfig.NewAPI(aiConfig)),

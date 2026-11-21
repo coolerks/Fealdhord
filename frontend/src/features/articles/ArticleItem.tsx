@@ -1,6 +1,6 @@
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { memo, useState } from 'react'
-import { Bookmark, CalendarDays, Circle, CircleCheck, Sparkles, Star } from 'lucide-react'
+import { Bookmark, CalendarDays, Circle, CircleCheck, Send, Sparkles, Star } from 'lucide-react'
 import type { Article } from '@/lib/library'
 import { SemanticButton } from '@/components/semantic-button'
 import { coverHeight } from './layout'
@@ -10,10 +10,11 @@ import { FeedIcon } from '@/features/feeds/FeedIcon'
 type Props = {
   imagesAllowed?: boolean; feedIcon?: string; article: Article; mode: string; selected: boolean; width: number; imageMode: string
   onOpen: (id: string) => void; onFavorite: (id: string) => void; onRead: (id: string) => void
+  onShare?: (article: Article, trigger: HTMLButtonElement) => void
 }
 const articleDateFormat = new Intl.DateTimeFormat('zh-CN', { month: 'short', day: 'numeric' })
 
-export const ArticleItem = memo(function ArticleItem({ imagesAllowed=true, feedIcon, article, mode, selected, width, imageMode, onOpen, onFavorite, onRead }: Props) {
+export const ArticleItem = memo(function ArticleItem({ imagesAllowed=true, feedIcon, article, mode, selected, width, imageMode, onOpen, onFavorite, onRead, onShare }: Props) {
   const [failedURL, setFailedURL] = useState('')
   const imageHeight = coverHeight(article, width, imageMode)
   const showCover = imagesAllowed && imageHeight > 0 && article.cover?.url !== failedURL
@@ -33,6 +34,10 @@ export const ArticleItem = memo(function ArticleItem({ imagesAllowed=true, feedI
       <div className="article-flags">{article.isFavorite && <span role="img" aria-label="已收藏" className="favorite-indicator"><AnimatedGlyph icon={Star} meaning="favorite"/></span>}{article.aiLabel && <span className="ai-indicator"><AnimatedGlyph icon={Sparkles} meaning="ai"/>{article.aiLabel}</span>}</div>
     </div>
     {mode === 'list' && cover}
-    <div className="article-quick-actions"><SemanticButton icon={article.isFavorite ? Star : Bookmark} meaning="favorite" active={article.isFavorite} label={article.isFavorite ? '取消收藏' : '收藏文章'} onClick={() => onFavorite(article.id)} /><SemanticButton icon={article.isRead ? Circle : CircleCheck} meaning={article.isRead?"unread":"read"} label={article.isRead ? '标记未读' : '标记已读'} onClick={() => onRead(article.id)} /></div>
+    <div className="article-quick-actions">
+      {onShare && <SemanticButton icon={Send} meaning="send" label="发送到" onClick={event => onShare(article, event.currentTarget)} />}
+      <SemanticButton icon={article.isFavorite ? Star : Bookmark} meaning="favorite" active={article.isFavorite} label={article.isFavorite ? '取消收藏' : '收藏文章'} onClick={() => onFavorite(article.id)} />
+      <SemanticButton icon={article.isRead ? Circle : CircleCheck} meaning={article.isRead?"unread":"read"} label={article.isRead ? '标记未读' : '标记已读'} onClick={() => onRead(article.id)} />
+    </div>
   </div>
 })

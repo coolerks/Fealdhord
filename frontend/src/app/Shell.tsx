@@ -17,6 +17,8 @@ import { SemanticButton } from '@/components/semantic-button'
 import { Button } from '@/components/ui/button'
 import { Splitter } from '@/components/splitter'
 import { ArticleCollection } from '@/features/articles/ArticleCollection'
+import { ArticleShareDialog } from '@/features/notifications/ArticleShareDialog'
+import type { Article } from '@/lib/library'
 import { ArticleViewTransition } from '@/features/articles/ArticleViewTransition'
 import { Reader, ReaderEmpty } from '@/features/reader/Reader'
 import { useWorkspace } from '@/stores/workspace'
@@ -81,6 +83,8 @@ export function Shell() {
   const [chatSidebar, setChatSidebar] = useState<HTMLDivElement | null>(null)
   const [settingsSidebar, setSettingsSidebar] = useState<HTMLDivElement | null>(null)
   const [chatReady, setChatReady] = useState(false)
+  const [sharing, setSharing] = useState<{ article: Article; trigger: HTMLButtonElement } | null>(null)
+  const shareArticle = useCallback((article: Article, trigger: HTMLButtonElement) => setSharing({ article, trigger }), [])
   const chatVisible = globalChat && chatReady
   const preferences = useWorkspace(state => state.preferences)!
   const patch = useWorkspace(state => state.patch)
@@ -238,7 +242,7 @@ export function Shell() {
   const emptySearch = search.trim() !== ''
   const platform = native.isMac() ? 'mac' : native.isWindows() ? 'windows' : 'other'
   const reader = readerVisible && <Reader feedIcon={selectedFeedIcon} article={selected} preferences={preferences} overlay={overlay}
-    onClose={closeReader} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} />
+    onClose={closeReader} onFavorite={favorite} onRead={read} onShare={shareArticle} onAnchor={saveAnchor} />
   useLayoutEffect(() => {
     if (settingsWorkspace && workspace.current) clearSelectionWithin(workspace.current)
   }, [settingsWorkspace])
@@ -274,7 +278,7 @@ export function Shell() {
         hidden={settingsWorkspace} inert={chatVisible || settingsWorkspace} aria-hidden={chatVisible || settingsWorkspace || undefined}>
         <section className="article-pane" aria-label="文章浏览" inert={fillReader && readerVisible} aria-hidden={fillReader && readerVisible || undefined}><Toolbar count={articles.length} overlay={overlay} hasSelection={Boolean(selected)} />{!settingsOpen && <RefreshStatus />}
           <ArticleViewTransition view={preferences.article_view_mode} motion={mode} host={articleTransitionHost}>
-            {articles.length > 0 || library.hasNextPage ? <ArticleCollection feedIcons={feedIcons} articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onAnchor={saveAnchor} nextCursor={library.nextCursor} loadingMore={library.isFetchingNextPage} onLoadMore={loadMore} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
+            {articles.length > 0 || library.hasNextPage ? <ArticleCollection feedIcons={feedIcons} articles={articles} preferences={preferences} queryKey={queryKey} selectedID={preferences.selected_article_id} onOpen={open} onFavorite={favorite} onRead={read} onShare={shareArticle} onAnchor={saveAnchor} nextCursor={library.nextCursor} loadingMore={library.isFetchingNextPage} onLoadMore={loadMore} /> : <LibraryEmpty scope={preferences.selected_scope} searching={emptySearch} loading={isLoading} failed={isError} onRetry={() => { void refetch() }} onClearSearch={() => useWorkspace.setState({ search: '' })} onSettings={showSettings} />}
           </ArticleViewTransition>
           {library.isError && !library.isFetchNextPageError && search.trim() && <div className="library-limit"><Button variant="ghost" disabled={library.repairing} onClick={()=>{void library.repairSearch()}}>{library.repairing?'正在重建索引…':'重建搜索索引'}</Button>{library.repairError && <p role="alert">{library.repairError}</p>}</div>}
           {library.searchLimited && <p className="library-limit" role="status">搜索候选较多，可缩小搜索范围。</p>}
@@ -299,6 +303,11 @@ export function Shell() {
         </AnimatePresence>
         {settingsOpen && <SettingsDialog sidebar={settingsSidebar} motionMode={mode} />}{paletteOpen && <CommandPalette />}{chatKind && !globalChat && !settingsWorkspace && <ChatDialog />}
       </Suspense>
+      {sharing && <ArticleShareDialog article={sharing.article} onClose={() => setSharing(null)} onCloseAutoFocus={event => {
+        event.preventDefault()
+        const fallback = document.querySelector<HTMLElement>(`[data-article-trigger="${CSS.escape(sharing.article.id)}"]`)
+        ;(sharing.trigger.isConnected ? sharing.trigger : fallback)?.focus({ preventScroll: true })
+      }} />}
       <div className="sr-only" aria-live="polite">{preferences.article_view_mode === 'masonry' ? '已切换到瀑布流视图' : '已切换到列表视图'}</div>
       <Dialog open={diagnosticsOpen} onOpenChange={open => useWorkspace.setState({ diagnosticsOpen: open })}>
         <DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>连接诊断</DialogTitle></DialogHeader>

@@ -26,13 +26,14 @@ type Props = {
   onFavorite: () => void
   onRead: () => void
   onOriginal: () => void
+  onShare?: (trigger: HTMLButtonElement) => void
   readSelection: () => string
   onAI: (selection: string) => void
 }
 
 export function ReaderToolbarActions({
   articleID, pinned, view, isFavorite, isRead, extracting, hasOriginal, onViewChange,
-  onRefresh, onFavorite, onRead, onOriginal, readSelection, onAI,
+  onRefresh, onFavorite, onRead, onOriginal, onShare, readSelection, onAI,
 }: Props) {
   const [categoriesOpen, setCategoriesOpen] = useState(false)
   const categoryTrigger = useRef<HTMLButtonElement>(null)
@@ -136,7 +137,10 @@ export function ReaderToolbarActions({
             </DropdownMenuItem>
           })}
         </DropdownMenuGroup>
-        {overflowOptions.length > 0 && <DropdownMenuSeparator />}
+        {onShare && <DropdownMenuItem onSelect={() => {
+          afterMenuClose.current = () => { if (moreTrigger.current) onShare(moreTrigger.current) }
+        }}><AnimatedGlyph meaning="send" />发送到…</DropdownMenuItem>}
+        {(overflowOptions.length > 0 || onShare) && <DropdownMenuSeparator />}
         <DropdownMenuGroup>
           <DropdownMenuItem onSelect={() => { afterMenuClose.current = () => showSettings('reader') }}>
             <AnimatedGlyph meaning="settings" />工具栏设置…

@@ -15,6 +15,7 @@
 | [文章 AI 评估](article-ai-guidelines.md) | 快照、预算、来源与精选游标 |
 | [MCP 客户端授权](mcp-grants.md) | 创建、修改权限、轮换令牌与撤销 |
 | [微信通知绑定](wechat-binding.md) | 扫码请求、会话令牌与终止状态 |
+| [文章手动发送](article-share.md) | 内容选择、通知渠道、全文与链接格式 |
 | [日志与执行审计](logging-guidelines.md) | 对应行为与验证门禁 |
 | [后端质量与验证](quality-guidelines.md) | 对应行为与验证门禁 |
 

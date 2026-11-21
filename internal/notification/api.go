@@ -5,12 +5,25 @@ import (
 	"errors"
 
 	"github.com/coolerks/Fealdhord/internal/database/sqlc"
+	"github.com/coolerks/Fealdhord/internal/reader"
 	"github.com/coolerks/Fealdhord/internal/schedule"
 )
 
-type API struct{ service *Service }
+type API struct {
+	service *Service
+	reader  *reader.Service
+}
 
-func NewAPI(service *Service) *API { return &API{service: service} }
+func NewAPI(service *Service, readerService *reader.Service) *API {
+	return &API{service: service, reader: readerService}
+}
+
+func (a *API) SendArticle(ctx context.Context, input ArticleShare) error {
+	_, err := available(a, func(s *Service) (bool, error) {
+		return true, s.sendArticle(ctx, input, a.reader)
+	})
+	return err
+}
 
 func available[T any](a *API, run func(*Service) (T, error)) (T, error) {
 	if a.service == nil {

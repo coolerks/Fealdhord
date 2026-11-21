@@ -5,6 +5,15 @@
 // @ts-ignore: Unused imports
 import * as schedule$0 from "../schedule/models.js";
 
+export interface ArticleShare {
+    "article_id": string;
+    "channel_ids": string[] | null;
+    "title": boolean;
+    "summary": boolean;
+    "link": boolean;
+    "full_text": boolean;
+}
+
 export interface Channel {
     "id": string;
     "name": string;

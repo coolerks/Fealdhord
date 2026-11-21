@@ -13,12 +13,13 @@ type Props = {
   feedIcons?: ReadonlyMap<string, string | undefined>
   articles: Article[]; preferences: Preferences; queryKey: string; selectedID: string
   onOpen: (id: string) => void; onFavorite: (id: string) => void; onRead: (id: string) => void
+  onShare?: (article: Article, trigger: HTMLButtonElement) => void
   onAnchor: (key: string, anchor: Anchor) => void
   nextCursor?: string
   loadingMore?: boolean
   onLoadMore?: () => void
 }
-export function ArticleCollection({ feedIcons, articles, preferences, queryKey, selectedID, onOpen, onFavorite, onRead, onAnchor, nextCursor, loadingMore, onLoadMore }: Props) {
+export function ArticleCollection({ feedIcons, articles, preferences, queryKey, selectedID, onOpen, onFavorite, onRead, onShare, onAnchor, nextCursor, loadingMore, onLoadMore }: Props) {
   'use no memo' // Virtualizer 是可变实例，不能由 React Compiler 自动缓存其方法结果。
   const parent = useRef<HTMLDivElement>(null)
   const end = useRef<HTMLDivElement>(null)
@@ -193,7 +194,7 @@ export function ArticleCollection({ feedIcons, articles, preferences, queryKey, 
       {virtualizer.getVirtualItems().map(item => {
         const article = articles[item.index]
         return <li key={article.id} data-card-id={article.id} data-index={item.index} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: mode === 'list' ? '100%' : columnWidth, height: mode === 'list' ? rowHeight : undefined, transform: `translate(${item.lane * (columnWidth + gap)}px, ${item.start}px)` }}>
-          <ArticleItem imagesAllowed={imagesAllowed} feedIcon={imagesAllowed && article.feedID ? feedIcons?.get(article.feedID) : undefined} article={article} mode={mode} selected={article.id === selectedID} width={columnWidth} imageMode={preferences.masonry_image_mode} onOpen={onOpen} onFavorite={onFavorite} onRead={onRead} />
+          <ArticleItem imagesAllowed={imagesAllowed} feedIcon={imagesAllowed && article.feedID ? feedIcons?.get(article.feedID) : undefined} article={article} mode={mode} selected={article.id === selectedID} width={columnWidth} imageMode={preferences.masonry_image_mode} onOpen={onOpen} onFavorite={onFavorite} onRead={onRead} onShare={onShare} />
         </li>
       })}
     </ol>
