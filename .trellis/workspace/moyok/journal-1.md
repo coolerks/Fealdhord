@@ -933,3 +933,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 34: 修复通知后台重复告警
+<!-- trellis-session: v=2 fp=2719bfe58501f4c4 -->
+
+**Date**: 2026-11-21
+**Task**: 修复通知后台重复告警
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+开发库已登记第 20 版但通知表和字段缺失。新增第 21 版事务修复，保留历史并减少重复扫描和告警。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cfc7f63` | fix: 修复旧库通知结构并抑制重复告警 |
+
+### Testing
+
+- [OK] Go 全包测试和 vet、通知和数据库竞态、升级回归通过。只读确认当前开发库已升级到 21，备份存在，缺项齐备，心跳更新，SQLite quick_check 通过。
+
+### Status
+
+[OK] **Completed**

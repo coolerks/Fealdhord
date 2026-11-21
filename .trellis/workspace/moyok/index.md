@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 33
+- **Total Sessions**: 34
 - **Last Active**: 2026-11-21
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~935 | Active |
+| `journal-1.md` | ~961 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 34 | 2026-11-21 | 修复通知后台重复告警 | `cfc7f63` | `codex/interface-clarity` |
 | 33 | 2026-11-21 | 明确 Telegram 私聊用户 ID | `c161074` | `codex/interface-clarity` |
 | 32 | 2026-11-21 | 通知渠道收件白名单 | `0283f8e` | `codex/interface-clarity` |
 | 31 | 2026-11-21 | 多渠道通知与 AI 定时任务 | `782b548` | `codex/interface-clarity` |
