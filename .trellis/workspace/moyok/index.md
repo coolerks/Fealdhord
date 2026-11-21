@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 36
+- **Total Sessions**: 37
 - **Last Active**: 2026-11-21
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1013 | Active |
+| `journal-1.md` | ~1039 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 37 | 2026-11-21 | 回查 MCP 与 Skill 旧数据和配置 | `02534e9` | `codex/interface-clarity` |
 | 36 | 2026-11-21 | 全量回查旧库 AI 回归 | `e2771a2` | `codex/interface-clarity` |
 | 35 | 2026-11-21 | AI 侧栏定时任务管理 | `d638faa` | `codex/interface-clarity` |
 | 34 | 2026-11-21 | 修复通知后台重复告警 | `cfc7f63` | `codex/interface-clarity` |

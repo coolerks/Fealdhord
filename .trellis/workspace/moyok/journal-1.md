@@ -1011,3 +1011,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 37: 回查 MCP 与 Skill 旧数据和配置
+<!-- trellis-session: v=2 fp=f2fe3033d4943b22 -->
+
+**Date**: 2026-11-21
+**Task**: 回查 MCP 与 Skill 旧数据和配置
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+回查近期 AI、RSS、通知、任务和设置入口，修复 MCP 同端口 TLS 保存稳定性、最后授权撤销、配置与凭据保留及旧大 Skill 读取。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `02534e9` | fix: 修复 MCP 配置切换与 Skill 旧数据读取 |
+
+### Testing
+
+- [OK] Go 全量 test/vet、appagent race 三轮、前端 155 项及 lint/类型/生产构建、绑定与 macOS 构建通过。当前库 156 条 SQLC 语句只读预编译全部通过。外部设备与真实供应商未联测。
+
+### Status
+
+[OK] **Completed**
