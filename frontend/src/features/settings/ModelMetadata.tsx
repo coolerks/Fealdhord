@@ -5,7 +5,7 @@ import type { Metadata } from '../../../bindings/github.com/coolerks/Fealdhord/i
 
 export function ModelBrand({ brand, override }: { brand?: string; override?: string }) {
   const selected = override === 'none' ? undefined : override || brand
-  const icon = useQuery({ queryKey: ['ai-brand', selected], queryFn: () => BrandIcon(selected ?? ''), enabled: Boolean(selected), staleTime: Infinity, retry: false })
+  const icon = useQuery({ queryKey: ['ai-brand', selected], queryFn: () => BrandIcon(selected ?? ''), enabled: Boolean(selected), staleTime: Infinity, retry: false, retryOnMount: false })
   return icon.data ? <img alt="" className="size-4 shrink-0 object-contain dark:brightness-0 dark:invert" src={icon.data} /> : <Bot aria-hidden className="size-4 shrink-0 text-muted-foreground" />
 }
 
@@ -23,6 +23,7 @@ export function ModelCapabilities({ metadata }: { metadata?: Metadata }) {
       return <span key={input} role="img" title={label} aria-label={label}><Icon className="size-4" /></span>
     })}
     {metadata.context ? <span>{metadata.context.toLocaleString()} 上下文</span> : null}
+    {metadata.source && <span title={metadata.updatedAt ? new Date(metadata.updatedAt).toLocaleString() : undefined}>{metadata.source}</span>}
     {metadata.referencePrice && (metadata.promptPrice != null || metadata.completionPrice != null) && <span>目录参考价</span>}
     {metadata.promptPrice != null && <span>输入 {price.format(metadata.promptPrice)}/百万令牌</span>}
     {metadata.completionPrice != null && <span>输出 {price.format(metadata.completionPrice)}/百万令牌</span>}

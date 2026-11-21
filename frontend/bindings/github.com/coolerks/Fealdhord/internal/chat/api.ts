@@ -41,10 +41,18 @@ export function Model(): $CancellablePromise<aiconfig$0.Model> {
     return $Call.ByID(686777260);
 }
 
+export function PinContextArticle(conversationID: string, articleID: string, pinned: boolean): $CancellablePromise<void> {
+    return $Call.ByID(421779093, conversationID, articleID, pinned);
+}
+
 export function SaveContext(id: string, summary: string, restore: boolean): $CancellablePromise<void> {
     return $Call.ByID(700997893, id, summary, restore);
 }
 
 export function Send(input: $models.SendInput): $CancellablePromise<void> {
     return $Call.ByID(1532627401, input);
+}
+
+export function SetAutomaticCompaction(id: string, enabled: boolean): $CancellablePromise<void> {
+    return $Call.ByID(3747636393, id, enabled);
 }

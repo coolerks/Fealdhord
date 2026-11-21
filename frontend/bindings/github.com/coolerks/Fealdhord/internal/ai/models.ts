@@ -22,6 +22,7 @@ export interface Metadata {
     "promptPrice"?: number | null;
     "completionPrice"?: number | null;
     "source"?: string;
+    "updatedAt"?: string;
     "brand"?: string;
     "brandOverride"?: string;
     "referencePrice"?: boolean;

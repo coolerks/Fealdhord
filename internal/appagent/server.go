@@ -46,11 +46,13 @@ type serverSettings struct {
 type clientGrant struct {
 	Digest string
 	Tools  []string
+	Scope  MCPScope
 }
 
 type MCPGrant struct {
 	Name  string   `json:"name"`
 	Tools []string `json:"tools"`
+	Scope MCPScope `json:"scope"`
 }
 
 type ServerStatus struct {
@@ -65,15 +67,16 @@ func (h *sharedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type Platform struct {
-	registry    *Registry
-	dir         string
-	mu          sync.Mutex
-	state       serverSettings
-	server      *http.Server
-	endpoint    string
-	clients     map[string]*clientConnection
-	credentials aiconfig.CredentialStore
-	clientEdit  sync.Mutex
+	registry     *Registry
+	dir          string
+	mu           sync.Mutex
+	state        serverSettings
+	server       *http.Server
+	stopRequests context.CancelFunc
+	endpoint     string
+	clients      map[string]*clientConnection
+	credentials  aiconfig.CredentialStore
+	clientEdit   sync.Mutex
 }
 
 func NewPlatform(registry *Registry, dir string) *Platform {
@@ -94,6 +97,10 @@ func NewPlatform(registry *Registry, dir string) *Platform {
 func (a *Platform) Shutdown() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.stopRequests != nil {
+		a.stopRequests()
+		a.stopRequests = nil
+	}
 	if a.server != nil {
 		_ = a.server.Close()
 		a.server = nil
@@ -166,6 +173,7 @@ func (a *Platform) configure(next serverSettings) error {
 	}
 	var listener net.Listener
 	var server *http.Server
+	var stopRequests context.CancelFunc
 	var endpoint string
 	if config.Enabled {
 		address := netip.MustParseAddr("127.0.0.1")
@@ -196,8 +204,12 @@ func (a *Platform) configure(next serverSettings) error {
 			if atomicJSON(a.dir, "mcp-server.json", next) != nil {
 				return errors.New("StorageError")
 			}
-			handler := a.handler(next, host, scheme)
+			handler, stop := a.cancellableHandler(next, host, scheme)
 			a.server.Handler.(*sharedHandler).current.Store(&handler)
+			if a.stopRequests != nil {
+				a.stopRequests()
+			}
+			a.stopRequests = stop
 			a.state = next
 			return nil
 		}
@@ -216,12 +228,16 @@ func (a *Platform) configure(next serverSettings) error {
 		if config.TLS {
 			listener = tls.NewListener(listener, &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{certificate}})
 		}
-		handler := a.handler(next, host, scheme)
+		handler, stop := a.cancellableHandler(next, host, scheme)
+		stopRequests = stop
 		shared := &sharedHandler{}
 		shared.current.Store(&handler)
 		server = &http.Server{Addr: host, Handler: shared, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 150 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 	}
 	if err := atomicJSON(a.dir, "mcp-server.json", next); err != nil {
+		if stopRequests != nil {
+			stopRequests()
+		}
 		if listener != nil {
 			_ = listener.Close()
 		}
@@ -230,7 +246,10 @@ func (a *Platform) configure(next serverSettings) error {
 	if a.server != nil {
 		_ = a.server.Close()
 	}
-	a.state, a.server, a.endpoint = next, server, endpoint
+	if a.stopRequests != nil {
+		a.stopRequests()
+	}
+	a.state, a.server, a.endpoint, a.stopRequests = next, server, endpoint, stopRequests
 	if server != nil {
 		go func() { _ = server.Serve(listener) }()
 	}
@@ -242,7 +261,7 @@ func (a *Platform) Grants() []MCPGrant {
 	defer a.mu.Unlock()
 	out := make([]MCPGrant, 0, len(a.state.Clients))
 	for name, grant := range a.state.Clients {
-		out = append(out, MCPGrant{Name: name, Tools: slices.Clone(grant.Tools)})
+		out = append(out, MCPGrant{Name: name, Tools: slices.Clone(grant.Tools), Scope: grant.Scope})
 	}
 	slices.SortFunc(out, func(a, b MCPGrant) int { return strings.Compare(a.Name, b.Name) })
 	return out
@@ -263,29 +282,33 @@ func (a *Platform) SaveGrant(grant MCPGrant, revoke bool) (string, error) {
 		delete(next.Clients, grant.Name)
 		return "", a.configure(next)
 	}
+	if (grant.Scope.Kind != "" && (grant.Scope.Kind != "feed" && grant.Scope.Kind != "category" || grant.Scope.ID == "")) || len(grant.Scope.ID) > 128 {
+		return "", errors.New("InvalidClientScope")
+	}
 	if _, ok := next.Clients[grant.Name]; !ok && len(next.Clients) >= 32 {
 		return "", errors.New("TooManyClients")
 	}
 	for _, name := range grant.Tools {
-		if !slices.Contains(next.Config.Tools, name) {
+		if !slices.Contains(next.Config.Tools, name) || !scopeSupports(grant.Scope, name) {
 			return "", errors.New("UnknownTool")
 		}
 	}
 	value := rand.Text() + rand.Text()
 	digest := sha256.Sum256([]byte(value))
-	next.Clients[grant.Name] = clientGrant{Digest: hex.EncodeToString(digest[:]), Tools: slices.Clone(grant.Tools)}
+	next.Clients[grant.Name] = clientGrant{Digest: hex.EncodeToString(digest[:]), Tools: slices.Clone(grant.Tools), Scope: grant.Scope}
 	if err := a.configure(next); err != nil {
 		return "", err
 	}
 	return value, nil
 }
 
-func (a *Platform) newMCPServer(config ServerConfig, tools []string, principal string) *mcp.Server {
+func (a *Platform) newMCPServer(config ServerConfig, tools []string, scope MCPScope, principal string) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: "Fealdhord", Version: "1"}, nil)
-	for _, tool := range a.registry.tools {
-		if !slices.Contains(config.Tools, tool.Name) || !slices.Contains(tools, tool.Name) {
+	for _, original := range a.registry.tools {
+		if !slices.Contains(config.Tools, original.Name) || !slices.Contains(tools, original.Name) || !scopeSupports(scope, original.Name) {
 			continue
 		}
+		tool := a.registry.scopedTool(original, scope)
 		server.AddTool(&mcp.Tool{Name: strings.ReplaceAll(tool.Name, ".", "_"), Description: tool.Description, InputSchema: tool.schema},
 			func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 				arguments := req.Params.Arguments
@@ -301,17 +324,41 @@ func (a *Platform) newMCPServer(config ServerConfig, tools []string, principal s
 				reply.Content = []mcp.Content{&mcp.TextContent{Text: result}}
 				return reply, nil
 			})
+		switch tool.Name {
+		case "article.get_metadata":
+			a.addResourceTemplate(server, tool, "article", principal)
+		case "feed.get":
+			a.addResourceTemplate(server, tool, "feed", principal)
+		case "category.get":
+			a.addResourceTemplate(server, tool, "category", principal)
+		}
 	}
 	return server
+}
+
+func (a *Platform) cancellableHandler(config serverSettings, host, scheme string) (http.Handler, context.CancelFunc) {
+	epoch, stop := context.WithCancel(context.Background())
+	handler := a.handler(config, host, scheme)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if epoch.Err() != nil {
+			http.Error(w, "Authorization changed", http.StatusForbidden)
+			return
+		}
+		ctx, cancel := context.WithCancel(r.Context())
+		unsubscribe := context.AfterFunc(epoch, cancel)
+		defer cancel()
+		defer unsubscribe()
+		handler.ServeHTTP(w, r.WithContext(ctx))
+	}), stop
 }
 
 func (a *Platform) handler(config serverSettings, host, scheme string) http.Handler {
 	servers := make(map[string]*mcp.Server, len(config.Clients)+1)
 	if config.TokenDigest != "" {
-		servers[config.TokenDigest] = a.newMCPServer(config.Config, config.Config.Tools, "MCP 默认客户端")
+		servers[config.TokenDigest] = a.newMCPServer(config.Config, config.Config.Tools, MCPScope{}, "MCP 默认客户端")
 	}
 	for name, grant := range config.Clients {
-		servers[grant.Digest] = a.newMCPServer(config.Config, grant.Tools, "MCP "+name)
+		servers[grant.Digest] = a.newMCPServer(config.Config, grant.Tools, grant.Scope, "MCP "+name)
 	}
 	type authKey struct{}
 	handler := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {

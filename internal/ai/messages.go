@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
+	"time"
 )
 
 type Messages struct{ *modelClient }
@@ -42,7 +44,7 @@ type messagesResult struct {
 	Usage      *tokenUsage `json:"usage"`
 }
 
-func (m *Messages) request(ctx context.Context, req *ModelRequest, stream bool) (*http.Response, error) {
+func messagesPayload(req *ModelRequest, stream bool) (map[string]any, error) {
 	history, err := checkedHistory(req)
 	if err != nil {
 		return nil, err
@@ -119,7 +121,50 @@ func (m *Messages) request(ctx context.Context, req *ModelRequest, stream bool) 
 			payload["tool_choice"] = map[string]string{"type": req.ToolChoice.Mode}
 		}
 	}
+	return payload, nil
+}
+
+func (m *Messages) request(ctx context.Context, req *ModelRequest, stream bool) (*http.Response, error) {
+	payload, err := messagesPayload(req, stream)
+	if err != nil {
+		return nil, err
+	}
 	return m.post(ctx, payload, true, stream)
+}
+
+func (m *Messages) CountInput(ctx context.Context, req *ModelRequest) (int, error) {
+	if m.host != "api.anthropic.com" {
+		return 0, &ModelError{Code: "CapabilityError"}
+	}
+	endpoint, err := url.Parse(m.endpoint)
+	if err != nil {
+		return 0, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	payload, err := messagesPayload(req, false)
+	if err != nil {
+		return 0, err
+	}
+	for _, name := range []string{"max_tokens", "stream", "output_config", "stop_sequences", "temperature", "top_p"} {
+		delete(payload, name)
+	}
+	client := *m.modelClient
+	client.endpoint = endpoint.JoinPath("count_tokens").String()
+	response, err := client.post(ctx, payload, true, false)
+	if err != nil {
+		return 0, err
+	}
+	var count struct {
+		Input int `json:"input_tokens"`
+	}
+	if err := decodeModelResponse(response, &count); err != nil {
+		return 0, err
+	}
+	if count.Input <= 0 {
+		return 0, protocolError()
+	}
+	return count.Input, nil
 }
 
 func (m *Messages) Generate(ctx context.Context, req *ModelRequest) (*ModelResponse, error) {

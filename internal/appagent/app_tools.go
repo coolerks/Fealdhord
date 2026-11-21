@@ -39,6 +39,9 @@ type ids struct {
 
 func Builtins(s Services) *Registry {
 	r := NewRegistry()
+	if s.Store != nil {
+		r.scopeDB = s.Store.ChatQueries()
+	}
 	query := func(ctx context.Context, input library.QueryRequest) library.ListResult {
 		if input.Scope.Kind == "" {
 			input.Scope.Kind = "all"

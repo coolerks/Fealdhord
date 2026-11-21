@@ -5,12 +5,21 @@
 // @ts-ignore: Unused imports
 import * as ai$0 from "../ai/models.js";
 
+export interface ContextPin {
+    "id": string;
+    "title": string;
+}
+
 export interface ContextStatus {
     "budget": ai$0.Budget;
     "history": number;
     "used": number;
     "contextAfter": number;
     "summary": string;
+    "pins": ContextPin[] | null;
+    "lastInput": number;
+    "autoCompact": boolean;
+    "lastModel": string;
 }
 
 export interface Conversation {

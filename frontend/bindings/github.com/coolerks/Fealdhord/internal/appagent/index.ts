@@ -11,9 +11,11 @@ export type {
     ClientConfig,
     ClientStatus,
     MCPGrant,
+    MCPScope,
     PendingAction,
     ServerConfig,
     ServerStatus,
     Skill,
+    SkillResource,
     Tool
 } from "./models.js";

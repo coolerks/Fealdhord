@@ -50,12 +50,17 @@ func ListModels(ctx context.Context, baseURL, apiKey string, anthropic bool) ([]
 		}
 		var payload struct {
 			Data []struct {
-				ID            string `json:"id"`
-				DisplayName   string `json:"display_name"`
-				Name          string `json:"name"`
-				Context       int    `json:"context_length"`
-				ContextWindow int    `json:"contextWindow"`
-				TopProvider   struct {
+				ID                 string                               `json:"id"`
+				DisplayName        string                               `json:"display_name"`
+				Name               string                               `json:"name"`
+				Context            int                                  `json:"context_length"`
+				ContextWindow      int                                  `json:"contextWindow"`
+				ContextWindowSnake int                                  `json:"context_window"`
+				MaxModelLength     int                                  `json:"max_model_len"`
+				OutputLimit        int                                  `json:"max_output_tokens"`
+				Limit              struct{ Context, Input, Output int } `json:"limit"`
+				Input              []string                             `json:"input_modalities"`
+				TopProvider        struct {
 					MaxOutput int `json:"max_completion_tokens"`
 				} `json:"top_provider"`
 				Architecture struct {
@@ -88,9 +93,21 @@ func ListModels(ctx context.Context, baseURL, apiKey string, anthropic bool) ([]
 				name = ""
 			}
 			seen[id] = true
-			meta := Metadata{Context: positive(entry.Context, entry.ContextWindow), OutputLimit: entry.TopProvider.MaxOutput, Modalities: entry.Architecture.Input, Brand: ProviderBrand(baseURL), PromptPrice: pricePerMillion(entry.Pricing.Prompt), CompletionPrice: pricePerMillion(entry.Pricing.Completion)}
+			meta := Metadata{
+				Context:    positive(entry.Context, positive(entry.ContextWindow, positive(entry.ContextWindowSnake, positive(entry.Limit.Context, entry.MaxModelLength)))),
+				InputLimit: entry.Limit.Input, OutputLimit: positive(entry.TopProvider.MaxOutput, positive(entry.OutputLimit, entry.Limit.Output)),
+				Modalities: entry.Architecture.Input, Brand: ProviderBrand(baseURL),
+			}
+			if len(meta.Modalities) == 0 {
+				meta.Modalities = entry.Input
+			}
+			if strings.EqualFold(target.Hostname(), "openrouter.ai") {
+				meta.PromptPrice = pricePerMillion(entry.Pricing.Prompt)
+				meta.CompletionPrice = pricePerMillion(entry.Pricing.Completion)
+			}
 			if meta.Context > 0 || meta.OutputLimit > 0 || len(meta.Modalities) > 0 || meta.PromptPrice != nil || meta.CompletionPrice != nil {
 				meta.Source = "服务目录"
+				meta.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 			}
 			models = append(models, CatalogModel{ID: id, DisplayName: name, Metadata: meta})
 		}

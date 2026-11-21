@@ -70,7 +70,7 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 	executed := make(map[string]previousCall)
 	var attempts, continuationBytes int
 	for turn := 0; turn < maxTurns; turn++ {
-		if err := request.Budget.Fit(&request); err != nil {
+		if err := ai.FitForModel(ctx, model, &request); err != nil {
 			return err
 		}
 		reply, err := collect(ctx, model, &request, forward)
@@ -192,6 +192,10 @@ func collect(ctx context.Context, model ai.Model, request *ai.ModelRequest, forw
 					return reply, failure("ProviderProtocolError")
 				}
 				reply.calls = append(reply.calls, *event.ToolCall)
+			case "usage":
+				if !forward(event) {
+					return reply, ctx.Err()
+				}
 			case "message_end":
 				reply.finish = event.FinishReason
 			case "error":

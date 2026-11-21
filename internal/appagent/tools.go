@@ -18,6 +18,7 @@ import (
 
 	"github.com/coolerks/Fealdhord/internal/agentrun"
 	"github.com/coolerks/Fealdhord/internal/ai"
+	"github.com/coolerks/Fealdhord/internal/database/sqlc"
 	"github.com/invopop/jsonschema"
 )
 
@@ -55,6 +56,7 @@ type Registry struct {
 	pending  map[string]approval
 	auditDir string
 	auditMu  sync.Mutex
+	scopeDB  *sqlc.Queries
 }
 
 func NewRegistry() *Registry { return &Registry{pending: make(map[string]approval)} }
@@ -131,10 +133,7 @@ func (r *Registry) requestApproval(ctx context.Context, principal, name string, 
 func (r *Registry) execute(ctx context.Context, principal string, tool Tool, args json.RawMessage) (output string, resultError error) {
 	started := time.Now()
 	defer func() {
-		status := "complete"
-		if resultError != nil {
-			status = "failed"
-		}
+		status := toolAuditStatus(output, resultError)
 		r.audit(principal, tool.Name, status, started)
 	}()
 	if err := ctx.Err(); err != nil {
@@ -175,23 +174,53 @@ func (r *Registry) execute(ctx context.Context, principal string, tool Tool, arg
 func (r *Registry) ChatTools(conversationID string) []agentrun.ReadTool {
 	tools := make([]agentrun.ReadTool, 0, len(r.tools))
 	for _, tool := range r.tools {
-		name := strings.ReplaceAll(tool.Name, ".", "_")
-		tools = append(tools, agentrun.ReadTool{
-			Definition: ai.ToolDefinition{Name: name, Description: tool.Description, InputSchema: tool.schema},
-			Read: func(ctx context.Context, call ai.ToolCall) (string, error) {
-				result, err := r.execute(ctx, "会话 "+conversationID, tool, json.RawMessage(call.ArgumentsJSON))
-				if err != nil {
-					if ctx.Err() != nil {
-						return "", ctx.Err()
-					}
-					data, _ := json.Marshal(map[string]string{"error": err.Error()})
-					return string(data), nil
-				}
-				return result, nil
-			},
-		})
+		tools = append(tools, r.chatTool(conversationID, strings.ReplaceAll(tool.Name, ".", "_"), tool))
 	}
 	return tools
+}
+
+func (r *Registry) chatTool(conversationID, wire string, tool Tool) agentrun.ReadTool {
+	return agentrun.ReadTool{
+		Definition: ai.ToolDefinition{Name: wire, Description: tool.Description, InputSchema: tool.schema},
+		Read: func(ctx context.Context, call ai.ToolCall) (string, error) {
+			result, err := r.execute(ctx, "会话 "+conversationID, tool, json.RawMessage(call.ArgumentsJSON))
+			if err != nil {
+				if ctx.Err() != nil {
+					return "", ctx.Err()
+				}
+				data, _ := json.Marshal(map[string]string{"error": err.Error()})
+				return string(data), nil
+			}
+			return result, nil
+		},
+	}
+}
+
+func toolAuditStatus(output string, err error) string {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return "cancelled"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "expired"
+	case err != nil:
+		switch err.Error() {
+		case "PermissionDenied":
+			return "denied"
+		case "MCPResultUnknown":
+			return "unknown"
+		default:
+			return "failed"
+		}
+	}
+	var result struct {
+		OK      *bool           `json:"ok"`
+		IsError bool            `json:"isError"`
+		Error   json.RawMessage `json:"error"`
+	}
+	if json.Unmarshal([]byte(output), &result) == nil && (result.OK != nil && !*result.OK || result.IsError || len(result.Error) > 0) {
+		return "failed"
+	}
+	return "complete"
 }
 
 func (r *Registry) audit(principal, tool, status string, started time.Time) {

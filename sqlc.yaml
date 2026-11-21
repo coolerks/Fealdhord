@@ -18,6 +18,7 @@ sql:
       - migrations/00015_ai_model_reasoning_levels.sql
       - migrations/00016_ai_model_metadata.sql
       - migrations/00017_chat_context.sql
+      - migrations/00018_chat_context_details.sql
     queries: internal/database/queries
     gen:
       go:

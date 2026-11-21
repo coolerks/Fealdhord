@@ -1,3 +1,4 @@
+import { navigationAPI, navigationQueryKey } from '@/lib/navigation-api'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
@@ -12,6 +13,13 @@ import type { ClientConfig, ServerConfig, Skill } from '../../../bindings/github
 
 const platformKey = ['ai-platform']
 export const skillsKey = [...platformKey, 'skills']
+const scopedArticleTools = new Set([
+  'article.list', 'article.search', 'article.get', 'article.get_metadata', 'article.extract',
+  'article.mark_read', 'article.mark_unread', 'article.favorite', 'article.unfavorite',
+])
+const auditStatuses: Record<string, string> = {
+  complete: '已返回', failed: '失败', cancelled: '已取消', expired: '已超时', denied: '已拒绝', unknown: '结果未知',
+}
 const newClient: ClientConfig = { name: '', endpoint: '', command: '', args: [] }
 const newSkill = { markdown: '---\nname: my-skill\ndescription: 描述何时使用\n---\n', enabled: true }
 
@@ -27,7 +35,14 @@ export function AIPlatformSettings() {
   const [token, setToken] = useState('')
   const [grantName, setGrantName] = useState('')
   const [grantTools, setGrantTools] = useState<string[]>([])
-  const [skill, setSkill] = useState<Pick<Skill, 'markdown' | 'enabled'> | null>(null)
+  const [grantScope, setGrantScope] = useState('all')
+  const navigation = useQuery({ queryKey: navigationQueryKey, queryFn: () => navigationAPI.list() })
+  const scopeOptions = [
+    { value: 'all', label: '所有订阅及分类' },
+    ...(navigation.data?.feeds ?? []).map(feed => ({ value: `feed:${feed.id}`, label: `订阅 · ${feed.title}` })),
+    ...(navigation.data?.categories ?? []).map(category => ({ value: `category:${category.id}`, label: `分类 · ${category.name}` })),
+  ]
+  const [skill, setSkill] = useState<Pick<Skill, 'markdown' | 'enabled' | 'resources'> | null>(null)
   const [client, setClient] = useState(newClient)
   const [args, setArgs] = useState('')
   const [kind, setKind] = useState('http')
@@ -37,6 +52,9 @@ export function AIPlatformSettings() {
     onSuccess: () => cache.invalidateQueries({ queryKey: platformKey }),
   })
   const busy = mutation.isPending
+  const [scopeKind, scopeId = ''] = grantScope.split(':')
+  const allowedGrantTools = (server.data?.config.tools ?? []).filter(name => scopeKind === 'all' ||
+    scopedArticleTools.has(name) || name === `${scopeKind}.get`)
   return <>
     <Separator />
     <section className="space-y-3" aria-label="MCP 服务端">
@@ -74,23 +92,32 @@ export function AIPlatformSettings() {
         <h4>客户端授权</h4>
         {(grants.data ?? []).map(grant => <div key={grant.name} className="flex items-center gap-2">
           <span className="mr-auto">{grant.name} · {grant.tools?.length ?? 0} 项工具</span>
-          <Button size="sm" variant="ghost" onClick={() => { setGrantName(grant.name); setGrantTools(grant.tools ?? []) }}>编辑</Button>
+          <Button size="sm" variant="ghost" onClick={() => { setGrantName(grant.name); setGrantTools(grant.tools ?? []); setGrantScope(grant.scope.kind ? `${grant.scope.kind}:${grant.scope.id}` : 'all') }}>编辑</Button>
           <Button size="sm" variant="ghost" disabled={busy} onClick={() => mutation.mutate(async () => { await api.SaveGrant(grant, true); setToken('') })}>撤销</Button>
         </div>)}
         <form className="space-y-2" onSubmit={event => {
           event.preventDefault()
           mutation.mutate(async () => {
-            setToken(await api.SaveGrant({ name: grantName, tools: grantTools }, false))
+            setToken(await api.SaveGrant({
+              name: grantName,
+              tools: grantTools.filter(name => allowedGrantTools.includes(name)),
+              scope: { kind: scopeKind === 'all' ? '' : scopeKind, id: scopeId },
+            }, false))
             setGrantName('')
             setGrantTools([])
+            setGrantScope('all')
           })
         }}>
           <Field><FieldLabel htmlFor="mcp-grant-name">客户端名称</FieldLabel>
             <Input id="mcp-grant-name" required maxLength={32} value={grantName} onChange={event => setGrantName(event.target.value)} />
           </Field>
+          <Field><FieldLabel htmlFor="mcp-grant-scope">数据范围</FieldLabel>
+            <SearchableSelect id="mcp-grant-scope" label="数据范围" value={grantScope} options={scopeOptions}
+              onValueChange={value => { setGrantScope(value); setGrantTools([]) }} />
+          </Field>
           <Field><FieldLabel htmlFor="mcp-grant-tools">允许的工具</FieldLabel>
             <SearchableSelect id="mcp-grant-tools" label="允许的工具" placeholder={grantTools.length ? `已选 ${grantTools.length} 项` : '选择工具'}
-              value={grantTools} options={(server.data?.config.tools ?? []).map(name => ({ value: name, label: name }))}
+              value={grantTools} options={allowedGrantTools.map(name => ({ value: name, label: name }))}
               onValueChange={name => setGrantTools(current => current.includes(name) ? current.filter(item => item !== name) : [...current, name])} />
           </Field>
           <Button type="submit" size="sm" variant="outline" disabled={busy || grantTools.length === 0}>生成客户端令牌</Button>
@@ -108,6 +135,8 @@ export function AIPlatformSettings() {
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setClient(item.config); setKind(item.config.command ? 'stdio' : 'http'); setArgs(item.config.args?.join('\n') ?? '') }}>编辑</Button>
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => mutation.mutate(() => api.ForgetMCP(item.name))}>移除</Button>
         {item.tools?.length ? <span className="w-full break-all text-xs text-muted-foreground">{item.tools.join(' · ')}</span> : null}
+        {item.resources?.length ? <span className="w-full break-all text-xs text-muted-foreground">资源 · {item.resources.join(' · ')}</span> : null}
+        {item.prompts?.length ? <span className="w-full break-all text-xs text-muted-foreground">提示词 · {item.prompts.join(' · ')}</span> : null}
       </div>)}
       <form className="space-y-2" onSubmit={event => {
         event.preventDefault()
@@ -132,7 +161,7 @@ export function AIPlatformSettings() {
     <Separator />
     <section className="space-y-3" aria-label="Skills">
       <div className="flex flex-wrap items-center gap-2"><h3 className="mr-auto">Skills</h3>
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => mutation.mutate(async () => { setSkill(await api.ImportSkill()) })}>导入 SKILL.md</Button>
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => mutation.mutate(async () => { setSkill(await api.ImportSkill()) })}>导入 Skill</Button>
         <Button size="sm" variant="outline" onClick={() => setSkill(newSkill)}>添加 Skill</Button></div>
       {(skills.data ?? []).map(item => <div key={item.name} className="flex flex-wrap items-center gap-2">
         <span className="mr-auto" title={item.description}>{item.name}</span>
@@ -142,9 +171,15 @@ export function AIPlatformSettings() {
       </div>)}
       {skill && <form className="space-y-2" onSubmit={event => {
         event.preventDefault()
-        mutation.mutate(async () => { await api.SaveSkill(skill.markdown, skill.enabled); setSkill(null) })
+        mutation.mutate(async () => {
+          await api.SaveSkillPackage({ name: '', description: '', tools: [], ...skill })
+          setSkill(null)
+        })
       }}>
         <Field><FieldLabel htmlFor="ai-skill-markdown">SKILL.md</FieldLabel><Textarea id="ai-skill-markdown" rows={8} value={skill.markdown} required onChange={event => setSkill({ ...skill, markdown: event.target.value })} /></Field>
+        {skill.resources?.length ? <ul className="space-y-1 text-sm text-muted-foreground">
+          {skill.resources.map(resource => <li key={resource.path}>{resource.path}</li>)}
+        </ul> : null}
         <div className="flex gap-2"><Button type="submit" size="sm" disabled={busy}>保存 Skill</Button><Button type="button" size="sm" variant="ghost" onClick={() => setSkill(null)}>取消</Button></div>
       </form>}
     </section>
@@ -154,7 +189,7 @@ export function AIPlatformSettings() {
       {audit.data?.length === 0 && <p className="text-sm text-muted-foreground">暂无工具记录</p>}
       {audit.data?.map(entry => <div key={`${entry.startedAt}${entry.tool}`} className="flex flex-wrap gap-2 text-sm">
         <span>{entry.tool}</span><span className="text-muted-foreground">{entry.principal}</span>
-        <span className="ml-auto">{entry.status === 'complete' ? '已返回' : '未完成'}</span>
+        <span className="ml-auto">{auditStatuses[entry.status] ?? entry.status}</span>
       </div>)}
     </section>
     {mutation.isError && <p role="alert" className="text-sm">AI 平台设置失败（{mutation.error instanceof Error ? mutation.error.message : '请检查配置'}）</p>}

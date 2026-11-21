@@ -1,6 +1,10 @@
 package ai
 
 import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -42,3 +46,33 @@ func TestLogoRejectsExecutableAndExternalContent(t *testing.T) {
 		}
 	}
 }
+
+func TestProviderCountUsesSameMessagesPayload(t *testing.T) {
+	counted := false
+	client := &http.Client{Transport: countTransport(func(req *http.Request) (*http.Response, error) {
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			return nil, err
+		}
+		counted = req.URL.Path == "/v1/messages/count_tokens" && req.Header.Get("x-api-key") == "fixture-key" &&
+			body["messages"] != nil && body["max_tokens"] == nil && body["tools"] != nil
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"input_tokens":23}`)),
+			Header: http.Header{"Content-Type": {"application/json"}}}, nil
+	})}
+	model, err := NewMessages("https://api.anthropic.com/v1", "fixture-key", client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := ModelRequest{
+		Model: "fixture", Budget: ContextBudget(Metadata{Context: 128}),
+		Messages: []Message{{Role: "user", Content: []ContentBlock{{Type: "text", Text: "Test"}}}},
+		Tools:    []ToolDefinition{{Name: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+	}
+	if result, err := model.CountInput(context.Background(), &req); err != nil || result != 23 || !counted {
+		t.Fatalf("provider token count=%d, valid request=%t, error=%v", result, counted, err)
+	}
+}
+
+type countTransport func(*http.Request) (*http.Response, error)
+
+func (fn countTransport) RoundTrip(req *http.Request) (*http.Response, error) { return fn(req) }

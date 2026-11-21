@@ -3,8 +3,6 @@ package appagent
 import (
 	"context"
 	"errors"
-	"io"
-	"os"
 )
 
 // API binds desktop controls only. Tool execution is reached through Chat or authenticated MCP.
@@ -51,20 +49,11 @@ func (a *API) ImportSkill(ctx context.Context) (Skill, error) {
 	if path == "" {
 		return Skill{}, errors.New("Cancelled")
 	}
-	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Size() > 256<<10 {
-		return Skill{}, errors.New("InvalidSkill")
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		return Skill{}, errors.New("StorageError")
-	}
-	defer file.Close()
-	data, err := io.ReadAll(io.LimitReader(file, (256<<10)+1))
-	if err != nil {
-		return Skill{}, errors.New("StorageError")
-	}
-	return parseSkill(string(data), false)
+	return loadSkillFile(path)
 }
 
 func (a *API) RecentAudit() []AuditEntry { return a.platform.registry.RecentAudit() }
+
+func (a *API) SaveSkillPackage(input Skill) (Skill, error) {
+	return a.platform.saveSkillResources(input.Markdown, input.Enabled, input.Resources)
+}

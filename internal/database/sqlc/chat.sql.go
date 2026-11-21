@@ -10,6 +10,31 @@ import (
 	"database/sql"
 )
 
+const advanceContextSummary = `-- name: AdvanceContextSummary :execrows
+UPDATE conversations SET context_after=?1, context_summary=?2
+WHERE id=?3 AND context_after=?4 AND auto_compact=1
+`
+
+type AdvanceContextSummaryParams struct {
+	NewAfter int64  `json:"new_after"`
+	Summary  string `json:"summary"`
+	ID       string `json:"id"`
+	OldAfter int64  `json:"old_after"`
+}
+
+func (q *Queries) AdvanceContextSummary(ctx context.Context, arg AdvanceContextSummaryParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, advanceContextSummary,
+		arg.NewAfter,
+		arg.Summary,
+		arg.ID,
+		arg.OldAfter,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const appendChatMessage = `-- name: AppendChatMessage :one
 INSERT INTO messages (id,conversation_id,position,role,content,status,model_name)
 VALUES (?1,?2,
@@ -47,6 +72,28 @@ func (q *Queries) AppendChatMessage(ctx context.Context, arg AppendChatMessagePa
 		&i.ModelName,
 	)
 	return i, err
+}
+
+const articleInToolScope = `-- name: ArticleInToolScope :one
+SELECT COUNT(1)
+FROM articles a JOIN feeds f ON f.id=a.feed_id
+WHERE a.id=?1 AND f.archived_at IS NULL
+AND ((?2='feed' AND a.feed_id=?3)
+ OR (?2='category' AND EXISTS(
+ SELECT 1 FROM effective_article_categories c WHERE c.article_id=a.id AND c.category_id=?3)))
+`
+
+type ArticleInToolScopeParams struct {
+	ArticleID string      `json:"article_id"`
+	ScopeKind interface{} `json:"scope_kind"`
+	ScopeID   string      `json:"scope_id"`
+}
+
+func (q *Queries) ArticleInToolScope(ctx context.Context, arg ArticleInToolScopeParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, articleInToolScope, arg.ArticleID, arg.ScopeKind, arg.ScopeID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const chatArticleContext = `-- name: ChatArticleContext :one
@@ -115,7 +162,7 @@ func (q *Queries) CheckpointChatMessage(ctx context.Context, arg CheckpointChatM
 
 const createConversation = `-- name: CreateConversation :one
 INSERT INTO conversations (id,scope_type,scope_id,title,created_at,updated_at)
-VALUES (?,?,?,?,?,?) RETURNING id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary
+VALUES (?,?,?,?,?,?) RETURNING id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact
 `
 
 type CreateConversationParams struct {
@@ -146,6 +193,10 @@ func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversation
 		&i.UpdatedAt,
 		&i.ContextAfter,
 		&i.ContextSummary,
+		&i.ContextPins,
+		&i.LastInputTokens,
+		&i.LastUsageModel,
+		&i.AutoCompact,
 	)
 	return i, err
 }
@@ -199,7 +250,7 @@ func (q *Queries) FinishChatToolAudit(ctx context.Context, arg FinishChatToolAud
 }
 
 const getConversation = `-- name: GetConversation :one
-SELECT id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary FROM conversations WHERE id=?
+SELECT id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact FROM conversations WHERE id=?
 `
 
 func (q *Queries) GetConversation(ctx context.Context, id string) (Conversation, error) {
@@ -214,6 +265,10 @@ func (q *Queries) GetConversation(ctx context.Context, id string) (Conversation,
 		&i.UpdatedAt,
 		&i.ContextAfter,
 		&i.ContextSummary,
+		&i.ContextPins,
+		&i.LastInputTokens,
+		&i.LastUsageModel,
+		&i.AutoCompact,
 	)
 	return i, err
 }
@@ -356,7 +411,7 @@ func (q *Queries) ListConversationMessages(ctx context.Context, conversationID s
 }
 
 const listConversations = `-- name: ListConversations :many
-SELECT id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary FROM conversations WHERE scope_type=? AND scope_id=? ORDER BY updated_at DESC,id LIMIT 100
+SELECT id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact FROM conversations WHERE scope_type=? AND scope_id=? ORDER BY updated_at DESC,id LIMIT 100
 `
 
 type ListConversationsParams struct {
@@ -382,6 +437,10 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 			&i.UpdatedAt,
 			&i.ContextAfter,
 			&i.ContextSummary,
+			&i.ContextPins,
+			&i.LastInputTokens,
+			&i.LastUsageModel,
+			&i.AutoCompact,
 		); err != nil {
 			return nil, err
 		}
@@ -396,12 +455,44 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 	return items, nil
 }
 
+const recordContextUsage = `-- name: RecordContextUsage :exec
+UPDATE conversations SET last_input_tokens=?, last_usage_model=? WHERE id=?
+`
+
+type RecordContextUsageParams struct {
+	LastInputTokens int64  `json:"last_input_tokens"`
+	LastUsageModel  string `json:"last_usage_model"`
+	ID              string `json:"id"`
+}
+
+func (q *Queries) RecordContextUsage(ctx context.Context, arg RecordContextUsageParams) error {
+	_, err := q.db.ExecContext(ctx, recordContextUsage, arg.LastInputTokens, arg.LastUsageModel, arg.ID)
+	return err
+}
+
 const restoreConversationContext = `-- name: RestoreConversationContext :execrows
 UPDATE conversations SET context_after=0, context_summary='' WHERE id=? AND scope_type='global'
 `
 
 func (q *Queries) RestoreConversationContext(ctx context.Context, id string) (int64, error) {
 	result, err := q.db.ExecContext(ctx, restoreConversationContext, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const saveContextPins = `-- name: SaveContextPins :execrows
+UPDATE conversations SET context_pins=? WHERE id=? AND scope_type='global'
+`
+
+type SaveContextPinsParams struct {
+	ContextPins string `json:"context_pins"`
+	ID          string `json:"id"`
+}
+
+func (q *Queries) SaveContextPins(ctx context.Context, arg SaveContextPinsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, saveContextPins, arg.ContextPins, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -420,6 +511,23 @@ type SaveConversationContextParams struct {
 
 func (q *Queries) SaveConversationContext(ctx context.Context, arg SaveConversationContextParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, saveConversationContext, arg.ID, arg.Summary)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setAutomaticCompaction = `-- name: SetAutomaticCompaction :execrows
+UPDATE conversations SET auto_compact=? WHERE id=? AND scope_type='global'
+`
+
+type SetAutomaticCompactionParams struct {
+	AutoCompact int64  `json:"auto_compact"`
+	ID          string `json:"id"`
+}
+
+func (q *Queries) SetAutomaticCompaction(ctx context.Context, arg SetAutomaticCompactionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setAutomaticCompaction, arg.AutoCompact, arg.ID)
 	if err != nil {
 		return 0, err
 	}

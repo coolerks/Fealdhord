@@ -67,3 +67,24 @@ UPDATE conversations SET context_after = (SELECT COALESCE(MAX(position),0) FROM 
 
 -- name: RestoreConversationContext :execrows
 UPDATE conversations SET context_after=0, context_summary='' WHERE id=? AND scope_type='global';
+
+-- name: SaveContextPins :execrows
+UPDATE conversations SET context_pins=? WHERE id=? AND scope_type='global';
+
+-- name: RecordContextUsage :exec
+UPDATE conversations SET last_input_tokens=?, last_usage_model=? WHERE id=?;
+
+-- name: ArticleInToolScope :one
+SELECT COUNT(1)
+FROM articles a JOIN feeds f ON f.id=a.feed_id
+WHERE a.id=sqlc.arg(article_id) AND f.archived_at IS NULL
+AND ((sqlc.arg(scope_kind)='feed' AND a.feed_id=sqlc.arg(scope_id))
+ OR (sqlc.arg(scope_kind)='category' AND EXISTS(
+ SELECT 1 FROM effective_article_categories c WHERE c.article_id=a.id AND c.category_id=sqlc.arg(scope_id))));
+
+-- name: SetAutomaticCompaction :execrows
+UPDATE conversations SET auto_compact=? WHERE id=? AND scope_type='global';
+
+-- name: AdvanceContextSummary :execrows
+UPDATE conversations SET context_after=sqlc.arg(new_after), context_summary=sqlc.arg(summary)
+WHERE id=sqlc.arg(id) AND context_after=sqlc.arg(old_after) AND auto_compact=1;

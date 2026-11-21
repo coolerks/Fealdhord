@@ -2,9 +2,13 @@ package chat
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/coolerks/Fealdhord/internal/ai"
 	"github.com/coolerks/Fealdhord/internal/aiconfig"
 	"github.com/coolerks/Fealdhord/internal/database"
 	"github.com/coolerks/Fealdhord/internal/database/sqlc"
@@ -58,5 +62,65 @@ func TestContextCheckpointPreservesVisibleHistoryAcrossReopen(t *testing.T) {
 	config, err = q.GetConversation(ctx, conversation.ID)
 	if err != nil || config.ContextAfter != 0 || config.ContextSummary != "" {
 		t.Fatalf("checkpoint not restored: %+v %v", config, err)
+	}
+}
+
+type summaryModel struct{}
+
+func (summaryModel) Stream(context.Context, *ai.ModelRequest) (<-chan ai.ModelEvent, error) {
+	panic("unexpected stream")
+}
+
+func (summaryModel) Generate(_ context.Context, req *ai.ModelRequest) (*ai.ModelResponse, error) {
+	if len(req.Messages) != 2 || len(req.Tools) != 0 {
+		return nil, errors.New("summary must include only the removed turn")
+	}
+	return &ai.ModelResponse{
+		FinishReason: "stop",
+		Message:      ai.Message{Content: []ai.ContentBlock{{Type: "text", Text: "已压缩的旧轮次"}}},
+	}, nil
+}
+
+func TestAutomaticCompactionOnlyAdvancesSummarizedTurns(t *testing.T) {
+	ctx := context.Background()
+	db, err := database.Open(ctx, filepath.Join(t.TempDir(), "context.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	s := &Service{store: db}
+	conversation, err := s.Create(ctx, Scope{Kind: "global"}, "automatic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := db.ChatQueries()
+	for i, role := range []string{"user", "assistant", "user", "assistant"} {
+		_, err := q.AppendChatMessage(ctx, sqlc.AppendChatMessageParams{
+			ID: strconv.Itoa(i), ConversationID: conversation.ID, Role: role, Status: "complete", Content: "history",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := NewAPI(s).SetAutomaticCompaction(ctx, conversation.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	request := &ai.ModelRequest{
+		Model: "fixture", Messages: []ai.Message{textMessage("user", "最新消息")},
+		Budget: ai.ContextBudget(ai.Metadata{Context: 2048}),
+	}
+	s.compact(ctx, conversation.ID, summaryModel{}, request, &compaction{
+		oldAfter: 0, newAfter: 2, baseSystem: "保留权限指令",
+		messages: []ai.Message{textMessage("user", "old"), textMessage("assistant", "old answer")},
+	})
+	row, err := q.GetConversation(ctx, conversation.ID)
+	if err != nil || row.ContextAfter != 2 || row.AutoCompact != 1 || row.ContextSummary != "已压缩的旧轮次" ||
+		!strings.Contains(request.System, row.ContextSummary) || !strings.Contains(request.System, "保留权限指令") {
+		t.Fatalf("unexpected checkpoint: %+v / %+v / %v", row, request, err)
+	}
+	visible, err := q.ListConversationMessages(ctx, conversation.ID)
+	retained, err2 := q.ListContextMessages(ctx, sqlc.ListContextMessagesParams{ConversationID: conversation.ID, ContextAfter: row.ContextAfter})
+	if err != nil || err2 != nil || len(visible) != 4 || len(retained) != 2 {
+		t.Fatalf("unexpected history: %d visible, %d retained (%v / %v)", len(visible), len(retained), err, err2)
 	}
 }

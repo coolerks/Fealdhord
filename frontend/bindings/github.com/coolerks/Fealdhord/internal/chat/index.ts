@@ -7,6 +7,7 @@ export {
 };
 
 export type {
+    ContextPin,
     ContextStatus,
     Conversation,
     Message,

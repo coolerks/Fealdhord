@@ -405,7 +405,7 @@ function ChatSession({ target, close, workspace }: {
           }
           <div className={workspace ? 'chat-composer-actions' : undefined}>
             {workspace && selectedConfig && modelID && <ChatContext id={conversationId} modelId={modelID}
-              windowSize={selectedConfig.metadata?.context || 32768} disabled={active || send.isPending} />}
+              windowSize={selectedConfig.metadata?.context || 32768} disabled={active || send.isPending} attachments={sources} />}
             {workspace && (modelOptions.length ? <SearchableSelect label="聊天模型" className="chat-model" value={modelID ?? ''}
               options={modelOptions} variant="ghost" announceSelection placeholder="选择模型" disabled={send.isPending}
               submenus={modelSubmenus} onValueChange={selectModel}

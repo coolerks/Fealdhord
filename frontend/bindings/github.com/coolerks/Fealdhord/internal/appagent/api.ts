@@ -74,6 +74,10 @@ export function SaveSkill(markdown: string, enabled: boolean): $CancellablePromi
     return $Call.ByID(1970098953, markdown, enabled);
 }
 
+export function SaveSkillPackage(input: $models.Skill): $CancellablePromise<$models.Skill> {
+    return $Call.ByID(2692555815, input);
+}
+
 export function Skills(): $CancellablePromise<$models.Skill[] | null> {
     return $Call.ByID(4029147643);
 }

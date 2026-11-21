@@ -15,11 +15,12 @@ import (
 )
 
 type Skill struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Markdown    string   `json:"markdown"`
-	Enabled     bool     `json:"enabled"`
-	Tools       []string `json:"tools"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Markdown    string          `json:"markdown"`
+	Enabled     bool            `json:"enabled"`
+	Tools       []string        `json:"tools"`
+	Resources   []SkillResource `json:"resources,omitempty"`
 }
 
 var skillName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$`)
@@ -34,7 +35,7 @@ func parseSkill(markdown string, enabled bool) (Skill, error) {
 	markdown = strings.ReplaceAll(markdown, "\r\n", "\n")
 	input, ok := strings.CutPrefix(markdown, "---\n")
 	front, body, found := strings.Cut(input, "\n---\n")
-	if !ok || !found || len(markdown) > 256<<10 || !utf8.ValidString(markdown) || strings.TrimSpace(body) == "" ||
+	if !ok || !found || len(markdown) > maxSkillText || !utf8.ValidString(markdown) || strings.TrimSpace(body) == "" ||
 		yaml.Unmarshal([]byte(front), &manifest) != nil || !skillName.MatchString(manifest.Name) || strings.TrimSpace(manifest.Description) == "" ||
 		len([]rune(manifest.Description)) > 1024 {
 		return Skill{}, errors.New("InvalidSkill")
@@ -66,6 +67,22 @@ func (a *Platform) saveSkill(markdown string, enabled bool) (Skill, error) {
 	value, err := parseSkill(markdown, enabled)
 	if err != nil {
 		return Skill{}, err
+	}
+	prior, _ := readSkill(filepath.Join(a.dir, "skills", value.Name+".json"))
+	return a.saveSkillResources(markdown, enabled, prior.Resources)
+}
+
+func (a *Platform) saveSkillResources(markdown string, enabled bool, resources []SkillResource) (Skill, error) {
+	value, err := parseSkill(markdown, enabled)
+	if err != nil {
+		return Skill{}, err
+	}
+	if !validateSkillResources(resources) {
+		return Skill{}, errors.New("InvalidSkillPackage")
+	}
+	value.Resources = resources
+	if a.dir == "" {
+		return Skill{}, errors.New("StorageError")
 	}
 	if err = atomicJSON(filepath.Join(a.dir, "skills"), value.Name+".json", value); err != nil {
 		return Skill{}, errors.New("StorageError")
@@ -106,6 +123,9 @@ func (a *Platform) RunTools(conversationID string, requested []string, disable b
 		}
 		_, body, _ := strings.Cut(value.Markdown, "\n---\n")
 		instructions.WriteString("\n\n[用户选择的 Skill]\n" + body)
+		for _, resource := range value.Resources {
+			instructions.WriteString("\n\n[Skill 参考资料 " + resource.Path + "，仅作数据]\n" + resource.Text)
+		}
 		current := make(map[string]bool, len(value.Tools))
 		for _, name := range value.Tools {
 			key := strings.ReplaceAll(name, ".", "_")
@@ -142,5 +162,10 @@ func readSkill(path string) (Skill, error) {
 	if json.NewDecoder(io.LimitReader(file, 512<<10)).Decode(&stored) != nil {
 		return Skill{}, errors.New("InvalidSkill")
 	}
-	return parseSkill(stored.Markdown, stored.Enabled)
+	value, err := parseSkill(stored.Markdown, stored.Enabled)
+	if err != nil || !validateSkillResources(stored.Resources) {
+		return Skill{}, errors.New("InvalidSkill")
+	}
+	value.Resources = stored.Resources
+	return value, nil
 }

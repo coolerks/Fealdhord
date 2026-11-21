@@ -1,6 +1,9 @@
 package ai
 
-import "unicode/utf8"
+import (
+	"context"
+	"unicode/utf8"
+)
 
 type Budget struct {
 	Context       int  `json:"context"`
@@ -75,6 +78,44 @@ func (budget Budget) Fit(request *ModelRequest) error {
 		}
 		request.Messages = request.Messages[i:]
 		i = 1
+	}
+	return nil
+}
+
+// FitForModel checks the exact assembled input on providers with a token-count endpoint.
+// Other providers retain the local estimate and use the same whole-turn trimming.
+func FitForModel(ctx context.Context, model Model, request *ModelRequest) error {
+	budget := request.Budget
+	if err := budget.Fit(request); err != nil {
+		return err
+	}
+	counter, ok := model.(interface {
+		CountInput(context.Context, *ModelRequest) (int, error)
+	})
+	if budget.Context == 0 || !ok || EstimateRequest(*request) < budget.InputLimit*3/4 {
+		return ctx.Err()
+	}
+	measured, err := counter.CountInput(ctx, request)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if err != nil || measured <= budget.InputLimit {
+		return nil
+	}
+	estimate := EstimateRequest(*request)
+	if estimate == 0 {
+		return &ModelError{Code: "ContextWindowExceeded"}
+	}
+	budget.InputLimit = int(float64(budget.InputLimit) * float64(estimate) / float64(measured))
+	if err := budget.Fit(request); err != nil {
+		return err
+	}
+	verified, err := counter.CountInput(ctx, request)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if err == nil && verified > request.Budget.InputLimit {
+		return &ModelError{Code: "ContextWindowExceeded"}
 	}
 	return nil
 }

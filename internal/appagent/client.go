@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/coolerks/Fealdhord/internal/agentrun"
-	"github.com/coolerks/Fealdhord/internal/ai"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -98,36 +97,59 @@ func (a *Platform) connectMCP(ctx context.Context, config ClientConfig) (ClientS
 	if err != nil {
 		return ClientStatus{}, errors.New("MCPConnectionFailed")
 	}
-	tools, err := session.ListTools(ctx, nil)
-	if err != nil {
-		_ = session.Close()
-		return ClientStatus{}, errors.New("MCPDiscoveryFailed")
+	status := ClientStatus{Name: config.Name, Connected: true, Tools: []string{}, Resources: []string{}, Prompts: []string{}}
+	conn := &clientConnection{session: session, status: status}
+	if capabilities := session.InitializeResult().Capabilities; capabilities != nil {
+		if capabilities.Tools != nil {
+			for tool, err := range session.Tools(ctx, nil) {
+				if err != nil {
+					_ = session.Close()
+					return ClientStatus{}, errors.New("MCPDiscoveryFailed")
+				}
+				if len(conn.tools) >= 32 {
+					break
+				}
+				conn.tools = append(conn.tools, tool)
+				conn.status.Tools = append(conn.status.Tools, tool.Name)
+			}
+		}
+		if capabilities.Resources != nil {
+			for item, err := range session.Resources(ctx, nil) {
+				if err != nil || len(conn.status.Resources) >= 64 {
+					break
+				}
+				conn.status.Resources = append(conn.status.Resources, item.URI)
+			}
+		}
+		if capabilities.Prompts != nil {
+			for item, err := range session.Prompts(ctx, nil) {
+				if err != nil || len(conn.status.Prompts) >= 32 {
+					break
+				}
+				conn.status.Prompts = append(conn.status.Prompts, item.Name)
+			}
+		}
 	}
 	if err := a.persistClient(config); err != nil {
 		_ = session.Close()
 		return ClientStatus{}, err
 	}
 	config.Bearer = ""
-	conn := &clientConnection{session: session, tools: tools.Tools, status: ClientStatus{Name: config.Name, Config: config, Connected: true, Tools: []string{}, Resources: []string{}, Prompts: []string{}}}
-	for _, tool := range tools.Tools {
-		conn.status.Tools = append(conn.status.Tools, tool.Name)
-	}
-	if resources, err := session.ListResources(ctx, nil); err == nil {
-		for _, resource := range resources.Resources {
-			conn.status.Resources = append(conn.status.Resources, resource.URI)
-		}
-	}
-	if prompts, err := session.ListPrompts(ctx, nil); err == nil {
-		for _, prompt := range prompts.Prompts {
-			conn.status.Prompts = append(conn.status.Prompts, prompt.Name)
-		}
-	}
+	conn.status.Config = config
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if previous := a.clients[config.Name]; previous != nil {
 		_ = previous.session.Close()
 	}
 	a.clients[config.Name] = conn
+	go func() {
+		_ = session.Wait()
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		if a.clients[config.Name] == conn {
+			delete(a.clients, config.Name)
+		}
+	}()
 	return conn.status, nil
 }
 
@@ -228,36 +250,34 @@ func (a *Platform) ChatTools(id string) []agentrun.ReadTool {
 	defer a.mu.Unlock()
 	for name, conn := range a.clients {
 		for _, external := range conn.tools {
-			wire := sanitizeName("mcp_" + name + "_" + external.Name)
-			identity := sha256.Sum256([]byte(name + "\x00" + external.Name))
-			wire = wire[:min(len(wire), 50)] + "_" + hex.EncodeToString(identity[:6])
+			wire := clientToolName(name, external.Name, "tool")
 			schema, err := json.Marshal(external.InputSchema)
-			if err != nil {
+			if err != nil || len(schema) > 8192 {
 				continue
 			}
-			tool := Tool{Name: wire, Description: external.Description, RequiresApproval: true, invoke: func(ctx context.Context, args json.RawMessage) (any, error) {
+			tool := Tool{Name: wire, Description: external.Description, RequiresApproval: true, schema: schema, invoke: func(ctx context.Context, args json.RawMessage) (any, error) {
 				result, err := conn.session.CallTool(ctx, &mcp.CallToolParams{Name: external.Name, Arguments: args})
 				if err != nil {
 					return nil, errors.New("MCPResultUnknown")
 				}
+				if result.NeedsInput() {
+					return nil, errors.New("MCPAdditionalInputRequired")
+				}
 				return result, nil
 			}}
-			tools = append(tools, agentrun.ReadTool{Definition: ai.ToolDefinition{Name: wire, Description: tool.Description, InputSchema: schema},
-				Read: func(ctx context.Context, input ai.ToolCall) (string, error) {
-					output, err := a.registry.execute(ctx, "会话 "+id, tool, json.RawMessage(input.ArgumentsJSON))
-					if err != nil {
-						if ctx.Err() != nil {
-							return "", ctx.Err()
-						}
-						data, _ := json.Marshal(map[string]string{"error": err.Error()})
-						return string(data), nil
-					}
-					return output, nil
-				},
-			})
+			tools = append(tools, a.registry.chatTool(id, wire, tool))
+		}
+		for _, tool := range conn.contentTools(name) {
+			tools = append(tools, a.registry.chatTool(id, tool.Name, tool))
 		}
 	}
 	return tools
+}
+
+func clientToolName(connection, name, kind string) string {
+	wire := sanitizeName("mcp_" + connection + "_" + name)
+	identity := sha256.Sum256([]byte(kind + "\x00" + connection + "\x00" + name))
+	return wire[:min(len(wire), 50)] + "_" + hex.EncodeToString(identity[:6])
 }
 
 func sanitizeName(name string) string {

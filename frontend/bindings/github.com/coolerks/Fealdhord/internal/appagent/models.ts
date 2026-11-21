@@ -29,6 +29,12 @@ export interface ClientStatus {
 export interface MCPGrant {
     "name": string;
     "tools": string[] | null;
+    "scope": MCPScope;
+}
+
+export interface MCPScope {
+    "kind": string;
+    "id": string;
 }
 
 export interface PendingAction {
@@ -60,6 +66,12 @@ export interface Skill {
     "markdown": string;
     "enabled": boolean;
     "tools": string[] | null;
+    "resources"?: SkillResource[] | null;
+}
+
+export interface SkillResource {
+    "path": string;
+    "text": string;
 }
 
 export interface Tool {

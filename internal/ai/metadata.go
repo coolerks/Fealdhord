@@ -24,6 +24,7 @@ type Metadata struct {
 	PromptPrice     *float64 `json:"promptPrice,omitempty"`
 	CompletionPrice *float64 `json:"completionPrice,omitempty"`
 	Source          string   `json:"source,omitempty"`
+	UpdatedAt       string   `json:"updatedAt,omitempty"`
 	Brand           string   `json:"brand,omitempty"`
 	BrandOverride   string   `json:"brandOverride,omitempty"`
 	ReferencePrice  bool     `json:"referencePrice,omitempty"`
@@ -110,6 +111,13 @@ func (index *CatalogIndex) Load(ctx context.Context) {
 	index.loading = nil
 	index.loadedAt = time.Now()
 	if len(models) > 0 {
+		stamp := index.loadedAt.UTC().Format(time.RFC3339)
+		for key, candidates := range models {
+			for i := range candidates {
+				candidates[i].UpdatedAt = stamp
+			}
+			models[key] = candidates
+		}
 		index.models = models
 		index.brands = brands
 	}
@@ -257,6 +265,7 @@ func positive(first, fallback int) int {
 func (metadata Metadata) WithFallback(fallback Metadata) Metadata {
 	if metadata.Context == 0 && metadata.InputLimit == 0 && metadata.OutputLimit == 0 && len(metadata.Modalities) == 0 && metadata.Source == "" {
 		metadata.Source = fallback.Source
+		metadata.UpdatedAt = fallback.UpdatedAt
 	}
 	metadata.Context = positive(metadata.Context, fallback.Context)
 	metadata.InputLimit = positive(metadata.InputLimit, fallback.InputLimit)

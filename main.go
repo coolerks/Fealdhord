@@ -229,7 +229,7 @@ func main() {
 			if mainWindow == nil || ctx.Err() != nil {
 				return "", context.Canceled
 			}
-			return desktop.Dialog.OpenFile().SetTitle("导入 Skill").AddFilter("Markdown", "*.md").AttachToWindow(mainWindow).PromptForSingleSelection()
+			return desktop.Dialog.OpenFile().SetTitle("导入 Skill").AddFilter("Skill（Markdown 或 ZIP）", "*.md;*.zip").AttachToWindow(mainWindow).PromptForSingleSelection()
 		})),
 		application.NewService(service), application.NewService(settingsService),
 		application.NewService(desktopintegration.NewNotifier()),
