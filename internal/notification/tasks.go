@@ -200,10 +200,16 @@ func (s *Service) runTask(ctx context.Context, task Task, occurrence, now time.T
 	err := s.store.CompleteNotificationTask(ctx, sqlc.FinishScheduledRunParams{
 		TaskID: task.ID, Occurrence: occurrence.UnixMilli(), State: state, Result: result, LocalPending: flag(localPending),
 	}, deliveries)
-	if err == nil && s.localNotice != nil && localPending {
+	if err != nil {
+		return err
+	}
+	if len(deliveries) != 0 {
+		s.Wake()
+	}
+	if s.localNotice != nil && localPending {
 		s.localNotice(LocalNotice{Title: task.Name, Body: clip(result, 500)})
 	}
-	return err
+	return nil
 }
 
 func (s *Service) taskMessages(ctx context.Context, task Task, occurrence, now time.Time) ([]Message, error) {

@@ -80,6 +80,15 @@ func (s *Service) Prepare(ctx context.Context) error {
 	return s.q.ResumeNotificationRuntime(ctx, sqlc.ResumeNotificationRuntimeParams{ResumedAt: now, LastSeen: now})
 }
 
+type workerWarning bool
+
+func (warning *workerWarning) report(ctx context.Context, operation string, err error) {
+	if err != nil && !*warning && ctx.Err() == nil {
+		slog.Warn(operation, "error", err)
+	}
+	*warning = err != nil
+}
+
 func (s *Service) Start(parent context.Context, initialRefresh <-chan struct{}) func() {
 	if s == nil {
 		return func() {}
@@ -110,9 +119,8 @@ func (s *Service) Start(parent context.Context, initialRefresh <-chan struct{}) 
 	}()
 	go func() {
 		defer close(tasksDone)
-		if err := s.q.RecoverScheduledRuns(ctx); err != nil {
-			slog.Warn("恢复定时任务失败")
-		}
+		var startup, recovery, execution workerWarning
+		startup.report(ctx, "恢复定时任务失败", s.q.RecoverScheduledRuns(ctx))
 		if initialRefresh != nil {
 			select {
 			case <-ctx.Done():
@@ -123,13 +131,8 @@ func (s *Service) Start(parent context.Context, initialRefresh <-chan struct{}) 
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 		for ctx.Err() == nil {
-			if err := s.recoverTasks(ctx); err != nil && ctx.Err() == nil {
-				slog.Warn("恢复中断任务失败")
-			}
-			if err := s.processTasks(ctx); err != nil && ctx.Err() == nil {
-				slog.Warn("处理定时任务失败")
-			}
-			s.Wake()
+			recovery.report(ctx, "恢复中断任务失败", s.recoverTasks(ctx))
+			execution.report(ctx, "处理定时任务失败", s.processTasks(ctx))
 			select {
 			case <-ctx.Done():
 			case <-ticker.C:
@@ -138,20 +141,15 @@ func (s *Service) Start(parent context.Context, initialRefresh <-chan struct{}) 
 	}()
 	go func() {
 		defer close(done)
-		if err := s.q.RecoverNotificationDeliveries(ctx); err != nil {
-			slog.Warn("恢复通知队列失败")
-		}
+		var startup, rules, delivery workerWarning
+		startup.report(ctx, "恢复通知队列失败", s.q.RecoverNotificationDeliveries(ctx))
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 		for ctx.Err() == nil {
-			if err := s.processRules(ctx); err != nil && ctx.Err() == nil {
-				slog.Warn("处理文章推送规则失败")
-			}
+			rules.report(ctx, "处理文章推送规则失败", s.processRules(ctx))
 			for range 30 {
 				ok, err := s.deliver(ctx)
-				if err != nil && ctx.Err() == nil {
-					slog.Warn("处理通知投递失败")
-				}
+				delivery.report(ctx, "处理通知投递失败", err)
 				if !ok || err != nil {
 					break
 				}

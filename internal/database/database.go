@@ -39,10 +39,11 @@ type Store struct {
 var ErrDatabaseInUse = errors.New("数据库正在被另一个实例使用")
 
 func Open(ctx context.Context, filename string) (*Store, error) {
-	return openWithMigrations(ctx, filename, migrations.Files)
+	repair := goose.NewGoMigration(21, &goose.GoFunc{RunTx: repairNotificationSchema}, nil)
+	return openWithMigrations(ctx, filename, migrations.Files, goose.WithGoMigrations(repair))
 }
 
-func openWithMigrations(ctx context.Context, filename string, files fs.FS) (_ *Store, err error) {
+func openWithMigrations(ctx context.Context, filename string, files fs.FS, options ...goose.ProviderOption) (_ *Store, err error) {
 	if err := os.MkdirAll(filepath.Dir(filename), 0o700); err != nil {
 		return nil, fmt.Errorf("创建数据目录: %w", err)
 	}
@@ -82,7 +83,7 @@ func openWithMigrations(ctx context.Context, filename string, files fs.FS) (_ *S
 		}
 	}()
 	db.SetMaxOpenConns(1)
-	provider, err := goose.NewProvider(goose.DialectSQLite3, db, files)
+	provider, err := goose.NewProvider(goose.DialectSQLite3, db, files, options...)
 	if err != nil {
 		return nil, fmt.Errorf("初始化迁移: %w", err)
 	}
