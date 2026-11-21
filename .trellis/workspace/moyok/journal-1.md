@@ -1037,3 +1037,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 38: 修复设置重构回归
+<!-- trellis-session: v=2 fp=3102d1dcc1a6cc04 -->
+
+**Date**: 2026-11-21
+**Task**: 修复设置重构回归
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+保留 MCP 客户端令牌，修复订阅回退和编辑焦点，补齐文章 AI 发送说明。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `03db449` | fix(settings): 修复设置重构的四项回归 |
+
+### Testing
+
+- [OK] Go 全量测试与 vet、MCP 竞态测试、159 项前端测试及生产构建通过。
+
+### Status
+
+[OK] **Completed**
