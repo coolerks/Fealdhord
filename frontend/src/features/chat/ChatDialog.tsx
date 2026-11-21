@@ -354,7 +354,7 @@ function ChatSession({ target, close, workspace }: {
       case 'new': choose(''); break
       case 'attach': setPicking(true); break
       case 'context': setContextOpen(true); break
-      case 'settings': showSettings('ai'); break
+      case 'settings': showSettings(item.key === 'manage-skills' ? 'skills' : 'ai'); break
       case 'tasks': openTasks(); break
       case 'skill': toggleSkill(item.value); break
       case 'model': selectModel(item.value); break

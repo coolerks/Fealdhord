@@ -1,4 +1,7 @@
 import { Button } from '@/components/ui/button'
+import { FieldError } from '@/components/ui/field'
+import { Progress } from '@/components/ui/progress'
+import { SettingCard, StatusBadge } from './settings-primitives'
 import { useEffect, useRef, useState } from 'react'
 import { desktopAPI } from '../../lib/api'
 import type { Info, OperationSnapshot } from '../../lib/api'
@@ -80,12 +83,41 @@ export default function DiagnosticPanel() {
   }
 
   return (
-      <section className="diagnostics">
-        <p className="connection">{info ? '桌面服务已连接' : '连接中'}</p>
-        {info && <dl className="system-info"><div><dt>版本</dt><dd>{info.version}</dd></div><div><dt>运行平台</dt><dd>{info.platform} / {info.architecture}</dd></div><div><dt>桌面框架</dt><dd>Wails {info.wails_version}</dd></div></dl>}
-        <div className="probe"><div className="progress-label"><span role="status">{operation ? statusLabels[operation.status] ?? operation.status : '尚未开始检查'}</span><span>{operation ? `${operation.completed} / ${operation.total}` : '约 5 秒'}</span></div><progress aria-label="连接检查进度" max={operation?.total ?? 20} value={operation?.completed ?? 0}/><div className="actions"><Button onClick={() => { void start() }} disabled={!info || busy}>开始检查</Button><Button variant="outline" onClick={() => { void cancel() }} disabled={operation?.status !== 'running' || pending}>取消检查</Button></div></div>
-        {error && <p role="alert" className="error">{error}</p>}
-      </section>
-
+    <section className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[13px] font-medium">服务状态</span>
+        <StatusBadge tone={info ? 'active' : 'muted'}>{info ? '桌面服务已连接' : '连接中'}</StatusBadge>
+      </div>
+      {info && (
+        <SettingCard>
+          <dl className="grid grid-cols-1 divide-y divide-border text-[13px] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            <div className="px-3.5 py-2.5">
+              <dt className="text-[11px] text-muted-foreground">版本</dt>
+              <dd className="mt-0.5 font-medium tabular-nums">{info.version}</dd>
+            </div>
+            <div className="px-3.5 py-2.5">
+              <dt className="text-[11px] text-muted-foreground">运行平台</dt>
+              <dd className="mt-0.5 font-medium">{info.platform} / {info.architecture}</dd>
+            </div>
+            <div className="px-3.5 py-2.5">
+              <dt className="text-[11px] text-muted-foreground">桌面框架</dt>
+              <dd className="mt-0.5 font-medium">Wails {info.wails_version}</dd>
+            </div>
+          </dl>
+        </SettingCard>
+      )}
+      <SettingCard divided={false} className="space-y-3 p-3.5">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span role="status">{operation ? statusLabels[operation.status] ?? operation.status : '尚未开始检查'}</span>
+          <span className="tabular-nums">{operation ? `${operation.completed} / ${operation.total}` : '约 5 秒'}</span>
+        </div>
+        <Progress aria-label="连接检查进度" max={operation?.total ?? 20} value={operation?.completed ?? 0} />
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Button size="sm" onClick={() => { void start() }} disabled={!info || busy}>开始检查</Button>
+          <Button size="sm" variant="outline" onClick={() => { void cancel() }} disabled={operation?.status !== 'running' || pending}>取消检查</Button>
+        </div>
+      </SettingCard>
+      {error && <FieldError>{error}</FieldError>}
+    </section>
   )
 }

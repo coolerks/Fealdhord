@@ -5,7 +5,7 @@ import { PreferenceWriter } from '@/lib/preference-writer'
 
 type SettingsPresentation = 'full' | 'dialog'
 
-export type SettingsTab = 'appearance' | 'reader' | 'data' | 'categories' | 'feeds' | 'notifications' | 'ai' | 'about'
+export type SettingsTab = 'appearance' | 'reader' | 'notifications' | 'feeds' | 'categories' | 'data' | 'ai' | 'article-ai' | 'mcp' | 'skills' | 'about'
 type Workspace = {
   preferences: Preferences | null
   revision: number

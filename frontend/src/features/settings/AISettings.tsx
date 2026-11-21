@@ -1,10 +1,8 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { ModelBrand, ModelCapabilities, ModelDetails } from './ModelMetadata'
-import { AIPlatformSettings } from './AIPlatformSettings'
 import { ModelCatalogField } from './ModelCatalogField'
 import { notify } from '@/lib/notifications'
 import { invalidateRSS } from '@/lib/refresh'
-import { ArticleAISettings } from '@/features/article-ai/ArticleAISettings'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
@@ -281,8 +279,5 @@ export function AISettings() {
       })}
     </section>
     {mutation.isError && <p role="alert">{configError(mutation.error)}</p>}
-    <Separator />
-    <ArticleAISettings />
-    <AIPlatformSettings />
   </FieldGroup>
 }

@@ -1,5 +1,3 @@
-import { notify } from '@/lib/notifications'
-import { SegmentedControl } from '@/components/ui/segmented-control'
 import { useRef,useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
@@ -38,7 +36,7 @@ export function FeedSettings() {
   const [useDefaultIcon,setUseDefaultIcon]=useState(false)
   const [customIconURL,setCustomIconURL]=useState<string>()
   const [editing,setEditing]=useState<UpdateRequest|null>(null)
-  const prefs=useWorkspace(state=>state.preferences)!, patch=useWorkspace(state=>state.patch)
+  const prefs=useWorkspace(state=>state.preferences)!
   const originalFeed=query.data?.items?.find(feed=>feed.id===editing?.id)
   const editURLChanged=Boolean(editing && originalFeed && editing.url!==originalFeed.url)
   const storedIcon=originalFeed?.custom_icon_url ? undefined : originalFeed?.icon_data
@@ -92,10 +90,6 @@ export function FeedSettings() {
         <Button size="sm" variant="ghost" disabled={busy} aria-label={`归档 ${feed.title}`} onClick={()=>{action.reset();setRemoving(feed)}}>归档</Button>
       </>}</div>
     </li>)}</ul>
-    <Field><FieldLabel id="remote-images-label">远程图片</FieldLabel><SegmentedControl aria-labelledby="remote-images-label" value={prefs.remote_images} onValueChange={value=>{if(value)patch({remote_images:value})}}>{([['always','总是允许','check'],['subscriptions','仅活动订阅','radio-tower'],['never','从不加载','x']] as const).map(([value,label,icon])=><ToggleGroupItem key={value} value={value}><AnimatedGlyph meaning={icon}/>{label}</ToggleGroupItem>)}</SegmentedControl></Field>
-    <Field orientation="horizontal"><FieldLabel htmlFor="web-image-fallback">从原文页面补充首图</FieldLabel><Switch id="web-image-fallback" checked={prefs.web_image_fallback} onCheckedChange={value=>patch({web_image_fallback:value})}/></Field>
-    <Field orientation="horizontal"><FieldLabel htmlFor="media-cache">磁盘图片缓存</FieldLabel><Switch id="media-cache" checked={prefs.media_cache_enabled} onCheckedChange={value=>patch({media_cache_enabled:value})}/></Field>
-    <Button variant="outline" disabled={busy} onClick={()=>{action.mutate(async()=>{await rssAPI.clearCache();void notify('图片缓存已清理')})}}>清理图片缓存</Button>
   </FieldGroup>
   <Dialog open={Boolean(editing)} onOpenChange={open=>{if(!open && !action.isPending)setEditing(null)}}><DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>编辑订阅</DialogTitle></DialogHeader>{editing && <form className="feed-form" onSubmit={event=>{event.preventDefault();action.mutate(async()=>{editController.current=new AbortController();try{await rssAPI.update(editURLChanged && editing.use_default_icon===undefined && !editing.custom_icon_url
       ? {...editing,use_default_icon:!storedIcon}

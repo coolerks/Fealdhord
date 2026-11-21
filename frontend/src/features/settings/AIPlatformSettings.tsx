@@ -34,20 +34,22 @@ function toolOption(name: string, tool?: Tool) {
   }
 }
 
-export function AIPlatformSettings() {
+export function AIPlatformSettings({ section = 'all' }: { section?: 'all' | 'mcp' | 'skills' }) {
   const cache = useQueryClient()
-  const server = useQuery({ queryKey: [...platformKey, 'server'], queryFn: () => api.MCPServer(), retry: false })
+  const showMCP = section !== 'skills'
+  const showSkills = section !== 'mcp'
+  const server = useQuery({ queryKey: [...platformKey, 'server'], queryFn: () => api.MCPServer(), enabled: showMCP, retry: false })
   const audit = useQuery({ queryKey: [...platformKey, 'audit'], queryFn: () => api.RecentAudit(), enabled: false, retry: false })
-  const tools = useQuery({ queryKey: [...platformKey, 'tools'], queryFn: () => api.ToolList(), retry: false })
-  const skills = useQuery({ queryKey: skillsKey, queryFn: () => api.Skills(), retry: false })
-  const grants = useQuery({ queryKey: [...platformKey, 'grants'], queryFn: () => api.Grants(), retry: false })
-  const clients = useQuery({ queryKey: [...platformKey, 'clients'], queryFn: () => api.MCPClients(), retry: false })
+  const tools = useQuery({ queryKey: [...platformKey, 'tools'], queryFn: () => api.ToolList(), enabled: showMCP, retry: false })
+  const skills = useQuery({ queryKey: skillsKey, queryFn: () => api.Skills(), enabled: showSkills, retry: false })
+  const grants = useQuery({ queryKey: [...platformKey, 'grants'], queryFn: () => api.Grants(), enabled: showMCP, retry: false })
+  const clients = useQuery({ queryKey: [...platformKey, 'clients'], queryFn: () => api.MCPClients(), enabled: showMCP, retry: false })
   const [draft, setDraft] = useState<ServerConfig>()
   const [token, setToken] = useState('')
   const [grantName, setGrantName] = useState('')
   const [grantTools, setGrantTools] = useState<string[]>([])
   const [grantScope, setGrantScope] = useState('all')
-  const navigation = useQuery({ queryKey: navigationQueryKey, queryFn: () => navigationAPI.list() })
+  const navigation = useQuery({ queryKey: navigationQueryKey, queryFn: () => navigationAPI.list(), enabled: showMCP })
   const scopeOptions = [
     { value: 'all', label: '所有订阅及分类' },
     ...(navigation.data?.feeds ?? []).map(feed => ({ value: `feed:${feed.id}`, label: `订阅 · ${feed.title}` })),
@@ -66,8 +68,8 @@ export function AIPlatformSettings() {
   const [scopeKind, scopeId = ''] = grantScope.split(':')
   const allowedGrantTools = (server.data?.config.tools ?? []).filter(name => scopeKind === 'all' ||
     scopedArticleTools.has(name) || name === `${scopeKind}.get`)
-  return <>
-    <Separator />
+  return <div className="space-y-6">
+    {showMCP && <>
     <section className="space-y-3" aria-label="MCP 服务端">
       <h3>MCP 服务端</h3>
       {server.isError && <Button size="sm" variant="outline" onClick={() => void server.refetch()}>重试读取服务端</Button>}
@@ -171,6 +173,17 @@ export function AIPlatformSettings() {
       </form>
     </section>
     <Separator />
+    <section className="space-y-2" aria-label="工具记录">
+      <div className="flex items-center justify-between"><h3>工具记录</h3><Button size="sm" variant="outline" onClick={() => void audit.refetch()}>查看最近记录</Button></div>
+      {audit.data?.length === 0 && <p className="text-sm text-muted-foreground">暂无工具记录</p>}
+      {audit.data?.map(entry => <div key={`${entry.startedAt}${entry.tool}`} className="flex flex-wrap gap-2 text-sm">
+        <span>{entry.tool}</span><span className="text-muted-foreground">{entry.principal}</span>
+        <span className="ml-auto">{auditStatuses[entry.status] ?? entry.status}</span>
+      </div>)}
+    </section>
+    </>}
+    {showSkills && <>
+    {showMCP && <Separator />}
     <section className="space-y-3" aria-label="Skills">
       <div className="flex flex-wrap items-center gap-2"><h3 className="mr-auto">Skills</h3>
         <Button size="sm" variant="outline" disabled={busy} onClick={() => mutation.mutate(async () => { setSkill(await api.ImportSkill()) })}>导入 Skill</Button>
@@ -195,15 +208,15 @@ export function AIPlatformSettings() {
         <div className="flex gap-2"><Button type="submit" size="sm" disabled={busy}>保存 Skill</Button><Button type="button" size="sm" variant="ghost" onClick={() => setSkill(null)}>取消</Button></div>
       </form>}
     </section>
-    <Separator />
-    <section className="space-y-2" aria-label="工具记录">
-      <div className="flex items-center justify-between"><h3>工具记录</h3><Button size="sm" variant="outline" onClick={() => void audit.refetch()}>查看最近记录</Button></div>
-      {audit.data?.length === 0 && <p className="text-sm text-muted-foreground">暂无工具记录</p>}
-      {audit.data?.map(entry => <div key={`${entry.startedAt}${entry.tool}`} className="flex flex-wrap gap-2 text-sm">
-        <span>{entry.tool}</span><span className="text-muted-foreground">{entry.principal}</span>
-        <span className="ml-auto">{auditStatuses[entry.status] ?? entry.status}</span>
-      </div>)}
-    </section>
-    {mutation.isError && <p role="alert" className="text-sm">AI 平台设置失败（{mutation.error instanceof Error ? mutation.error.message : '请检查配置'}）</p>}
-  </>
+    </>}
+    {mutation.isError && <p role="alert" className="text-sm text-destructive">AI 平台设置失败（{mutation.error instanceof Error ? mutation.error.message : '请检查配置'}）</p>}
+  </div>
+}
+
+export function MCPSettings() {
+  return <AIPlatformSettings section="mcp" />
+}
+
+export function SkillsSettings() {
+  return <AIPlatformSettings section="skills" />
 }

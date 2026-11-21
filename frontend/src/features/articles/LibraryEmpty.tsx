@@ -11,7 +11,7 @@ type Props = {
   failed: boolean
   onRetry: () => void
   onClearSearch: () => void
-  onSettings: (section: 'ai' | 'feeds') => void
+  onSettings: (section: 'article-ai' | 'feeds') => void
 }
 
 export function LibraryEmpty({ scope, searching, loading, failed, onRetry, onClearSearch, onSettings }: Props) {
@@ -30,7 +30,7 @@ export function LibraryEmpty({ scope, searching, loading, failed, onRetry, onCle
   if (failed) action = <Button variant="outline" onClick={onRetry}>重新读取文章</Button>
   else if (!loading && searching) action = <Button variant="outline" onClick={onClearSearch}>清除搜索</Button>
   else if (!loading && (featured || scope === 'all')) {
-    action = <Button variant="outline" onClick={() => onSettings(featured ? 'ai' : 'feeds')}>{featured ? 'AI 设置' : '订阅管理'}</Button>
+    action = <Button variant="outline" onClick={() => onSettings(featured ? 'article-ai' : 'feeds')}>{featured ? '文章 AI 设置' : '订阅管理'}</Button>
   }
 
   return <Empty className="library-empty">
