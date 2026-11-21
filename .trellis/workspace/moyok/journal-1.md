@@ -907,3 +907,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 33: 明确 Telegram 私聊用户 ID
+<!-- trellis-session: v=2 fp=eca79e522a2b5ad8 -->
+
+**Date**: 2026-11-21
+**Task**: 明确 Telegram 私聊用户 ID
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+确认 Telegram 私聊可以直接填写数字用户 ID，调整字段与示例，并补充首次启动推送机器人的条件。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c161074` | fix: 明确 Telegram 私聊可填写用户 ID |
+
+### Testing
+
+- [OK] Telegram 设置回归、Go 收件白名单回归、前端类型检查与 lint 通过。
+
+### Status
+
+[OK] **Completed**
