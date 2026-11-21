@@ -146,11 +146,7 @@ export function AISettings() {
     >
       <SettingCard>
         {providers.length === 0 ? (
-          <SettingEmpty
-            icon={<Server />}
-            title="还没有配置 AI 服务"
-            action={<Button size="sm" variant="outline" disabled={busy} onClick={() => editProvider(newProvider)}>添加服务</Button>}
-          />
+          <SettingEmpty icon={<Server />} title="还没有配置 AI 服务" />
         ) : providers.map(item => (
           <SettingRow key={item.id}>
             <div className="min-w-0 flex-1 space-y-0.5">

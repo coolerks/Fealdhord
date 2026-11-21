@@ -648,11 +648,7 @@ export function SkillsSettings() {
     >
       <SettingCard>
         {(skills.data ?? []).length === 0 ? (
-          <SettingEmpty
-            icon={<Blocks />}
-            title="还没有已安装的 Skill"
-            action={<Button size="sm" variant="outline" onClick={() => { mutation.reset(); setSkill(newSkill) }}>添加 Skill</Button>}
-          />
+          <SettingEmpty icon={<Blocks />} title="还没有已安装的 Skill" />
         ) : (skills.data ?? []).map(item => (
           <SettingRow key={item.name}>
             <div className="min-w-0 flex-1 space-y-0.5">
