@@ -190,10 +190,8 @@ func (s *Service) deliver(ctx context.Context) (bool, error) {
 		var message Message
 		if err := json.Unmarshal([]byte(row.Payload), &message); err != nil {
 			result = deliveryResult{state: "failed", detail: "invalid_payload"}
-		} else if secret, err := s.secret(channel.CredentialRef); err != nil {
-			result = deliveryResult{state: "failed", detail: "authentication"}
-		} else {
-			result = s.transport.send(ctx, channel.Platform, channel.Target, row.ID, secret, message, s.now())
+		} else if recipient, err := s.q.GetNotificationRecipient(ctx, row.RecipientID); err == nil && recipient.Verified != 0 {
+			result = s.sendRecipient(ctx, channel, recipient.Target, row.ID, message)
 		}
 	}
 	if result.state == "pending" && row.Attempts >= 4 {
@@ -268,37 +266,58 @@ func deliveriesFor(source, key string, revision int64, targets []string, message
 	return deliveries
 }
 
-type Channel struct {
+type Recipient struct {
 	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Platform string `json:"platform"`
 	Target   string `json:"target"`
-	Enabled  bool   `json:"enabled"`
 	Verified bool   `json:"verified"`
-	Revision int64  `json:"revision"`
+}
+
+type Channel struct {
+	ID         string      `json:"id"`
+	Name       string      `json:"name"`
+	Platform   string      `json:"platform"`
+	Target     string      `json:"target"`
+	Mode       string      `json:"mode"`
+	Recipients []Recipient `json:"recipients"`
+	Enabled    bool        `json:"enabled"`
+	Verified   bool        `json:"verified"`
+	Revision   int64       `json:"revision"`
 }
 
 type ChannelInput struct {
 	Channel
-	Address     string `json:"address"`
-	Signing     string `json:"signing"`
-	Context     string `json:"context"`
-	MediaAppID  string `json:"media_app_id"`
-	MediaSecret string `json:"media_secret"`
+	Targets     []string `json:"targets"`
+	Address     string   `json:"address"`
+	Signing     string   `json:"signing"`
+	Context     string   `json:"context"`
+	MediaAppID  string   `json:"media_app_id"`
+	MediaSecret string   `json:"media_secret"`
 }
 
-func publicChannel(row sqlc.NotificationChannel) Channel {
-	return Channel{ID: row.ID, Name: row.Name, Platform: row.Platform, Target: row.Target,
-		Enabled: row.Enabled != 0, Verified: row.Verified != 0, Revision: row.Revision}
+func (s *Service) publicChannel(ctx context.Context, row sqlc.NotificationChannel) (Channel, error) {
+	recipients, err := s.q.ListNotificationRecipients(ctx, row.ID)
+	result := Channel{ID: row.ID, Name: row.Name, Platform: row.Platform, Target: row.Target, Mode: row.Mode,
+		Enabled: row.Enabled != 0, Verified: row.Verified != 0, Revision: row.Revision, Recipients: make([]Recipient, 0, len(recipients))}
+	for _, recipient := range recipients {
+		result.Recipients = append(result.Recipients, Recipient{ID: recipient.ID, Target: recipient.Target, Verified: recipient.Verified != 0})
+	}
+	return result, err
 }
 
 func (s *Service) ListChannels(ctx context.Context) ([]Channel, error) {
 	rows, err := s.q.ListNotificationChannels(ctx)
+	if err != nil {
+		return nil, err
+	}
 	result := make([]Channel, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, publicChannel(row))
+		channel, err := s.publicChannel(ctx, row)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, channel)
 	}
-	return result, err
+	return result, nil
 }
 
 func (s *Service) SaveChannel(ctx context.Context, input ChannelInput) (Channel, error) {
@@ -308,9 +327,9 @@ func (s *Service) SaveChannel(ctx context.Context, input ChannelInput) (Channel,
 	if name == "" || len(name) > 200 || len(input.Address) > 2048 || len(input.Signing) > 512 || len(input.Context) > 4096 || len(input.Target) > 300 || len(input.MediaAppID) > 256 || len(input.MediaSecret) > 512 || (input.MediaAppID == "") != (input.MediaSecret == "") {
 		return Channel{}, errors.New("通知渠道配置无效")
 	}
-	input.Name = name
-	input.Address = strings.TrimSpace(input.Address)
 	channel := input.Channel
+	input.Address = strings.TrimSpace(input.Address)
+	targets := input.Targets
 	old := sqlc.NotificationChannel{}
 	secret := connectionSecret{Address: input.Address, Signing: input.Signing, Context: input.Context, MediaAppID: input.MediaAppID, MediaSecret: input.MediaSecret}
 	if channel.ID != "" {
@@ -319,80 +338,99 @@ func (s *Service) SaveChannel(ctx context.Context, input ChannelInput) (Channel,
 		if err != nil || old.CredentialRef == "" || old.Revision != channel.Revision {
 			return Channel{}, errors.New("渠道配置已变化")
 		}
-		if old.Platform != channel.Platform || old.Target != channel.Target {
-			return Channel{}, errors.New("更换平台或收件目标时，请创建新渠道")
+		if old.Platform != channel.Platform || old.Mode != channel.Mode || old.Target != channel.Target {
+			return Channel{}, errors.New("更换连接类型请创建新渠道")
 		}
-		if previous, loadErr := s.secret(old.CredentialRef); input.Address == "" {
-			if loadErr != nil {
-				return Channel{}, loadErr
+		previous, err := s.secret(old.CredentialRef)
+		if input.Address == "" {
+			if err != nil {
+				return Channel{}, err
 			}
 			secret = previous
 			if input.MediaAppID != "" {
 				secret.MediaAppID, secret.MediaSecret = input.MediaAppID, input.MediaSecret
 			}
-		} else if _, webhook := webhooks[channel.Platform]; webhook &&
-			(loadErr != nil || previous.Address != input.Address) {
+		} else if isWebhook(channel.Platform, channel.Mode) && (err != nil || previous.Address != input.Address) {
 			return Channel{}, errors.New("更换 Webhook 时请创建新渠道")
+		}
+		if targets == nil {
+			existing, err := s.q.ListNotificationRecipients(ctx, old.ID)
+			if err != nil {
+				return Channel{}, err
+			}
+			targets = make([]string, 0, len(existing))
+			for _, recipient := range existing {
+				targets = append(targets, recipient.Target)
+			}
 		}
 	} else {
 		channel.ID = rand.Text()
+		if targets == nil {
+			targets = []string{input.Target}
+		}
 	}
-	if err := checkConnection(channel.Platform, channel.Target, secret); err != nil {
+	targets, err := s.checkRecipients(ctx, channel, secret, targets)
+	if err != nil {
 		return Channel{}, err
 	}
 	ref := old.CredentialRef
-	verified := old.Verified
-	if ref == "" || input.Address != "" || input.MediaAppID != "" {
+	reset := ref == "" || input.Address != "" || input.MediaAppID != ""
+	if reset {
 		ref = "notification:" + rand.Text()
 		data, _ := json.Marshal(secret)
 		if err := s.credentials.Set(ref, string(data)); err != nil {
 			return Channel{}, errors.New("系统凭据存储不可用")
 		}
-		verified = 0
 	}
-	var err error
-	if old.ID == "" {
-		err = s.q.CreateNotificationChannel(ctx, sqlc.CreateNotificationChannelParams{
-			ID: channel.ID, Name: name, Platform: channel.Platform, Target: channel.Target,
-			CredentialRef: ref, Enabled: flag(channel.Enabled), Verified: verified,
-		})
-	} else {
-		err = checkWrite(s.q.UpdateNotificationChannel(ctx, sqlc.UpdateNotificationChannelParams{
-			ID: old.ID, Name: name, Platform: old.Platform, Target: old.Target, Revision: old.Revision,
-			CredentialRef: ref, Enabled: flag(channel.Enabled), Verified: verified,
-		}))
-	}
+	err = s.store.SaveNotificationChannel(ctx, sqlc.NotificationChannel{
+		ID: channel.ID, Name: name, Platform: channel.Platform, Mode: channel.Mode, Target: channel.Target,
+		CredentialRef: ref, Enabled: flag(channel.Enabled), Revision: old.Revision,
+	}, targets, reset)
 	if err != nil {
-		if ref != old.CredentialRef {
+		if reset {
 			_ = s.credentials.Delete(ref)
 		}
 		return Channel{}, errors.New("保存通知渠道失败")
 	}
-	if old.CredentialRef != "" && old.CredentialRef != ref {
+	if reset && old.CredentialRef != "" {
 		_ = s.credentials.Delete(old.CredentialRef)
 	}
 	row, err := s.q.GetNotificationChannel(ctx, channel.ID)
+	if err != nil {
+		return Channel{}, err
+	}
 	s.Wake()
-	return publicChannel(row), err
+	return s.publicChannel(ctx, row)
 }
 
 func (s *Service) TestChannel(ctx context.Context, id string) error {
-	channel, err := s.q.GetNotificationChannel(ctx, id)
-	if err != nil {
+	recipients, err := s.q.ListNotificationRecipients(ctx, id)
+	if err != nil || len(recipients) == 0 {
+		return errors.New("请先配置收件目标")
+	}
+	var results []error
+	for _, recipient := range recipients {
+		if err := s.testRecipient(ctx, id, recipient.ID); err != nil {
+			results = append(results, err)
+		}
+	}
+	return errors.Join(results...)
+}
+
+func (s *Service) testRecipient(ctx context.Context, channelID, recipientID string) error {
+	channel, err := s.q.GetNotificationChannel(ctx, channelID)
+	if err != nil || channel.CredentialRef == "" {
 		return errors.New("找不到通知渠道")
 	}
-	secret, err := s.secret(channel.CredentialRef)
-	if err != nil {
-		return err
+	recipient, err := s.q.GetNotificationRecipient(ctx, recipientID)
+	if err != nil || recipient.ChannelID != channelID {
+		return errors.New("收件目标不在白名单中")
 	}
-	result := s.transport.send(ctx, channel.Platform, channel.Target, rand.Text(), secret, Message{Title: "折栈通知测试"}, s.now())
+	result := s.sendRecipient(ctx, channel, recipient.Target, rand.Text(), Message{Title: "折栈通知测试"})
 	if result.state != "accepted" {
-		return fmt.Errorf("通知渠道未确认接收：%s", result.detail)
+		return fmt.Errorf("收件目标 %s 未确认接收：%s", recipient.Target, result.detail)
 	}
-	return checkWrite(s.q.UpdateNotificationChannel(ctx, sqlc.UpdateNotificationChannelParams{
-		ID: id, Name: channel.Name, Platform: channel.Platform, Target: channel.Target, Revision: channel.Revision,
-		CredentialRef: channel.CredentialRef, Enabled: channel.Enabled, Verified: 1,
-	}))
+	return s.store.VerifyNotificationRecipient(ctx, channelID, sqlc.VerifyNotificationRecipientParams{ID: recipientID, Revision: channel.Revision})
 }
 
 func (s *Service) validTargets(ctx context.Context, ids []string) error {

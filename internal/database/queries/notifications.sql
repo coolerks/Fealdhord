@@ -36,7 +36,7 @@ SELECT * FROM notification_channels WHERE credential_ref<>'' ORDER BY name,id;
 -- name: GetNotificationChannel :one
 SELECT * FROM notification_channels WHERE id=?;
 -- name: CreateNotificationChannel :exec
-INSERT INTO notification_channels(id,name,platform,target,credential_ref,enabled,verified) VALUES(?,?,?,?,?,?,?);
+INSERT INTO notification_channels(id,name,platform,target,credential_ref,enabled,verified,mode) VALUES(?,?,?,?,?,?,?,?);
 -- name: UpdateNotificationChannel :execrows
 UPDATE notification_channels SET name=?,platform=?,target=?,credential_ref=?,enabled=?,verified=?,revision=revision+1
 WHERE id=? AND revision=?;
@@ -54,17 +54,21 @@ WHERE id=? AND revision=? AND next_at>=0;
 UPDATE notification_rules SET event_cursor=?,next_at=? WHERE id=? AND revision=? AND event_cursor=?;
 
 -- name: CreateNotificationDelivery :exec
-INSERT INTO notification_deliveries(id,channel_id,source_id,source_revision,payload,due_at,created_at)
-VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING;
+INSERT INTO notification_deliveries(id,channel_id,source_id,source_revision,payload,due_at,created_at,recipient_id)
+VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING;
 -- name: ListNotificationDeliveries :many
-SELECT id,channel_id,source_id,state,due_at,created_at,attempts,detail FROM notification_deliveries
-ORDER BY created_at DESC,id DESC LIMIT 100;
+SELECT d.id,d.channel_id,d.source_id,d.state,d.due_at,d.created_at,d.attempts,d.detail,
+CAST(COALESCE(r.target,'') AS TEXT) AS recipient_target
+FROM notification_deliveries d LEFT JOIN notification_recipients r ON r.id=d.recipient_id
+ORDER BY d.created_at DESC,d.id DESC LIMIT 100;
 -- name: NextNotificationDelivery :one
 SELECT * FROM notification_deliveries WHERE state='pending' AND due_at<=? ORDER BY due_at,id LIMIT 1;
 -- name: BeginNotificationDelivery :execrows
 UPDATE notification_deliveries SET state='sending',attempts=attempts+1
 WHERE notification_deliveries.id=? AND notification_deliveries.state='pending'
 AND EXISTS (SELECT 1 FROM notification_channels c WHERE c.id=notification_deliveries.channel_id AND c.enabled=1 AND c.verified=1)
+AND EXISTS (SELECT 1 FROM notification_recipients nr WHERE nr.id=notification_deliveries.recipient_id
+  AND nr.channel_id=notification_deliveries.channel_id AND nr.active=1 AND nr.verified=1)
 AND CASE
  WHEN notification_deliveries.source_id LIKE 'rule:%' THEN EXISTS (
   SELECT 1 FROM notification_rules r WHERE r.id=substr(notification_deliveries.source_id,6)
@@ -152,3 +156,19 @@ ORDER BY r.occurrence LIMIT 30;
 
 -- name: AcknowledgeLocalNotice :exec
 UPDATE scheduled_runs SET local_pending=0 WHERE task_id=? AND occurrence=?;
+
+-- name: ListNotificationRecipients :many
+SELECT * FROM notification_recipients WHERE channel_id=? AND active=1 ORDER BY target;
+-- name: GetNotificationRecipient :one
+SELECT * FROM notification_recipients WHERE id=? AND active=1;
+-- name: CreateNotificationRecipient :exec
+INSERT INTO notification_recipients(id,channel_id,target) VALUES(?,?,?);
+-- name: RetireNotificationRecipient :exec
+UPDATE notification_recipients SET active=0,verified=0 WHERE id=?;
+-- name: VerifyNotificationRecipient :execrows
+UPDATE notification_recipients SET verified=1 WHERE notification_recipients.id=? AND active=1
+AND EXISTS (SELECT 1 FROM notification_channels c WHERE c.id=notification_recipients.channel_id AND c.revision=? AND c.credential_ref<>'');
+-- name: RefreshNotificationChannelVerification :exec
+UPDATE notification_channels SET verified=EXISTS(
+ SELECT 1 FROM notification_recipients r WHERE r.channel_id=notification_channels.id AND r.active=1 AND r.verified=1
+) WHERE notification_channels.id=?;

@@ -42,6 +42,7 @@ const notificationAPI = vi.hoisted(() => ({
   ListRules: vi.fn().mockResolvedValue([]),
   ListTasks: vi.fn().mockResolvedValue([]),
   SaveRule: vi.fn().mockResolvedValue(undefined),
+  SaveChannel: vi.fn().mockResolvedValue(undefined),
 }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/notification/api', () => notificationAPI)
 const listSkills = vi.hoisted(() => vi.fn())
@@ -932,6 +933,21 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(screen.getByRole('button', { name: '保存规则' }))
     await waitFor(() => expect(notificationAPI.SaveRule).toHaveBeenCalledWith(expect.objectContaining({
       name: '科技文章', mode: 'instant', channels: ['telegram', 'slack'],
+    })))
+  })
+
+  it('通知渠道可以保存多个 Chat ID', async () => {
+    const user = userEvent.setup()
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    await user.click(await screen.findByRole('button', { name: '通知' }))
+    await user.click(await screen.findByRole('button', { name: '添加渠道' }))
+    await user.type(screen.getByRole('textbox', { name: '渠道名称' }), 'Telegram 私聊')
+    await user.type(screen.getByRole('textbox', { name: 'Telegram Chat ID' }), '123456{Enter}-100123456')
+    await user.type(screen.getByLabelText('Bot Token'), '1234:local-test')
+    await user.click(screen.getByRole('button', { name: '保存渠道' }))
+    await waitFor(() => expect(notificationAPI.SaveChannel).toHaveBeenCalledWith(expect.objectContaining({
+      platform: 'telegram', targets: ['123456', '-100123456'],
     })))
   })
 

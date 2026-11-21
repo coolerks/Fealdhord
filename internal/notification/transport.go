@@ -187,11 +187,87 @@ func imagePayload(m Message) map[string]any {
 	return map[string]any{"url": m.Image}
 }
 
-func makeRequest(platform, target string, secret connectionSecret, m Message, now time.Time) (string, map[string]any, error) {
+func formatMessage(m Message) Message {
 	m.URL = linkURL(m.URL)
 	m.Image = linkURL(m.Image)
 	m.Title = clip(m.Title, 250)
 	m.Text = clip(m.Text, 1300)
+	return m
+}
+
+func discordPayload(m Message) map[string]any {
+	embed := map[string]any{"title": m.Title}
+	if m.Text != "" {
+		embed["description"] = m.Text
+	}
+	if m.URL != "" {
+		embed["url"] = m.URL
+	}
+	if len(m.Links) != 0 {
+		embed["description"] = markdownMessage(Message{Links: m.Links})
+	}
+	if m.Image != "" {
+		embed["image"] = imagePayload(m)
+	}
+	return map[string]any{"embeds": []any{embed}, "allowed_mentions": map[string]any{"parse": []string{}}}
+}
+
+func slackPayload(m Message) map[string]any {
+	escape := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+	title := escape.Replace(m.Title)
+	if m.URL != "" {
+		title = "<" + strings.ReplaceAll(escape.Replace(m.URL), "|", "%7C") + "|" + strings.ReplaceAll(title, "|", "｜") + ">"
+	}
+	blocks := []any{
+		map[string]any{"type": "section", "text": map[string]string{"type": "mrkdwn", "text": title}},
+	}
+	if m.Text != "" {
+		blocks = append(blocks, map[string]any{"type": "section", "text": map[string]string{"type": "plain_text", "text": m.Text}})
+	}
+	for _, item := range m.Links {
+		text := escape.Replace(item.Title)
+		if target := linkURL(item.URL); target != "" {
+			text = "<" + strings.ReplaceAll(escape.Replace(target), "|", "%7C") + "|" + strings.ReplaceAll(text, "|", "｜") + ">"
+		}
+		blocks = append(blocks, map[string]any{"type": "section", "text": map[string]string{"type": "mrkdwn", "text": text}})
+	}
+	if m.Image != "" {
+		blocks = append(blocks, map[string]string{"type": "image", "image_url": m.Image, "alt_text": m.Title})
+	}
+	return map[string]any{"text": escape.Replace(m.Title), "blocks": blocks, "unfurl_links": false, "unfurl_media": false}
+}
+
+func larkPost(m Message) map[string]any {
+	title := map[string]string{"tag": "text", "text": m.Title}
+	if m.URL != "" {
+		title["tag"], title["href"] = "a", m.URL
+	}
+	content := [][]map[string]string{{title}}
+	if m.Text != "" {
+		content = append(content, []map[string]string{{"tag": "text", "text": m.Text}})
+	}
+	for _, item := range m.Links {
+		link := map[string]string{"tag": "text", "text": item.Title}
+		if target := linkURL(item.URL); target != "" {
+			link["tag"], link["href"] = "a", target
+		}
+		content = append(content, []map[string]string{link})
+	}
+	if m.imageKey != "" {
+		content = append(content, []map[string]string{{"tag": "img", "image_key": m.imageKey}})
+	}
+	return map[string]any{"zh_cn": map[string]any{"content": content}}
+}
+
+func wecomPayload(m Message) map[string]any {
+	if m.Image != "" && m.URL != "" {
+		return map[string]any{"msgtype": "news", "news": map[string]any{"articles": []map[string]string{{"title": m.Title, "description": m.Text, "url": m.URL, "picurl": m.Image}}}}
+	}
+	return map[string]any{"msgtype": "markdown", "markdown": map[string]string{"content": markdownMessage(m)}}
+}
+
+func makeRequest(platform, target string, secret connectionSecret, m Message, now time.Time) (string, map[string]any, error) {
+	m = formatMessage(m)
 	switch platform {
 	case "telegram":
 
@@ -227,46 +303,12 @@ func makeRequest(platform, target string, secret connectionSecret, m Message, no
 	}
 	switch platform {
 	case "discord":
-		embed := map[string]any{"title": m.Title}
-		if m.Text != "" {
-			embed["description"] = m.Text
-		}
-		if m.URL != "" {
-			embed["url"] = m.URL
-		}
-		if len(m.Links) != 0 {
-			embed["description"] = markdownMessage(Message{Links: m.Links})
-		}
-		if m.Image != "" {
-			embed["image"] = imagePayload(m)
-		}
 		query := u.Query()
 		query.Set("wait", "true")
 		u.RawQuery = query.Encode()
-		return u.String(), map[string]any{"embeds": []any{embed}, "allowed_mentions": map[string]any{"parse": []string{}}}, nil
+		return u.String(), discordPayload(m), nil
 	case "slack":
-		escape := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
-		title := escape.Replace(m.Title)
-		if m.URL != "" {
-			title = "<" + strings.ReplaceAll(escape.Replace(m.URL), "|", "%7C") + "|" + strings.ReplaceAll(title, "|", "｜") + ">"
-		}
-		blocks := []any{
-			map[string]any{"type": "section", "text": map[string]string{"type": "mrkdwn", "text": title}},
-		}
-		if m.Text != "" {
-			blocks = append(blocks, map[string]any{"type": "section", "text": map[string]string{"type": "plain_text", "text": m.Text}})
-		}
-		for _, item := range m.Links {
-			text := escape.Replace(item.Title)
-			if target := linkURL(item.URL); target != "" {
-				text = "<" + strings.ReplaceAll(escape.Replace(target), "|", "%7C") + "|" + strings.ReplaceAll(text, "|", "｜") + ">"
-			}
-			blocks = append(blocks, map[string]any{"type": "section", "text": map[string]string{"type": "mrkdwn", "text": text}})
-		}
-		if m.Image != "" {
-			blocks = append(blocks, map[string]string{"type": "image", "image_url": m.Image, "alt_text": m.Title})
-		}
-		return u.String(), map[string]any{"text": escape.Replace(m.Title), "blocks": blocks, "unfurl_links": false, "unfurl_media": false}, nil
+		return u.String(), slackPayload(m), nil
 	case "dingtalk":
 		if secret.Signing != "" {
 			timestamp := strconv.FormatInt(now.UnixMilli(), 10)
@@ -281,35 +323,14 @@ func makeRequest(platform, target string, secret connectionSecret, m Message, no
 		}
 		return u.String(), map[string]any{"msgtype": "markdown", "markdown": map[string]string{"title": m.Title, "text": text}}, nil
 	case "feishu", "lark":
-		title := map[string]string{"tag": "text", "text": m.Title}
-		if m.URL != "" {
-			title["tag"], title["href"] = "a", m.URL
-		}
-		content := [][]map[string]string{{title}}
-		if m.Text != "" {
-			content = append(content, []map[string]string{{"tag": "text", "text": m.Text}})
-		}
-		for _, item := range m.Links {
-			link := map[string]string{"tag": "text", "text": item.Title}
-			if target := linkURL(item.URL); target != "" {
-				link["tag"], link["href"] = "a", target
-			}
-			content = append(content, []map[string]string{link})
-		}
-		if m.imageKey != "" {
-			content = append(content, []map[string]string{{"tag": "img", "image_key": m.imageKey}})
-		}
-		payload := map[string]any{"msg_type": "post", "content": map[string]any{"post": map[string]any{"zh_cn": map[string]any{"content": content}}}}
+		payload := map[string]any{"msg_type": "post", "content": map[string]any{"post": larkPost(m)}}
 		if secret.Signing != "" {
 			timestamp := strconv.FormatInt(now.Unix(), 10)
 			payload["timestamp"], payload["sign"] = timestamp, signature(timestamp+"\n"+secret.Signing, "")
 		}
 		return u.String(), payload, nil
 	case "wecom":
-		if m.Image != "" && m.URL != "" {
-			return u.String(), map[string]any{"msgtype": "news", "news": map[string]any{"articles": []map[string]string{{"title": m.Title, "description": m.Text, "url": m.URL, "picurl": m.Image}}}}, nil
-		}
-		return u.String(), map[string]any{"msgtype": "markdown", "markdown": map[string]string{"content": markdownMessage(m)}}, nil
+		return u.String(), wecomPayload(m), nil
 	default:
 		return "", nil, errors.New("未知通知渠道")
 	}

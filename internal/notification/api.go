@@ -25,6 +25,9 @@ func (a *API) ListChannels(ctx context.Context) ([]Channel, error) {
 }
 
 func (a *API) SaveChannel(ctx context.Context, input ChannelInput) (Channel, error) {
+	if input.Platform == "wechat" && (input.ID == "" || input.Address != "" || input.Context != "") {
+		return Channel{}, errors.New("请扫码绑定微信私聊")
+	}
 	return available(a, func(s *Service) (Channel, error) { return s.SaveChannel(ctx, input) })
 }
 
@@ -144,6 +147,13 @@ func (a *API) ListLocalNotices(ctx context.Context) ([]sqlc.ListPendingLocalNoti
 func (a *API) AcknowledgeLocalNotice(ctx context.Context, id string, occurrence int64) error {
 	_, err := available(a, func(s *Service) (bool, error) {
 		return true, s.q.AcknowledgeLocalNotice(ctx, sqlc.AcknowledgeLocalNoticeParams{TaskID: id, Occurrence: occurrence})
+	})
+	return err
+}
+
+func (a *API) TestRecipient(ctx context.Context, channelID, recipientID string) error {
+	_, err := available(a, func(s *Service) (bool, error) {
+		return true, s.testRecipient(ctx, channelID, recipientID)
 	})
 	return err
 }

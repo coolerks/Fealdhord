@@ -10,6 +10,7 @@ export interface ListNotificationDeliveriesRow {
     "created_at": number;
     "attempts": number;
     "detail": string;
+    "recipient_target": string;
 }
 
 export interface ListPendingLocalNoticesRow {

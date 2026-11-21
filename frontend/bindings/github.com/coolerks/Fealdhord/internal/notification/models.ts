@@ -10,6 +10,8 @@ export interface Channel {
     "name": string;
     "platform": string;
     "target": string;
+    "mode": string;
+    "recipients": Recipient[] | null;
     "enabled": boolean;
     "verified": boolean;
     "revision": number;
@@ -20,9 +22,12 @@ export interface ChannelInput {
     "name": string;
     "platform": string;
     "target": string;
+    "mode": string;
+    "recipients": Recipient[] | null;
     "enabled": boolean;
     "verified": boolean;
     "revision": number;
+    "targets": string[] | null;
     "address": string;
     "signing": string;
     "context": string;
@@ -33,6 +38,12 @@ export interface ChannelInput {
 export interface LocalNotice {
     "title": string;
     "body": string;
+}
+
+export interface Recipient {
+    "id": string;
+    "target": string;
+    "verified": boolean;
 }
 
 export interface Rule {

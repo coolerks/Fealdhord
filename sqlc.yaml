@@ -20,6 +20,7 @@ sql:
       - migrations/00017_chat_context.sql
       - migrations/00018_chat_context_details.sql
       - migrations/00019_notifications.sql
+      - migrations/00020_notification_recipients.sql
     queries: internal/database/queries
     gen:
       go:

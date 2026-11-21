@@ -92,3 +92,7 @@ export function StartWeChatBinding(): $CancellablePromise<$models.WeChatBinding>
 export function TestChannel(id: string): $CancellablePromise<void> {
     return $Call.ByID(3294707955, id);
 }
+
+export function TestRecipient(channelID: string, recipientID: string): $CancellablePromise<void> {
+    return $Call.ByID(2255223543, channelID, recipientID);
+}

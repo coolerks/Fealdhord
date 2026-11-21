@@ -10,6 +10,7 @@ export type {
     Channel,
     ChannelInput,
     LocalNotice,
+    Recipient,
     Rule,
     RulePreview,
     Task,

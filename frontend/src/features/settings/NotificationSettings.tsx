@@ -18,6 +18,17 @@ const platforms = [
   { value: 'dingtalk', label: '钉钉' }, { value: 'feishu', label: '飞书' }, { value: 'lark', label: 'Lark' },
   { value: 'wechat', label: '微信' }, { value: 'wecom', label: '企业微信' }, { value: 'qq', label: 'QQ' },
 ]
+const appPlatforms = ['discord', 'slack', 'dingtalk', 'feishu', 'lark', 'wecom']
+const recipientFields: Record<string, { label: string; example: string }> = {
+  telegram: { label: 'Telegram Chat ID', example: '123456789\\n-100123456789' },
+  discord: { label: 'Discord 用户 ID', example: '123456789012345678' },
+  slack: { label: 'Slack 工作区成员 ID', example: 'U012ABCDEF' },
+  dingtalk: { label: '钉钉企业成员 UserID', example: 'user123' },
+  feishu: { label: '飞书成员 ID', example: 'ou_xxxxx\nuser_id:employee123' },
+  lark: { label: 'Lark 成员 ID', example: 'ou_xxxxx\nuser_id:employee123' },
+  wecom: { label: '企业微信成员 UserID', example: 'zhangsan' },
+  qq: { label: 'QQ 私聊 OpenID、群 OpenID 或子频道 ID', example: 'c2c:xxxxx\\ngroup:xxxxx\\nchannel:12345' },
+}
 const actions = [{ value: 'reminder', label: '提醒' }, { value: 'articles', label: '文章列表' }, { value: 'summary', label: 'AI 文章摘要' }]
 const frequencies = [{ value: 'once', label: '一次' }, { value: 'daily', label: '每天' }, { value: 'weekly', label: '指定星期' }]
 const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'].map((label, index) => ({ value: String(index), label }))
@@ -30,7 +41,7 @@ const statusLabels: Record<string, string> = {
   complete: '已完成', running: '运行中', interrupted: '中断',
 }
 const blankChannel: ChannelInput = {
-  id: '', name: '', platform: 'telegram', target: '', address: '', signing: '', context: '', media_app_id: '', media_secret: '', enabled: true, verified: false, revision: 0,
+  id: '', name: '', platform: 'telegram', target: '', mode: '', targets: [], recipients: [], address: '', signing: '', context: '', media_app_id: '', media_secret: '', enabled: true, verified: false, revision: 0,
 }
 const blankRule: Rule = {
   id: '', name: '', mode: 'instant', categories: [], channels: [], body: false, image: false,
@@ -76,6 +87,7 @@ export function NotificationSettings() {
   const tasks = useQuery({ queryKey: [...key, 'tasks'], queryFn: () => api.ListTasks(), retry: false })
   const navigation = useQuery({ queryKey: navigationQueryKey, queryFn: () => navigationAPI.list() })
   const [channel, setChannel] = useState<ChannelInput>()
+  const [recipientText, setRecipientText] = useState('')
   const [rule, setRule] = useState<Rule>()
   const [task, setTask] = useState<Task>()
   const preview = useQuery({ queryKey: [...key, 'rule-preview', rule?.timezone, rule?.send_at, rule?.window_start, rule?.window_end],
@@ -101,7 +113,7 @@ export function NotificationSettings() {
   const deliveries = useQuery({ queryKey: [...key, 'deliveries'], queryFn: () => api.ListDeliveries(), enabled: showHistory, refetchInterval: showHistory ? 5000 : false })
   const runs = useQuery({ queryKey: [...key, 'runs', openedTask], queryFn: () => api.ListRuns(openedTask), enabled: Boolean(openedTask) })
   const mutation = useMutation({ mutationFn: (work: () => Promise<unknown>) => work(),
-    onSuccess: () => client.invalidateQueries({ queryKey: key, predicate: query => query.queryKey[1] !== 'wechat' }) })
+    onSettled: () => client.invalidateQueries({ queryKey: key, predicate: query => query.queryKey[1] !== 'wechat' }) })
   const channelOptions = (channels.data ?? []).filter(value => value.enabled && value.verified).map(value => ({ label: value.name, value: value.id }))
   const categoryOptions = (navigation.data?.categories ?? []).map(value => ({ label: value.name, value: value.id }))
   function askDelete(name: string, run: () => Promise<unknown>) {
@@ -110,12 +122,27 @@ export function NotificationSettings() {
   const busy = mutation.isPending
   const bindingStatus = wechatPoll.data?.status ?? wechat?.status
   const bindingMode = channel?.platform === 'wechat' && !channel.id
+  const appMode = channel?.mode === 'app'
+  const webhookMode = Boolean(channel && appPlatforms.includes(channel.platform) && !appMode)
+  const savedRecipients = channels.data?.find(value => value.id === channel?.id)?.recipients ?? []
+  const wechatOptions = channel?.platform === 'wechat' ? [
+    { value: channel.target, label: '当前绑定私聊' },
+    ...(channels.data ?? []).filter(value => value.id !== channel.id && value.platform === 'wechat' && value.enabled)
+      .map(value => ({ value: `binding:${value.id}`, label: value.name })),
+  ] : []
+  function recipientLabel(value: string) {
+    if (!value) return '已绑定的群或频道'
+    return wechatOptions.find(item => item.value === value)?.label ?? value
+  }
+
   const setChannelField = <K extends keyof ChannelInput,>(field: K, value: ChannelInput[K]) => setChannel(previous => previous && { ...previous, [field]: value })
   const setRuleField = <K extends keyof Rule,>(field: K, value: Rule[K]) => setRule(previous => previous && { ...previous, [field]: value })
   const setTaskField = <K extends keyof Task,>(field: K, value: Task[K]) => setTask(previous => previous && { ...previous, [field]: value })
   const setCalendar = (fields: Partial<Task['calendar']>) => setTask(previous => previous && { ...previous, calendar: { ...previous.calendar, ...fields } })
   function editChannel(value: Channel) {
-    setChannel({ ...value, address: '', signing: '', context: '', media_app_id: '', media_secret: '' })
+    const targets = value.recipients?.map(recipient => recipient.target) ?? (value.target ? [value.target] : [])
+    setChannel({ ...value, targets, address: '', signing: '', context: '', media_app_id: '', media_secret: '' })
+    setRecipientText(targets.join('\n'))
   }
   function saveTask() {
     if (!task) return
@@ -129,23 +156,50 @@ export function NotificationSettings() {
   return <FieldGroup>
     <Separator />
     <section className="space-y-3" aria-label="通知渠道">
-      <div className="flex items-center justify-between gap-2"><h2 className="font-medium">通知渠道</h2><Button size="sm" variant="outline" disabled={busy} onClick={() => setChannel(blankChannel)}>添加渠道</Button></div>
+      <div className="flex items-center justify-between gap-2"><h2 className="font-medium">通知渠道</h2><Button size="sm" variant="outline" disabled={busy} onClick={() => { setRecipientText(''); setChannel(blankChannel) }}>添加渠道</Button></div>
       {(channels.data ?? []).map(value => <div className="flex flex-wrap items-center justify-between gap-2" key={value.id}>
         <div><p>{value.name}</p><p className="text-xs text-muted-foreground">{platforms.find(item => item.value === value.platform)?.label} · {value.verified ? value.enabled ? '已启用' : '已停用' : '待测试'}</p></div>
         <div className="flex gap-1"><Button size="sm" variant="ghost" disabled={busy} onClick={() => editChannel(value)}>编辑</Button>
-          <Button size="sm" variant="ghost" disabled={busy} onClick={() => mutation.mutate(() => api.TestChannel(value.id))}>发送测试</Button>
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => mutation.mutate(() => api.TestChannel(value.id))}>{(value.recipients?.length ?? 0) > 1 ? '测试全部收件目标' : '发送测试'}</Button>
           <Button size="sm" variant="ghost" disabled={busy} onClick={() => askDelete(value.name, () => api.DeleteChannel(value.id, value.revision))}>删除</Button></div>
       </div>)}
       {channel && <FieldGroup className="rounded-lg border p-3">
         <TextField id="channel-name" label="渠道名称" value={channel.name} onChange={value => setChannelField('name', value)} />
-        <Selection id="channel-platform" label="平台" options={platforms} value={channel.platform} disabled={Boolean(channel.id)} onChange={value => setChannelField('platform', value)} />
-        {['telegram', 'qq'].includes(channel.platform) &&
-          <TextField id="channel-target" label={channel.platform === 'qq' ? '接收目标（group:、c2c: 或 channel:）' : '接收目标 ID'} value={channel.target} disabled={Boolean(channel.id)} onChange={value => setChannelField('target', value)} />}
-        {channel.platform !== 'wechat' && <TextField id="channel-secret" label={channel.platform === 'qq' ? 'AppID' : ['telegram', 'wechat'].includes(channel.platform) ? '机器人令牌' : 'Webhook URL'}
+        <Selection id="channel-platform" label="平台" options={platforms} value={channel.platform} disabled={Boolean(channel.id)} onChange={value => {
+          setChannel({ ...blankChannel, platform: value, name: channel.name }); setRecipientText('')
+        }} />
+        {appPlatforms.includes(channel.platform) && <Selection id="channel-mode" label="接入方式"
+          options={[{ value: 'webhook', label: '群或频道 Webhook' }, { value: 'app', label: '应用机器人私发' }]}
+          value={appMode ? 'app' : 'webhook'} disabled={Boolean(channel.id)} onChange={value => {
+            setChannel({ ...blankChannel, platform: channel.platform, name: channel.name, mode: value === 'app' ? 'app' : '' })
+            setRecipientText('')
+          }} />}
+        {!bindingMode && <fieldset className="min-w-0 space-y-2">
+          <legend className="font-medium">收件白名单</legend>
+          {webhookMode ? <p className="text-sm text-muted-foreground">已绑定的整个群或频道</p>
+            : channel.platform === 'wechat'
+              ? <Selection id="wechat-recipients" label="已绑定的微信私聊" options={wechatOptions}
+                value={channel.targets ?? []} onChange={value => setChannelField('targets', toggle(channel.targets, value))} />
+              : <Field><FieldLabel htmlFor="channel-recipients">{recipientFields[channel.platform]?.label}</FieldLabel>
+                <Textarea id="channel-recipients" value={recipientText} onChange={event => setRecipientText(event.target.value)}
+                  placeholder={recipientFields[channel.platform]?.example} rows={3} /></Field>}
+          {!webhookMode && savedRecipients.map(recipient => <div className="flex items-center justify-between gap-2 text-sm" key={recipient.id}>
+            <span className="min-w-0 break-all">{recipientLabel(recipient.target)} · {recipient.verified ? '已测试' : '待测试'}</span>
+            <Button variant="ghost" size="sm" disabled={busy}
+              onClick={() => mutation.mutate(() => api.TestRecipient(channel.id, recipient.id))}>发送测试</Button>
+          </div>)}
+        </fieldset>}
+        {channel.platform !== 'wechat' && <TextField id="channel-secret"
+          label={webhookMode ? 'Webhook URL' : channel.platform === 'telegram' || channel.platform === 'discord' ? 'Bot Token'
+            : channel.platform === 'slack' ? 'Slack Bot Token' : channel.platform === 'wecom' ? 'CorpID' : channel.platform === 'dingtalk' ? 'AppKey' : 'AppID'}
           value={channel.address} type="password" onChange={value => setChannelField('address', value)} />}
-        {['qq', 'dingtalk', 'feishu', 'lark'].includes(channel.platform) &&
-          <TextField id="channel-signing" label={channel.platform === 'qq' ? 'AppSecret' : '加签密钥（可选）'} type="password" value={channel.signing} onChange={value => setChannelField('signing', value)} />}
-        {['feishu', 'lark'].includes(channel.platform) && <>
+        {(['qq', 'dingtalk', 'feishu', 'lark', 'wecom'].includes(channel.platform) && (channel.platform !== 'wecom' || appMode)) &&
+          <TextField id="channel-signing" label={webhookMode ? '加签密钥（可选）' : channel.platform === 'wecom' ? '应用 Secret' : 'AppSecret'}
+            type="password" value={channel.signing} onChange={value => setChannelField('signing', value)} />}
+        {appMode && ['dingtalk', 'wecom'].includes(channel.platform) &&
+          <TextField id="channel-context" label={channel.platform === 'wecom' ? '应用 AgentID' : 'RobotCode（可选）'}
+            value={channel.context} onChange={value => setChannelField('context', value)} />}
+        {webhookMode && ['feishu', 'lark'].includes(channel.platform) && <>
           <TextField id="channel-media-app" label="图片上传 AppID（可选）" value={channel.media_app_id} onChange={value => setChannelField('media_app_id', value)} />
           <TextField id="channel-media-secret" label="图片上传 AppSecret" type="password" value={channel.media_secret} onChange={value => setChannelField('media_secret', value)} />
         </>}
@@ -172,7 +226,8 @@ export function NotificationSettings() {
           {bindingMode ? <Button disabled={busy || !channel.name.trim() || bindingStatus === 'connected'} onClick={() => mutation.mutate(async () => {
             setPin(''); setVerifiedPin(''); setWeChat(await api.StartWeChatBinding())
           })}>{wechat ? '重新生成二维码' : '生成微信二维码'}</Button>
-            : <Button disabled={busy} onClick={() => mutation.mutate(async () => { await api.SaveChannel(channel); setChannel(undefined) })}>保存渠道</Button>}</div>
+            : <Button disabled={busy} onClick={() => mutation.mutate(async () => { const targets = webhookMode ? [] : channel.platform === 'wechat' ? channel.targets : recipientText.split(/[\s,，]+/u).filter(Boolean)
+              await api.SaveChannel({ ...channel, targets }); setChannel(undefined) })}>保存渠道</Button>}</div>
       </FieldGroup>}
     </section>
     <Separator />
@@ -248,7 +303,7 @@ export function NotificationSettings() {
       {showHistory && deliveries.isError && <p role="alert">暂时无法读取投递历史</p>}
       {showHistory && deliveries.data?.length === 0 && <p className="text-sm text-muted-foreground">还没有投递记录</p>}
       {showHistory && (deliveries.data ?? []).map(value => <div className="flex justify-between gap-2 text-sm" key={value.id}>
-        <span>{channels.data?.find(item => item.id === value.channel_id)?.name ?? '通知渠道'}</span>
+        <span>{channels.data?.find(item => item.id === value.channel_id)?.name ?? '通知渠道'}{value.recipient_target && (' · ' + value.recipient_target)}</span>
         <span className="flex items-center gap-2 text-muted-foreground">{time(value.created_at)} · {statusLabels[value.state] ?? value.state}
           {['failed', 'unknown'].includes(value.state) && <Button size="sm" variant="ghost" onClick={() => setConfirmation({
             title: '重新投递？', label: '重新投递', run: () => api.RetryDelivery(value.id),

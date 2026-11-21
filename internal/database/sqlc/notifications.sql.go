@@ -76,6 +76,8 @@ const beginNotificationDelivery = `-- name: BeginNotificationDelivery :execrows
 UPDATE notification_deliveries SET state='sending',attempts=attempts+1
 WHERE notification_deliveries.id=? AND notification_deliveries.state='pending'
 AND EXISTS (SELECT 1 FROM notification_channels c WHERE c.id=notification_deliveries.channel_id AND c.enabled=1 AND c.verified=1)
+AND EXISTS (SELECT 1 FROM notification_recipients nr WHERE nr.id=notification_deliveries.recipient_id
+  AND nr.channel_id=notification_deliveries.channel_id AND nr.active=1 AND nr.verified=1)
 AND CASE
  WHEN notification_deliveries.source_id LIKE 'rule:%' THEN EXISTS (
   SELECT 1 FROM notification_rules r WHERE r.id=substr(notification_deliveries.source_id,6)
@@ -131,7 +133,7 @@ func (q *Queries) ClaimScheduledTask(ctx context.Context, arg ClaimScheduledTask
 }
 
 const createNotificationChannel = `-- name: CreateNotificationChannel :exec
-INSERT INTO notification_channels(id,name,platform,target,credential_ref,enabled,verified) VALUES(?,?,?,?,?,?,?)
+INSERT INTO notification_channels(id,name,platform,target,credential_ref,enabled,verified,mode) VALUES(?,?,?,?,?,?,?,?)
 `
 
 type CreateNotificationChannelParams struct {
@@ -142,6 +144,7 @@ type CreateNotificationChannelParams struct {
 	CredentialRef string `json:"credential_ref"`
 	Enabled       int64  `json:"enabled"`
 	Verified      int64  `json:"verified"`
+	Mode          string `json:"mode"`
 }
 
 func (q *Queries) CreateNotificationChannel(ctx context.Context, arg CreateNotificationChannelParams) error {
@@ -153,13 +156,14 @@ func (q *Queries) CreateNotificationChannel(ctx context.Context, arg CreateNotif
 		arg.CredentialRef,
 		arg.Enabled,
 		arg.Verified,
+		arg.Mode,
 	)
 	return err
 }
 
 const createNotificationDelivery = `-- name: CreateNotificationDelivery :exec
-INSERT INTO notification_deliveries(id,channel_id,source_id,source_revision,payload,due_at,created_at)
-VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING
+INSERT INTO notification_deliveries(id,channel_id,source_id,source_revision,payload,due_at,created_at,recipient_id)
+VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING
 `
 
 type CreateNotificationDeliveryParams struct {
@@ -170,6 +174,7 @@ type CreateNotificationDeliveryParams struct {
 	Payload        string `json:"payload"`
 	DueAt          int64  `json:"due_at"`
 	CreatedAt      int64  `json:"created_at"`
+	RecipientID    string `json:"recipient_id"`
 }
 
 func (q *Queries) CreateNotificationDelivery(ctx context.Context, arg CreateNotificationDeliveryParams) error {
@@ -181,6 +186,7 @@ func (q *Queries) CreateNotificationDelivery(ctx context.Context, arg CreateNoti
 		arg.Payload,
 		arg.DueAt,
 		arg.CreatedAt,
+		arg.RecipientID,
 	)
 	return err
 }
@@ -208,6 +214,21 @@ func (q *Queries) CreateNotificationDigestItem(ctx context.Context, arg CreateNo
 		arg.Recovery,
 		arg.Payload,
 	)
+	return err
+}
+
+const createNotificationRecipient = `-- name: CreateNotificationRecipient :exec
+INSERT INTO notification_recipients(id,channel_id,target) VALUES(?,?,?)
+`
+
+type CreateNotificationRecipientParams struct {
+	ID        string `json:"id"`
+	ChannelID string `json:"channel_id"`
+	Target    string `json:"target"`
+}
+
+func (q *Queries) CreateNotificationRecipient(ctx context.Context, arg CreateNotificationRecipientParams) error {
+	_, err := q.db.ExecContext(ctx, createNotificationRecipient, arg.ID, arg.ChannelID, arg.Target)
 	return err
 }
 
@@ -399,7 +420,7 @@ func (q *Queries) FinishScheduledRun(ctx context.Context, arg FinishScheduledRun
 }
 
 const getNotificationChannel = `-- name: GetNotificationChannel :one
-SELECT id, name, platform, target, credential_ref, enabled, verified, revision FROM notification_channels WHERE id=?
+SELECT id, name, platform, target, credential_ref, enabled, verified, revision, mode FROM notification_channels WHERE id=?
 `
 
 func (q *Queries) GetNotificationChannel(ctx context.Context, id string) (NotificationChannel, error) {
@@ -414,6 +435,24 @@ func (q *Queries) GetNotificationChannel(ctx context.Context, id string) (Notifi
 		&i.Enabled,
 		&i.Verified,
 		&i.Revision,
+		&i.Mode,
+	)
+	return i, err
+}
+
+const getNotificationRecipient = `-- name: GetNotificationRecipient :one
+SELECT id, channel_id, target, active, verified FROM notification_recipients WHERE id=? AND active=1
+`
+
+func (q *Queries) GetNotificationRecipient(ctx context.Context, id string) (NotificationRecipient, error) {
+	row := q.db.QueryRowContext(ctx, getNotificationRecipient, id)
+	var i NotificationRecipient
+	err := row.Scan(
+		&i.ID,
+		&i.ChannelID,
+		&i.Target,
+		&i.Active,
+		&i.Verified,
 	)
 	return i, err
 }
@@ -552,7 +591,7 @@ func (q *Queries) ListNotificationArticleCategories(ctx context.Context, article
 }
 
 const listNotificationChannels = `-- name: ListNotificationChannels :many
-SELECT id, name, platform, target, credential_ref, enabled, verified, revision FROM notification_channels WHERE credential_ref<>'' ORDER BY name,id
+SELECT id, name, platform, target, credential_ref, enabled, verified, revision, mode FROM notification_channels WHERE credential_ref<>'' ORDER BY name,id
 `
 
 func (q *Queries) ListNotificationChannels(ctx context.Context) ([]NotificationChannel, error) {
@@ -573,6 +612,7 @@ func (q *Queries) ListNotificationChannels(ctx context.Context) ([]NotificationC
 			&i.Enabled,
 			&i.Verified,
 			&i.Revision,
+			&i.Mode,
 		); err != nil {
 			return nil, err
 		}
@@ -588,19 +628,22 @@ func (q *Queries) ListNotificationChannels(ctx context.Context) ([]NotificationC
 }
 
 const listNotificationDeliveries = `-- name: ListNotificationDeliveries :many
-SELECT id,channel_id,source_id,state,due_at,created_at,attempts,detail FROM notification_deliveries
-ORDER BY created_at DESC,id DESC LIMIT 100
+SELECT d.id,d.channel_id,d.source_id,d.state,d.due_at,d.created_at,d.attempts,d.detail,
+CAST(COALESCE(r.target,'') AS TEXT) AS recipient_target
+FROM notification_deliveries d LEFT JOIN notification_recipients r ON r.id=d.recipient_id
+ORDER BY d.created_at DESC,d.id DESC LIMIT 100
 `
 
 type ListNotificationDeliveriesRow struct {
-	ID        string `json:"id"`
-	ChannelID string `json:"channel_id"`
-	SourceID  string `json:"source_id"`
-	State     string `json:"state"`
-	DueAt     int64  `json:"due_at"`
-	CreatedAt int64  `json:"created_at"`
-	Attempts  int64  `json:"attempts"`
-	Detail    string `json:"detail"`
+	ID              string `json:"id"`
+	ChannelID       string `json:"channel_id"`
+	SourceID        string `json:"source_id"`
+	State           string `json:"state"`
+	DueAt           int64  `json:"due_at"`
+	CreatedAt       int64  `json:"created_at"`
+	Attempts        int64  `json:"attempts"`
+	Detail          string `json:"detail"`
+	RecipientTarget string `json:"recipient_target"`
 }
 
 func (q *Queries) ListNotificationDeliveries(ctx context.Context) ([]ListNotificationDeliveriesRow, error) {
@@ -621,6 +664,7 @@ func (q *Queries) ListNotificationDeliveries(ctx context.Context) ([]ListNotific
 			&i.CreatedAt,
 			&i.Attempts,
 			&i.Detail,
+			&i.RecipientTarget,
 		); err != nil {
 			return nil, err
 		}
@@ -682,6 +726,39 @@ func (q *Queries) ListNotificationEvents(ctx context.Context, arg ListNotificati
 			&i.Summary,
 			&i.Body,
 			&i.Cover,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNotificationRecipients = `-- name: ListNotificationRecipients :many
+SELECT id, channel_id, target, active, verified FROM notification_recipients WHERE channel_id=? AND active=1 ORDER BY target
+`
+
+func (q *Queries) ListNotificationRecipients(ctx context.Context, channelID string) ([]NotificationRecipient, error) {
+	rows, err := q.db.QueryContext(ctx, listNotificationRecipients, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NotificationRecipient
+	for rows.Next() {
+		var i NotificationRecipient
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChannelID,
+			&i.Target,
+			&i.Active,
+			&i.Verified,
 		); err != nil {
 			return nil, err
 		}
@@ -921,7 +998,7 @@ func (q *Queries) ListUnfinishedScheduledRuns(ctx context.Context) ([]ScheduledR
 }
 
 const nextNotificationDelivery = `-- name: NextNotificationDelivery :one
-SELECT id, channel_id, source_id, source_revision, payload, state, due_at, created_at, attempts, detail FROM notification_deliveries WHERE state='pending' AND due_at<=? ORDER BY due_at,id LIMIT 1
+SELECT id, channel_id, source_id, source_revision, payload, state, due_at, created_at, attempts, detail, recipient_id FROM notification_deliveries WHERE state='pending' AND due_at<=? ORDER BY due_at,id LIMIT 1
 `
 
 func (q *Queries) NextNotificationDelivery(ctx context.Context, dueAt int64) (NotificationDelivery, error) {
@@ -938,6 +1015,7 @@ func (q *Queries) NextNotificationDelivery(ctx context.Context, dueAt int64) (No
 		&i.CreatedAt,
 		&i.Attempts,
 		&i.Detail,
+		&i.RecipientID,
 	)
 	return i, err
 }
@@ -1017,6 +1095,17 @@ func (q *Queries) RecoverScheduledRuns(ctx context.Context) error {
 	return err
 }
 
+const refreshNotificationChannelVerification = `-- name: RefreshNotificationChannelVerification :exec
+UPDATE notification_channels SET verified=EXISTS(
+ SELECT 1 FROM notification_recipients r WHERE r.channel_id=notification_channels.id AND r.active=1 AND r.verified=1
+) WHERE notification_channels.id=?
+`
+
+func (q *Queries) RefreshNotificationChannelVerification(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, refreshNotificationChannelVerification, id)
+	return err
+}
+
 const removeNotificationCandidate = `-- name: RemoveNotificationCandidate :exec
 DELETE FROM notification_rule_candidates WHERE rule_id=? AND event_seq=?
 `
@@ -1060,6 +1149,15 @@ func (q *Queries) ResumeScheduledRun(ctx context.Context, arg ResumeScheduledRun
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const retireNotificationRecipient = `-- name: RetireNotificationRecipient :exec
+UPDATE notification_recipients SET active=0,verified=0 WHERE id=?
+`
+
+func (q *Queries) RetireNotificationRecipient(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, retireNotificationRecipient, id)
+	return err
 }
 
 const retryNotificationDelivery = `-- name: RetryNotificationDelivery :execrows
@@ -1186,6 +1284,24 @@ func (q *Queries) UpdateScheduledTask(ctx context.Context, arg UpdateScheduledTa
 		arg.ID,
 		arg.Revision,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const verifyNotificationRecipient = `-- name: VerifyNotificationRecipient :execrows
+UPDATE notification_recipients SET verified=1 WHERE notification_recipients.id=? AND active=1
+AND EXISTS (SELECT 1 FROM notification_channels c WHERE c.id=notification_recipients.channel_id AND c.revision=? AND c.credential_ref<>'')
+`
+
+type VerifyNotificationRecipientParams struct {
+	ID       string `json:"id"`
+	Revision int64  `json:"revision"`
+}
+
+func (q *Queries) VerifyNotificationRecipient(ctx context.Context, arg VerifyNotificationRecipientParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, verifyNotificationRecipient, arg.ID, arg.Revision)
 	if err != nil {
 		return 0, err
 	}

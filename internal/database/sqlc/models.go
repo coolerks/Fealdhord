@@ -270,6 +270,7 @@ type NotificationChannel struct {
 	Enabled       int64  `json:"enabled"`
 	Verified      int64  `json:"verified"`
 	Revision      int64  `json:"revision"`
+	Mode          string `json:"mode"`
 }
 
 type NotificationDelivery struct {
@@ -283,6 +284,7 @@ type NotificationDelivery struct {
 	CreatedAt      int64  `json:"created_at"`
 	Attempts       int64  `json:"attempts"`
 	Detail         string `json:"detail"`
+	RecipientID    string `json:"recipient_id"`
 }
 
 type NotificationDigestItem struct {
@@ -294,6 +296,14 @@ type NotificationDigestItem struct {
 	Recovery     int64  `json:"recovery"`
 	Payload      string `json:"payload"`
 	Queued       int64  `json:"queued"`
+}
+
+type NotificationRecipient struct {
+	ID        string `json:"id"`
+	ChannelID string `json:"channel_id"`
+	Target    string `json:"target"`
+	Active    int64  `json:"active"`
+	Verified  int64  `json:"verified"`
 }
 
 type NotificationRule struct {
