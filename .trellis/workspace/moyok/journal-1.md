@@ -959,3 +959,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 35: AI 侧栏定时任务管理
+<!-- trellis-session: v=2 fp=57eae9e4e741b8c0 -->
+
+**Date**: 2026-11-21
+**Task**: AI 侧栏定时任务管理
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+把定时任务从通知设置移到 AI 侧栏独立管理页，保留斜杠入口、聊天草稿及已有数据。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d638faa` | feat: 在 AI 侧栏集中管理定时任务 |
+
+### Testing
+
+- [OK] 前端 155 项测试通过，最终定向回归两项通过，lint、类型检查与生产构建通过。
+
+### Status
+
+[OK] **Completed**
