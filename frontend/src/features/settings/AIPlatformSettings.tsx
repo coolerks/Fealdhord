@@ -92,8 +92,10 @@ export function MCPSettings() {
 
   const [draft, setDraft] = useState<ServerConfig>()
   const [token, setToken] = useState('')
+  const [grantToken, setGrantToken] = useState<{ name: string; value: string } | null>(null)
   const [grantEditor, setGrantEditor] = useState<GrantDraft | null>(null)
   const [revokingGrant, setRevokingGrant] = useState<MCPGrant | null>(null)
+  const [rotatingGrant, setRotatingGrant] = useState<MCPGrant | null>(null)
   const [clientEditor, setClientEditor] = useState<ClientDraft | null>(null)
   const [forgettingClient, setForgettingClient] = useState<string | null>(null)
   const [expandedClients, setExpandedClients] = useState<Set<string>>(() => new Set())
@@ -111,14 +113,17 @@ export function MCPSettings() {
 
   const config = draft ?? server.data?.config
   const busy = mutation.isPending
-  const mutationError = mutation.isError
-    ? `MCP 设置失败（${mutation.error instanceof Error ? mutation.error.message : '请检查配置'}）`
+  const errorCode = mutation.error?.message
+  const mutationError = errorCode === 'ClientGrantExists' ? '该名称已有客户端授权，请更换名称或编辑现有授权。'
+    : errorCode === 'ClientGrantNotFound' ? '该客户端授权已不存在。'
+    : mutation.isError ? `MCP 设置失败（${errorCode ?? '请检查配置'}）`
     : undefined
 
   const [scopeKind, scopeId = ''] = (grantEditor?.scope ?? 'all').split(':')
   const allowedGrantTools = (server.data?.config.tools ?? []).filter(name =>
     scopeKind === 'all' || scopedArticleTools.has(name) || name === `${scopeKind}.get`,
   )
+  const selectedGrantTools = grantEditor?.tools.filter(name => allowedGrantTools.includes(name)) ?? []
 
   function scopeLabel(grant: MCPGrant) {
     if (!grant.scope.kind) return '所有订阅及分类'
@@ -259,27 +264,42 @@ export function MCPSettings() {
         {(grants.data ?? []).length === 0 ? (
           <SettingEmpty icon={<AnimatedGlyph meaning="key" />} title="还没有客户端授权" />
         ) : (grants.data ?? []).map(grant => (
-          <SettingRow key={grant.name}>
-            <div className="min-w-0 flex-1 space-y-0.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="truncate font-medium">{grant.name}</span>
-                <StatusBadge tone="muted">{grant.tools?.length ?? 0} 项工具</StatusBadge>
+          <div key={grant.name}>
+            <SettingRow>
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="truncate font-medium">{grant.name}</span>
+                  <StatusBadge tone="muted">{grant.tools?.length ?? 0} 项工具</StatusBadge>
+                </div>
+                <p className="truncate text-xs text-muted-foreground">{scopeLabel(grant)}</p>
               </div>
-              <p className="truncate text-xs text-muted-foreground">{scopeLabel(grant)}</p>
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => {
-                mutation.reset()
-                setGrantEditor({
-                  name: grant.name,
-                  tools: grant.tools ?? [],
-                  scope: grant.scope.kind ? `${grant.scope.kind}:${grant.scope.id}` : 'all',
-                  editing: true,
-                })
-              }}>编辑</Button>
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => { mutation.reset(); setRevokingGrant(grant) }}>撤销</Button>
-            </div>
-          </SettingRow>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => {
+                  mutation.reset()
+                  setGrantEditor({
+                    name: grant.name,
+                    tools: grant.tools ?? [],
+                    scope: grant.scope.kind ? `${grant.scope.kind}:${grant.scope.id}` : 'all',
+                    editing: true,
+                  })
+                }}>编辑</Button>
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => { mutation.reset(); setRotatingGrant(grant) }}>更换令牌</Button>
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => { mutation.reset(); setRevokingGrant(grant) }}>撤销</Button>
+              </div>
+            </SettingRow>
+            {grantToken?.name === grant.name && (
+              <div className="space-y-2 px-3.5 pb-3">
+                <div className="flex items-center justify-between gap-2">
+                  <FieldLabel htmlFor="mcp-client-token">{grant.name}的客户端令牌</FieldLabel>
+                  <StatusBadge tone="warning">仅显示本次</StatusBadge>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Input id="mcp-client-token" readOnly value={grantToken.value} autoComplete="off" className="font-mono text-xs" />
+                  <CopyButton value={grantToken.value} label="复制客户端令牌" />
+                </div>
+              </div>
+            )}
+          </div>
         ))}
       </SettingCard>
     </SettingSection>
@@ -413,7 +433,7 @@ export function MCPSettings() {
       )}
     </SettingSection>
 
-    {mutationError && !grantEditor && !clientEditor && !revokingGrant && !forgettingClient && <FieldError>{mutationError}</FieldError>}
+    {mutationError && !grantEditor && !clientEditor && !revokingGrant && !rotatingGrant && !forgettingClient && <FieldError>{mutationError}</FieldError>}
 
     <Dialog open={Boolean(grantEditor)} onOpenChange={open => { if (!open && !busy) { setGrantEditor(null); mutation.reset() } }}>
       {grantEditor && (
@@ -424,11 +444,13 @@ export function MCPSettings() {
           <form onSubmit={event => {
             event.preventDefault()
             mutation.mutate(async () => {
-              setToken(await api.SaveGrant({
+              const grant = {
                 name: grantEditor.name,
-                tools: grantEditor.tools.filter(name => allowedGrantTools.includes(name)),
+                tools: selectedGrantTools,
                 scope: { kind: scopeKind === 'all' ? '' : scopeKind, id: scopeId },
-              }, false))
+              }
+              if (grantEditor.editing) await api.UpdateGrant(grant)
+              else setGrantToken({ name: grant.name, value: await api.SaveGrant(grant, false) })
               setGrantEditor(null)
             })
           }}>
@@ -451,6 +473,7 @@ export function MCPSettings() {
                   label="数据范围"
                   className="w-full"
                   value={grantEditor.scope}
+                  disabled={busy}
                   options={scopeOptions}
                   onValueChange={scope => setGrantEditor({ ...grantEditor, scope, tools: [] })}
                 />
@@ -461,8 +484,9 @@ export function MCPSettings() {
                   id="mcp-grant-tools"
                   label="允许的工具"
                   className="w-full"
-                  placeholder={grantEditor.tools.length ? `已选 ${grantEditor.tools.length} 项` : '选择工具'}
-                  value={grantEditor.tools}
+                  placeholder={selectedGrantTools.length ? `已选 ${selectedGrantTools.length} 项` : '选择工具'}
+                  value={selectedGrantTools}
+                  disabled={busy}
                   options={allowedGrantTools.map(name => toolOption(name, tools.data?.find(tool => tool.name === name)))}
                   onValueChange={name => setGrantEditor({
                     ...grantEditor,
@@ -475,7 +499,9 @@ export function MCPSettings() {
               {mutationError && <FieldError>{mutationError}</FieldError>}
               <DialogFooter>
                 <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => { setGrantEditor(null); mutation.reset() }}>取消</Button>
-                <Button type="submit" size="sm" disabled={busy || grantEditor.tools.length === 0}>生成客户端令牌</Button>
+                <Button type="submit" size="sm" disabled={busy || selectedGrantTools.length === 0}>
+                  {grantEditor.editing ? '保存授权' : '生成客户端令牌'}
+                </Button>
               </DialogFooter>
             </FieldGroup>
           </form>
@@ -593,8 +619,26 @@ export function MCPSettings() {
         if (!revokingGrant) return
         mutation.mutate(async () => {
           await api.SaveGrant(revokingGrant, true)
-          setToken('')
+          setGrantToken(current => current?.name === revokingGrant.name ? null : current)
           setRevokingGrant(null)
+        })
+      }}
+    />
+
+    <ConfirmDialog
+      open={Boolean(rotatingGrant)}
+      title={rotatingGrant ? `更换“${rotatingGrant.name}”的令牌？` : ''}
+      description="旧令牌会立即失效。客户端需要使用新令牌重新连接。"
+      confirmLabel="确认更换"
+      busy={busy}
+      error={rotatingGrant ? mutationError : undefined}
+      onOpenChange={open => { if (!open) { setRotatingGrant(null); mutation.reset() } }}
+      onConfirm={() => {
+        if (!rotatingGrant) return
+        mutation.mutate(async () => {
+          const name = rotatingGrant.name
+          setGrantToken({ name, value: await api.RotateGrantToken(name) })
+          setRotatingGrant(null)
         })
       }}
     />

@@ -100,3 +100,5 @@ macOS 侧栏交互使用半透明状态色。以 `aria-current=page` 统一阅�
 全局聊天的斜杠命令在单独的命令前缀下出现，焦点留在 Textarea。共享 Command 使用 cmdk 生成的真实 ID，再由菜单将 aria-controls 与 aria-activedescendant 关联到 Textarea。方向键和 Enter 仅在可见命令菜单内拦截，输入法组字不触发选择。
 
 文章选择底色在全局 Portal 内绘制，离场阅读面板需要在过渡开始或卸载时释放其原生选区及 Portal 高亮。只清理归属该阅读层的选区；保持同一篇文章在右键菜单中的选区快照。
+
+由列表按钮控制的编辑弹窗需要恢复触发按钮的焦点。缺少 `DialogTrigger` 时记录点击的 `event.currentTarget`，在 `onCloseAutoFocus` 恢复。触发按钮在保存期间暂时禁用时，等按钮可用后恢复。用键盘打开及关闭进行回归验证。

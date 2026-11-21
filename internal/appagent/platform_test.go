@@ -350,6 +350,78 @@ func TestMCPServerHTTPS(t *testing.T) {
 	}
 }
 
+func TestMCPGrantUpdateKeepsTokenUntilExplicitRotation(t *testing.T) {
+	r := NewRegistry()
+	Register(r, "item.read", "read", false, func(_ context.Context, q id) id { return q })
+	Register(r, "other.read", "other", false, func(_ context.Context, q id) id { return q })
+	dir := t.TempDir()
+	p := NewPlatform(r, dir)
+	defer p.Shutdown()
+	bound, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := bound.Addr().(*net.TCPAddr).Port
+	bound.Close()
+	config := ServerConfig{Port: port, Tools: []string{"item.read", "other.read"}}
+	if err := p.SaveMCPServer(config); err != nil {
+		t.Fatal(err)
+	}
+	grant := MCPGrant{Name: "reader", Tools: []string{"item.read"}}
+	token, err := p.SaveGrant(grant, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.Enabled = true
+	if err := p.SaveMCPServer(config); err != nil {
+		t.Fatal(err)
+	}
+	assertTools := func(platform *Platform, token, expected string) {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "1"}, nil)
+		session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
+			Endpoint: platform.MCPServer().URL, HTTPClient: &http.Client{Transport: bearerTransport{token: token}},
+		}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer session.Close()
+		result, err := session.ListTools(ctx, nil)
+		if err != nil || len(result.Tools) != 1 || result.Tools[0].Name != expected {
+			t.Fatalf("expected only %s, got %v, %v", expected, result, err)
+		}
+	}
+	assertTools(p, token, "item_read")
+	grant.Tools = []string{"other.read"}
+	if _, err := p.SaveGrant(grant, false); err == nil || err.Error() != "ClientGrantExists" {
+		t.Fatalf("duplicate creation returned %v", err)
+	}
+	if err := p.UpdateGrant(grant); err != nil {
+		t.Fatal(err)
+	}
+	assertTools(p, token, "other_read")
+	p.Shutdown()
+	reopened := NewPlatform(r, dir)
+	defer reopened.Shutdown()
+	assertTools(reopened, token, "other_read")
+	replacement, err := reopened.RotateGrantToken(grant.Name)
+	if err != nil || replacement == token {
+		t.Fatalf("expected a replacement token, got error %v", err)
+	}
+	assertTools(reopened, replacement, "other_read")
+	oldClient := &http.Client{Transport: bearerTransport{token: token}, Timeout: 3 * time.Second}
+	response, err := oldClient.Get(reopened.MCPServer().URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("old token returned %d", response.StatusCode)
+	}
+}
+
 func TestMCPRevokesOnlyClientAndRemainsClosedToItAfterRestart(t *testing.T) {
 	bound, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

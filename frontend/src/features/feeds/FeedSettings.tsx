@@ -217,7 +217,7 @@ export function FeedSettings() {
       title="已订阅"
       actions={
         <div className="flex flex-wrap items-center gap-3">
-          {hasErrors && (
+          {(hasErrors || statusFilter === 'error') && (
             <SegmentedControl
               aria-label="筛选订阅状态"
               value={statusFilter}

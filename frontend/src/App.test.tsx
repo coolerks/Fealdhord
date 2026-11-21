@@ -9,6 +9,8 @@ import { useWorkspace } from '@/stores/workspace'
 import { initialLibraryData,libraryArticles } from '@/lib/library-query'
 import type { LibraryData } from '@/lib/library-query'
 import { articleQueryKey } from '@/lib/library'
+import { feedsQueryKey, rssAPI } from '@/lib/rss-api'
+import type { Feed } from '@/lib/rss-api'
 import type { LibraryPage } from '@/lib/library'
 import type { Detail } from '@/lib/reader-api'
 import { useChatTarget } from '@/features/chat/chat-scope'
@@ -51,9 +53,16 @@ const notificationAPI = vi.hoisted(() => ({
 }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/notification/api', () => notificationAPI)
 const listSkills = vi.hoisted(() => vi.fn())
+const mcpGrants = vi.hoisted(() => ({
+  Grants: vi.fn().mockResolvedValue([]),
+  MCPServer: vi.fn().mockResolvedValue({ url: '', config: { port: 8769, tools: [] } }),
+  SaveGrant: vi.fn(),
+  UpdateGrant: vi.fn().mockResolvedValue(undefined),
+  RotateGrantToken: vi.fn(),
+}))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/appagent/api', () => ({
-  PendingActions: async () => [], Grants: async () => [], ToolList: async () => [], Skills: listSkills, MCPClients: async () => [],
-  MCPServer: async () => ({ url: '', config: { port: 8769, tools: [] } }),
+  PendingActions: async () => [], ToolList: async () => [], Skills: listSkills, MCPClients: async () => [],
+  ...mcpGrants,
 }))
 const copyImage = vi.hoisted(() => vi.fn())
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/media/api', () => ({ CopyInlineImage: copyImage }))
@@ -65,6 +74,8 @@ beforeEach(() => {
   notificationAPI.ListChannels.mockResolvedValue([])
   notificationAPI.ListTasks.mockResolvedValue([])
   notificationAPI.ListRuns.mockResolvedValue([])
+  mcpGrants.Grants.mockResolvedValue([])
+  mcpGrants.MCPServer.mockResolvedValue({ url: '', config: { port: 8769, tools: [] } })
   useChatTarget.setState({ target: null })
   listSkills.mockResolvedValue([])
   chat.ContextStatus.mockResolvedValue({
@@ -153,6 +164,63 @@ describe('Phase 1 阅读 Shell', () => {
       screen.getByRole('complementary', { name: 'AI 会话导航' }), screen.getByRole('main', { name: 'AI 助手工作区' }),
     ], 'subtle', -6)
     expect(useWorkspace.getState().preferences?.settings_open_mode).toBe('dialog')
+  })
+
+  it.each(['full', 'dialog'] as const)('键盘关闭添加服务弹窗后，焦点回到触发按钮（%s）', async settings_open_mode => {
+    const user = userEvent.setup()
+    api.get.mockResolvedValue({ preferences: preferencesFixture({ settings_open_mode }), revision: 0 })
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    const nav = await screen.findByRole('navigation', { name: '设置分区' })
+    await user.click(within(nav).getByRole('button', { name: '服务与模型' }))
+    const trigger = await screen.findByRole('button', { name: '添加服务' })
+    trigger.focus()
+    await user.keyboard('{Enter}')
+    await screen.findByRole('dialog', { name: '添加服务' })
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(trigger).toHaveFocus())
+  })
+
+  it('最后一个订阅恢复后仍可切回全部订阅', async () => {
+    const feed = { id: 'f', title: '测试订阅', url: 'https://example.org/feed', last_error: '请求失败', archived: false } as Feed
+    const list = vi.spyOn(rssAPI, 'list').mockResolvedValue({ items: [feed], categories: [] })
+    const user = userEvent.setup()
+    api.get.mockResolvedValue({ preferences: preferencesFixture({ settings_open_mode: 'full' }), revision: 0 })
+    const { client } = setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    const sidebar = await screen.findByRole('complementary', { name: '设置侧栏' })
+    await user.click(within(sidebar).getByRole('button', { name: '订阅' }))
+    await user.click(await screen.findByRole('radio', { name: '异常' }))
+    list.mockResolvedValue({ items: [{ ...feed, last_error: '' }], categories: [] })
+    await act(async () => { await client.invalidateQueries({ queryKey: feedsQueryKey }) })
+    await screen.findByText('没有匹配的订阅')
+    await user.click(screen.getByRole('radio', { name: '全部' }))
+    expect(screen.getByText('测试订阅')).toBeInTheDocument()
+  })
+
+  it('编辑 MCP 授权仅保存权限，确认更换后才显示该客户端的新令牌', async () => {
+    const grant = { name: 'Reader', scope: { kind: '', id: '' }, tools: ['article.get'] }
+    mcpGrants.Grants.mockResolvedValue([grant])
+    mcpGrants.MCPServer.mockResolvedValue({ url: '', config: { port: 8769, tools: grant.tools } })
+    mcpGrants.RotateGrantToken.mockResolvedValue('test-replacement')
+    const user = userEvent.setup()
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    await user.click(await screen.findByRole('button', { name: 'MCP 与权限' }))
+    await user.click(await screen.findByRole('button', { name: '编辑' }))
+    const editor = await screen.findByRole('dialog', { name: '编辑客户端授权' })
+    await user.click(await within(editor).findByRole('button', { name: '保存授权' }))
+    await waitFor(() => expect(editor).not.toBeInTheDocument())
+    expect(mcpGrants.UpdateGrant).toHaveBeenCalledWith(grant)
+    expect(mcpGrants.SaveGrant).not.toHaveBeenCalled()
+    expect(mcpGrants.RotateGrantToken).not.toHaveBeenCalled()
+    const rotate = await screen.findByRole('button', { name: '更换令牌' })
+    await user.click(rotate)
+    const confirm = await screen.findByRole('dialog', { name: '更换“Reader”的令牌？' })
+    expect(mcpGrants.RotateGrantToken).not.toHaveBeenCalled()
+    await user.click(within(confirm).getByRole('button', { name: '确认更换' }))
+    expect(await screen.findByRole('textbox', { name: 'Reader的客户端令牌' })).toHaveValue('test-replacement')
+    expect(mcpGrants.RotateGrantToken).toHaveBeenCalledWith('Reader')
   })
 
   it('从 AI 侧栏管理定时任务，返回后保留聊天草稿', async () => {

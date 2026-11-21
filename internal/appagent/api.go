@@ -37,6 +37,10 @@ func (a *API) Grants() []MCPGrant { return a.platform.Grants() }
 func (a *API) SaveGrant(grant MCPGrant, revoke bool) (string, error) {
 	return a.platform.SaveGrant(grant, revoke)
 }
+func (a *API) UpdateGrant(grant MCPGrant) error { return a.platform.UpdateGrant(grant) }
+func (a *API) RotateGrantToken(name string) (string, error) {
+	return a.platform.RotateGrantToken(name)
+}
 
 func (a *API) ImportSkill(ctx context.Context) (Skill, error) {
 	if a.pickSkill == nil {

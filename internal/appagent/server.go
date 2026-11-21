@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net"
 	"net/http"
 	"net/netip"
@@ -160,10 +161,9 @@ func (a *Platform) SaveMCPServer(config ServerConfig) error {
 func (a *Platform) RotateMCPToken() (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	value := rand.Text() + rand.Text()
-	digest := sha256.Sum256([]byte(value))
+	value, digest := newMCPToken()
 	next := a.state
-	next.TokenDigest = hex.EncodeToString(digest[:])
+	next.TokenDigest = digest
 	if err := a.configure(next, false); err != nil {
 		return "", err
 	}
@@ -302,6 +302,15 @@ func (a *Platform) Grants() []MCPGrant {
 }
 
 func (a *Platform) SaveGrant(grant MCPGrant, revoke bool) (string, error) {
+	return a.saveGrant(grant, revoke, false)
+}
+
+func (a *Platform) UpdateGrant(grant MCPGrant) error {
+	_, err := a.saveGrant(grant, false, true)
+	return err
+}
+
+func (a *Platform) saveGrant(grant MCPGrant, revoke, update bool) (string, error) {
 	if !clientName.MatchString(grant.Name) {
 		return "", errors.New("InvalidClientSettings")
 	}
@@ -316,10 +325,17 @@ func (a *Platform) SaveGrant(grant MCPGrant, revoke bool) (string, error) {
 		delete(next.Clients, grant.Name)
 		return "", a.configure(next, false)
 	}
+	existing, exists := next.Clients[grant.Name]
+	if update && !exists {
+		return "", errors.New("ClientGrantNotFound")
+	}
+	if !update && exists {
+		return "", errors.New("ClientGrantExists")
+	}
 	if (grant.Scope.Kind != "" && (grant.Scope.Kind != "feed" && grant.Scope.Kind != "category" || grant.Scope.ID == "")) || len(grant.Scope.ID) > 128 {
 		return "", errors.New("InvalidClientScope")
 	}
-	if _, ok := next.Clients[grant.Name]; !ok && len(next.Clients) >= 32 {
+	if !exists && len(next.Clients) >= 32 {
 		return "", errors.New("TooManyClients")
 	}
 	for _, name := range grant.Tools {
@@ -327,15 +343,41 @@ func (a *Platform) SaveGrant(grant MCPGrant, revoke bool) (string, error) {
 			return "", errors.New("UnknownTool")
 		}
 	}
-	value := rand.Text() + rand.Text()
-	digest := sha256.Sum256([]byte(value))
-	next.Clients[grant.Name] = clientGrant{Digest: hex.EncodeToString(digest[:]), Tools: slices.Clone(grant.Tools), Scope: grant.Scope}
+	var value string
+	if !update {
+		value, existing.Digest = newMCPToken()
+	}
+	existing.Tools, existing.Scope = slices.Clone(grant.Tools), grant.Scope
+	next.Clients[grant.Name] = existing
 	if err := a.configure(next, false); err != nil {
 		return "", err
 	}
 	return value, nil
 }
 
+func (a *Platform) RotateGrantToken(name string) (string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	grant, exists := a.state.Clients[name]
+	if !exists {
+		return "", errors.New("ClientGrantNotFound")
+	}
+	value, digest := newMCPToken()
+	grant.Digest = digest
+	next := a.state
+	next.Clients = maps.Clone(next.Clients)
+	next.Clients[name] = grant
+	if err := a.configure(next, false); err != nil {
+		return "", err
+	}
+	return value, nil
+}
+
+func newMCPToken() (string, string) {
+	value := rand.Text() + rand.Text()
+	digest := sha256.Sum256([]byte(value))
+	return value, hex.EncodeToString(digest[:])
+}
 func (a *Platform) newMCPServer(config ServerConfig, tools []string, scope MCPScope, principal string) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: "Fealdhord", Version: "1"}, nil)
 	for _, original := range a.registry.tools {

@@ -58,6 +58,10 @@ export function RecentAudit(): $CancellablePromise<$models.AuditEntry[] | null> 
     return $Call.ByID(3140995925);
 }
 
+export function RotateGrantToken(name: string): $CancellablePromise<string> {
+    return $Call.ByID(2865056481, name);
+}
+
 export function RotateMCPToken(): $CancellablePromise<string> {
     return $Call.ByID(2367635639);
 }
@@ -84,4 +88,8 @@ export function Skills(): $CancellablePromise<$models.Skill[] | null> {
 
 export function ToolList(): $CancellablePromise<$models.Tool[] | null> {
     return $Call.ByID(3802819707);
+}
+
+export function UpdateGrant(grant: $models.MCPGrant): $CancellablePromise<void> {
+    return $Call.ByID(2870472278, grant);
 }

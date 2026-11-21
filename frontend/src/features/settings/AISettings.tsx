@@ -73,6 +73,16 @@ export function AISettings() {
   const [testingModel, setTestingModel] = useState<Model | null>(null)
   const [testRunning, setTestRunning] = useState(false)
   const testRequest = useRef<ReturnType<typeof api.TestConnection> | null>(null)
+  const editorTrigger = useRef<HTMLButtonElement | null>(null)
+  const pendingEditorFocus = useRef<HTMLButtonElement | null>(null)
+  const busy = mutation.isPending || savingProvider || testRunning
+
+  useEffect(() => {
+    if (!busy && pendingEditorFocus.current) {
+      pendingEditorFocus.current.focus()
+      pendingEditorFocus.current = null
+    }
+  }, [busy])
 
   useEffect(() => () => {
     const pending = testRequest.current
@@ -113,7 +123,8 @@ export function AISettings() {
     setClearKey(false)
   }
 
-  function openNewModel(providerId: string) {
+  function openNewModel(providerId: string, trigger: HTMLButtonElement) {
+    editorTrigger.current = trigger
     mutation.reset()
     setModel({ id: '', revision: 0, providerId, name: '', displayName: '', enabled: true, reasoningLevels: defaultReasoningLevels })
   }
@@ -132,7 +143,14 @@ export function AISettings() {
     </SettingCard>
   )
 
-  const busy = mutation.isPending || savingProvider || testRunning
+  function restoreEditorFocus(event: Event) {
+    event.preventDefault()
+    const trigger = editorTrigger.current
+    editorTrigger.current = null
+    if (!trigger?.isConnected) return
+    if (trigger.disabled) pendingEditorFocus.current = trigger
+    else trigger.focus()
+  }
   const groupedModels = providers.map(service => ({
     provider: service,
     items: models.filter(item => item.providerId === service.id),
@@ -142,7 +160,7 @@ export function AISettings() {
   return <div className="space-y-6">
     <SettingSection
       title="AI 服务"
-      actions={<Button size="sm" variant="outline" disabled={busy} onClick={() => editProvider(newProvider)}><AnimatedGlyph meaning="plus" />添加服务</Button>}
+      actions={<Button size="sm" variant="outline" disabled={busy} onClick={event => { editorTrigger.current = event.currentTarget; editProvider(newProvider) }}><AnimatedGlyph meaning="plus" />添加服务</Button>}
     >
       <SettingCard>
         {providers.length === 0 ? (
@@ -158,8 +176,8 @@ export function AISettings() {
               {item.baseUrl && <p className="truncate text-xs text-muted-foreground">{item.baseUrl}</p>}
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-1">
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => openNewModel(item.id)}>添加模型</Button>
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => editProvider(item)}>编辑</Button>
+              <Button size="sm" variant="ghost" disabled={busy} onClick={event => openNewModel(item.id, event.currentTarget)}>添加模型</Button>
+              <Button size="sm" variant="ghost" disabled={busy} onClick={event => { editorTrigger.current = event.currentTarget; editProvider(item) }}>编辑</Button>
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => { mutation.reset(); setDeletingProvider(item) }}>删除</Button>
             </div>
           </SettingRow>
@@ -181,7 +199,7 @@ export function AISettings() {
                   <span className="truncate text-xs font-medium text-muted-foreground">{service.name}</span>
                   {!service.enabled && <StatusBadge tone="muted">服务已停用</StatusBadge>}
                 </div>
-                <Button size="xs" variant="ghost" disabled={busy} onClick={() => openNewModel(service.id)}>
+                <Button size="xs" variant="ghost" disabled={busy} onClick={event => openNewModel(service.id, event.currentTarget)}>
                   <AnimatedGlyph meaning="plus" />添加模型
                 </Button>
               </div>
@@ -241,7 +259,7 @@ export function AISettings() {
 
     <Dialog open={Boolean(provider)} onOpenChange={open => { if (!open && !savingProvider) editProvider(null) }}>
       {provider && (
-        <DialogContent aria-describedby={undefined} className="max-h-[85dvh] overflow-y-auto sm:max-w-md">
+        <DialogContent aria-describedby={undefined} className="max-h-[85dvh] overflow-y-auto sm:max-w-md" onCloseAutoFocus={restoreEditorFocus}>
           <DialogHeader>
             <DialogTitle>{provider.id ? '编辑服务' : '添加服务'}</DialogTitle>
           </DialogHeader>
@@ -302,7 +320,7 @@ export function AISettings() {
 
     <Dialog open={Boolean(model)} onOpenChange={open => { if (!open && !busy) { setModel(null); mutation.reset() } }}>
       {model && (
-        <DialogContent aria-describedby={undefined} className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
+        <DialogContent aria-describedby={undefined} className="max-h-[85dvh] overflow-y-auto sm:max-w-lg" onCloseAutoFocus={restoreEditorFocus}>
           <DialogHeader>
             <DialogTitle>{model.id ? '编辑模型' : '添加模型'}</DialogTitle>
           </DialogHeader>
@@ -499,7 +517,7 @@ export function AISettings() {
           </HoverCard>
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <Button size="sm" variant="ghost" disabled={busy || !activeModels.includes(item)} onClick={() => setTestingModel(item)}>测试连接</Button>
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => { mutation.reset(); setModel(item) }}>编辑</Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={event => { editorTrigger.current = event.currentTarget; mutation.reset(); setModel(item) }}>编辑</Button>
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => { mutation.reset(); setDeletingModel(item) }}>删除</Button>
           </div>
         </div>

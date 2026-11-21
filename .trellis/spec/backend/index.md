@@ -13,6 +13,7 @@
 | [受控网络与 Feed 解析](network-guidelines.md) | SSRF、压缩限额与三格式解析契约 |
 | [错误与取消](error-handling.md) | 对应行为与验证门禁 |
 | [文章 AI 评估](article-ai-guidelines.md) | 快照、预算、来源与精选游标 |
+| [MCP 客户端授权](mcp-grants.md) | 创建、修改权限、轮换令牌与撤销 |
 | [日志与执行审计](logging-guidelines.md) | 对应行为与验证门禁 |
 | [后端质量与验证](quality-guidelines.md) | 对应行为与验证门禁 |
 

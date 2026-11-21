@@ -203,7 +203,7 @@ export function ArticleAISettings() {
             </div>
             <SettingRow className="bg-muted/25">
               <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-                启用后会向已分配模型发送近期文章标题、摘要和部分正文。
+                启用后会向已分配模型发送近期文章标题、摘要和部分正文。自动分类还会发送分类名称、描述及自定义提示词。
               </p>
               <Button type="submit" size="sm" disabled={busy || !draft}>保存文章 AI 设置</Button>
             </SettingRow>
