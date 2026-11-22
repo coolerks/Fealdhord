@@ -1325,3 +1325,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 50: 飞书和 Lark 私聊配对排查
+<!-- trellis-session: v=2 fp=dbe37e121ee393fb -->
+
+**Date**: 2026-11-22
+**Task**: 飞书和 Lark 私聊配对排查
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+复用收件事件状态区分 SDK 长连接与真实私聊，补齐飞书和 Lark 私聊及发消息权限指引。官方 SDK 回环、通知竞态、Go 全量和前端 165 项测试通过，真实飞书账号待复测。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cb3b32d` | fix(notification): 区分飞书长连接与私聊配对状态 |
+
+### Status
+
+[OK] **Completed**
