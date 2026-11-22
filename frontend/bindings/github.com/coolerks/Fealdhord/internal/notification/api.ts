@@ -17,8 +17,16 @@ export function AcknowledgeLocalNotice(id: string, occurrence: number): $Cancell
     return $Call.ByID(609856251, id, occurrence);
 }
 
+export function CancelRecipientPairing(id: string): $CancellablePromise<void> {
+    return $Call.ByID(1745716967, id);
+}
+
 export function CancelWeChatBinding(id: string): $CancellablePromise<void> {
     return $Call.ByID(271622861, id);
+}
+
+export function CompleteWeChatBinding(id: string, input: $models.ChannelInput): $CancellablePromise<$models.Channel> {
+    return $Call.ByID(317641650, id, input);
 }
 
 export function DeleteChannel(id: string, revision: number): $CancellablePromise<void> {
@@ -57,8 +65,8 @@ export function ListTasks(): $CancellablePromise<$models.Task[] | null> {
     return $Call.ByID(3495271926);
 }
 
-export function PollWeChatBinding(id: string, pin: string, name: string): $CancellablePromise<$models.WeChatBinding> {
-    return $Call.ByID(2715266292, id, pin, name);
+export function PollWeChatBinding(id: string, pin: string, listen: boolean): $CancellablePromise<$models.WeChatBinding> {
+    return $Call.ByID(2715266292, id, pin, listen);
 }
 
 export function PreviewRule(input: $models.Rule): $CancellablePromise<$models.RulePreview> {
@@ -67,6 +75,14 @@ export function PreviewRule(input: $models.Rule): $CancellablePromise<$models.Ru
 
 export function PreviewTask(input: $models.Task): $CancellablePromise<number> {
     return $Call.ByID(252287965, input);
+}
+
+export function RecipientPairingStatus(id: string): $CancellablePromise<$models.PairingStatus> {
+    return $Call.ByID(4208952735, id);
+}
+
+export function ResumeWeChatBinding(input: $models.ChannelInput): $CancellablePromise<$models.WeChatBinding> {
+    return $Call.ByID(909671086, input);
 }
 
 export function RetryDelivery(id: string): $CancellablePromise<void> {
@@ -87,6 +103,10 @@ export function SaveTask(input: $models.Task): $CancellablePromise<$models.Task>
 
 export function SendArticle(input: $models.ArticleShare): $CancellablePromise<void> {
     return $Call.ByID(974845944, input);
+}
+
+export function StartRecipientPairing(input: $models.ChannelInput, slackAppToken: string): $CancellablePromise<$models.PairingStatus> {
+    return $Call.ByID(3426582233, input, slackAppToken);
 }
 
 export function StartWeChatBinding(): $CancellablePromise<$models.WeChatBinding> {

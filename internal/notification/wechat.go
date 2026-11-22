@@ -25,23 +25,25 @@ const wechatVersion = "3.0.1"
 const wechatClientVersion = "196609" // 3.0.1 encoded as 0x00MMNNPP.
 
 type wechatBinding struct {
-	mu          sync.Mutex
-	id          string
-	qr          string
-	owner       string
-	token       string
-	base        string
-	statusBase  string
-	cursor      string
-	expiry      time.Time
-	pinAccepted bool
+	mu           sync.Mutex
+	id           string
+	qr           string
+	owner        string
+	token        string
+	base         string
+	statusBase   string
+	cursor       string
+	contextToken string
+	expiry       time.Time
+	listenSince  int64
+	pinAccepted  bool
 }
 
 type WeChatBinding struct {
-	ID      string   `json:"id"`
-	Image   string   `json:"image,omitempty"`
-	Status  string   `json:"status"`
-	Channel *Channel `json:"channel,omitempty"`
+	ID     string `json:"id"`
+	Image  string `json:"image,omitempty"`
+	Status string `json:"status"`
+	Target string `json:"target,omitempty"`
 }
 
 func trustedWeChatOrigin(raw string) string {
@@ -80,6 +82,8 @@ func (s *Service) startWeChatBinding(ctx context.Context) (WeChatBinding, error)
 	s.wechat.id, s.wechat.qr, s.wechat.expiry = id, qr.QRCode, s.now().Add(8*time.Minute)
 	s.wechat.owner, s.wechat.token, s.wechat.cursor, s.wechat.base, s.wechat.statusBase = "", "", "", "", wechatBase
 	s.wechat.pinAccepted = false
+	s.wechat.contextToken = ""
+	s.wechat.listenSince = 0
 	return WeChatBinding{ID: id, Status: "wait", Image: "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)}, nil
 }
 
@@ -87,11 +91,11 @@ func (s *Service) cancelWeChatBinding(id string) {
 	s.wechat.mu.Lock()
 	defer s.wechat.mu.Unlock()
 	if s.wechat.id == id {
-		s.wechat.id, s.wechat.qr, s.wechat.owner, s.wechat.token, s.wechat.cursor = "", "", "", "", ""
+		s.wechat.clear()
 	}
 }
 
-func (s *Service) pollWeChatBinding(ctx context.Context, id, pin, name string) (WeChatBinding, error) {
+func (s *Service) pollWeChatBinding(ctx context.Context, id, pin string, listen bool) (WeChatBinding, error) {
 	session := &s.wechat
 	session.mu.Lock()
 	defer session.mu.Unlock()
@@ -152,6 +156,15 @@ func (s *Service) pollWeChatBinding(ctx context.Context, id, pin, name string) (
 			return WeChatBinding{ID: id, Status: status.Status}, nil
 		}
 	}
+	if session.contextToken != "" {
+		return WeChatBinding{ID: id, Status: "connected", Target: session.owner}, nil
+	}
+	if !listen {
+		return WeChatBinding{ID: id, Status: "await_message", Target: session.owner}, nil
+	}
+	if session.listenSince == 0 {
+		session.listenSince = s.now().Truncate(time.Second).UnixMilli()
+	}
 	client := s.transport.wechatClient(session.token, session.base)
 	updates, err := client.GetUpdates(ctx, session.cursor, 8000)
 	if err != nil || updates == nil {
@@ -167,20 +180,67 @@ func (s *Service) pollWeChatBinding(ctx context.Context, id, pin, name string) (
 		session.cursor = updates.GetUpdatesBuf
 	}
 	for _, message := range updates.Msgs {
-		if message.FromUserID != session.owner || message.ContextToken == "" {
+		if message.FromUserID != session.owner || message.ContextToken == "" || message.MessageType != ilink.MsgTypeUser || message.GroupID != "" ||
+			(message.CreateTimeMs != 0 && message.CreateTimeMs < session.listenSince) {
 			continue
 		}
-		channel, err := s.SaveChannel(ctx, ChannelInput{
-			Channel: Channel{Name: name, Platform: "wechat", Target: session.owner, Enabled: true},
-			Address: session.token, Context: message.ContextToken, Signing: session.base,
-		})
-		if err != nil {
-			return WeChatBinding{}, err
+		for _, item := range message.ItemList {
+			if item.Type == ilink.ItemText && item.TextItem != nil && isPairingText(item.TextItem.Text) {
+				session.contextToken = message.ContextToken
+				return WeChatBinding{ID: id, Status: "connected", Target: session.owner}, nil
+			}
 		}
-		session.id, session.qr, session.token, session.owner, session.cursor = "", "", "", "", ""
-		return WeChatBinding{Status: "connected", Channel: &channel}, nil
 	}
-	return WeChatBinding{ID: id, Status: "await_message"}, nil
+	return WeChatBinding{ID: id, Status: "await_message", Target: session.owner}, nil
+}
+
+func (w *wechatBinding) clear() {
+	w.id, w.qr, w.owner, w.token, w.cursor, w.contextToken, w.base = "", "", "", "", "", "", ""
+	w.listenSince = 0
+}
+
+func (s *Service) resumeWeChatBinding(ctx context.Context, input ChannelInput) (WeChatBinding, error) {
+	row, err := s.q.GetNotificationChannel(ctx, input.ID)
+	if err != nil || row.Platform != "wechat" || row.Revision != input.Revision {
+		return WeChatBinding{}, errors.New("渠道配置已变化")
+	}
+	secret, err := s.secret(row.CredentialRef)
+	if err != nil {
+		return WeChatBinding{}, err
+	}
+	id := rand.Text()
+	w := &s.wechat
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.clear()
+	w.id, w.owner, w.token, w.base = id, row.Target, secret.Address, secret.Signing
+	w.expiry = s.now().Add(8 * time.Minute)
+	return WeChatBinding{ID: id, Status: "await_message", Target: row.Target}, nil
+}
+
+func (s *Service) completeWeChatBinding(ctx context.Context, id string, input ChannelInput) (Channel, error) {
+	w := &s.wechat
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if id == "" || id != w.id || s.now().After(w.expiry) || w.token == "" {
+		return Channel{}, errors.New("微信扫码凭据已失效，请重新绑定")
+	}
+	input.Platform, input.Mode, input.Target = "wechat", "", w.owner
+	if input.ID != "" && w.contextToken == "" {
+		return Channel{}, errors.New("请先完成配对，或保存现有配置")
+	}
+	input.Address, input.Signing, input.Context = w.token, w.base, w.contextToken
+	// A scanned account can be saved without recipients. It stays unverified until paired and tested.
+	if w.contextToken == "" {
+		input.Targets = []string{}
+	} else if input.Targets == nil {
+		input.Targets = []string{w.owner}
+	}
+	channel, err := s.SaveChannel(ctx, input)
+	if err == nil {
+		w.clear()
+	}
+	return channel, err
 }
 
 func (t transport) wechatClient(token, origin string) *ilink.Client {

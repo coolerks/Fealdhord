@@ -39,6 +39,7 @@ type Service struct {
 	wake        chan struct{}
 	configMu    sync.Mutex
 	wechat      wechatBinding
+	pairing     recipientPairing
 }
 
 func New(store *database.Store, credentials Credentials, summarize Summarizer) *Service {
@@ -161,7 +162,13 @@ func (s *Service) Start(parent context.Context, initialRefresh <-chan struct{}) 
 			}
 		}
 	}()
-	return func() { cancel(); <-done; <-heartbeatDone; <-tasksDone }
+	return func() {
+		s.pairing.stop("")
+		cancel()
+		<-done
+		<-heartbeatDone
+		<-tasksDone
+	}
 }
 
 func (s *Service) deliver(ctx context.Context) (bool, error) {

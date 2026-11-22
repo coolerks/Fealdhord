@@ -53,6 +53,13 @@ export interface LocalNotice {
     "body": string;
 }
 
+export interface PairingStatus {
+    "id": string;
+    "state": string;
+    "targets": string[] | null;
+    "detail"?: string;
+}
+
 export interface Recipient {
     "id": string;
     "target": string;
@@ -100,5 +107,5 @@ export interface WeChatBinding {
     "id": string;
     "image"?: string;
     "status": string;
-    "channel"?: Channel | null;
+    "target"?: string;
 }

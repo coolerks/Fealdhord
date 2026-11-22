@@ -81,7 +81,7 @@ func TestWeChatBindingKeepsTokenInCredentialStore(t *testing.T) {
 			if r.Header.Get("Authorization") != "Bearer "+botToken {
 				t.Fatal("getupdates did not preserve opaque token")
 			}
-			return response(200, `{"ret":0,"msgs":[{"from_user_id":"other","context_token":"wrong"},{"from_user_id":"owner@im.wechat","context_token":"local_context"}]}`), nil
+			return response(200, `{"ret":0,"msgs":[{"from_user_id":"other","context_token":"wrong"},{"from_user_id":"owner@im.wechat","message_type":1,"context_token":"local_context","item_list":[{"type":1,"text_item":{"text":"配对"}}]}]}`), nil
 		case "/ilink/bot/sendmessage":
 			if r.Header.Get("Authorization") != "Bearer "+botToken {
 				t.Fatal("sendmessage did not use the stored token")
@@ -101,20 +101,28 @@ func TestWeChatBindingKeepsTokenInCredentialStore(t *testing.T) {
 		t.Fatalf("QR error=%v", err)
 	}
 	for _, step := range []struct{ pin, status string }{{"", "scaned"}, {"", "need_verifycode"}, {"1234", "scaned"}} {
-		got, err := service.pollWeChatBinding(t.Context(), qr.ID, step.pin, "我的微信")
+		got, err := service.pollWeChatBinding(t.Context(), qr.ID, step.pin, false)
 		if err != nil || got.Status != step.status {
 			t.Fatalf("expected %s, got %s, err=%v", step.status, got.Status, err)
 		}
 	}
-	result, err := service.pollWeChatBinding(t.Context(), qr.ID, "1234", "我的微信")
-	if err != nil || result.Status != "connected" || result.Channel == nil || result.Channel.Verified {
+	result, err := service.pollWeChatBinding(t.Context(), qr.ID, "1234", true)
+	if err != nil || result.Status != "connected" || result.Target != "owner@im.wechat" {
 		t.Fatalf("result=%+v err=%v", result, err)
 	}
 	data, _ := json.Marshal(result)
 	if strings.Contains(string(data), botToken) || strings.Contains(string(data), "local_context") {
 		t.Fatal("credential returned to frontend")
 	}
-	if err := service.TestChannel(t.Context(), result.Channel.ID); err != nil {
+	channels, err := service.ListChannels(t.Context())
+	if err != nil || len(channels) != 0 {
+		t.Fatalf("pairing wrote a channel before confirmation: %v %v", channels, err)
+	}
+	channel, err := service.completeWeChatBinding(t.Context(), qr.ID, ChannelInput{Channel: Channel{Name: "我的微信", Enabled: true}})
+	if err != nil || channel.Verified {
+		t.Fatalf("channel=%+v err=%v", channel, err)
+	}
+	if err := service.TestChannel(t.Context(), channel.ID); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -138,8 +146,61 @@ func TestWeChatBindingStopsOnRevokedBotSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	status, err := service.pollWeChatBinding(t.Context(), qr.ID, "", "微信")
-	if err != nil || status.Status != "expired" || status.Channel != nil {
+	status, err := service.pollWeChatBinding(t.Context(), qr.ID, "", true)
+	if err != nil || status.Status != "expired" || status.Target != "" {
 		t.Fatalf("expected terminal expired status, got %s, err=%v", status.Status, err)
+	}
+}
+
+func TestWeChatSkippedPairingCanResume(t *testing.T) {
+	service, _ := newTestNotification(t)
+	updateCalls := 0
+	service.transport.client.Transport = sender(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/ilink/bot/get_bot_qrcode":
+			return response(200, `{"qrcode":"sample-code","qrcode_img_content":"sample-qr-payload"}`), nil
+		case "/ilink/bot/get_qrcode_status":
+			return response(200, `{"status":"confirmed","ilink_user_id":"owner@im.wechat","bot_token":"sample","baseurl":"https://ilinkai.weixin.qq.com"}`), nil
+		case "/ilink/bot/getupdates":
+			updateCalls++
+			if updateCalls == 1 {
+				return response(200, `{"ret":0,"msgs":[{"from_user_id":"owner@im.wechat","context_token":"ignored","message_type":1,"item_list":[{"type":1,"text_item":{"text":"请配对"}}]}]}`), nil
+			}
+			return response(200, `{"ret":0,"msgs":[{"from_user_id":"owner@im.wechat","context_token":"paired","message_type":1,"item_list":[{"type":1,"text_item":{"text":"配对"}}]}]}`), nil
+		default:
+			t.Errorf("unrecognized request %s", r.URL.Path)
+			return response(500, "{}"), nil
+		}
+	})
+	ctx := t.Context()
+	qr, err := service.startWeChatBinding(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := service.pollWeChatBinding(ctx, qr.ID, "", false)
+	if err != nil || status.Status != "await_message" || updateCalls != 0 {
+		t.Fatalf("QR confirmation status=%+v, err=%v, update calls=%d", status, err, updateCalls)
+	}
+	input := ChannelInput{Channel: Channel{Name: "微信", Enabled: true}}
+	channel, err := service.completeWeChatBinding(ctx, qr.ID, input)
+	if err != nil || channel.Verified || len(channel.Recipients) != 0 {
+		t.Fatalf("skipped channel=%+v, err=%v", channel, err)
+	}
+	input.Channel = channel
+	pair, err := service.resumeWeChatBinding(ctx, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err = service.pollWeChatBinding(ctx, pair.ID, "", true)
+	if err != nil || status.Status != "await_message" {
+		t.Fatalf("non-matching message returned %+v, err=%v", status, err)
+	}
+	status, err = service.pollWeChatBinding(ctx, pair.ID, "", true)
+	if err != nil || status.Status != "connected" {
+		t.Fatalf("matching message returned %+v, err=%v", status, err)
+	}
+	channel, err = service.completeWeChatBinding(ctx, pair.ID, input)
+	if err != nil || channel.ID != input.ID || len(channel.Recipients) != 1 || channel.Recipients[0].Target != status.Target {
+		t.Fatalf("repaired channel=%+v, err=%v", channel, err)
 	}
 }

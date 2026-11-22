@@ -29,6 +29,22 @@ func (s *Service) checkRecipients(ctx context.Context, channel Channel, secret c
 	if channel.Mode == "app" && !validAppCredentials(channel.Platform, secret) {
 		return nil, errors.New("请检查应用机器人凭据")
 	}
+	if len(targets) == 0 {
+		switch channel.Platform {
+		case "telegram":
+			if err := checkConnection("telegram", "1", secret); err != nil {
+				return nil, errors.New("请填写有效的 Telegram Bot Token")
+			}
+		case "qq":
+			if err := checkConnection("qq", "c2c:1", secret); err != nil {
+				return nil, errors.New("请填写有效的 QQ AppID 和 AppSecret")
+			}
+		case "wechat":
+			if !wechatTokenPattern.MatchString(secret.Address) {
+				return nil, errors.New("请扫码绑定微信私聊")
+			}
+		}
+	}
 	if len(targets) > 50 {
 		return nil, errors.New("每个连接最多添加 50 个收件目标")
 	}

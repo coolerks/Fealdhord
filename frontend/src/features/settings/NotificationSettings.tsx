@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
@@ -9,9 +10,19 @@ import { defaultZone, FlagField, Selection, TextField, time, toggle, zones } fro
 import { navigationAPI, navigationQueryKey } from '@/lib/navigation-api'
 import { ConfirmDialog, SettingCard, SettingEmpty, SettingRow, SettingSection, StatusBadge } from './settings-primitives'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/notification/api'
-import type { Channel, ChannelInput, Rule, WeChatBinding } from '../../../bindings/github.com/coolerks/Fealdhord/internal/notification/models'
+import type { Channel, ChannelInput, PairingStatus, Rule, WeChatBinding } from '../../../bindings/github.com/coolerks/Fealdhord/internal/notification/models'
 
 const key = ['notifications']
+const pairingInstructions: Record<string, string> = {
+  telegram: '在 Telegram 里给机器人发送「配对」。要绑定群聊，请在机器人能接收消息的群里发送。',
+  qq: '私聊发送「配对」，或在普通 QQ 群、QQ 频道的文字子频道中 @机器人并发送「配对」。',
+  discord: '在 Discord 里私信机器人「配对」。',
+  slack: '在 Slack 应用中启用 Socket Mode 并订阅 message.im，再私聊机器人发送「配对」。',
+  dingtalk: '启用机器人的 Stream 模式。在钉钉里私聊机器人发送「配对」。',
+  feishu: '为应用启用长连接并订阅接收消息事件，然后私聊机器人发送「配对」。',
+  lark: '为应用启用长连接并订阅接收消息事件，然后私聊机器人发送「配对」。',
+  wechat: '在「微信 ClawBot」私聊里发送「配对」。',
+}
 const terminalWeChatStatuses = ['connected', 'expired', 'verify_code_blocked', 'binded_redirect']
 const platforms = [
   { value: 'telegram', label: 'Telegram' }, { value: 'discord', label: 'Discord' }, { value: 'slack', label: 'Slack' },
@@ -52,6 +63,25 @@ export function NotificationSettings() {
   const navigation = useQuery({ queryKey: navigationQueryKey, queryFn: () => navigationAPI.list() })
   const [channel, setChannel] = useState<ChannelInput>()
   const [recipientText, setRecipientText] = useState('')
+  const [channelStep, setChannelStep] = useState(1)
+  const [pairing, setPairing] = useState<PairingStatus>()
+  const [slackAppToken, setSlackAppToken] = useState('')
+  const pairedTargets = recipientText.split(/[\s,，]+/u).filter(Boolean)
+  const pairingID = pairing?.id
+  const pairingPoll = useQuery({
+    queryKey: [...key, 'pairing', pairingID],
+    queryFn: () => api.RecipientPairingStatus(pairingID!),
+    enabled: Boolean(pairingID) && channelStep === 2,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchInterval: query => query.state.status === 'error' ||
+      ['failed', 'expired'].includes(query.state.data?.state ?? '') ? false : 750,
+  })
+  useEffect(() => {
+    if (!pairingID) return
+    return () => { void api.CancelRecipientPairing(pairingID) }
+  }, [pairingID])
   const [rule, setRule] = useState<Rule>()
   const preview = useQuery({
     queryKey: [...key, 'rule-preview', rule?.timezone, rule?.send_at, rule?.window_start, rule?.window_end],
@@ -63,24 +93,27 @@ export function NotificationSettings() {
   const [pin, setPin] = useState('')
   const [verifiedPin, setVerifiedPin] = useState<{ value: string; attempt: number }>()
   const wechatPoll = useQuery({
-    queryKey: [...key, 'wechat', wechat?.id, verifiedPin?.attempt],
+    queryKey: [...key, 'wechat', wechat?.id, verifiedPin?.attempt, channelStep],
     queryFn: async ({ signal }) => {
-      const request = api.PollWeChatBinding(wechat!.id, verifiedPin?.value ?? '', channel!.name)
+      const request = api.PollWeChatBinding(wechat!.id, verifiedPin?.value ?? '', channelStep === 2)
       const cancel = () => { void request.cancel() }
       if (signal.aborted) cancel()
       else signal.addEventListener('abort', cancel, { once: true })
       try { return await request } finally { signal.removeEventListener('abort', cancel) }
     },
-    enabled: Boolean(wechat?.id) && channel?.platform === 'wechat' && !channel.id,
+    enabled: Boolean(wechat?.id) && channel?.platform === 'wechat' && channelStep < 3,
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchInterval: query => query.state.status === 'error' || terminalWeChatStatuses.includes(query.state.data?.status ?? '') ||
-      query.state.data?.status.includes('need_verifycode') ? false : 1200,
+      query.state.data?.status.includes('need_verifycode') ||
+      (channelStep === 1 && query.state.data?.status === 'await_message') ? false : 1200,
   })
+  const wechatID = wechat?.id
   useEffect(() => {
-    if (wechatPoll.data?.status === 'connected') void client.invalidateQueries({ queryKey: [...key, 'channels'] })
-  }, [client, wechatPoll.data?.status])
+    if (!wechatID) return
+    return () => { void api.CancelWeChatBinding(wechatID) }
+  }, [wechatID])
 
   const [showHistory, setShowHistory] = useState(false)
   const [confirmation, setConfirmation] = useState<{ title: string; description: string; label: string; destructive: boolean; run: () => Promise<unknown> }>()
@@ -98,13 +131,16 @@ export function NotificationSettings() {
   }
 
   const busy = mutation.isPending
-  const bindingStatus = wechatPoll.data?.status ?? wechat?.status
-  const bindingMode = channel?.platform === 'wechat' && !channel.id
+  const currentWeChat = wechatPoll.data ?? wechat
+  const bindingStatus = currentWeChat?.status
+  const wechatMode = channel?.platform === 'wechat'
+  const bindingMode = wechatMode && !channel.id
+  const pairStatus = pairingPoll.data ?? pairing
   const appMode = channel?.mode === 'app'
   const webhookMode = Boolean(channel && appPlatforms.includes(channel.platform) && !appMode)
   const savedRecipients = channels.data?.find(value => value.id === channel?.id)?.recipients ?? []
   const wechatOptions = channel?.platform === 'wechat' ? [
-    { value: channel.target, label: '当前绑定私聊' },
+    ...(channel.target ? [{ value: channel.target, label: '当前绑定私聊' }] : []),
     ...(channels.data ?? []).filter(value => value.id !== channel.id && value.platform === 'wechat' && value.enabled)
       .map(value => ({ value: `binding:${value.id}`, label: value.name })),
   ] : []
@@ -124,13 +160,13 @@ export function NotificationSettings() {
     mutation.reset()
     setChannel({ ...value, targets, address: '', signing: '', context: '', media_app_id: '', media_secret: '' })
     setRecipientText(targets.join('\n'))
+    setChannelStep(3)
   }
 
   function closeChannelDialog() {
-    if (wechat?.id && bindingStatus !== 'connected') {
-      void client.cancelQueries({ queryKey: [...key, 'wechat', wechat.id] })
-      void api.CancelWeChatBinding(wechat.id)
-    }
+    void client.cancelQueries({ queryKey: [...key, 'wechat'] })
+    setPairing(undefined)
+    setSlackAppToken('')
     setWeChat(undefined)
     setPin('')
     setVerifiedPin(undefined)
@@ -145,6 +181,7 @@ export function NotificationSettings() {
         <Button size="sm" variant="outline" disabled={busy} onClick={() => {
           mutation.reset()
           setRecipientText('')
+          setChannelStep(1)
           setChannel(blankChannel)
         }}>
           <AnimatedGlyph meaning="plus" />添加渠道
@@ -266,31 +303,86 @@ export function NotificationSettings() {
           <DialogHeader>
             <DialogTitle>{channel.id ? '编辑渠道' : '添加渠道'}</DialogTitle>
           </DialogHeader>
+          {!webhookMode && (
+            <ol aria-label="设置进度" className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+              {['填写凭据', '配对收件目标', '确认配置'].map((label, index) => (
+                <li key={label} aria-current={channelStep === index + 1 ? 'step' : undefined}
+                  className={channelStep === index + 1 ? 'font-semibold text-foreground' : undefined}>
+                  {index + 1}. {label}
+                </li>
+              ))}
+            </ol>
+          )}
           <FieldGroup>
-            <TextField id="channel-name" label="渠道名称" value={channel.name} disabled={Boolean(wechat) || busy} onChange={value => setChannelField('name', value)} />
-            <Selection id="channel-platform" label="平台" options={platforms} value={channel.platform} disabled={Boolean(channel.id || wechat) || busy} onChange={value => {
-              setChannel({ ...blankChannel, platform: value, name: channel.name })
-              setRecipientText('')
-            }} />
-            {appPlatforms.includes(channel.platform) && (
-              <Selection
-                id="channel-mode"
-                label="接入方式"
-                options={[{ value: 'webhook', label: '群或频道 Webhook' }, { value: 'app', label: '应用机器人私发' }]}
-                value={appMode ? 'app' : 'webhook'}
-                disabled={Boolean(channel.id)}
-                onChange={value => {
-                  setChannel({ ...blankChannel, platform: channel.platform, name: channel.name, mode: value === 'app' ? 'app' : '' })
-                  setRecipientText('')
-                }}
-              />
-            )}
-            {!bindingMode && (
+            {channelStep !== 2 && <>
+              <TextField id="channel-name" label="渠道名称" value={channel.name} disabled={busy} onChange={value => setChannelField('name', value)} />
+              <Selection id="channel-platform" label="平台" options={platforms} value={channel.platform} disabled={Boolean(channel.id || wechat) || busy || channelStep === 3} onChange={value => {
+                setChannel({ ...blankChannel, platform: value, name: channel.name })
+                setSlackAppToken('')
+                setRecipientText('')
+              }} />
+              {appPlatforms.includes(channel.platform) && (
+                <Selection
+                  id="channel-mode"
+                  label="接入方式"
+                  options={[{ value: 'webhook', label: '群或频道 Webhook' }, { value: 'app', label: '应用机器人私发' }]}
+                  value={appMode ? 'app' : 'webhook'}
+                  disabled={Boolean(channel.id) || channelStep === 3}
+                  onChange={value => {
+                    setChannel({ ...blankChannel, platform: channel.platform, name: channel.name, mode: value === 'app' ? 'app' : '' })
+                    setRecipientText('')
+                  }}
+                />
+              )}
+              {channel.id && !wechatMode && (
+                <p className="text-xs text-muted-foreground">凭据留空时沿用已保存的值。</p>
+              )}
+              {channel.platform !== 'wechat' && (
+                <TextField
+                  id="channel-secret"
+                  label={webhookMode ? 'Webhook URL' : channel.platform === 'telegram' || channel.platform === 'discord' ? 'Bot Token'
+                    : channel.platform === 'slack' ? 'Slack Bot Token' : channel.platform === 'wecom' ? 'CorpID' : channel.platform === 'dingtalk' ? 'AppKey' : 'AppID'}
+                  value={channel.address}
+                  type="password"
+                  onChange={value => setChannelField('address', value)}
+                />
+              )}
+              {(['qq', 'dingtalk', 'feishu', 'lark', 'wecom'].includes(channel.platform) && (channel.platform !== 'wecom' || appMode)) && (
+                <TextField
+                  id="channel-signing"
+                  label={webhookMode ? '加签密钥（可选）' : channel.platform === 'wecom' ? '应用 Secret' : 'AppSecret'}
+                  type="password"
+                  value={channel.signing}
+                  onChange={value => setChannelField('signing', value)}
+                />
+              )}
+              {appMode && ['dingtalk', 'wecom'].includes(channel.platform) && (
+                <TextField
+                  id="channel-context"
+                  label={channel.platform === 'wecom' ? '应用 AgentID' : 'RobotCode（可选）'}
+                  value={channel.context}
+                  onChange={value => setChannelField('context', value)}
+                />
+              )}
+              {webhookMode && ['feishu', 'lark'].includes(channel.platform) && (
+                <>
+                  <TextField id="channel-media-app" label="图片上传 AppID（可选）" value={channel.media_app_id} onChange={value => setChannelField('media_app_id', value)} />
+                  <TextField id="channel-media-secret" label="图片上传 AppSecret" type="password" value={channel.media_secret} onChange={value => setChannelField('media_secret', value)} />
+                </>
+              )}
+              {channelStep === 1 && appMode && channel.platform === 'slack' && (
+                <TextField id="slack-pairing-app-token" label="配对用 App-Level Token（xapp-）" type="password"
+                  value={slackAppToken} onChange={setSlackAppToken} />
+              )}
+            </>}
+            {channelStep === 3 && (
               <fieldset className="min-w-0 space-y-2.5 rounded-lg border border-border p-3">
                 <legend className="px-1 text-xs font-medium text-muted-foreground">收件白名单</legend>
                 {webhookMode ? (
                   <p className="text-[13px] text-muted-foreground">已绑定的整个群或频道</p>
-                ) : channel.platform === 'wechat' ? (
+                ) : bindingMode && !channel.targets?.length ? (
+                  <p className="text-[13px] text-muted-foreground">尚未配对。可保存后再配对。</p>
+                ) : wechatMode ? (
                   <Selection
                     id="wechat-recipients"
                     label="已绑定的微信私聊"
@@ -326,48 +418,15 @@ export function NotificationSettings() {
                 )}
               </fieldset>
             )}
-            {channel.platform !== 'wechat' && (
-              <TextField
-                id="channel-secret"
-                label={webhookMode ? 'Webhook URL' : channel.platform === 'telegram' || channel.platform === 'discord' ? 'Bot Token'
-                  : channel.platform === 'slack' ? 'Slack Bot Token' : channel.platform === 'wecom' ? 'CorpID' : channel.platform === 'dingtalk' ? 'AppKey' : 'AppID'}
-                value={channel.address}
-                type="password"
-                onChange={value => setChannelField('address', value)}
-              />
-            )}
-            {(['qq', 'dingtalk', 'feishu', 'lark', 'wecom'].includes(channel.platform) && (channel.platform !== 'wecom' || appMode)) && (
-              <TextField
-                id="channel-signing"
-                label={webhookMode ? '加签密钥（可选）' : channel.platform === 'wecom' ? '应用 Secret' : 'AppSecret'}
-                type="password"
-                value={channel.signing}
-                onChange={value => setChannelField('signing', value)}
-              />
-            )}
-            {appMode && ['dingtalk', 'wecom'].includes(channel.platform) && (
-              <TextField
-                id="channel-context"
-                label={channel.platform === 'wecom' ? '应用 AgentID' : 'RobotCode（可选）'}
-                value={channel.context}
-                onChange={value => setChannelField('context', value)}
-              />
-            )}
-            {webhookMode && ['feishu', 'lark'].includes(channel.platform) && (
-              <>
-                <TextField id="channel-media-app" label="图片上传 AppID（可选）" value={channel.media_app_id} onChange={value => setChannelField('media_app_id', value)} />
-                <TextField id="channel-media-secret" label="图片上传 AppSecret" type="password" value={channel.media_secret} onChange={value => setChannelField('media_secret', value)} />
-              </>
-            )}
-            {bindingMode && (
+            {wechatMode && channelStep < 3 && (
               <div className="flex flex-col items-center gap-3 rounded-lg border border-border bg-muted/25 p-4 text-center">
                 {wechat?.image && !wechatPoll.isError && !terminalWeChatStatuses.includes(bindingStatus ?? '') && (
                   <img src={wechat.image} width={192} height={192} alt="微信绑定二维码" className="rounded-lg border border-border bg-white p-2" />
                 )}
                 {!wechatPoll.isError && bindingStatus === 'wait' && <p className="text-[13px] text-muted-foreground">用微信扫描二维码</p>}
                 {!wechatPoll.isError && bindingStatus === 'scaned' && <StatusBadge tone="active">请在微信确认绑定</StatusBadge>}
-                {!wechatPoll.isError && bindingStatus === 'await_message' && <p className="text-[13px] text-muted-foreground">微信已确认。请在「微信 ClawBot」私聊里发送一条消息，折栈收到后会完成绑定。</p>}
-                {bindingStatus === 'connected' && <p role="status" className="text-[13px] font-medium">微信已绑定，可以发送测试</p>}
+                {!wechatPoll.isError && bindingStatus === 'await_message' && <p className="text-[13px] text-muted-foreground">{channelStep === 1 ? '微信扫码已确认' : pairingInstructions.wechat}</p>}
+                {bindingStatus === 'connected' && <p role="status" className="text-[13px] font-medium">已收到配对消息</p>}
                 {['expired', 'verify_code_blocked'].includes(bindingStatus ?? '') && <FieldError>绑定已失效，请重新生成二维码</FieldError>}
                 {bindingStatus === 'binded_redirect' && <FieldError>微信报告此机器人已绑定，没有发放新的凭据</FieldError>}
                 {!wechatPoll.isError && bindingStatus?.includes('need_verifycode') && (
@@ -378,36 +437,94 @@ export function NotificationSettings() {
                     }}>确认验证码</Button>
                   </div>
                 )}
+                {(channelStep === 1 && !channel.id && !['await_message', 'connected'].includes(bindingStatus ?? '')) && (
+                  <Button variant="outline" size="sm" disabled={busy} onClick={() => mutation.mutate(async () => {
+                    if (wechatID) {
+                      await client.cancelQueries({ queryKey: [...key, 'wechat', wechatID] })
+                      await api.CancelWeChatBinding(wechatID)
+                    }
+                    setPin('')
+                    setVerifiedPin(undefined)
+                    setWeChat(await api.StartWeChatBinding())
+                  })}>{wechat ? '重新生成二维码' : '生成微信二维码'}</Button>
+                )}
+                {channelStep === 2 && channel.id && (!wechat || wechatPoll.isError || terminalWeChatStatuses.includes(bindingStatus ?? '') && bindingStatus !== 'connected') && (
+                  <Button variant="outline" size="sm" disabled={busy} onClick={() => mutation.mutate(async () => {
+                    setWeChat(await api.ResumeWeChatBinding(channel))
+                  })}>{wechat ? '重新配对' : '开始配对'}</Button>
+                )}
                 {wechatPoll.isError && <FieldError>{wechatPoll.error.message}</FieldError>}
               </div>
             )}
-            {!bindingMode && <FlagField id="channel-enable" label="启用渠道" value={channel.enabled} onChange={value => setChannelField('enabled', value)} />}
+            {channelStep === 2 && !wechatMode && (
+              <div className="space-y-3 rounded-lg border border-border p-3">
+                {channel.platform === 'wecom' ? (
+                  <p className="text-sm text-muted-foreground">企业微信自建应用需要配置消息回调。可跳过配对，直接填写成员 UserID。</p>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">{pairingInstructions[channel.platform]}</p>
+                    {pairStatus?.state === 'connecting' && <p role="status" className="text-sm">正在连接机器人…</p>}
+                    {pairStatus?.state === 'listening' && <p role="status" className="text-sm">正在等待配对消息</p>}
+                    {pairStatus?.state === 'expired' && <FieldError>配对已超时</FieldError>}
+                    {pairStatus?.state === 'failed' && <FieldError>{pairStatus.detail}</FieldError>}
+                    {pairingPoll.isError && <FieldError>暂时无法读取配对状态</FieldError>}
+                    {(!pairStatus || ['failed', 'expired'].includes(pairStatus.state) || pairingPoll.isError) && (
+                      <Button variant="outline" size="sm" disabled={busy} onClick={() => mutation.mutate(async () => {
+                        if (pairingID) await api.CancelRecipientPairing(pairingID)
+                        setPairing(await api.StartRecipientPairing(channel, slackAppToken))
+                      })}>{pairStatus ? '重新配对' : '开始配对'}</Button>
+                    )}
+                    {(pairStatus?.targets ?? []).map(target => (
+                      <label key={target} className="flex items-start gap-2 break-all text-sm">
+                        <Checkbox checked={pairedTargets.includes(target)} onCheckedChange={checked => {
+                          setRecipientText((checked ? [...pairedTargets, target] : pairedTargets.filter(value => value !== target)).join('\n'))
+                        }} />
+                        <span>{target}</span>
+                      </label>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+            {channelStep === 3 && <FlagField id="channel-enable" label="启用渠道" value={channel.enabled} onChange={value => setChannelField('enabled', value)} />}
             {mutation.error && <FieldError>{mutation.error.message}</FieldError>}
             <DialogFooter>
-              <Button variant="outline" size="sm" disabled={busy} onClick={closeChannelDialog}>
-                {bindingStatus === 'connected' ? '完成' : '取消'}
-              </Button>
-              {bindingMode ? (
-                <Button size="sm" disabled={busy || !channel.name.trim() || bindingStatus === 'connected'} onClick={() => mutation.mutate(async () => {
-                  if (wechat) {
-                    setWeChat(undefined)
-                    await client.cancelQueries({ queryKey: [...key, 'wechat', wechat.id] })
-                    await api.CancelWeChatBinding(wechat.id)
-                  }
-                  setPin('')
-                  setVerifiedPin(undefined)
-                  setWeChat(await api.StartWeChatBinding())
-                })}>
-                  {wechat ? '重新生成二维码' : '生成微信二维码'}
+              <Button variant="outline" size="sm" disabled={busy} onClick={closeChannelDialog}>取消</Button>
+              {channelStep > 1 && (
+                <Button variant="outline" size="sm" disabled={busy} onClick={() => {
+                  mutation.reset()
+                  setPairing(undefined)
+                  setChannelStep(channelStep === 3 && !webhookMode ? 2 : 1)
+                }}>上一步</Button>
+              )}
+              {channelStep < 3 ? (
+                <Button size="sm" disabled={busy || (channelStep === 1 && bindingMode && !['await_message', 'connected'].includes(bindingStatus ?? ''))}
+                  onClick={() => {
+                    mutation.reset()
+                    if (channelStep === 1) {
+                      if (currentWeChat?.target) setWeChat(currentWeChat)
+                      setChannelStep(webhookMode ? 3 : 2)
+                      return
+                    }
+                    if (currentWeChat?.target) {
+                      const target = currentWeChat.target
+                      setChannel({ ...channel, target, targets: bindingStatus === 'connected' ? [...new Set([...(channel.targets ?? []), target])] : channel.targets })
+                      setWeChat(currentWeChat)
+                    }
+                    setPairing(undefined)
+                    setSlackAppToken('')
+                    setChannelStep(3)
+                  }}>
+                  {channelStep === 1 ? '下一步' : (bindingStatus === 'connected' || (pairStatus?.targets ?? []).some(target => pairedTargets.includes(target))) ? '下一步' : '跳过配对'}
                 </Button>
               ) : (
                 <Button size="sm" disabled={busy} onClick={() => mutation.mutate(async () => {
-                  const targets = webhookMode ? [] : channel.platform === 'wechat' ? channel.targets : recipientText.split(/[\s,，]+/u).filter(Boolean)
-                  await api.SaveChannel({ ...channel, targets })
-                  setChannel(undefined)
-                })}>
-                  保存渠道
-                </Button>
+                  const targets = webhookMode ? [] : wechatMode ? channel.targets : pairedTargets
+                  const config = { ...channel, targets }
+                  if (wechatID && (bindingMode || bindingStatus === 'connected')) await api.CompleteWeChatBinding(wechatID, config)
+                  else await api.SaveChannel(config)
+                  closeChannelDialog()
+                })}>保存渠道</Button>
               )}
             </DialogFooter>
           </FieldGroup>

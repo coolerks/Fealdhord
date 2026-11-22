@@ -84,8 +84,16 @@ func (a *API) StartWeChatBinding(ctx context.Context) (WeChatBinding, error) {
 	return available(a, func(s *Service) (WeChatBinding, error) { return s.startWeChatBinding(ctx) })
 }
 
-func (a *API) PollWeChatBinding(ctx context.Context, id, pin, name string) (WeChatBinding, error) {
-	return available(a, func(s *Service) (WeChatBinding, error) { return s.pollWeChatBinding(ctx, id, pin, name) })
+func (a *API) PollWeChatBinding(ctx context.Context, id, pin string, listen bool) (WeChatBinding, error) {
+	return available(a, func(s *Service) (WeChatBinding, error) { return s.pollWeChatBinding(ctx, id, pin, listen) })
+}
+
+func (a *API) ResumeWeChatBinding(ctx context.Context, input ChannelInput) (WeChatBinding, error) {
+	return available(a, func(s *Service) (WeChatBinding, error) { return s.resumeWeChatBinding(ctx, input) })
+}
+
+func (a *API) CompleteWeChatBinding(ctx context.Context, id string, input ChannelInput) (Channel, error) {
+	return available(a, func(s *Service) (Channel, error) { return s.completeWeChatBinding(ctx, id, input) })
 }
 
 func (a *API) CancelWeChatBinding(id string) {

@@ -6,6 +6,14 @@
 
 在「通知渠道 → 编辑」配置收件白名单。支持多收件人的连接可填写多个 ID（每行一个，最多 50 个）。「发送测试」逐项验证平台是否接受，只有已通过测试的收件目标会进入推送队列。渠道可以同时有已验证和待验证的收件目标。
 
+添加定向通知渠道时，先填凭据，再配对，最后确认并保存。配对时给机器人发送「配对」，从识别出的目标中勾选所需收件人。也可以跳过，在确认页手填多个 ID，或保存后再配对。保存后用「发送测试」验证。
+
+- QQ 使用开放平台网关。在私聊发「配对」，在普通群或文字子频道 @机器人后发送「配对」。机器人需能接收相应场景的事件。[QQ 网关文档](https://bot.q.qq.com/wiki/develop/api-v2/openapi/wss/url_get.html)
+- Telegram 和 Discord 可私聊机器人发送「配对」。Telegram 也可绑定能接收该消息的群聊或频道。已使用 Telegram Webhook 的机器人可以手填收件 ID。[Telegram Bot API](https://core.telegram.org/bots/api#getupdates) [Discord Gateway](https://docs.discord.com/developers/events/gateway)
+- Slack 要启用 Socket Mode、订阅 `message.im`，填写与 Bot Token 对应的 App-Level Token。钉钉需启用 Stream 机器人。飞书和 Lark 需启用长连接并订阅 `im.message.receive_v1`。[Slack Socket Mode](https://docs.slack.dev/apis/events-api/using-socket-mode/) [飞书接收消息事件](https://open.larkenterprise.com/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/events/receive)
+- 微信先扫码授权，然后在「微信 ClawBot」私聊里发送「配对」。跳过后可从已有渠道继续配对。
+- 企业微信自建应用的入站消息需要可访问的回调地址，当前桌面端可跳过并手填成员 UserID。[企业微信自建应用](https://hiflow.tencent.com/docs/applications/wwx-app/)
+
 | 平台 | 私发或指定收件目标 | 群或频道 Webhook | 内容 |
 | --- | --- | --- | --- |
 | [Telegram](https://core.telegram.org/bots/api#sendmessage) | Bot Token 与收件 ID。私聊填数字用户 ID，群填会话 ID，公开频道也支持 `@频道用户名` | — | 可点击标题、正文与图片 |
@@ -14,12 +22,12 @@
 | [钉钉](https://open.dingtalk.com/document/orgapp/chatbots-send-one-on-one-chat-messages-in-batches) | AppKey、AppSecret、可选 RobotCode，以及企业成员 UserID | 群 Webhook 与可选加签密钥 | Markdown 链接、正文与图片外链 |
 | [飞书](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/create)、[Lark](https://open.larksuite.com/document/server-docs/im-v1/message/create) | 各自区域的 AppID 和 AppSecret，成员 ID 默认使用 `open_id`，也支持 `user_id:…` 和 `union_id:…` | 群机器人 Webhook 与可选加签密钥。Webhook 上传图片另需应用上传凭据 | 富文本链接、正文与上传图片 |
 | [企业微信](https://developer.work.weixin.qq.com/document/path/90236) | CorpID、应用 Secret、AgentID，以及应用可见范围内的企业成员 UserID（`touser`） | 群 Webhook | Markdown 链接、正文或图文卡片 |
-| [个人微信](https://github.com/Tencent/openclaw-weixin/blob/main/docs/protocol.md) | 每个私聊扫码绑定并主动发一句消息。白名单可从已绑定私聊中多选 | — | 纯文本链接与 iLink 图片上传 |
+| [个人微信](https://github.com/Tencent/openclaw-weixin/blob/main/docs/protocol.md) | 每个私聊扫码授权后发送「配对」。白名单可从已绑定私聊中多选 | — | 纯文本链接与 iLink 图片上传 |
 | [QQ](https://github.com/tencent-connect/bot-docs/blob/main/docs/develop/api-v2/server-inter/message/send-receive/send.md) | AppID、AppSecret 与 `c2c:用户 OpenID`、`group:群 OpenID` 或 `channel:子频道 ID` | — | 文本链接，按目标能力生成图片消息 |
 
 Telegram 私聊可直接使用数字用户 ID，每行一个。每位收件人首次接收前，需打开用于推送的机器人并点「开始」或发一条消息。详见 [Telegram 会话 ID](https://core.telegram.org/api/bots/ids#user-ids)和[机器人私聊规则](https://core.telegram.org/bots#how-are-bots-different-from-humans)。
 
-个人微信在手机确认之后，需要扫码账号在「微信 ClawBot」私聊里发一条消息。桌面端收到这条消息的会话令牌后才保存渠道，成功后从渠道列表发送测试。绑定过期或上游报错时停止自动轮询，可重新生成二维码。
+个人微信在手机确认之后，需要扫码账号在「微信 ClawBot」私聊里发送「配对」。桌面端发现会话后可确认保存，从渠道列表发送测试。绑定过期或上游报错时停止自动轮询，可重新生成二维码。
 
 群或频道 Webhook 固定投递给绑定会话。需要个人定向收件时，添加相应的应用机器人连接。规则和 AI 工具选择已配置渠道，每个渠道会投递给其中已验证的收件目标。发送测试也只使用保存的目标。
 

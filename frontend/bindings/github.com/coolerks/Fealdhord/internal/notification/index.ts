@@ -11,6 +11,7 @@ export type {
     Channel,
     ChannelInput,
     LocalNotice,
+    PairingStatus,
     Recipient,
     Rule,
     RulePreview,

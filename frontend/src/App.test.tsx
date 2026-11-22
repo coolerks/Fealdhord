@@ -54,6 +54,9 @@ const notificationAPI = vi.hoisted(() => ({
   StartWeChatBinding: vi.fn(),
   PollWeChatBinding: vi.fn(),
   CancelWeChatBinding: vi.fn(),
+  StartRecipientPairing: vi.fn(),
+  RecipientPairingStatus: vi.fn(),
+  CancelRecipientPairing: vi.fn(),
 }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/notification/api', () => notificationAPI)
 const listSkills = vi.hoisted(() => vi.fn())
@@ -113,7 +116,7 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(await screen.findByRole('button', { name: '打开文章：测试文章 0' }))
     const trigger = screen.getByRole('button', { name: '打开设置' })
     await user.click(trigger)
-    const sidebar = await screen.findByRole('complementary', { name: '设置侧栏' })
+    const sidebar = await screen.findByRole('complementary', { name: '设置侧栏' }, { timeout: 3000 })
     const workspace = screen.getByRole('main', { name: '设置' })
     expect(animate).toHaveBeenLastCalledWith([sidebar, workspace], 'full', 6)
     expect(screen.getByRole('group', { name: '窗口控制' })).toBeInTheDocument()
@@ -1081,11 +1084,42 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(await screen.findByRole('button', { name: '通知' }))
     await user.click(await screen.findByRole('button', { name: '添加渠道' }))
     await user.type(screen.getByRole('textbox', { name: '渠道名称' }), 'Telegram 私聊')
-    await user.type(screen.getByRole('textbox', { name: 'Telegram 用户 ID 或会话 ID' }), '123456{Enter}-100123456')
     await user.type(screen.getByLabelText('Bot Token'), '1234:local-test')
+    await user.click(screen.getByRole('button', { name: '下一步' }))
+    await user.click(screen.getByRole('button', { name: '跳过配对' }))
+    await user.type(screen.getByRole('textbox', { name: 'Telegram 用户 ID 或会话 ID' }), '123456{Enter}-100123456')
     await user.click(screen.getByRole('button', { name: '保存渠道' }))
     await waitFor(() => expect(notificationAPI.SaveChannel).toHaveBeenCalledWith(expect.objectContaining({
       platform: 'telegram', targets: ['123456', '-100123456'],
+    })))
+  })
+
+  it('QQ 配对需要确认收件目标，最后才保存渠道', async () => {
+    const pair = { id: 'qq-pair', state: 'listening', targets: ['c2c:friend', 'group:team', 'channel:42'] }
+    notificationAPI.StartRecipientPairing.mockResolvedValue(pair)
+    notificationAPI.RecipientPairingStatus.mockResolvedValue(pair)
+    const user = userEvent.setup()
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    await user.click(await screen.findByRole('button', { name: '通知' }))
+    await user.click(await screen.findByRole('button', { name: '添加渠道' }))
+    await user.type(screen.getByRole('textbox', { name: '渠道名称' }), 'QQ 通知')
+    await user.click(screen.getByRole('button', { name: '平台' }))
+    await user.click(await screen.findByRole('option', { name: 'QQ' }))
+    await user.type(screen.getByLabelText('AppID'), '1234')
+    await user.type(screen.getByLabelText('AppSecret'), 'example-secret')
+    await user.click(screen.getByRole('button', { name: '下一步' }))
+    await user.click(screen.getByRole('button', { name: '开始配对' }))
+    const group = await screen.findByRole('checkbox', { name: 'group:team' })
+    expect(group).not.toBeChecked()
+    await user.click(group)
+    await user.click(screen.getByRole('button', { name: '下一步' }))
+    expect(notificationAPI.CancelRecipientPairing).toHaveBeenCalledWith(pair.id)
+    expect(notificationAPI.SaveChannel).not.toHaveBeenCalled()
+    expect(screen.getByRole('textbox', { name: 'QQ 私聊 OpenID、群 OpenID 或子频道 ID' })).toHaveValue('group:team')
+    await user.click(screen.getByRole('button', { name: '保存渠道' }))
+    await waitFor(() => expect(notificationAPI.SaveChannel).toHaveBeenCalledWith(expect.objectContaining({
+      platform: 'qq', targets: ['group:team'],
     })))
   })
 
