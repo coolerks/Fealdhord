@@ -8,7 +8,7 @@
 
 添加定向通知渠道时，先填凭据、配对收件目标、确认配置，再验证收件。配对时给机器人发送「配对」，从识别出的目标中勾选所需收件人。也可以跳过，在确认页手填多个 ID，或保存后再配对。保存后，折栈自动把四位校验码发到各个未验证的目标。在第 4 步填对该目标的码，即可使用。群 Webhook 跳过配对，校验码直接发送至绑定会话。验证码在五分钟内有效，可手动重发。配对后 QQ 优先关联原消息回复校验码，后续主动通知仍受 QQ 平台权限和额度限制。
 
-添加或编辑渠道时，「平台」右侧的「查看官方文档」会在系统默认浏览器打开当前平台和接入方式的指引。
+添加或编辑渠道时，所有平台均可通过「操作步骤」查看当前接入方式的配置说明。「查看官方文档」在系统默认浏览器打开对应指引，QQ 的正式环境和沙箱共用 [QQ 机器人文档](https://bot.qq.com/)，个人微信只显示「操作步骤」。
 
 - QQ 已上线时选「正式环境」。未上线测试时选「沙箱」，在 QQ 开放平台的「沙箱配置」核对账号，再通过对应测试入口打开会话。在私聊发「配对」，在普通群或文字子频道 @机器人后发送「配对」。同一个渠道的配对、测试和后续投递使用同一环境。配对页显示 QQ 网关返回的机器人昵称，并区分连接与聊天事件收件。手机提示「未连接灵魂」且折栈未收到消息时，用手机上的「查看指引」核对当前会话对应的机器人及其接入状态。[QQ 沙箱配置](https://github.com/tencent-connect/bot-docs/blob/main/docs/README.md#71-配置沙箱环境) [QQ 事件订阅与通知](https://bot.q.qq.com/wiki/develop/api-v2/dev-prepare/interface-framework/event-emit.html)
 - Telegram 和 Discord 可私聊机器人发送「配对」。Telegram 也可绑定能接收该消息的群聊或频道。已使用 Telegram Webhook 的机器人可以手填收件 ID。[Telegram Bot API](https://core.telegram.org/bots/api#getupdates) [Discord Gateway](https://docs.discord.com/developers/events/gateway)

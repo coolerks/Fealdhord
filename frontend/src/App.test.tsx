@@ -1082,7 +1082,7 @@ describe('Phase 1 阅读 Shell', () => {
     })))
   })
 
-  it('通知渠道的官方文档随平台和接入方式切换，并交给系统浏览器', async () => {
+  it('通知渠道的操作步骤和官方文档随平台与接入方式切换', async () => {
     const user = userEvent.setup()
     setup()
     await user.click(await screen.findByRole('button', { name: '打开设置' }))
@@ -1090,8 +1090,19 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(await screen.findByRole('button', { name: '添加渠道' }))
     const dialog = within(screen.getByRole('dialog', { name: '添加渠道' }))
     const docs = () => dialog.getByRole('link', { name: '查看官方文档' })
+    const showSteps = async (platform: string, instructions: RegExp) => {
+      const trigger = dialog.getByRole('button', { name: '操作步骤' })
+      await user.click(trigger)
+      const guide = await screen.findByRole('dialog', { name: `${platform}操作步骤` })
+      expect(guide).toHaveAccessibleDescription(instructions)
+      expect(guide).toHaveAccessibleDescription(/四位校验码/)
+      await user.keyboard('{Escape}')
+      expect(guide).not.toBeInTheDocument()
+      expect(trigger).toHaveFocus()
+    }
 
     expect(docs()).toHaveAttribute('href', 'https://core.telegram.org/bots/tutorial#obtain-your-bot-token')
+    expect(docs().querySelector('svg')).toBeNull()
     docs().focus()
     await user.keyboard('{Enter}')
     expect(host.openURL).toHaveBeenLastCalledWith('https://core.telegram.org/bots/tutorial#obtain-your-bot-token')
@@ -1099,11 +1110,28 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(dialog.getByRole('button', { name: '平台' }))
     await user.click(await screen.findByRole('option', { name: 'Slack' }))
     expect(docs()).toHaveAttribute('href', 'https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/')
+    await user.type(dialog.getByRole('textbox', { name: '渠道名称' }), '文章通知')
+    await showSteps('Slack', /Incoming Webhooks/)
+    expect(dialog.getByRole('textbox', { name: '渠道名称' })).toHaveValue('文章通知')
     await user.click(dialog.getByRole('button', { name: '接入方式' }))
     await user.click(await screen.findByRole('option', { name: '应用机器人私发' }))
     await user.click(docs())
     expect(host.openURL).toHaveBeenLastCalledWith('https://docs.slack.dev/apis/events-api/using-socket-mode/')
     expect(dialog.getByLabelText('Slack Bot Token')).toBeInTheDocument()
+    await showSteps('Slack', /Socket Mode/)
+
+    await user.click(dialog.getByRole('button', { name: '平台' }))
+    await user.click(await screen.findByRole('option', { name: 'QQ' }))
+    expect(docs()).toHaveAttribute('href', 'https://bot.qq.com/')
+    await user.click(dialog.getByRole('button', { name: 'QQ 接入环境' }))
+    await user.click(await screen.findByRole('option', { name: '沙箱（未上线测试）' }))
+    expect(docs()).toHaveAttribute('href', 'https://bot.qq.com/')
+    await showSteps('QQ', /WebSocket/)
+
+    await user.click(dialog.getByRole('button', { name: '平台' }))
+    await user.click(await screen.findByRole('option', { name: '微信' }))
+    expect(dialog.queryByRole('link', { name: '查看官方文档' })).not.toBeInTheDocument()
+    await showSteps('微信', /生成微信二维码.*微信 ClawBot/)
   })
 
   it('Telegram 通知可同时保存用户 ID 和群会话 ID', async () => {

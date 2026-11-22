@@ -69,7 +69,7 @@ transferAPI 是唯一文件调用边界，Go空items归一为数组；组件不�
 
 业务表单从 `@/components/ui` 导入 SearchableSelect、Switch、Checkbox、Input 和 Textarea。SearchableSelect 支持单选与多选，使用可访问名称关联搜索框，按选项名称和可选别名进行模糊搜索。展开后焦点进入搜索框，键盘可选择和关闭。少于 10 项时隐藏搜索框的视觉区域，键盘输入后显示。弹层按内容取宽，受窗口空间限制。清空或回到顶层使用独立非空选项值，在提交给业务层前映射为原有空字符串。服务与模型启用使用 Switch，清除密钥和选择导入项使用 Checkbox，确保显示状态、可访问名称与实际保存值一致。新增组件沿用 radix-nova 注册表及 AnimatedGlyph。系统文件对话框等原生能力按 AGENTS.md 的例外处理。
 
-通知渠道表单通过 `Selection.labelAction` 将「查看官方文档」放在平台标签旁。固定 HTTPS 文档链接随平台、接入方式和 QQ 环境选择更新，经 `native.openURL` 交给系统浏览器。
+通知渠道表单通过 `Selection.labelAction` 将纯文字「操作步骤」和「查看官方文档」放在平台标签旁。操作步骤使用共享 `Dialog`，内容随平台和接入方式切换，关闭时焦点回到原按钮并保留表单输入。固定 HTTPS 文档链接经 `native.openURL` 交给系统浏览器。QQ 两种环境均使用 `https://bot.qq.com/`，个人微信只显示「操作步骤」。
 
 ## macOS 侧栏材质
 

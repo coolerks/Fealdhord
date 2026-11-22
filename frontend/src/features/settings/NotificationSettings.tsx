@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
 import { defaultZone, FlagField, Selection, TextField, time, toggle, zones } from '@/features/notifications/notification-fields'
@@ -27,43 +27,62 @@ const pairingInstructions: Record<string, string> = {
   wechat: '在「微信 ClawBot」私聊里发送「配对」。',
 }
 const terminalWeChatStatuses = ['connected', 'expired', 'verify_code_blocked', 'binded_redirect']
-const platforms: { value: string; label: string; docs: string; webhookDocs?: string; sandboxDocs?: string }[] = [
-  { value: 'telegram', label: 'Telegram', docs: 'https://core.telegram.org/bots/tutorial#obtain-your-bot-token' },
+const larkAppSteps = '在开放平台创建企业自建应用并启用机器人能力，使用长连接订阅接收消息事件（im.message.receive_v1），发布应用后填入 AppID 和 AppSecret。开始配对后，私聊机器人发送「配对」。'
+const larkWebhookSteps = '在目标群的设置中添加自定义机器人，将 Webhook URL 填入折栈。如果开启了签名校验，一并填写加签密钥。'
+const platforms: { value: string; label: string; steps: string; docs?: string; webhookDocs?: string; webhookSteps?: string }[] = [
+  {
+    value: 'telegram', label: 'Telegram',
+    docs: 'https://core.telegram.org/bots/tutorial#obtain-your-bot-token',
+    steps: '在 Telegram 私聊 @BotFather，发送 /newbot 创建机器人，将收到的 Bot Token 填入折栈。开始配对后，在机器人私聊中点击「开始」，再发送「配对」。要绑定群聊，请在机器人能接收消息的群里发送。',
+  },
   {
     value: 'discord', label: 'Discord',
     docs: 'https://docs.discord.com/developers/quick-start/getting-started',
     webhookDocs: 'https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks',
+    steps: '在 Discord Developer Portal 创建应用，在 Bot 页面获取 Bot Token。将机器人添加到与你共用的服务器，并允许服务器成员私信。填入令牌并开始配对后，私信机器人「配对」。',
+    webhookSteps: '打开目标频道的「编辑频道 → 集成 → Webhook」，新建 Webhook 并复制地址，将地址填入折栈。',
   },
   {
     value: 'slack', label: 'Slack',
     docs: 'https://docs.slack.dev/apis/events-api/using-socket-mode/',
     webhookDocs: 'https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/',
+    steps: '创建 Slack 应用，为机器人添加 im:history、im:write 和 chat:write 权限，订阅 message.im，启用 Socket Mode 后安装到工作区。填入 Bot Token（xoxb-）和带 connections:write 权限的 App-Level Token（xapp-）。开始配对后，私聊机器人发送「配对」。',
+    webhookSteps: '在 Slack 应用中启用 Incoming Webhooks，添加到工作区并选择目标频道，将生成的 Webhook URL 填入折栈。',
   },
   {
     value: 'dingtalk', label: '钉钉',
     docs: 'https://open-dingtalk.github.io/developerpedia/docs/explore/tutorials/stream/bot/nodejs/create-bot/',
     webhookDocs: 'https://open.dingtalk.com/document/group/custom-robot-access',
+    steps: '在钉钉开放平台创建企业内部应用，添加机器人能力，使用 Stream 模式接收消息并发布应用。填入 AppKey 和 AppSecret，开始配对后私聊机器人发送「配对」。',
+    webhookSteps: '在目标群的设置中添加自定义机器人，将 Webhook URL 填入折栈。如果安全设置选择了加签，一并填写加签密钥。',
   },
   {
     value: 'feishu', label: '飞书',
     docs: 'https://open.feishu.cn/document/home/develop-a-bot-in-5-minutes/step-1-create-app-and-enable-robot-capabilities',
     webhookDocs: 'https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot?lang=zh-CN',
+    steps: larkAppSteps, webhookSteps: larkWebhookSteps,
   },
   {
     value: 'lark', label: 'Lark',
     docs: 'https://open.larksuite.com/document/home/develop-a-bot-in-5-minutes/step-1-create-app-and-enable-robot-capabilities',
     webhookDocs: 'https://open.larksuite.com/document/uAjLw4CM/ukTMukTMukTM/bot-v3/use-custom-bots-in-a-group',
+    steps: larkAppSteps, webhookSteps: larkWebhookSteps,
   },
-  { value: 'wechat', label: '微信', docs: 'https://github.com/Tencent/openclaw-weixin/blob/main/docs/protocol_zh_CN.md' },
+  {
+    value: 'wechat', label: '微信',
+    steps: '点击「生成微信二维码」，用手机微信扫码并确认连接。如果微信显示验证码，在折栈的「微信验证码」中回填。进入配对步骤后，用扫码的微信账号在「微信 ClawBot」私聊里发送「配对」。',
+  },
   {
     value: 'wecom', label: '企业微信',
     docs: 'https://hiflow.tencent.com/docs/applications/wwx-app/',
     webhookDocs: 'https://cloud.tencent.com/document/product/1759/128391',
+    steps: '在企业微信管理后台创建自建应用，把收件人加入应用可见范围。在折栈填入 CorpID、应用 Secret 和应用 AgentID。跳过配对，在确认配置中填入成员 UserID，每行一个。',
+    webhookSteps: '在企业微信的目标群中添加群机器人，复制机器人的 Webhook URL 并填入折栈。',
   },
   {
     value: 'qq', label: 'QQ',
-    docs: 'https://github.com/tencent-connect/bot-docs/blob/main/docs/README.md#81-机器人-appid',
-    sandboxDocs: 'https://github.com/tencent-connect/bot-docs/blob/main/docs/README.md#71-配置沙箱环境',
+    docs: 'https://bot.qq.com/',
+    steps: '在 QQ 开放平台创建机器人，取得 AppID 和 AppSecret，在「事件订阅与回调地址」选择 WebSocket。使用已配置的沙箱测试会话时选「沙箱」，其余选「正式环境」。开始配对后，给机器人私聊发送「配对」，或在群聊、文字子频道中 @机器人并发送「配对」。',
   },
 ]
 const recipientFields: Record<string, { label: string; example: string }> = {
@@ -175,7 +194,7 @@ export function NotificationSettings() {
   const appMode = channel?.mode === 'app'
   const platform = platforms.find(item => item.value === channel?.platform)
   const webhookMode = Boolean(platform?.webhookDocs && !appMode)
-  const platformDocs = (webhookMode ? platform?.webhookDocs : channel?.mode === 'sandbox' ? platform?.sandboxDocs : undefined) ?? platform?.docs
+  const platformDocs = webhookMode ? platform?.webhookDocs : platform?.docs
   const savedRecipients = channels.data?.find(value => value.id === channel?.id)?.recipients ?? []
   const wechatOptions = channel?.platform === 'wechat' ? [
     ...(channel.target ? [{ value: channel.target, label: '当前绑定私聊' }] : []),
@@ -372,15 +391,31 @@ export function NotificationSettings() {
                   setSlackAppToken('')
                   setRecipientText('')
                 }}
-                labelAction={platformDocs && (
-                  <Button asChild variant="ghost" size="xs" className="text-muted-foreground">
-                    <a href={platformDocs} data-animated-trigger onClick={event => {
-                      event.preventDefault()
-                      void native.openURL(platformDocs).catch(() => { void notify('无法打开官方文档', undefined, true) })
-                    }}>
-                      查看官方文档 <AnimatedGlyph meaning="external-link" />
-                    </a>
-                  </Button>
+                labelAction={platform && (
+                  <div className="flex items-center gap-1">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button type="button" variant="ghost" size="xs" className="text-muted-foreground">操作步骤</Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>{platform.label}操作步骤</DialogTitle>
+                          <DialogDescription className="leading-relaxed">
+                            {webhookMode ? platform.webhookSteps : platform.steps}
+                            保存渠道后，如进入「验证收件」，在目标会话查看收到的四位校验码并回填。
+                          </DialogDescription>
+                        </DialogHeader>
+                      </DialogContent>
+                    </Dialog>
+                    {platformDocs && (
+                      <Button asChild variant="ghost" size="xs" className="text-muted-foreground">
+                        <a href={platformDocs} onClick={event => {
+                          event.preventDefault()
+                          void native.openURL(platformDocs).catch(() => { void notify('无法打开官方文档', undefined, true) })
+                        }}>查看官方文档</a>
+                      </Button>
+                    )}
+                  </div>
                 )}
               />
               {platform?.webhookDocs && (
