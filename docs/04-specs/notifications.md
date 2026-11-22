@@ -12,7 +12,8 @@
 
 - QQ 已上线时选「正式环境」。未上线测试时选「沙箱」，在 QQ 开放平台的「沙箱配置」核对账号，再通过对应测试入口打开会话。在私聊发「配对」，在普通群或文字子频道 @机器人后发送「配对」。同一个渠道的配对、测试和后续投递使用同一环境。配对页显示 QQ 网关返回的机器人昵称，并区分连接与聊天事件收件。手机提示「未连接灵魂」且折栈未收到消息时，用手机上的「查看指引」核对当前会话对应的机器人及其接入状态。[QQ 沙箱配置](https://github.com/tencent-connect/bot-docs/blob/main/docs/README.md#71-配置沙箱环境) [QQ 事件订阅与通知](https://bot.q.qq.com/wiki/develop/api-v2/dev-prepare/interface-framework/event-emit.html)
 - Telegram 和 Discord 可私聊机器人发送「配对」。Telegram 也可绑定能接收该消息的群聊或频道。已使用 Telegram Webhook 的机器人可以手填收件 ID。[Telegram Bot API](https://core.telegram.org/bots/api#getupdates) [Discord Gateway](https://docs.discord.com/developers/events/gateway)
-- Slack 要启用 Socket Mode、订阅 `message.im`，填写与 Bot Token 对应的 App-Level Token。钉钉需启用 Stream 机器人。飞书和 Lark 需启用长连接并订阅 `im.message.receive_v1`。[Slack Socket Mode](https://docs.slack.dev/apis/events-api/using-socket-mode/) [飞书接收消息事件](https://open.larkenterprise.com/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/events/receive)
+- Slack 要启用 Socket Mode、订阅 `message.im`，填写与 Bot Token 对应的 App-Level Token。飞书和 Lark 需启用长连接并订阅 `im.message.receive_v1`。[Slack Socket Mode](https://docs.slack.dev/apis/events-api/using-socket-mode/) [飞书接收消息事件](https://open.larkenterprise.com/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/events/receive)
+- 钉钉应用机器人私聊配对需要在企业内部应用启用机器人，消息接收方式选择 Stream 模式，发布应用并把操作者纳入应用可见范围。主动发送通知和收件校验码时，在「权限管理」开通「企业内机器人发送消息权限」并发布变更。[钉钉 Stream 机器人配置](https://open-dingtalk.github.io/developerpedia/docs/explore/tutorials/stream/bot/nodejs/create-bot/) [钉钉单聊发送接口](https://open.dingtalk.com/document/orgapp/chatbots-send-one-on-one-chat-messages-in-batches)
 - 微信先扫码授权，然后在「微信 ClawBot」私聊里发送「配对」。跳过后可从已有渠道继续配对。
 - 企业微信自建应用的入站消息需要可访问的回调地址，当前桌面端可跳过并手填成员 UserID。[企业微信自建应用](https://hiflow.tencent.com/docs/applications/wwx-app/)
 
@@ -21,7 +22,7 @@
 | [Telegram](https://core.telegram.org/bots/api#sendmessage) | Bot Token 与收件 ID。私聊填数字用户 ID，群填会话 ID，公开频道也支持 `@频道用户名` | — | 可点击标题、正文与图片 |
 | [Discord](https://docs.discord.com/developers/resources/user#create-dm) | Bot Token 与 Discord 用户 ID，机器人建立私聊 | 频道 Webhook | Embed 标题链接、正文与图片 |
 | [Slack](https://docs.slack.dev/reference/methods/conversations.open/) | Bot Token 与工作区成员 ID（`U…` 或 `W…`），应用需有打开单人私聊和发消息的权限 | Incoming Webhook | Block Kit 链接、正文与图片 |
-| [钉钉](https://open.dingtalk.com/document/orgapp/chatbots-send-one-on-one-chat-messages-in-batches) | AppKey、AppSecret、可选 RobotCode，以及企业成员 UserID | 群 Webhook 与可选加签密钥 | Markdown 链接、正文与图片外链 |
+| [钉钉](https://open.dingtalk.com/document/orgapp/chatbots-send-one-on-one-chat-messages-in-batches) | Client ID（原 AppKey）、Client Secret（原 AppSecret）、可选 RobotCode，以及企业成员 UserID | 群 Webhook 与可选加签密钥 | Markdown 链接、正文与图片外链 |
 | [飞书](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/create)、[Lark](https://open.larksuite.com/document/server-docs/im-v1/message/create) | 各自区域的 AppID 和 AppSecret，成员 ID 默认使用 `open_id`，也支持 `user_id:…` 和 `union_id:…` | 群机器人 Webhook 与可选加签密钥。Webhook 上传图片另需应用上传凭据 | 富文本链接、正文与上传图片 |
 | [企业微信](https://developer.work.weixin.qq.com/document/path/90236) | CorpID、应用 Secret、AgentID，以及应用可见范围内的企业成员 UserID（`touser`） | 群 Webhook | Markdown 链接、正文或图文卡片 |
 | [个人微信](https://github.com/Tencent/openclaw-weixin/blob/main/docs/protocol.md) | 每个私聊扫码授权后发送「配对」。白名单可从已绑定私聊中多选 | — | 纯文本链接与 iLink 图片上传 |

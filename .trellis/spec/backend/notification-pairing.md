@@ -23,6 +23,8 @@
 | 飞书与 Lark | 长连接 `im.message.receive_v1`，`message.chat_type=p2p` 且 `sender.sender_type=user` → `sender.sender_id.open_id` |
 | QQ | `C2C_MESSAGE_CREATE` → `c2c:user_openid`，群 @ → `group:group_openid`，文字子频道 @ → `channel:channel_id` |
 
+钉钉应用机器人的表单显示 Client ID 和 Client Secret，沿用 `ChannelInput.Address` 和 `ChannelInput.Signing`。Stream 握手使用 `clientId` 和 `clientSecret`，主动发送的 OAuth 接口仍使用 `appKey` 和 `appSecret`。Stream 接收配置与主动发送所需的「企业内机器人发送消息权限」分别在操作步骤中说明。
+
 QQ 渠道复用 `Channel.mode`。空字符串为正式环境，`sandbox` 为沙箱。两种环境共用 `bots.qq.com/app/getAppAccessToken`。正式和沙箱使用腾讯 SDK 的 `api.sgroup.qq.com` 系列地址。网关发现、投递和测试分别请求对应环境地址。渠道环境与验证过的收件目标一起保存，已有渠道更换环境时重新添加并配对。QQ 在 `READY` 后发送心跳并收到 `op=11` 后进入 `listening`，收到消息后才展示收件候选。连续未确认心跳或断线结束本次配对，由用户发起下一次连接。
 
 ## 4. 校验与错误

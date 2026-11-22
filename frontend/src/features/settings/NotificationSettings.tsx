@@ -22,7 +22,7 @@ const pairingInstructions: Record<string, string> = {
   qq: '私聊发送「配对」，或在普通 QQ 群、QQ 频道的文字子频道中 @机器人并发送「配对」。',
   discord: '在 Discord 里私信机器人「配对」。',
   slack: '在 Slack 应用中启用 Socket Mode 并订阅 message.im，再私聊机器人发送「配对」。',
-  dingtalk: '启用机器人的 Stream 模式。在钉钉里私聊机器人发送「配对」。',
+  dingtalk: '用同一企业内部应用的 Client ID 和 Client Secret 连接。请确认机器人已启用 Stream 模式，应用已发布且对你的账号可见。连接就绪后，私聊机器人发送「配对」。',
   feishu: '长连接就绪后，请私聊机器人，单独发送「配对」。',
   lark: '长连接就绪后，请私聊机器人，单独发送「配对」。',
   wechat: '在「微信 ClawBot」私聊里发送「配对」。',
@@ -55,7 +55,7 @@ const platforms: { value: string; label: string; steps: string; docs?: string; w
     value: 'dingtalk', label: '钉钉',
     docs: 'https://open-dingtalk.github.io/developerpedia/docs/explore/tutorials/stream/bot/nodejs/create-bot/',
     webhookDocs: 'https://open.dingtalk.com/document/group/custom-robot-access',
-    steps: '去 [钉钉开放平台](https://open.dingtalk.com/) 建一个企业内部应用并开启机器人，消息接收模式选 **Stream 模式**，然后发布应用。把应用的 **AppKey** 和 **AppSecret** 填到下方，点**下一步**开始配对后，在钉钉里私聊机器人发送`配对`。',
+    steps: '在 [钉钉开发者后台](https://open-dev.dingtalk.com/) 创建企业内部应用，启用机器人，消息接收模式选 **Stream 模式**。在应用的**权限管理**中开通**企业内机器人发送消息权限**，用于主动发送通知和收件校验码。发布应用，并把收件人加入应用可见范围。从**应用信息**复制 **Client ID**（原 AppKey）和 **Client Secret**（原 AppSecret），分别填入下方同名字段。点**下一步**，再点**开始配对**。连接就绪后，在钉钉私聊机器人发送`配对`。',
     webhookSteps: '在钉钉群设置里添加一个**自定义**群机器人，把 **Webhook 网址**填到下方；如果安全设置选了**加签**，把**加签密钥**也一起填上。',
   },
   {
@@ -514,7 +514,7 @@ export function NotificationSettings() {
                 <TextField
                   id="channel-secret"
                   label={webhookMode ? 'Webhook URL' : channel.platform === 'telegram' || channel.platform === 'discord' ? 'Bot Token'
-                    : channel.platform === 'slack' ? 'Slack Bot Token' : channel.platform === 'wecom' ? 'CorpID' : channel.platform === 'dingtalk' ? 'AppKey' : 'AppID'}
+                    : channel.platform === 'slack' ? 'Slack Bot Token' : channel.platform === 'wecom' ? 'CorpID' : channel.platform === 'dingtalk' ? 'Client ID' : 'AppID'}
                   value={channel.address}
                   type="password"
                   onChange={value => setChannelField('address', value)}
@@ -523,7 +523,7 @@ export function NotificationSettings() {
               {(['qq', 'dingtalk', 'feishu', 'lark', 'wecom'].includes(channel.platform) && (channel.platform !== 'wecom' || appMode)) && (
                 <TextField
                   id="channel-signing"
-                  label={webhookMode ? '加签密钥（可选）' : channel.platform === 'wecom' ? '应用 Secret' : 'AppSecret'}
+                  label={webhookMode ? '加签密钥（可选）' : channel.platform === 'wecom' ? '应用 Secret' : channel.platform === 'dingtalk' ? 'Client Secret' : 'AppSecret'}
                   type="password"
                   value={channel.signing}
                   onChange={value => setChannelField('signing', value)}

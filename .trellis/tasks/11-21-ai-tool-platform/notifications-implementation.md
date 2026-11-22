@@ -82,3 +82,5 @@ QQ 手机端反复提示未连接时，网关 ACK 只能证明连接存活。正
 文章发送渠道使用 shadcn/ui Combobox 的标签多选形态。选中 ID 是同步标签、全选开关与发送目标的唯一来源。回归覆盖搜索、键盘选择、逐项选满、标签移除、全选清空、Escape 及最终发送参数。
 
 飞书与 Lark 复用 `PairingStatus.received_message` 区分 SDK 握手与用户私聊。应用订阅接收消息后仍需开通私聊权限并发布。同一个 AppID 有多个长连接时，同一事件只会投递给其中一个。回环验证 SDK 收件和 Open ID 提取，真机事件投递待验证。
+
+钉钉应用模式的凭据表单采用 Client ID 和 Client Secret，操作步骤分别说明 Stream 接收配置与企业内机器人发送消息权限。钉钉群 Webhook 继续使用 Webhook URL 与加签密钥。

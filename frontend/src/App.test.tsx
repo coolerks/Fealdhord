@@ -1167,6 +1167,29 @@ describe('Phase 1 阅读 Shell', () => {
     })))
   })
 
+  it('钉钉应用机器人使用最新凭据标签，并说明收发配置', async () => {
+    const user = userEvent.setup()
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    await user.click(await screen.findByRole('button', { name: '通知' }))
+    await user.click(await screen.findByRole('button', { name: '添加渠道' }))
+    const dialog = within(screen.getByRole('dialog', { name: '添加渠道' }))
+    await user.click(dialog.getByRole('button', { name: '平台' }))
+    await user.click(await screen.findByRole('option', { name: '钉钉' }))
+    expect(dialog.getByLabelText('Webhook URL')).toBeInTheDocument()
+    expect(dialog.getByLabelText('加签密钥（可选）')).toBeInTheDocument()
+    await user.click(dialog.getByRole('button', { name: '接入方式' }))
+    await user.click(await screen.findByRole('option', { name: '应用机器人私发' }))
+    expect(dialog.getByLabelText('Client ID')).toBeInTheDocument()
+    expect(dialog.getByLabelText('Client Secret')).toHaveAttribute('type', 'password')
+    await user.click(dialog.getByRole('button', { name: '操作步骤' }))
+    const guide = await screen.findByRole('dialog', { name: '钉钉操作步骤' })
+    expect(guide).toHaveAccessibleDescription(/Stream 模式.*企业内机器人发送消息权限.*Client ID.*Client Secret/)
+    await user.keyboard('{Escape}')
+    await user.click(dialog.getByRole('button', { name: '下一步' }))
+    expect(dialog.getByText(/Client ID 和 Client Secret.*Stream 模式/)).toBeInTheDocument()
+  })
+
   it('飞书配对区分长连接就绪、收到私聊和识别配对', async () => {
     const waiting = { id: 'feishu-pair', state: 'listening', targets: [] }
     notificationAPI.StartRecipientPairing.mockResolvedValue(waiting)
