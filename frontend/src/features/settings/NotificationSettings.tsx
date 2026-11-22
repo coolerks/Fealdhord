@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
 import { defaultZone, FlagField, Selection, TextField, time, toggle, zones } from '@/features/notifications/notification-fields'
+import { native } from '@/lib/native'
+import { notify } from '@/lib/notifications'
 import { navigationAPI, navigationQueryKey } from '@/lib/navigation-api'
 import { NotificationVerification } from './NotificationVerification'
 import { ConfirmDialog, SettingCard, SettingEmpty, SettingRow, SettingSection, StatusBadge } from './settings-primitives'
@@ -25,12 +27,45 @@ const pairingInstructions: Record<string, string> = {
   wechat: '在「微信 ClawBot」私聊里发送「配对」。',
 }
 const terminalWeChatStatuses = ['connected', 'expired', 'verify_code_blocked', 'binded_redirect']
-const platforms = [
-  { value: 'telegram', label: 'Telegram' }, { value: 'discord', label: 'Discord' }, { value: 'slack', label: 'Slack' },
-  { value: 'dingtalk', label: '钉钉' }, { value: 'feishu', label: '飞书' }, { value: 'lark', label: 'Lark' },
-  { value: 'wechat', label: '微信' }, { value: 'wecom', label: '企业微信' }, { value: 'qq', label: 'QQ' },
+const platforms: { value: string; label: string; docs: string; webhookDocs?: string; sandboxDocs?: string }[] = [
+  { value: 'telegram', label: 'Telegram', docs: 'https://core.telegram.org/bots/tutorial#obtain-your-bot-token' },
+  {
+    value: 'discord', label: 'Discord',
+    docs: 'https://docs.discord.com/developers/quick-start/getting-started',
+    webhookDocs: 'https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks',
+  },
+  {
+    value: 'slack', label: 'Slack',
+    docs: 'https://docs.slack.dev/apis/events-api/using-socket-mode/',
+    webhookDocs: 'https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/',
+  },
+  {
+    value: 'dingtalk', label: '钉钉',
+    docs: 'https://open-dingtalk.github.io/developerpedia/docs/explore/tutorials/stream/bot/nodejs/create-bot/',
+    webhookDocs: 'https://open.dingtalk.com/document/group/custom-robot-access',
+  },
+  {
+    value: 'feishu', label: '飞书',
+    docs: 'https://open.feishu.cn/document/home/develop-a-bot-in-5-minutes/step-1-create-app-and-enable-robot-capabilities',
+    webhookDocs: 'https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot?lang=zh-CN',
+  },
+  {
+    value: 'lark', label: 'Lark',
+    docs: 'https://open.larksuite.com/document/home/develop-a-bot-in-5-minutes/step-1-create-app-and-enable-robot-capabilities',
+    webhookDocs: 'https://open.larksuite.com/document/uAjLw4CM/ukTMukTMukTM/bot-v3/use-custom-bots-in-a-group',
+  },
+  { value: 'wechat', label: '微信', docs: 'https://github.com/Tencent/openclaw-weixin/blob/main/docs/protocol_zh_CN.md' },
+  {
+    value: 'wecom', label: '企业微信',
+    docs: 'https://hiflow.tencent.com/docs/applications/wwx-app/',
+    webhookDocs: 'https://cloud.tencent.com/document/product/1759/128391',
+  },
+  {
+    value: 'qq', label: 'QQ',
+    docs: 'https://github.com/tencent-connect/bot-docs/blob/main/docs/README.md#81-机器人-appid',
+    sandboxDocs: 'https://github.com/tencent-connect/bot-docs/blob/main/docs/README.md#71-配置沙箱环境',
+  },
 ]
-const appPlatforms = ['discord', 'slack', 'dingtalk', 'feishu', 'lark', 'wecom']
 const recipientFields: Record<string, { label: string; example: string }> = {
   telegram: { label: 'Telegram 用户 ID 或会话 ID', example: '123456789\n-100123456789' },
   discord: { label: 'Discord 用户 ID', example: '123456789012345678' },
@@ -138,7 +173,9 @@ export function NotificationSettings() {
   const bindingMode = wechatMode && !channel.id
   const pairStatus = pairingPoll.data ?? pairing
   const appMode = channel?.mode === 'app'
-  const webhookMode = Boolean(channel && appPlatforms.includes(channel.platform) && !appMode)
+  const platform = platforms.find(item => item.value === channel?.platform)
+  const webhookMode = Boolean(platform?.webhookDocs && !appMode)
+  const platformDocs = (webhookMode ? platform?.webhookDocs : channel?.mode === 'sandbox' ? platform?.sandboxDocs : undefined) ?? platform?.docs
   const savedRecipients = channels.data?.find(value => value.id === channel?.id)?.recipients ?? []
   const wechatOptions = channel?.platform === 'wechat' ? [
     ...(channel.target ? [{ value: channel.target, label: '当前绑定私聊' }] : []),
@@ -327,12 +364,26 @@ export function NotificationSettings() {
           ) : <FieldGroup>
             {channelStep !== 2 && <>
               <TextField id="channel-name" label="渠道名称" value={channel.name} disabled={busy} onChange={value => setChannelField('name', value)} />
-              <Selection id="channel-platform" label="平台" options={platforms} value={channel.platform} disabled={Boolean(channel.id || wechat) || busy || channelStep === 3} onChange={value => {
-                setChannel({ ...blankChannel, platform: value, name: channel.name })
-                setSlackAppToken('')
-                setRecipientText('')
-              }} />
-              {appPlatforms.includes(channel.platform) && (
+              <Selection
+                id="channel-platform" label="平台" options={platforms} value={channel.platform}
+                disabled={Boolean(channel.id || wechat) || busy || channelStep === 3}
+                onChange={value => {
+                  setChannel({ ...blankChannel, platform: value, name: channel.name })
+                  setSlackAppToken('')
+                  setRecipientText('')
+                }}
+                labelAction={platformDocs && (
+                  <Button asChild variant="ghost" size="xs" className="text-muted-foreground">
+                    <a href={platformDocs} data-animated-trigger onClick={event => {
+                      event.preventDefault()
+                      void native.openURL(platformDocs).catch(() => { void notify('无法打开官方文档', undefined, true) })
+                    }}>
+                      查看官方文档 <AnimatedGlyph meaning="external-link" />
+                    </a>
+                  </Button>
+                )}
+              />
+              {platform?.webhookDocs && (
                 <Selection
                   id="channel-mode"
                   label="接入方式"

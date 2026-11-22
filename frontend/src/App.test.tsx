@@ -1082,6 +1082,30 @@ describe('Phase 1 阅读 Shell', () => {
     })))
   })
 
+  it('通知渠道的官方文档随平台和接入方式切换，并交给系统浏览器', async () => {
+    const user = userEvent.setup()
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    await user.click(await screen.findByRole('button', { name: '通知' }))
+    await user.click(await screen.findByRole('button', { name: '添加渠道' }))
+    const dialog = within(screen.getByRole('dialog', { name: '添加渠道' }))
+    const docs = () => dialog.getByRole('link', { name: '查看官方文档' })
+
+    expect(docs()).toHaveAttribute('href', 'https://core.telegram.org/bots/tutorial#obtain-your-bot-token')
+    docs().focus()
+    await user.keyboard('{Enter}')
+    expect(host.openURL).toHaveBeenLastCalledWith('https://core.telegram.org/bots/tutorial#obtain-your-bot-token')
+
+    await user.click(dialog.getByRole('button', { name: '平台' }))
+    await user.click(await screen.findByRole('option', { name: 'Slack' }))
+    expect(docs()).toHaveAttribute('href', 'https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/')
+    await user.click(dialog.getByRole('button', { name: '接入方式' }))
+    await user.click(await screen.findByRole('option', { name: '应用机器人私发' }))
+    await user.click(docs())
+    expect(host.openURL).toHaveBeenLastCalledWith('https://docs.slack.dev/apis/events-api/using-socket-mode/')
+    expect(dialog.getByLabelText('Slack Bot Token')).toBeInTheDocument()
+  })
+
   it('Telegram 通知可同时保存用户 ID 和群会话 ID', async () => {
     const user = userEvent.setup()
     setup()

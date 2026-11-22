@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { SearchableSelect } from '@/components/ui/searchable-select'
@@ -25,12 +26,17 @@ export function FlagField({ id, label, value, onChange }: { id: string; label: s
   return <Field orientation="horizontal"><FieldLabel htmlFor={id}>{label}</FieldLabel><Switch id={id} checked={value} onCheckedChange={onChange} /></Field>
 }
 
-export function Selection({ id, label, options, value, onChange, placeholder, disabled }: {
+export function Selection({ id, label, options, value, onChange, placeholder, disabled, labelAction }: {
   id: string; label: string; options: { value: string; label: string }[]; value: string | string[]
-  onChange(value: string): void; placeholder?: string; disabled?: boolean
+  onChange(value: string): void; placeholder?: string; disabled?: boolean; labelAction?: ReactNode
 }) {
   return <Field>
-    <FieldLabel htmlFor={id}>{label}</FieldLabel>
+    {labelAction ? (
+      <div className="flex items-center justify-between gap-2">
+        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        {labelAction}
+      </div>
+    ) : <FieldLabel htmlFor={id}>{label}</FieldLabel>}
     <SearchableSelect id={id} label={label} options={options} value={value} onValueChange={onChange}
       className="w-full" placeholder={placeholder} disabled={disabled} />
   </Field>
