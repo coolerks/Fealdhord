@@ -1523,3 +1523,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 59: 增加 AI 回复操作与详情并保留思考档位
+<!-- trellis-session: v=2 fp=3cb219ca1eb5040b -->
+
+**Date**: 2026-11-22
+**Task**: 增加 AI 回复操作与详情并保留思考档位
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+回复底部复制、分支和详情，迁移 00023 保存真实统计。DeepSeek 模拟网关验证低档与工具及推理续传。65 项界面测试、后端竞态和迁移测试通过，真实 Magpie 路由待复测。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `08180dd` | feat(chat): 增加回复操作与详情并保留 DeepSeek 思考档位 |
+
+### Status
+
+[OK] **Completed**
