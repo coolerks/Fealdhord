@@ -1413,3 +1413,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 54: 接入企业微信智能机器人长连接
+<!-- trellis-session: v=2 fp=c36e14772a89ed76 -->
+
+**Date**: 2026-11-22
+**Task**: 接入企业微信智能机器人长连接
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+新建企业微信渠道默认用 Bot ID 和 Secret。模拟验证私聊配对、四位校验和主动投递，执行通知包竞态测试与前端检查，真实账号尚待验收。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fc4a4c5` | feat(notification): 接入企业微信智能机器人长连接 |
+
+### Status
+
+[OK] **Completed**
