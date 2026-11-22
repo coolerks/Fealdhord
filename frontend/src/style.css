@@ -185,7 +185,7 @@
 .nav-item.is-current { font-weight: 600; }
 .nav-item.is-current svg { color: var(--primary); }
 .nav-item.is-current::before { display:none; content: ''; position: absolute; left: -4px; top: 12px; width: 2px; height: 12px; border-radius: 2px; background: var(--primary); }
-.nav-count { margin-left: auto; color: var(--muted-foreground); font-size: 11px; font-variant-numeric: tabular-nums; }
+.nav-count { flex-shrink: 0; margin-inline-start: auto; color: var(--muted-foreground); font-size: 11px; font-variant-numeric: tabular-nums; }
 .sidebar-organize { flex: 1; min-height: 0; overflow: auto; padding: 4px 12px 16px; }
 .sidebar-organize-wrap { position: relative; display: flex; flex: 1; min-height: 0; }
 .sidebar-organize-wrap::before {

@@ -77,6 +77,8 @@ transferAPI 是唯一文件调用边界，Go空items归一为数组；组件不�
 
 ## macOS 侧栏材质
 
+分类和订阅行共用 `nav-node-label`，标签空间不足时单行省略。订阅按钮的可访问名称和标题提示保留完整名称。未读数使用 `nav-count`，禁止压缩并推到行尾。以 220px 侧栏核对长标题及不同位数的计数右缘对齐。
+
 Wails 3.0.0 在 macOS 开发和发布构建中均需启用 `private_mac_apis`，否则 WebView 的不透明底色会盖住系统模糊。主窗口以 `MacBackdropTransparent` 创建，首次显示前用 AppKit 在 WebView 下放置 `NSVisualEffectMaterialSidebar`，混合模式为 `BehindWindow`。侧栏祖先保持透明，CSS 只叠加主题底色并处理对比度与减少透明度回退。阅读工作区保持不透明。验证时在 macOS 上用有纹理的窗后背景对比侧栏与正文。
 
 macOS 侧栏交互使用半透明状态色。以 `aria-current=page` 统一阅读视图、分类和订阅的选中强度。阅读视图的 Motion 背景继承同一个填充色，避免同时绘制两层。折叠按钮保留 shadcn 的键盘焦点样式。
