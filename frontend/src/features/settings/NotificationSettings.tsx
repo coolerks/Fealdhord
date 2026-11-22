@@ -456,7 +456,9 @@ export function NotificationSettings() {
                 id="channel-platform" label="平台" options={platforms} value={channel.platform}
                 disabled={Boolean(channel.id || wechat) || busy || channelStep === 3}
                 onChange={value => {
-                  setChannel({ ...blankChannel, platform: value, name: channel.name, mode: value === 'wecom' ? 'bot' : '' })
+                  const selectedPlatform = platforms.find(item => item.value === value)
+                  const mode = value === 'wecom' ? 'bot' : selectedPlatform?.webhookDocs ? 'app' : ''
+                  setChannel({ ...blankChannel, platform: value, name: channel.name, mode })
                   setSlackAppToken('')
                   setRecipientText('')
                 }}
