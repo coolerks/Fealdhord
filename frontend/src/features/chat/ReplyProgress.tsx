@@ -73,7 +73,7 @@ function ToolStep({ tool }: { tool: ReplyToolStep }) {
   }
 
   return <li>
-    <Button type="button" variant="ghost" size="sm" className="-ml-2 h-7 max-w-full gap-1.5 px-2 text-xs font-normal"
+    <Button type="button" variant="ghost" size="sm" className="-ml-2 h-7 max-w-full gap-1.5 border-0 px-2 text-xs font-normal"
       aria-label={`${meta.label} ${status}`} aria-expanded={open} aria-controls={id}
       onClick={() => {
         if (open) clearCollapsedSelection(panelRef.current)
@@ -133,7 +133,7 @@ function ReplyProgress({ message, sections }: {
   return <div className="text-sm text-muted-foreground">
     {hasProcess
       ? <>
-        <Button type="button" variant="ghost" size="sm" className="-ml-2 text-muted-foreground hover:text-foreground"
+        <Button type="button" variant="ghost" size="sm" className="-ml-2 border-0 px-2 text-muted-foreground hover:text-foreground"
           aria-controls={panelId} aria-expanded={open} onClick={() => {
             if (open) clearCollapsedSelection(panelRef.current)
             setToggle({ running, open: !open })
