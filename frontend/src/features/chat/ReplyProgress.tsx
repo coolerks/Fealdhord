@@ -1,5 +1,6 @@
-import { useId, useState } from 'react'
-import { Brain, ChevronDown, ChevronRight, Loader2, Wrench } from 'lucide-react'
+import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
+import { clearSelectionWithin } from '@/app/TextSelection'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Message, ReplyToolStep, ReplyWork } from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
@@ -40,6 +41,11 @@ function elapsedLabel(ms: number) {
   return [hours ? `${hours} 小时` : '', minutes ? `${minutes} 分钟` : '', rest || !seconds ? `${rest} 秒` : ''].filter(Boolean).join(' ')
 }
 
+function clearCollapsedSelection(panel: HTMLElement | null) {
+  if (panel) clearSelectionWithin(panel)
+  else document.dispatchEvent(new Event('selectionchange'))
+}
+
 function ToolPayload({ label, text, truncated }: { label: string; text: string; truncated?: boolean }) {
   return <div>
     <div className="mb-1 text-xs text-muted-foreground">{label}{truncated && '（已截断）'}</div>
@@ -49,6 +55,7 @@ function ToolPayload({ label, text, truncated }: { label: string; text: string; 
 
 function ToolStep({ tool }: { tool: ReplyToolStep }) {
   const id = useId()
+  const panelRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const meta = getToolMeta(tool.name)
   const Icon = tool.status === 'running' ? Loader2 : meta.icon
@@ -68,13 +75,16 @@ function ToolStep({ tool }: { tool: ReplyToolStep }) {
   return <li>
     <Button type="button" variant="ghost" size="sm" className="-ml-2 h-7 max-w-full gap-1.5 px-2 text-xs font-normal"
       aria-label={`${meta.label} ${status}`} aria-expanded={open} aria-controls={id}
-      onClick={() => setOpen(!open)}>
+      onClick={() => {
+        if (open) clearCollapsedSelection(panelRef.current)
+        setOpen(!open)
+      }}>
       <Icon className={iconClass} aria-hidden="true" />
       <span className="truncate text-foreground/90">{meta.label}</span>
       <span className={cn('shrink-0', tone)}>{status}</span>
       {open ? <ChevronDown data-icon="inline-end" /> : <ChevronRight data-icon="inline-end" />}
     </Button>
-    <div id={id} hidden={!open}>
+    <div ref={panelRef} id={id} hidden={!open}>
       {open && <div className="flex flex-col gap-2 py-1 pl-5">
         {tool.arguments != null && <ToolPayload label="调用参数" text={tool.arguments} truncated={tool.argumentsTruncated} />}
         {tool.result != null && <ToolPayload label="返回值" text={tool.result} truncated={tool.resultTruncated} />}
@@ -83,10 +93,11 @@ function ToolStep({ tool }: { tool: ReplyToolStep }) {
   </li>
 }
 
-function ReplyProgress({ message, sections, compact = false }: {
-  message: Message; sections?: ReplyWork[]; compact?: boolean
+function ReplyProgress({ message, sections }: {
+  message: Message; sections?: ReplyWork[]
 }) {
   const panelId = useId()
+  const panelRef = useRef<HTMLDivElement>(null)
   const [toggle, setToggle] = useState<{ running: boolean; open: boolean }>()
   const running = message.status === 'running'
   const waiting = running && !message.text.trim()
@@ -95,13 +106,18 @@ function ReplyProgress({ message, sections, compact = false }: {
     ...entry, summary: entry.reasoningSummary?.trim(), thinking: entry.reasoningText?.trim(),
   })).filter(entry => entry.summary || entry.thinking || entry.reasoningObserved || entry.reasoningTruncated || entry.tools?.length)
   const hasProcess = entries.length > 0
-  if (!waiting && !hasProcess) return null
 
   const hasRunningTool = running && entries.some(entry => entry.tools?.some(tool => tool.status === 'running'))
-  const hasReasoning = entries.some(entry => entry.summary || entry.thinking || entry.reasoningObserved || entry.reasoningTruncated)
-  const hasTools = entries.some(entry => Boolean(entry.tools?.length))
   const inProgress = waiting || hasRunningTool
   const open = toggle?.running === running ? toggle.open : inProgress
+
+  useLayoutEffect(() => {
+    if (!open) return
+    const panel = panelRef.current
+    return () => { clearCollapsedSelection(panel) }
+  }, [open])
+
+  if (!waiting && !hasProcess) return null
 
   const duration = sections?.at(-1)?.durationMs ?? work?.durationMs ?? message.details?.durationMs
   const label = waiting
@@ -112,22 +128,22 @@ function ReplyProgress({ message, sections, compact = false }: {
         ? `用时 ${elapsedLabel(duration)}`
         : '查看记录'
 
-  const HeaderIcon = hasRunningTool ? Loader2 : (hasTools && !hasReasoning && !waiting) ? Wrench : Brain
-  const iconClass = cn('size-3.5 shrink-0', hasRunningTool && 'chat-spin')
   const title = <span className={inProgress ? 'chat-thinking-label' : undefined} role={inProgress ? 'status' : undefined}>{label}</span>
 
-  return <div className={cn(compact ? 'my-0.5' : 'mb-3', 'text-sm text-muted-foreground')}>
+  return <div className="text-sm text-muted-foreground">
     {hasProcess
       ? <>
-        <Button type="button" variant="ghost" size="sm" className="-ml-2 gap-1.5 text-muted-foreground hover:text-foreground"
-          aria-controls={panelId} aria-expanded={open} onClick={() => setToggle({ running, open: !open })}>
-          <HeaderIcon className={iconClass} aria-hidden="true" />
+        <Button type="button" variant="ghost" size="sm" className="-ml-2 text-muted-foreground hover:text-foreground"
+          aria-controls={panelId} aria-expanded={open} onClick={() => {
+            if (open) clearCollapsedSelection(panelRef.current)
+            setToggle({ running, open: !open })
+          }}>
           {title}
           {open ? <ChevronDown data-icon="inline-end" /> : <ChevronRight data-icon="inline-end" />}
         </Button>
-        <div id={panelId} hidden={!open} className="my-1 max-h-56 overflow-y-auto border-l border-border/80 pl-3">
-          {open && <div className="flex flex-col gap-2">
-            {entries.map((entry, index) => <div key={index} className="flex flex-col gap-2">
+        <div ref={panelRef} id={panelId} hidden={!open} className="mt-1 max-h-56 overflow-y-auto border-l border-border/80 pl-3">
+          {open && <div className="flex flex-col gap-1.5">
+            {entries.map((entry, index) => <div key={index} className="flex flex-col gap-1.5">
               {entry.summary && <div>
                 {entry.thinking && <p className="mb-0.5 text-xs font-medium text-foreground/80">思考摘要</p>}
                 <ChatMarkdown text={entry.summary} streaming={running} />
@@ -145,10 +161,7 @@ function ReplyProgress({ message, sections, compact = false }: {
           </div>}
         </div>
       </>
-      : <div className="inline-flex items-center gap-1.5 py-1">
-        <HeaderIcon className={iconClass} aria-hidden="true" />
-        {title}
-      </div>}
+      : <div className="py-1">{title}</div>}
   </div>
 }
 
@@ -168,10 +181,13 @@ export function ReplyBody({ message, markdown, reveal }: {
     return <ChatMarkdown text={text} streaming={running && end === message.text.length} reveal={batches?.length ? batches : undefined} />
   }
 
-  if (!work || !positions?.length) return <>
-    <ReplyProgress message={message} />
-    {textBetween(0, message.text.length)}
-  </>
+  if (!work || !positions?.length) {
+    const body = textBetween(0, message.text.length)
+    return <div className="flex flex-col gap-2">
+      <ReplyProgress message={message} />
+      {body}
+    </div>
+  }
 
   const groups: { offset: number; sections: ReplyWork[] }[] = []
   positions.forEach((position, i) => {
@@ -190,12 +206,13 @@ export function ReplyBody({ message, markdown, reveal }: {
   })
 
   return <div className="flex flex-col gap-2">
-    {groups.map((group, i) =>
-      <div key={group.offset} className="flex flex-col gap-2">
-        {textBetween(groups[i - 1]?.offset ?? 0, group.offset)}
-        <ReplyProgress message={message} sections={group.sections} compact />
+    {groups.map((group, i) => {
+      const before = textBetween(groups[i - 1]?.offset ?? 0, group.offset)
+      return <div key={group.offset} className="contents">
+        {before}
+        <ReplyProgress message={message} sections={group.sections} />
       </div>
-    )}
+    })}
     {textBetween(positions[positions.length - 1].offset, message.text.length)}
   </div>
 }
