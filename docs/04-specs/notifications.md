@@ -15,7 +15,7 @@
 - Slack 要启用 Socket Mode、订阅 `message.im`，填写与 Bot Token 对应的 App-Level Token。飞书和 Lark 需启用长连接并订阅 `im.message.receive_v1`。[Slack Socket Mode](https://docs.slack.dev/apis/events-api/using-socket-mode/) [飞书接收消息事件](https://open.larkenterprise.com/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/events/receive)
 - 钉钉私聊配对在企业内部应用的「应用能力 → 机器人」配置消息接收模式为 Stream，发布版本并把操作者纳入应用可见范围。折栈通过机器人消息回调接收「配对」，无需添加独立的业务事件订阅。主动发送通知和收件校验码时，在「权限管理」开通「企业内机器人发送消息权限」并发布变更。[钉钉 Stream 机器人配置](https://open-dingtalk.github.io/developerpedia/docs/explore/tutorials/stream/bot/nodejs/create-bot/) [钉钉 Stream 协议](https://open-dingtalk.github.io/developerpedia/docs/learn/stream/protocol/) [钉钉单聊发送接口](https://open.dingtalk.com/document/orgapp/chatbots-send-one-on-one-chat-messages-in-batches)
 - 微信先扫码授权，然后在「微信 ClawBot」私聊里发送「配对」。跳过后可从已有渠道继续配对。
-- 企业微信自建应用的入站消息需要可访问的回调地址，当前桌面端可跳过并手填成员 UserID。[企业微信自建应用](https://hiflow.tencent.com/docs/applications/wwx-app/)
+- 企业微信新建渠道默认使用「智能机器人（长连接）」。在企业微信创建 API 模式的智能机器人，选择长连接，复制 Bot ID 和 Secret。通过机器人链接或二维码打开私聊。在折栈点「开始配对」，等连接就绪后在私聊发送「配对」，勾选目标，保存并回填四位校验码。该方式无需配置域名、可信 IP 或回调服务器。请为折栈使用独立的机器人，同一个 Bot ID 只能建立一个连接。[企业微信配置指引](https://open.work.weixin.qq.com/help2/pc/cat?doc_id=21657) [企业微信智能机器人 SDK](https://github.com/WecomTeam/aibot-node-sdk)
 
 | 平台 | 私发或指定收件目标 | 群或频道 Webhook | 内容 |
 | --- | --- | --- | --- |
@@ -24,7 +24,7 @@
 | [Slack](https://docs.slack.dev/reference/methods/conversations.open/) | Bot Token 与工作区成员 ID（`U…` 或 `W…`），应用需有打开单人私聊和发消息的权限 | Incoming Webhook | Block Kit 链接、正文与图片 |
 | [钉钉](https://open.dingtalk.com/document/orgapp/chatbots-send-one-on-one-chat-messages-in-batches) | Client ID（原 AppKey）、Client Secret（原 AppSecret）、可选 RobotCode，以及企业成员 UserID | 群 Webhook 与可选加签密钥 | Markdown 链接、正文与图片外链 |
 | [飞书](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/create)、[Lark](https://open.larksuite.com/document/server-docs/im-v1/message/create) | 各自区域的 AppID 和 AppSecret，成员 ID 默认使用 `open_id`，也支持 `user_id:…` 和 `union_id:…` | 群机器人 Webhook 与可选加签密钥。Webhook 上传图片另需应用上传凭据 | 富文本链接、正文与上传图片 |
-| [企业微信](https://developer.work.weixin.qq.com/document/path/90236) | CorpID、应用 Secret、AgentID，以及应用可见范围内的企业成员 UserID（`touser`） | 群 Webhook | Markdown 链接、正文或图文卡片 |
+| [企业微信](https://open.work.weixin.qq.com/help2/pc/cat?doc_id=21657) | 智能机器人长连接使用 Bot ID、Secret 与成员 UserID，可通过私聊配对发现 | 群 Webhook | 智能机器人发送 Markdown 链接、正文与封面链接 |
 | [个人微信](https://github.com/Tencent/openclaw-weixin/blob/main/docs/protocol.md) | 每个私聊扫码授权后发送「配对」。白名单可从已绑定私聊中多选 | — | 纯文本链接与 iLink 图片上传 |
 | [QQ](https://github.com/tencent-connect/bot-docs/blob/main/docs/develop/api-v2/server-inter/message/send-receive/send.md) | AppID、AppSecret 与 `c2c:用户 OpenID`、`group:群 OpenID` 或 `channel:子频道 ID` | — | 文本链接，按目标能力生成图片消息 |
 
@@ -36,7 +36,7 @@ Telegram 私聊可直接使用数字用户 ID，每行一个。每位收件人�
 
 群或频道 Webhook 固定投递给绑定会话。需要个人定向收件时，添加相应的应用机器人连接。规则和 AI 工具选择已配置渠道，每个渠道会投递给其中已验证的收件目标。发送测试也只使用保存的目标。
 
-企业微信自建应用主动发送无需接收回调。跳过配对后填写通讯录中的成员「账号」，并确认成员在应用可见范围内。校验码发送失败时按界面错误处理。出现 `60020` 时，将当前折栈请求所用的公网出口 IP 加入自建应用的「企业可信 IP」。出现 `81013` 时核对成员 UserID 和可见范围。[企业微信错误码](https://wdk-docs.github.io/wework-docs/appendix/error-code/)
+企业微信已保存的自建应用继续按原配置运行。切换到智能机器人时新建渠道，并在使用旧渠道的规则里改选新渠道。编辑旧应用时填写通讯录中的成员「账号」，并确认成员在应用可见范围内。旧应用出现 `60020` 时，将当前折栈请求所用的公网出口 IP 加入该应用的「企业可信 IP」。出现 `81013` 时核对成员 UserID 和可见范围。[企业微信自建应用](https://hiflow.tencent.com/docs/applications/wwx-app/)
 
 旧配置中的单一目标和测试状态会迁移至白名单，已排队消息保留原收件目标和投递记录。移除目标或更换连接凭据后，旧配置中尚未开始的投递会取消。重新添加目标需要重新测试，旧投递不会恢复。Webhook、令牌、加签和上传凭据使用系统密钥库。图片根据远程图片偏好和平台能力发送，图片抓取或上传失败时继续处理文字。
 

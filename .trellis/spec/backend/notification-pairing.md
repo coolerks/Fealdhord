@@ -21,6 +21,7 @@
 | Slack | Socket Mode `message.im` → `user`，与 Bot Token 的工作区一致 |
 | 钉钉 | Stream 机器人文本回调 → `senderStaffId` |
 | 飞书与 Lark | 长连接 `im.message.receive_v1`，`message.chat_type=p2p` 且 `sender.sender_type=user` → `sender.sender_id.open_id` |
+| 企业微信智能机器人 | `aibot_msg_callback`，`body.chattype=single` 且 `body.msgtype=text` → `body.from.userid` |
 | QQ | `C2C_MESSAGE_CREATE` → `c2c:user_openid`，群 @ → `group:group_openid`，文字子频道 @ → `channel:channel_id` |
 
 钉钉应用机器人的表单显示 Client ID 和 Client Secret，沿用 `ChannelInput.Address` 和 `ChannelInput.Signing`。Stream 握手使用 `clientId` 和 `clientSecret`，主动发送的 OAuth 接口仍使用 `appKey` 和 `appSecret`。Stream 接收配置与主动发送所需的「企业内机器人发送消息权限」分别在操作步骤中说明。
@@ -28,6 +29,8 @@
 钉钉向 `/v1.0/gateway/connections/open` 申请连接，只订阅机器人消息的 `CALLBACK`。使用返回的 endpoint 和临时 ticket 建立 WebSocket。共享网关校验接受受信域名的 `wss` 地址，可省略端口或显式使用 `443`。校验时按 hostname 检查域名边界，拒绝其他端口与 URL 用户信息。[钉钉 Stream 协议](https://open-dingtalk.github.io/developerpedia/docs/learn/stream/protocol/)
 
 QQ 渠道复用 `Channel.mode`。空字符串为正式环境，`sandbox` 为沙箱。两种环境共用 `bots.qq.com/app/getAppAccessToken`。正式和沙箱使用腾讯 SDK 的 `api.sgroup.qq.com` 系列地址。网关发现、投递和测试分别请求对应环境地址。渠道环境与验证过的收件目标一起保存，已有渠道更换环境时重新添加并配对。QQ 在 `READY` 后发送心跳并收到 `op=11` 后进入 `listening`，收到消息后才展示收件候选。连续未确认心跳或断线结束本次配对，由用户发起下一次连接。
+
+企业微信新增的私发渠道使用 `Channel.mode=bot`，`ChannelInput.Address` 和 `ChannelInput.Signing` 分别保存 Bot ID 和 Secret。向固定的 `wss://openws.work.weixin.qq.com` 发出 `aibot_subscribe`（`bot_id`、`secret`），匹配 `headers.req_id` 且收到 `errcode=0` 后进入监听。配对阶段每 30 秒发送 `ping`，连续两次未确认时结束监听。收到私聊时设置 `received_message`。前端离开配对页时取消当前监听，确认页继续保留所选目标。单个 Bot ID 的连接在进程内串行处理，收到 `disconnected_event` 时结束配对并提示检查同凭据的其他客户端。[企业微信智能机器人 SDK](https://github.com/WecomTeam/aibot-node-sdk)
 
 ## 4. 校验与错误
 
@@ -42,6 +45,7 @@ QQ 渠道复用 `Channel.mode`。空字符串为正式环境，`sandbox` 为沙�
 - 在三个不同 QQ 会话配对时分别给出三个候选，可任意勾选。
 - 收到「你好」或同一个候选的重复事件时，候选列表保持原样。
 - 用户跳过并保存空收件目标，渠道可稍后编辑，未验证期间不会加入通知规则的候选。
+- 仅个人使用的企业微信智能机器人在私聊收到「配对」后读出成员 UserID，确认后向该成员发送校验码。
 
 ## 6. 必需测试
 
@@ -50,6 +54,8 @@ QQ 渠道复用 `Channel.mode`。空字符串为正式环境，`sandbox` 为沙�
 飞书与 Lark 回环使用官方 Go SDK 接收事件帧，断言群聊、机器人和旧消息不会产生候选，普通私聊更新收件状态，私聊「配对」提取当前应用的 Open ID。界面测试区分长连接就绪、收到普通私聊和确认候选。
 
 钉钉 TLS 回环模拟官方显式 `:443` 地址，覆盖 ticket、心跳确认和消息回调，断言能够识别成员 UserID。另验证网关拒绝非标准端口、不受信域名和 URL 用户信息，以及申请错误不会回传凭据。
+
+企业微信 TLS 回环覆盖 Bot ID 和 Secret 认证、忽略群聊和非关键词、提取成员 UserID、取消配对后独立连接主动发码、成功验证后独立发送，以及发送回执丢失时标记结果未知。前端覆盖新建默认方式、官方链接、凭据传递与释放配对连接。
 
 ## 7. 错误与正确做法
 
@@ -76,6 +82,8 @@ QQ 渠道复用 `Channel.mode`。空字符串为正式环境，`sandbox` 为沙�
 每码五分钟有效，最多尝试五次。重发间隔至少 30 秒。请求必须匹配处于启用状态的收件目标、渠道和当前 revision。并发发送有单次在途限制。结果未知时允许输入已到达的校验码，平台明确拒绝时必须重发。验证成功后即消费该码。
 
 企业微信自建应用通过 `gettoken` 获取令牌，再用 `message/send` 主动发送校验码。API 拒绝时，校验页显示阶段及数字错误码，`60020` 指向企业可信 IP，`40001` 和 `40013` 指向凭据，`40056` 指向 AgentID，`81013` 指向成员和应用可见范围。响应的 `invaliduser` 和 `unlicenseduser` 即使伴随 `errcode=0`，也会使当前单收件人请求失败。平台原始错误正文、成员清单和令牌不进入诊断提示。
+
+企业微信智能机器人使用独立认证后的 `aibot_send_msg` 发送校验码和后续通知，`chatid` 取已选成员 UserID，`msgtype` 为 `markdown`。平台明确拒绝时仅显示阶段与数字错误码。连接或认证回执在发送前丢失时可安全重试。主动发送后的回执丢失标记为结果未知，避免自动重复发送。配对应在发送校验码之前取消，防止投递连接替换同一机器人的配对连接。
 
 ### 5. 案例
 

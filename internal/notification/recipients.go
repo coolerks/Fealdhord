@@ -17,8 +17,9 @@ func isWebhook(platform, mode string) bool {
 }
 
 func (s *Service) checkRecipients(ctx context.Context, channel Channel, secret connectionSecret, targets []string) ([]string, error) {
+	wecomBot := isWeComBot(channel.Platform, channel.Mode)
 	if channel.Mode != "" && !(channel.Platform == "qq" && validQQMode(channel.Mode)) &&
-		(channel.Mode != "app" || !isWebhook(channel.Platform, "")) {
+		!wecomBot && (channel.Mode != "app" || !isWebhook(channel.Platform, "")) {
 		return nil, errors.New("不支持此渠道接入方式")
 	}
 	if isWebhook(channel.Platform, channel.Mode) {
@@ -29,6 +30,9 @@ func (s *Service) checkRecipients(ctx context.Context, channel Channel, secret c
 	}
 	if channel.Mode == "app" && !validAppCredentials(channel.Platform, secret) {
 		return nil, errors.New("请检查应用机器人凭据")
+	}
+	if wecomBot && !validWeComBotCredentials(secret) {
+		return nil, errWeComBotCredentials
 	}
 	if len(targets) == 0 {
 		switch channel.Platform {
@@ -63,6 +67,10 @@ func (s *Service) checkRecipients(ctx context.Context, channel Channel, secret c
 			continue
 		}
 		switch {
+		case wecomBot:
+			if !memberID.MatchString(target) || strings.HasPrefix(target, "@") {
+				return nil, errors.New("请填写企业微信成员 UserID")
+			}
 		case channel.Mode == "app":
 			if err := checkAppRecipient(channel.Platform, target, secret); err != nil {
 				return nil, err
@@ -115,6 +123,9 @@ func (s *Service) sendRecipient(ctx context.Context, channel sqlc.NotificationCh
 	secret, err := s.secret(channel.CredentialRef)
 	if err != nil {
 		return deliveryResult{state: "failed", detail: "authentication"}
+	}
+	if isWeComBot(channel.Platform, channel.Mode) {
+		return s.transport.sendWeComBot(ctx, secret, target, message)
 	}
 	if channel.Mode == "app" {
 		return s.transport.sendApp(ctx, channel.Platform, target, id, secret, message)

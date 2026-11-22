@@ -1190,6 +1190,34 @@ describe('Phase 1 阅读 Shell', () => {
     expect(dialog.getByText(/Client ID 和 Client Secret.*Stream 模式/)).toBeInTheDocument()
   })
 
+  it('企业微信默认使用智能机器人并在进入确认页时结束配对连接', async () => {
+    const pair = { id: 'wecom-pair', state: 'listening', received_message: true, targets: ['employee'] }
+    notificationAPI.StartRecipientPairing.mockResolvedValue(pair)
+    notificationAPI.RecipientPairingStatus.mockResolvedValue(pair)
+    const user = userEvent.setup()
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    await user.click(await screen.findByRole('button', { name: '通知' }))
+    await user.click(await screen.findByRole('button', { name: '添加渠道' }))
+    const dialog = within(screen.getByRole('dialog', { name: '添加渠道' }))
+    await user.click(dialog.getByRole('button', { name: '平台' }))
+    await user.click(await screen.findByRole('option', { name: '企业微信' }))
+    expect(dialog.getByRole('button', { name: '接入方式' })).toHaveTextContent('智能机器人（长连接）')
+    expect(dialog.getByRole('link', { name: '查看官方文档' }))
+      .toHaveAttribute('href', 'https://open.work.weixin.qq.com/help2/pc/cat?doc_id=21657')
+    await user.type(dialog.getByLabelText('Bot ID'), 'bot_fixture')
+    await user.type(dialog.getByLabelText('Secret'), 'fixture-secret')
+    await user.click(dialog.getByRole('button', { name: '下一步' }))
+    await user.click(dialog.getByRole('button', { name: '开始配对' }))
+    expect(notificationAPI.StartRecipientPairing).toHaveBeenCalledWith(expect.objectContaining({
+      platform: 'wecom', mode: 'bot', address: 'bot_fixture', signing: 'fixture-secret',
+    }), '')
+    await user.click(await dialog.findByRole('checkbox', { name: 'employee' }))
+    await user.click(dialog.getByRole('button', { name: '下一步' }))
+    expect(dialog.getByLabelText('企业微信成员 UserID')).toHaveValue('employee')
+    await waitFor(() => expect(notificationAPI.CancelRecipientPairing).toHaveBeenCalledWith(pair.id))
+  })
+
   it('飞书配对区分长连接就绪、收到私聊和识别配对', async () => {
     const waiting = { id: 'feishu-pair', state: 'listening', targets: [] }
     notificationAPI.StartRecipientPairing.mockResolvedValue(waiting)

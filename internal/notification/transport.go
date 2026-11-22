@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coolerks/Fealdhord/internal/netpolicy"
@@ -416,13 +417,14 @@ func dingTalkTitle(m Message) string {
 }
 
 type transport struct {
-	client      *http.Client
-	images      netpolicy.Fetcher
-	allowImages func(context.Context) bool
+	client           *http.Client
+	images           netpolicy.Fetcher
+	allowImages      func(context.Context) bool
+	wecomBotSessions *sync.Map
 }
 
 func newTransport() transport {
-	return transport{client: &http.Client{
+	return transport{wecomBotSessions: &sync.Map{}, client: &http.Client{
 		Timeout:       15 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}}

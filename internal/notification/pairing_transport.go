@@ -32,6 +32,8 @@ func (t transport) listenPairing(ctx context.Context, platform, mode string, sec
 		return t.pairDingTalk(ctx, secret, ready, match)
 	case "feishu", "lark":
 		return t.pairLark(ctx, platform, secret, ready, received, match)
+	case "wecom":
+		return t.pairWeComBot(ctx, secret, ready, received, match)
 	}
 	return errPairConnection
 }

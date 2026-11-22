@@ -25,8 +25,11 @@ const pairingInstructions: Record<string, string> = {
   dingtalk: '用同一企业内部应用的 Client ID 和 Client Secret 连接。在「应用能力 → 机器人」将消息接收模式设为 Stream 模式，发布版本后确认应用对你的账号可见。连接就绪后，私聊机器人发送「配对」。',
   feishu: '长连接就绪后，请私聊机器人，单独发送「配对」。',
   lark: '长连接就绪后，请私聊机器人，单独发送「配对」。',
+  wecom: '点「开始配对」建立长连接。连接就绪后，在企业微信私聊智能机器人，单独发送「配对」。',
   wechat: '在「微信 ClawBot」私聊里发送「配对」。',
 }
+const wecomBotDocs = 'https://open.work.weixin.qq.com/help2/pc/cat?doc_id=21657'
+const wecomBotSteps = '在企业微信的**智能专区 → 智能机器人**创建机器人，选择 **API 模式**和**长连接**，复制 **Bot ID** 和 **Secret** 填入折栈。通过机器人详情中的链接或二维码打开私聊。回到折栈点**下一步 → 开始配对**，连接就绪后在私聊发送`配对`，再勾选收件目标。请为折栈使用独立的机器人，同一个 Bot ID 只能有一个连接。'
 const terminalWeChatStatuses = ['connected', 'expired', 'verify_code_blocked', 'binded_redirect']
 const larkAppSteps = (portal: string, url: string) =>
   `在 [${portal}](${url}) 创建企业自建应用并开启机器人。在权限管理中开通**获取用户发给机器人的单聊消息**（\`im:message.p2p_msg:readonly\`）和**以应用的身份发消息**（\`im:message:send_as_bot\`）。在折栈填入 **AppID** 和 **AppSecret**，点**下一步**，再点**开始配对**建立长连接。回到开放平台，在**事件与回调**中选择**使用长连接接收事件**，添加\`im.message.receive_v1\`，设置应用可用范围并发布。回到折栈确认长连接就绪，再私聊机器人发送\`配对\`。`
@@ -255,10 +258,12 @@ export function NotificationSettings() {
   const bindingMode = wechatMode && !channel.id
   const pairStatus = pairingPoll.data ?? pairing
   const appMode = channel?.mode === 'app'
+  const wecomBotMode = channel?.platform === 'wecom' && channel.mode === 'bot'
   const platform = platforms.find(item => item.value === channel?.platform)
   const larkPairing = channel?.platform === 'feishu' || channel?.platform === 'lark'
-  const webhookMode = Boolean(platform?.webhookDocs && !appMode)
-  const platformDocs = webhookMode ? platform?.webhookDocs : platform?.docs
+  const webhookMode = Boolean(platform?.webhookDocs && !appMode && !wecomBotMode)
+  const platformDocs = wecomBotMode ? wecomBotDocs : webhookMode ? platform?.webhookDocs : platform?.docs
+  const platformSteps = wecomBotMode ? wecomBotSteps : webhookMode ? platform?.webhookSteps : platform?.steps
   const savedRecipients = channels.data?.find(value => value.id === channel?.id)?.recipients ?? []
   const wechatOptions = channel?.platform === 'wechat' ? [
     ...(channel.target ? [{ value: channel.target, label: '当前绑定私聊' }] : []),
@@ -451,7 +456,7 @@ export function NotificationSettings() {
                 id="channel-platform" label="平台" options={platforms} value={channel.platform}
                 disabled={Boolean(channel.id || wechat) || busy || channelStep === 3}
                 onChange={value => {
-                  setChannel({ ...blankChannel, platform: value, name: channel.name })
+                  setChannel({ ...blankChannel, platform: value, name: channel.name, mode: value === 'wecom' ? 'bot' : '' })
                   setSlackAppToken('')
                   setRecipientText('')
                 }}
@@ -465,7 +470,7 @@ export function NotificationSettings() {
                         <DialogHeader>
                           <DialogTitle>{platform.label}操作步骤</DialogTitle>
                           <DialogDescription className="leading-relaxed">
-                            {renderHighlightedSteps(`${webhookMode ? platform.webhookSteps : platform.steps}最后保存渠道；如果弹出**验证收件**，去对应的聊天里找到发来的**四位校验码**，填回来就完成了。`)}
+                            {renderHighlightedSteps(`${platformSteps}最后保存渠道；如果弹出**验证收件**，去对应的聊天里找到发来的**四位校验码**，填回来就完成了。`)}
                           </DialogDescription>
                         </DialogHeader>
                       </DialogContent>
@@ -485,11 +490,15 @@ export function NotificationSettings() {
                 <Selection
                   id="channel-mode"
                   label="接入方式"
-                  options={[{ value: 'webhook', label: '群或频道 Webhook' }, { value: 'app', label: '应用机器人私发' }]}
-                  value={appMode ? 'app' : 'webhook'}
+                  options={[
+                    { value: 'webhook', label: '群或频道 Webhook' },
+                    ...(channel.platform === 'wecom' ? [{ value: 'bot', label: '智能机器人（长连接）' }] : []),
+                    ...(channel.platform !== 'wecom' || appMode ? [{ value: 'app', label: '应用机器人私发' }] : []),
+                  ]}
+                  value={channel.mode || 'webhook'}
                   disabled={Boolean(channel.id) || channelStep === 3}
                   onChange={value => {
-                    setChannel({ ...blankChannel, platform: channel.platform, name: channel.name, mode: value === 'app' ? 'app' : '' })
+                    setChannel({ ...blankChannel, platform: channel.platform, name: channel.name, mode: value === 'webhook' ? '' : value })
                     setRecipientText('')
                   }}
                 />
@@ -514,16 +523,16 @@ export function NotificationSettings() {
                 <TextField
                   id="channel-secret"
                   label={webhookMode ? 'Webhook URL' : channel.platform === 'telegram' || channel.platform === 'discord' ? 'Bot Token'
-                    : channel.platform === 'slack' ? 'Slack Bot Token' : channel.platform === 'wecom' ? 'CorpID' : channel.platform === 'dingtalk' ? 'Client ID' : 'AppID'}
+                    : channel.platform === 'slack' ? 'Slack Bot Token' : wecomBotMode ? 'Bot ID' : channel.platform === 'wecom' ? 'CorpID' : channel.platform === 'dingtalk' ? 'Client ID' : 'AppID'}
                   value={channel.address}
                   type="password"
                   onChange={value => setChannelField('address', value)}
                 />
               )}
-              {(['qq', 'dingtalk', 'feishu', 'lark', 'wecom'].includes(channel.platform) && (channel.platform !== 'wecom' || appMode)) && (
+              {(['qq', 'dingtalk', 'feishu', 'lark'].includes(channel.platform) || (channel.platform === 'wecom' && (appMode || wecomBotMode))) && (
                 <TextField
                   id="channel-signing"
-                  label={webhookMode ? '加签密钥（可选）' : channel.platform === 'wecom' ? '应用 Secret' : channel.platform === 'dingtalk' ? 'Client Secret' : 'AppSecret'}
+                  label={webhookMode ? '加签密钥（可选）' : wecomBotMode ? 'Secret' : channel.platform === 'wecom' ? '应用 Secret' : channel.platform === 'dingtalk' ? 'Client Secret' : 'AppSecret'}
                   type="password"
                   value={channel.signing}
                   onChange={value => setChannelField('signing', value)}
@@ -633,7 +642,7 @@ export function NotificationSettings() {
             )}
             {channelStep === 2 && !wechatMode && (
               <div className="space-y-3 rounded-lg border border-border p-3">
-                {channel.platform === 'wecom' ? (
+                {channel.platform === 'wecom' && !wecomBotMode ? (
                   <p className="text-sm text-muted-foreground">主动发送通知无需配置消息回调。点击「跳过配对」，填写应用可见范围内的成员 UserID，也就是企业微信通讯录里的「账号」。</p>
                 ) : (
                   <>
@@ -647,7 +656,7 @@ export function NotificationSettings() {
                         {pairStatus.targets?.length ? '已收到配对消息，请勾选收件目标' :
                           channel.platform === 'qq' ? (pairStatus.received_message
                             ? '已收到 QQ 消息。请单独发送「配对」。'
-                            : 'QQ 网关已连接，尚未收到聊天消息') : larkPairing
+                            : 'QQ 网关已连接，尚未收到聊天消息') : larkPairing || wecomBotMode
                             ? (pairStatus.received_message ? '已收到私聊消息，请单独发送「配对」。' : '长连接已建立，尚未收到私聊消息。')
                             : '正在等待配对消息'}
                       </p>
@@ -715,6 +724,7 @@ export function NotificationSettings() {
                       setChannel({ ...channel, target, targets: bindingStatus === 'connected' ? [...new Set([...(channel.targets ?? []), target])] : channel.targets })
                       setWeChat(currentWeChat)
                     }
+                    if (wecomBotMode) setPairing(undefined)
                     setSlackAppToken('')
                     setChannelStep(3)
                   }}>

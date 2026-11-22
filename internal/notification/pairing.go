@@ -79,7 +79,7 @@ func (s *Service) startRecipientPairing(ctx context.Context, input ChannelInput,
 		return PairingStatus{}, errors.New("渠道凭据格式无效")
 	}
 	secret := connectionSecret{Address: strings.TrimSpace(input.Address), Signing: input.Signing, Context: input.Context}
-	if isWebhook(input.Platform, input.Mode) || input.Platform == "wechat" || input.Platform == "wecom" {
+	if isWebhook(input.Platform, input.Mode) || input.Platform == "wechat" || (input.Platform == "wecom" && !isWeComBot(input.Platform, input.Mode)) {
 		return PairingStatus{}, errors.New("此接入方式无法启动消息配对")
 	}
 	if input.ID != "" {
@@ -109,6 +109,10 @@ func (s *Service) startRecipientPairing(ctx context.Context, input ChannelInput,
 	case "discord", "slack", "dingtalk", "feishu", "lark":
 		if input.Mode != "app" || !validAppCredentials(input.Platform, secret) {
 			return PairingStatus{}, errors.New("请填写有效的应用机器人凭据")
+		}
+	case "wecom":
+		if !validWeComBotCredentials(secret) {
+			return PairingStatus{}, errWeComBotCredentials
 		}
 	default:
 		return PairingStatus{}, errors.New("此平台不支持消息配对")
