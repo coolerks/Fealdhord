@@ -1589,3 +1589,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 62: 整数用时及思考和工具历史记录
+<!-- trellis-session: v=2 fp=0740849636f6fdcc -->
+
+**Date**: 2026-11-22
+**Task**: 整数用时及思考和工具历史记录
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+回复过程入口使用整数用时。接收 API 实际返回的可读思考和摘要，记录真实工具参数及结果，历史和分支可重新展开。前端 67 项应用回归、生产构建及 Go 相关包竞态测试通过，真实路由和原生桌面待复测。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `442add9` | feat(chat): 保留可展开的思考与工具调用记录 |
+
+### Status
+
+[OK] **Completed**
