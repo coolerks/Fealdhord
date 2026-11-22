@@ -8,20 +8,18 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
-export function AnswerQuestion(id: string, answers: $models.UserQuestionAnswer[], cancelled: boolean): $CancellablePromise<boolean> {
+export function AnswerQuestion(id: string, answers: $models.UserQuestionAnswer[] | null, cancelled: boolean): $CancellablePromise<boolean> {
     return $Call.ByID(716453335, id, answers, cancelled);
 }
 
 export function ConnectMCP(config: $models.ClientConfig): $CancellablePromise<$models.ClientStatus> {
-    return $Call.ByID(2649804259, config).then(($result: any) => {
-        return $$createType0($result);
-    });
+    return $Call.ByID(2649804259, config);
 }
 
 export function DecideAction(id: string, allow: boolean): $CancellablePromise<boolean> {
@@ -40,46 +38,32 @@ export function ForgetMCP(name: string): $CancellablePromise<void> {
     return $Call.ByID(2794015476, name);
 }
 
-export function Grants(): $CancellablePromise<$models.MCPGrant[]> {
-    return $Call.ByID(408844190).then(($result: any) => {
-        return $$createType2($result);
-    });
+export function Grants(): $CancellablePromise<$models.MCPGrant[] | null> {
+    return $Call.ByID(408844190);
 }
 
 export function ImportSkill(): $CancellablePromise<$models.Skill> {
-    return $Call.ByID(3099533909).then(($result: any) => {
-        return $$createType3($result);
-    });
+    return $Call.ByID(3099533909);
 }
 
-export function MCPClients(): $CancellablePromise<$models.ClientStatus[]> {
-    return $Call.ByID(2685091385).then(($result: any) => {
-        return $$createType4($result);
-    });
+export function MCPClients(): $CancellablePromise<$models.ClientStatus[] | null> {
+    return $Call.ByID(2685091385);
 }
 
 export function MCPServer(): $CancellablePromise<$models.ServerStatus> {
-    return $Call.ByID(1514945300).then(($result: any) => {
-        return $$createType5($result);
-    });
+    return $Call.ByID(1514945300);
 }
 
-export function PendingActions(): $CancellablePromise<$models.PendingAction[]> {
-    return $Call.ByID(4076113139).then(($result: any) => {
-        return $$createType7($result);
-    });
+export function PendingActions(): $CancellablePromise<$models.PendingAction[] | null> {
+    return $Call.ByID(4076113139);
 }
 
-export function PendingQuestions(): $CancellablePromise<$models.PendingQuestion[]> {
-    return $Call.ByID(3521160645).then(($result: any) => {
-        return $$createType9($result);
-    });
+export function PendingQuestions(): $CancellablePromise<$models.PendingQuestion[] | null> {
+    return $Call.ByID(3521160645);
 }
 
-export function RecentAudit(): $CancellablePromise<$models.AuditEntry[]> {
-    return $Call.ByID(3140995925).then(($result: any) => {
-        return $$createType11($result);
-    });
+export function RecentAudit(): $CancellablePromise<$models.AuditEntry[] | null> {
+    return $Call.ByID(3140995925);
 }
 
 export function RotateGrantToken(name: string): $CancellablePromise<string> {
@@ -99,46 +83,21 @@ export function SaveMCPServer(config: $models.ServerConfig): $CancellablePromise
 }
 
 export function SaveSkill(markdown: string, enabled: boolean): $CancellablePromise<$models.Skill> {
-    return $Call.ByID(1970098953, markdown, enabled).then(($result: any) => {
-        return $$createType3($result);
-    });
+    return $Call.ByID(1970098953, markdown, enabled);
 }
 
 export function SaveSkillPackage(input: $models.Skill): $CancellablePromise<$models.Skill> {
-    return $Call.ByID(2692555815, input).then(($result: any) => {
-        return $$createType3($result);
-    });
+    return $Call.ByID(2692555815, input);
 }
 
-export function Skills(): $CancellablePromise<$models.Skill[]> {
-    return $Call.ByID(4029147643).then(($result: any) => {
-        return $$createType12($result);
-    });
+export function Skills(): $CancellablePromise<$models.Skill[] | null> {
+    return $Call.ByID(4029147643);
 }
 
-export function ToolList(): $CancellablePromise<$models.Tool[]> {
-    return $Call.ByID(3802819707).then(($result: any) => {
-        return $$createType14($result);
-    });
+export function ToolList(): $CancellablePromise<$models.Tool[] | null> {
+    return $Call.ByID(3802819707);
 }
 
 export function UpdateGrant(grant: $models.MCPGrant): $CancellablePromise<void> {
     return $Call.ByID(2870472278, grant);
 }
-
-// Private type creation functions
-const $$createType0 = $models.ClientStatus.createFrom;
-const $$createType1 = $models.MCPGrant.createFrom;
-const $$createType2 = $Create.Array($$createType1);
-const $$createType3 = $models.Skill.createFrom;
-const $$createType4 = $Create.Array($$createType0);
-const $$createType5 = $models.ServerStatus.createFrom;
-const $$createType6 = $models.PendingAction.createFrom;
-const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = $models.PendingQuestion.createFrom;
-const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = $models.AuditEntry.createFrom;
-const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = $Create.Array($$createType3);
-const $$createType13 = $models.Tool.createFrom;
-const $$createType14 = $Create.Array($$createType13);

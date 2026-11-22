@@ -6,7 +6,7 @@ export {
     API
 };
 
-export {
+export type {
     AuditEntry,
     ClientConfig,
     ClientStatus,

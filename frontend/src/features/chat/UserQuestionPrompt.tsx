@@ -125,7 +125,7 @@ export function UserQuestionPrompt({ pending, onStop, stopping }: {
       <p className="text-sm leading-relaxed text-foreground">{current.question}</p>
 
       <div className="flex flex-col gap-1.5" role={current.multi_select ? 'group' : 'radiogroup'} aria-label={current.question}>
-        {current.options.map(option => {
+        {(current.options ?? []).map(option => {
           const selected = currentDraft.selected.includes(option.label)
           if (current.multi_select) {
             const checkboxId = `ask-q-${pending.id}-${currentIndex}-${option.label}`
