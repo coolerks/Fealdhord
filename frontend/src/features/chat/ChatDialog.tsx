@@ -74,7 +74,7 @@ const errorLabels: Record<string, string> = {
   ChatModelUnavailable: '所选模型已不可用，请重新选择。',
   ContextWindowExceeded: '本轮内容超过模型上下文限制，请缩短消息或减少附加内容。',
   ChatReasoningUnavailable: '所选思考档位已不可用，请重新选择。',
-  ChatReasoningToolsUnavailable: '这个服务的自定义思考强度暂不支持本轮读取正文。请使用服务默认，或取消本轮读取授权。',
+  ChatReasoningToolsUnavailable: '当前思考档位无法与本轮工具同时使用。请选择服务默认，或关闭本轮工具并取消正文读取授权。',
   ProviderHTTPError: '模型服务拒绝了请求，请检查模型设置及思考档位，或稍后重试。',
   CredentialError: '请检查服务的 API 密钥。',
   AuthenticationError: '服务拒绝了当前密钥。',

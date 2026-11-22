@@ -81,6 +81,7 @@ type chatRequest struct {
 	Model           string               `json:"model"`
 	ReasoningEffort string               `json:"reasoning_effort,omitempty"`
 	Reasoning       map[string]string    `json:"reasoning,omitempty"`
+	Thinking        map[string]string    `json:"thinking,omitempty"`
 	Messages        []chatMessage        `json:"messages"`
 	Temperature     *float64             `json:"temperature,omitempty"`
 	TopP            *float64             `json:"top_p,omitempty"`
@@ -122,7 +123,10 @@ func (c *ChatCompletions) request(ctx context.Context, req *ModelRequest, stream
 		Model: req.Model, Temperature: req.Temperature, TopP: req.TopP,
 		MaxOutputTokens: req.MaxOutputTokens, Stop: req.Stop, Stream: stream,
 	}
-	if req.ReasoningEffort != "" {
+	if len(req.Tools) > 0 && UsesDeepSeekToolMode(c, req.Model) {
+		// Chat history stores visible messages, without DeepSeek's reasoning_content.
+		payload.Thinking = map[string]string{"type": "disabled"}
+	} else if req.ReasoningEffort != "" {
 		if c.host == "openrouter.ai" {
 			payload.Reasoning = map[string]string{"effort": req.ReasoningEffort}
 		} else {

@@ -123,7 +123,7 @@ transfer.API 的 Choose 返回 token／name／cancelled；Preview 返回 preview
 
 `fealdhord:chat-update` 发送 `{conversationId,messageId,offset,delta,done}`。正文增量按约 32 毫秒合并，`offset` 使用 UTF-16 代码单元。结束事件在最终保存尝试后发布，前端按会话和消息匹配增量，并使用 `Messages` 对齐快照与终态。
 
-模型 DTO 的 `reasoningLevels` 保存有序列表 `[{label,value}]`，可为空。非法或重复参数值返回 `InvalidReasoningLevels`。全局 `Chat.Send.reasoningEffort` 可选，必须匹配选中模型的已保存参数值，否则返回 `ChatReasoningUnavailable`。已知不支持显式档位与本轮读取工具组合时返回 `ChatReasoningToolsUnavailable`，两种拒绝均发生在写入本轮消息前。普通 Chat Completions 使用 `reasoning_effort`，OpenRouter Chat Completions 和 Responses 使用 `reasoning.effort`，Claude Messages 使用 `output_config.effort`。
+模型 DTO 的 `reasoningLevels` 保存有序列表 `[{label,value}]`，可为空。非法或重复参数值返回 `InvalidReasoningLevels`。全局 `Chat.Send.reasoningEffort` 可选，必须匹配选中模型的已保存参数值，否则返回 `ChatReasoningUnavailable`。已知不支持显式档位与本轮实际工具组合时返回 `ChatReasoningToolsUnavailable`，两种拒绝均发生在写入本轮消息前。普通 Chat Completions 使用 `reasoning_effort`，OpenRouter Chat Completions 和 Responses 使用 `reasoning.effort`，Claude Messages 使用 `output_config.effort`。DeepSeek 工具模式见[模型契约](model-contract.md)。
 
 ## 文章 AI
 

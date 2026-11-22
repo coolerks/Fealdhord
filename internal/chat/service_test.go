@@ -197,7 +197,7 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	}
 
 	alternate, err := config.SaveModel(ctx, aiconfig.Model{
-		ProviderID: p.ID, Name: "deepseek-flash", DisplayName: "备用模型", Enabled: true,
+		ProviderID: p.ID, Name: "deepseek-reasoner", DisplayName: "备用模型", Enabled: true,
 		ReasoningLevels: []aiconfig.ReasoningLevel{{Label: "极深", Value: "custom_max"}},
 	})
 	if err != nil {
