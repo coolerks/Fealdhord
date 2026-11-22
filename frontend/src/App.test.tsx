@@ -1107,6 +1107,15 @@ describe('Phase 1 阅读 Shell', () => {
     await user.keyboard('{Enter}')
     expect(host.openURL).toHaveBeenLastCalledWith('https://core.telegram.org/bots/tutorial#obtain-your-bot-token')
 
+    await user.click(dialog.getByRole('button', { name: '操作步骤' }))
+    const telegramGuide = await screen.findByRole('dialog', { name: 'Telegram操作步骤' })
+    const botFatherCopy = within(telegramGuide).getByRole('button', { name: '复制 @BotFather' })
+    expect(botFatherCopy.querySelector('kbd')).toHaveTextContent('@BotFather')
+    await user.click(botFatherCopy)
+    expect(host.copy).toHaveBeenCalledWith('@BotFather')
+    await user.keyboard('{Escape}')
+    expect(telegramGuide).not.toBeInTheDocument()
+
     await user.click(dialog.getByRole('button', { name: '平台' }))
     await user.click(await screen.findByRole('option', { name: 'Slack' }))
     expect(docs()).toHaveAttribute('href', 'https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/')
