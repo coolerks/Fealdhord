@@ -94,7 +94,7 @@ function SelectList({ label, options, multiple, input, onExpand, onBack, childre
       if (active) onExpand(active)
     }}>
     <CommandInput ref={input} value={search} onValueChange={setSearch} placeholder="输入文字搜索…" />
-    <CommandList aria-multiselectable={multiple || undefined} className={cn('min-w-0',
+    <CommandList aria-multiselectable={multiple || undefined} showScrollbar className={cn('min-w-0',
       showSearch ? 'max-h-[min(18rem,calc(var(--radix-popover-content-available-height)-3rem))]'
         : 'max-h-[min(18rem,calc(var(--radix-popover-content-available-height)-0.625rem))]')}>
       <CommandEmpty>没有匹配项</CommandEmpty>
