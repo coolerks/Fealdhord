@@ -82,6 +82,12 @@
   text-align: center;
 }
 
+.chat-activity-glyph,
+.chat-activity-glyph svg {
+  width: 14px;
+  height: 14px;
+}
+
 .chat-thinking-label {
   display: inline-block;
 }

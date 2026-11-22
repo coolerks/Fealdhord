@@ -72,7 +72,7 @@ function ToolStep({ tool }: { tool: ReplyToolStep }) {
   const hasData = tool.arguments != null || tool.result != null
   const icon = tool.status === 'running'
     ? <Loader2 className="chat-spin size-3.5 shrink-0 text-foreground" aria-hidden="true" />
-    : <AnimatedGlyph meaning={meta.icon} className="size-3.5 shrink-0 text-muted-foreground" />
+    : <AnimatedGlyph meaning={meta.icon} className="chat-activity-glyph shrink-0 text-muted-foreground" />
 
   if (!hasData) {
     return <li className="flex min-h-7 items-center gap-1.5 text-xs">
@@ -83,7 +83,7 @@ function ToolStep({ tool }: { tool: ReplyToolStep }) {
   }
 
   return <li>
-    <Button type="button" variant="ghost" size="sm" className="-ml-2 h-7 max-w-full gap-1.5 border-0 px-2 text-xs font-normal"
+    <Button type="button" variant="ghost" size="sm" className="-ml-2 h-7 max-w-full gap-1.5 border-0 px-2 text-xs font-normal aria-expanded:bg-transparent hover:aria-expanded:bg-muted dark:hover:aria-expanded:bg-muted/50"
       aria-label={`${meta.label} ${status}`} aria-expanded={open} aria-controls={id}
       onClick={() => {
         if (open) clearCollapsedSelection(panelRef.current)
@@ -152,14 +152,14 @@ function ActivityRound({ sections, running, waiting }: {
 
   return <div className="text-sm text-muted-foreground">
     <Button type="button" variant="ghost" size="sm"
-      className="-ml-2 h-7 max-w-full gap-1.5 border-0 px-2 text-xs font-normal text-muted-foreground hover:text-foreground"
+      className="-ml-2 h-7 max-w-full gap-1.5 border-0 px-2 text-xs font-normal text-muted-foreground hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-muted-foreground hover:aria-expanded:bg-muted hover:aria-expanded:text-foreground dark:hover:aria-expanded:bg-muted/50"
       aria-controls={panelId} aria-expanded={open} onClick={() => {
         if (open) clearCollapsedSelection(panelRef.current)
         setToggle({ running, open: !open })
       }}>
       {hasRunningTool
         ? <Loader2 className="chat-spin size-3.5 shrink-0 text-foreground" aria-hidden="true" />
-        : <AnimatedGlyph meaning={activity.icon} className="size-3.5 shrink-0" />}
+        : <AnimatedGlyph meaning={activity.icon} className="chat-activity-glyph shrink-0" />}
       <span className={cn('truncate', hasRunningTool && 'chat-thinking-label')}>{activity.text}</span>
       {open ? <ChevronDown data-icon="inline-end" /> : <ChevronRight data-icon="inline-end" />}
     </Button>
@@ -204,7 +204,7 @@ function SingleStageProgress({ message }: { message: Message }) {
   return <div className="text-sm text-muted-foreground">
     {hasProcess
       ? <>
-        <Button type="button" variant="ghost" size="sm" className="-ml-2 border-0 px-2 text-muted-foreground hover:text-foreground"
+        <Button type="button" variant="ghost" size="sm" className="-ml-2 border-0 px-2 text-muted-foreground hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-muted-foreground hover:aria-expanded:bg-muted hover:aria-expanded:text-foreground dark:hover:aria-expanded:bg-muted/50"
           aria-controls={panelId} aria-expanded={open} onClick={() => {
             if (open) clearCollapsedSelection(panelRef.current)
             setToggle({ running, open: !open })
@@ -290,7 +290,7 @@ export function ReplyBody({ message, markdown, reveal }: {
 
   return <div className="flex flex-col gap-2">
     <div>
-      <Button type="button" variant="ghost" size="sm" className="-ml-2 border-0 px-2 text-muted-foreground hover:text-foreground"
+      <Button type="button" variant="ghost" size="sm" className="-ml-2 border-0 px-2 text-muted-foreground hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-muted-foreground hover:aria-expanded:bg-muted hover:aria-expanded:text-foreground dark:hover:aria-expanded:bg-muted/50"
         aria-controls={panelId} aria-expanded={open} onClick={() => {
           if (open) clearCollapsedSelection(panelRef.current)
           setToggle({ running, open: !open })

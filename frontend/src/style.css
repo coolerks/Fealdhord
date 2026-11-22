@@ -603,8 +603,10 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 .menu-shortcut { margin-inline-start:auto;padding-inline-start:8px;font-size:12px;line-height:1;color:var(--muted-foreground);white-space:nowrap;font-variant-numeric:tabular-nums; }
 .sidebar-search .menu-shortcut { padding-inline-start: 0; }
 [role^=menuitem][data-highlighted] .menu-shortcut { color:inherit;opacity:.7; }
-[role^=menuitem] .animated-glyph { width:16px;height:16px; }
-[role^=menuitem] .animated-glyph svg { width:16px;height:16px; }
+[role^=menuitem] .animated-glyph,
+[role=option] .animated-glyph { width:16px;height:16px; }
+[role^=menuitem] .animated-glyph svg,
+[role=option] .animated-glyph svg { width:16px;height:16px; }
 
 .feed-candidate small { overflow-wrap:anywhere; color:var(--muted-foreground); }
 .feed-candidate { height:auto; display:grid; white-space:normal; text-align:left; }
