@@ -43,6 +43,7 @@ func Builtins(s Services) *Registry {
 	r := NewRegistry()
 	if s.Notifications != nil {
 		registerNotificationTools(r, s.Notifications)
+	registerAskUserQuestionTool(r)
 	}
 	if s.Store != nil {
 		r.scopeDB = s.Store.ChatQueries()

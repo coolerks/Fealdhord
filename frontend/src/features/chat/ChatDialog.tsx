@@ -1,6 +1,7 @@
 import { clearSelectionWithin } from '@/app/TextSelection'
 import { ChatSlashMenu } from './ChatSlashMenu'
 import type { SlashItem, SlashPage } from './ChatSlashMenu'
+import { AppMark, pickGreeting } from './ChatGreeting'
 import { ChatContext } from './ChatContext'
 import { ScheduledTasks } from './ScheduledTasks'
 import { ModelBrand } from '@/features/settings/ModelMetadata'
@@ -35,6 +36,7 @@ import { chatMessagesKey, useChatMessages } from './useChatMessages'
 import { ReplyActions } from './ReplyActions'
 import { ReplyBody } from './ReplyProgress'
 import { ToolApproval, useInlineApproval } from './AIApprovals'
+import { UserQuestionPrompt, useInlineQuestion } from './UserQuestionPrompt'
 import { approvalModes } from './approval-options'
 import { notify } from '@/lib/notifications'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/api'
@@ -139,6 +141,7 @@ function ChatSession({ target, close, workspace }: {
   const approvalPresentation = useWorkspace(state => state.preferences?.chat_approval_presentation) ?? 'composer'
   const patchPreferences = useWorkspace(state => state.patch)
   const [chosen, setChosen] = useState<string | null>(null)
+  const [greeting, setGreeting] = useState(() => pickGreeting())
   const [draft, setDraft] = useState('')
   const [composerFocused, setComposerFocused] = useState(false)
   const [slashDismissed, setSlashDismissed] = useState(false)
@@ -209,6 +212,7 @@ function ChatSession({ target, close, workspace }: {
     approvalPresentation === 'composer' && !tasksOpen && (!workspace || workspace.present))
   const messages = useChatMessages(conversationId)
   const active = messages.data?.some(message => message.status === 'running') ?? false
+  const inlineQuestion = useInlineQuestion(conversationId, !tasksOpen && (!workspace || workspace.present), active)
   const theme = useReaderCodeTheme(workspace?.theme ?? 'app', Boolean(workspace && messages.data?.some(message => message.role === 'assistant')))
   const send = useMutation({
     mutationFn: async () => {
@@ -273,7 +277,7 @@ function ChatSession({ target, close, workspace }: {
   useLayoutEffect(() => {
     const element = timeline.current
     if (element && follow.current) element.scrollTop = element.scrollHeight
-  }, [messages.data, conversationId, theme, following, tasksOpen, inlineApproval?.id])
+  }, [messages.data, conversationId, theme, following, tasksOpen, inlineApproval?.id, inlineQuestion?.id])
   const inWorkspace = Boolean(workspace?.present)
   useLayoutEffect(() => {
     if (inWorkspace && !tasksOpen) composer.current?.focus({ preventScroll: true })
@@ -303,6 +307,7 @@ function ChatSession({ target, close, workspace }: {
       send.reset()
       cancel.reset()
     }
+    if (!id) setGreeting(pickGreeting())
     if (workspace && !id) composer.current?.focus({ preventScroll: true })
   }
   const openNewConversation = useEffectEvent(() => {
@@ -471,8 +476,8 @@ function ChatSession({ target, close, workspace }: {
           </div>
         : <Button size="sm" variant="ghost" onClick={() => void messages.refetch()}>重新读取消息</Button>)}
       {isEmptyWorkspace && <div className="chat-empty-state">
-        <Sparkles className="size-6 text-muted-foreground/70" aria-hidden="true" />
-        <p className="text-lg font-medium text-foreground">新对话</p>
+        <AppMark className="size-14" />
+        <p className="text-lg font-medium text-foreground">{greeting}</p>
       </div>}
       {messages.data?.map(message => <section key={message.id} className={workspace ? 'chat-message group/message' : message.role === 'user' ? 'ml-auto w-fit max-w-[90%] rounded-xl bg-muted p-3' : 'mr-3 rounded-xl border p-3'} data-role={workspace ? message.role : undefined}>
         {!workspace && message.role === 'user' && <p className="text-xs text-muted-foreground">你</p>}
@@ -521,7 +526,10 @@ function ChatSession({ target, close, workspace }: {
         <span className="truncate" title={selection}>选段 · {selection}</span>
         <Button size="sm" variant="ghost" disabled={send.isPending} onClick={() => setSelection('')}>移除</Button>
       </div>}
-      {inlineApproval ? <section aria-label="工具审批" className={cn('flex flex-col gap-3 px-4 py-3', workspace ? 'chat-composer-form chat-composer-approval' : 'rounded-xl border')}>
+      {inlineQuestion ? <section aria-label="AI 提问" className={cn('flex flex-col gap-3 px-4 py-3', workspace ? 'chat-composer-form chat-composer-approval' : 'rounded-xl border')}>
+        <UserQuestionPrompt key={inlineQuestion.id} pending={inlineQuestion}
+          onStop={() => cancel.mutate(conversationId)} stopping={cancel.isPending} />
+      </section> : inlineApproval ? <section aria-label="工具审批" className={cn('flex flex-col gap-3 px-4 py-3', workspace ? 'chat-composer-form chat-composer-approval' : 'rounded-xl border')}>
         <ToolApproval key={inlineApproval.id} action={inlineApproval} inline
           onStop={() => cancel.mutate(conversationId)} stopping={cancel.isPending} />
       </section> : <form className={workspace ? 'chat-composer-form' : 'flex items-end gap-2'} onSubmit={event => {

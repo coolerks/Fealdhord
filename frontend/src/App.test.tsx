@@ -75,7 +75,7 @@ const mcpGrants = vi.hoisted(() => ({
   RotateGrantToken: vi.fn(),
 }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/appagent/api', () => ({
-  PendingActions: pendingActions, DecideAction: decideAction, ToolList: async () => [], Skills: listSkills, MCPClients: async () => [],
+  PendingActions: pendingActions, DecideAction: decideAction, PendingQuestions: async () => [], AnswerQuestion: async () => true, ToolList: async () => [], Skills: listSkills, MCPClients: async () => [],
   ...mcpGrants,
 }))
 const copyImage = vi.hoisted(() => vi.fn())

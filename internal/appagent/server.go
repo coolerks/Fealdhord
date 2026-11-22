@@ -141,6 +141,10 @@ func (a *Platform) Shutdown() {
 func (a *Platform) ToolList() []Tool                        { return a.registry.Tools() }
 func (a *Platform) PendingActions() []PendingAction         { return a.registry.Pending() }
 func (a *Platform) DecideAction(id string, allow bool) bool { return a.registry.Decide(id, allow) }
+func (a *Platform) PendingQuestions() []PendingQuestion     { return a.registry.PendingQuestions() }
+func (a *Platform) AnswerQuestion(id string, answers []UserQuestionAnswer, cancelled bool) bool {
+	return a.registry.AnswerQuestion(id, answers, cancelled)
+}
 func (a *Platform) MCPServer() ServerStatus {
 	a.mu.Lock()
 	defer a.mu.Unlock()

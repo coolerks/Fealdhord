@@ -17,6 +17,10 @@ func NewAPI(platform *Platform, pickSkill func(context.Context) (string, error))
 func (a *API) ToolList() []Tool                        { return a.platform.ToolList() }
 func (a *API) PendingActions() []PendingAction         { return a.platform.PendingActions() }
 func (a *API) DecideAction(id string, allow bool) bool { return a.platform.DecideAction(id, allow) }
+func (a *API) PendingQuestions() []PendingQuestion     { return a.platform.PendingQuestions() }
+func (a *API) AnswerQuestion(id string, answers []UserQuestionAnswer, cancelled bool) bool {
+	return a.platform.AnswerQuestion(id, answers, cancelled)
+}
 func (a *API) MCPServer() ServerStatus                 { return a.platform.MCPServer() }
 func (a *API) SaveMCPServer(config ServerConfig) error { return a.platform.SaveMCPServer(config) }
 func (a *API) RotateMCPToken() (string, error)         { return a.platform.RotateMCPToken() }

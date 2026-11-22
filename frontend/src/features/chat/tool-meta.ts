@@ -15,6 +15,7 @@ export type ToolMeta = {
 }
 
 const groups = {
+  askUser: { summary: '向用户确认了需求', icon: 'circle-help', priority: 5 },
   searchArticles: { summary: '搜索了文章', icon: 'search', priority: 10 },
   listArticles: { summary: '查看了文章列表', icon: 'layers', priority: 15 },
   readArticles: { summary: '读取了文章', icon: 'book-text', priority: 20 },
@@ -42,6 +43,8 @@ const groups = {
 } satisfies Record<string, BuiltinToolGroup>
 
 const builtinTools: Record<string, { label: string; group: BuiltinToolGroup }> = {
+  // 用户澄清
+  AskUserQuestion: { label: '向用户提问', group: groups.askUser },
   // 文章查询与阅读
   'article.search': { label: '搜索文章', group: groups.searchArticles },
   article_search: { label: '搜索文章', group: groups.searchArticles },

@@ -6,16 +6,20 @@ export {
     API
 };
 
-export type {
+export {
     AuditEntry,
     ClientConfig,
     ClientStatus,
     MCPGrant,
     MCPScope,
     PendingAction,
+    PendingQuestion,
     ServerConfig,
     ServerStatus,
     Skill,
     SkillResource,
-    Tool
+    Tool,
+    UserQuestionAnswer,
+    UserQuestionItem,
+    UserQuestionOption
 } from "./models.js";

@@ -52,15 +52,21 @@ type approval struct {
 }
 
 type Registry struct {
-	tools    []Tool
-	mu       sync.Mutex
-	pending  map[string]approval
-	auditDir string
-	auditMu  sync.Mutex
-	scopeDB  *sqlc.Queries
+	tools     []Tool
+	mu        sync.Mutex
+	pending   map[string]approval
+	questions map[string]questionWait
+	auditDir  string
+	auditMu   sync.Mutex
+	scopeDB   *sqlc.Queries
 }
 
-func NewRegistry() *Registry { return &Registry{pending: make(map[string]approval)} }
+func NewRegistry() *Registry {
+	return &Registry{
+		pending:   make(map[string]approval),
+		questions: make(map[string]questionWait),
+	}
+}
 
 func Register[I any, O any](r *Registry, name, description string, guarded bool, f func(context.Context, I) O) {
 	reflector := jsonschema.Reflector{DoNotReference: true, ExpandedStruct: true, RequiredFromJSONSchemaTags: true}
@@ -165,7 +171,7 @@ func (r *Registry) executeTool(ctx context.Context, principal, conversationID st
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	result, err := tool.invoke(ctx, args)
+	result, err := tool.invoke(withConversationID(ctx, conversationID), args)
 	if err != nil {
 		return "", err
 	}
