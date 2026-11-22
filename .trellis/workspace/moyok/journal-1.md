@@ -1303,3 +1303,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 49: 通知渠道标签多选与复选框修复
+<!-- trellis-session: v=2 fp=f916f0166ae47759 -->
+
+**Date**: 2026-11-22
+**Task**: 通知渠道标签多选与复选框修复
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+修正共享 Checkbox 指示器尺寸、混合态图标和配对行对齐。文章发送使用可搜索的标签 Combobox，部分选择时全选为未勾选，全选和标签双向联动。前端 164 项测试、类型检查、lint 和生产构建通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `49ce392` | fix(notification): 修正复选框并联动渠道多选 |
+
+### Status
+
+[OK] **Completed**
