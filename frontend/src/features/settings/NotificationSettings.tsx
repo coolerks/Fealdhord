@@ -670,11 +670,11 @@ export function NotificationSettings() {
                       })}>{pairStatus ? '重新配对' : '开始配对'}</Button>
                     )}
                     {(pairStatus?.targets ?? []).map(target => (
-                      <label key={target} className="flex items-start gap-2 break-all text-sm">
+                      <label key={target} className="flex items-center gap-2 text-sm">
                         <Checkbox checked={pairedTargets.includes(target)} onCheckedChange={checked => {
                           setRecipientText((checked ? [...pairedTargets, target] : pairedTargets.filter(value => value !== target)).join('\n'))
                         }} />
-                        <span>{target}</span>
+                        <span className="wrap-anywhere">{target}</span>
                       </label>
                     ))}
                   </>

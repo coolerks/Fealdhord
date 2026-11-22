@@ -19,9 +19,10 @@ function Checkbox({
     >
       <CheckboxPrimitive.Indicator
         data-slot="checkbox-indicator"
-        className="grid place-content-center text-current transition-none [&>svg]:size-3.5"
+        className="group/checkbox-indicator grid place-content-center text-current transition-none [&_.animated-glyph]:size-3! [&_svg]:size-3!"
       >
-        <AnimatedGlyph meaning="check" />
+        <AnimatedGlyph meaning="check" className="group-data-[state=indeterminate]/checkbox-indicator:hidden!" />
+        <span className="hidden h-0.5 w-2 rounded-full bg-current group-data-[state=indeterminate]/checkbox-indicator:block" />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   )

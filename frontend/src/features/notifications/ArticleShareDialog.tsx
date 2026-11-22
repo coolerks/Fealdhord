@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { SearchableSelectChips } from '@/components/ui/combobox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { FieldError, FieldLabel } from '@/components/ui/field'
+import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { Selection, toggle } from './notification-fields'
 import type { Article } from '@/lib/library'
 import { notify } from '@/lib/notifications'
 import { ListChannels, SendArticle } from '../../../bindings/github.com/coolerks/Fealdhord/internal/notification/api'
@@ -31,6 +31,7 @@ export function ArticleShareDialog({ articles, batch, defaultCount, summaryLimit
   const client = useQueryClient()
   const channels = useQuery({ queryKey: ['notifications', 'channels'], queryFn: () => ListChannels(), retry: false })
   const [destinations, setDestinations] = useState<string[]>([])
+  const [channelPickerOpen, setChannelPickerOpen] = useState(false)
   const [content, setContent] = useState({ title: true, summary: true, link: true, full_text: false })
   const [count, setCount] = useState(String(batch ? Math.min(defaultCount, articles.length) : 1))
   const [splitArticles, setSplitArticles] = useState(false)
@@ -62,7 +63,12 @@ export function ArticleShareDialog({ articles, batch, defaultCount, summaryLimit
   const canSend = validCount && validMessageLimit && channels.isSuccess && selected.length > 0 && Object.values(content).some(Boolean)
 
   return <Dialog open onOpenChange={open => { if (!open && !busy) onClose() }}>
-    <DialogContent className="sm:max-w-md" onCloseAutoFocus={onCloseAutoFocus} showCloseButton={!busy}>
+    <DialogContent className="sm:max-w-md" onCloseAutoFocus={onCloseAutoFocus} showCloseButton={!busy}
+      onEscapeKeyDown={event => {
+        if (!channelPickerOpen) return
+        event.preventDefault()
+        setChannelPickerOpen(false)
+      }}>
       <DialogHeader>
         <DialogTitle>发送到</DialogTitle>
         <DialogDescription className="wrap-anywhere">{batch ? '按当前列表顺序发送' : articles[0].title}</DialogDescription>
@@ -99,15 +105,16 @@ export function ArticleShareDialog({ articles, batch, defaultCount, summaryLimit
         {channels.isPending ? <p role="status" className="text-sm text-muted-foreground">正在读取通知渠道…</p>
           : channels.isError ? <FieldError>无法读取通知渠道</FieldError>
             : options.length === 0 ? <p className="text-sm text-muted-foreground">请先在通知设置中启用渠道并通过发送测试。</p>
-              : <div className="space-y-2">
-                <Selection id="article-share-channels" label="通知渠道" options={options} value={selected} disabled={busy}
-                  placeholder="选择渠道" onChange={id => setDestinations(previous => toggle(previous, id))} />
+              : <Field>
+                <FieldLabel htmlFor="article-share-channels">通知渠道</FieldLabel>
+                <SearchableSelectChips id="article-share-channels" options={options} value={selected} disabled={busy}
+                  placeholder="选择渠道" open={channelPickerOpen} onOpenChange={setChannelPickerOpen} onValueChange={setDestinations} />
                 <label className="flex items-center gap-2 text-sm">
-                  <Checkbox checked={allSelected ? true : selected.length > 0 ? 'indeterminate' : false} disabled={busy}
-                    onCheckedChange={checked => setDestinations(checked ? options.map(option => option.value) : [])} />
+                  <Checkbox checked={allSelected} disabled={busy}
+                    onCheckedChange={checked => setDestinations(checked === true ? options.map(option => option.value) : [])} />
                   全部渠道
                 </label>
-              </div>}
+              </Field>}
         {send.error && <FieldError>{send.error.message}</FieldError>}
         <DialogFooter>
           <Button type="button" variant="outline" disabled={busy} onClick={onClose}>取消</Button>

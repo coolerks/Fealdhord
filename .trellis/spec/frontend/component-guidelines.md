@@ -71,6 +71,8 @@ transferAPI 是唯一文件调用边界，Go空items归一为数组；组件不�
 
 通知渠道表单通过 `Selection.labelAction` 将纯文字「操作步骤」和「查看官方文档」放在平台标签旁。操作步骤使用共享 `Dialog`，内容随平台和接入方式切换，关闭时焦点回到原按钮并保留表单输入。固定 HTTPS 文档链接经 `native.openURL` 交给系统浏览器。QQ 两种环境均使用 `https://bot.qq.com/`，个人微信只显示「操作步骤」。
 
+需要在输入框内显示可移除标签时，使用共享的 `SearchableSelectChips`。文章发送弹窗由同一组选中渠道 ID 派生标签、全选状态和发送目标。部分选中时「全部渠道」通过布尔值呈现未勾选。弹层在弹窗内部挂载，Escape 先关闭选项列表。共享 Checkbox 的图标尺寸同时约束 AnimatedGlyph 包装层与内部 SVG，Radix 的混合态使用横线。
+
 ## macOS 侧栏材质
 
 Wails 3.0.0 在 macOS 开发和发布构建中均需启用 `private_mac_apis`，否则 WebView 的不透明底色会盖住系统模糊。主窗口以 `MacBackdropTransparent` 创建，首次显示前用 AppKit 在 WebView 下放置 `NSVisualEffectMaterialSidebar`，混合模式为 `BehindWindow`。侧栏祖先保持透明，CSS 只叠加主题底色并处理对比度与减少透明度回退。阅读工作区保持不透明。验证时在 macOS 上用有纹理的窗后背景对比侧栏与正文。

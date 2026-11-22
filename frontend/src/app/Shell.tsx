@@ -17,7 +17,6 @@ import { SemanticButton } from '@/components/semantic-button'
 import { Button } from '@/components/ui/button'
 import { Splitter } from '@/components/splitter'
 import { ArticleCollection } from '@/features/articles/ArticleCollection'
-import { ArticleShareDialog } from '@/features/notifications/ArticleShareDialog'
 import { maxArticleShareCount } from '@/features/notifications/article-share-preferences'
 import type { Article } from '@/lib/library'
 import { ArticleViewTransition } from '@/features/articles/ArticleViewTransition'
@@ -37,6 +36,7 @@ const ChatDialog = lazy(() => import('@/features/chat/ChatDialog').then(module =
 const GlobalChat = lazy(() => import('@/features/chat/ChatDialog').then(module => ({ default: module.GlobalChat })))
 const SettingsDialog = lazy(() => import('@/features/settings/SettingsDialog').then(module => ({ default: module.SettingsDialog })))
 const CommandPalette = lazy(() => import('./CommandPalette').then(module => ({ default: module.CommandPalette })))
+const ArticleShareDialog = lazy(() => import('@/features/notifications/ArticleShareDialog').then(module => ({ default: module.ArticleShareDialog })))
 
 import { feedsQueryKey, rssAPI } from '@/lib/rss-api'
 import type { Page } from '@/lib/rss-api'
@@ -308,12 +308,14 @@ export function Shell() {
         </AnimatePresence>
         {settingsOpen && <SettingsDialog sidebar={settingsSidebar} motionMode={mode} />}{paletteOpen && <CommandPalette />}{chatKind && !globalChat && !settingsWorkspace && <ChatDialog />}
       </Suspense>
-      {sharing && <ArticleShareDialog articles={sharing.articles} batch={sharing.batch} defaultCount={preferences.article_share_count}
-        summaryLimit={preferences.article_share_summary_limit} onClose={() => setSharing(null)} onCloseAutoFocus={event => {
-        event.preventDefault()
-        const fallback = document.querySelector<HTMLElement>(`[data-article-trigger="${CSS.escape(sharing.articles[0].id)}"]`)
-        ;(sharing.trigger.isConnected ? sharing.trigger : fallback)?.focus({ preventScroll: true })
-      }} />}
+      <Suspense fallback={null}>
+        {sharing && <ArticleShareDialog articles={sharing.articles} batch={sharing.batch} defaultCount={preferences.article_share_count}
+          summaryLimit={preferences.article_share_summary_limit} onClose={() => setSharing(null)} onCloseAutoFocus={event => {
+          event.preventDefault()
+          const fallback = document.querySelector<HTMLElement>(`[data-article-trigger="${CSS.escape(sharing.articles[0].id)}"]`)
+          ;(sharing.trigger.isConnected ? sharing.trigger : fallback)?.focus({ preventScroll: true })
+        }} />}
+      </Suspense>
       <div className="sr-only" aria-live="polite">{preferences.article_view_mode === 'masonry' ? '已切换到瀑布流视图' : '已切换到列表视图'}</div>
       <Dialog open={diagnosticsOpen} onOpenChange={open => useWorkspace.setState({ diagnosticsOpen: open })}>
         <DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>连接诊断</DialogTitle></DialogHeader>
