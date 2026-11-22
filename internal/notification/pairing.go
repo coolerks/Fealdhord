@@ -13,10 +13,12 @@ import (
 const pairingTimeout = 3 * time.Minute
 
 type PairingStatus struct {
-	ID      string   `json:"id"`
-	State   string   `json:"state"`
-	Targets []string `json:"targets"`
-	Detail  string   `json:"detail,omitempty"`
+	ID              string   `json:"id"`
+	State           string   `json:"state"`
+	Targets         []string `json:"targets"`
+	Detail          string   `json:"detail,omitempty"`
+	BotName         string   `json:"bot_name,omitempty"`
+	ReceivedMessage bool     `json:"received_message,omitempty"`
 }
 
 type recipientPairing struct {
@@ -140,7 +142,15 @@ func (s *Service) startRecipientPairing(ctx context.Context, input ChannelInput,
 				}
 			})
 		}
-		err := s.transport.listenPairing(listen, platform, input.Mode, secret, slackToken, ready, match)
+		observeQQ := func(event qqPairingObservation) {
+			update(func(value *PairingStatus) {
+				if event.botName != "" {
+					value.BotName = event.botName
+				}
+				value.ReceivedMessage = value.ReceivedMessage || event.receivedMessage
+			})
+		}
+		err := s.transport.listenPairing(listen, platform, input.Mode, secret, slackToken, ready, match, observeQQ)
 		update(func(value *PairingStatus) {
 			p.cancel = nil
 			if listen.Err() == context.DeadlineExceeded {

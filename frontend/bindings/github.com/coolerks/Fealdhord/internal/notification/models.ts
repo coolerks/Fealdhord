@@ -58,6 +58,8 @@ export interface PairingStatus {
     "state": string;
     "targets": string[] | null;
     "detail"?: string;
+    "bot_name"?: string;
+    "received_message"?: boolean;
 }
 
 export interface Recipient {

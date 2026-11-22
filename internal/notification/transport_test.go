@@ -209,7 +209,7 @@ func TestQQSandboxDeliveryUsesSavedMode(t *testing.T) {
 	service, _ := newTestNotification(t)
 	service.transport.client.Transport = sender(func(r *http.Request) (*http.Response, error) {
 		switch r.URL.String() {
-		case "https://api.bot.qq.com/app/getAppAccessToken":
+		case "https://bots.qq.com/app/getAppAccessToken":
 			return response(200, `{"access_token":"sample"}`), nil
 		case "https://sandbox.api.sgroup.qq.com/v2/users/paired_user/messages":
 			if r.Header.Get("Authorization") != "QQBot sample" {

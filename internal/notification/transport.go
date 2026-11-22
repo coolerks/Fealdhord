@@ -110,7 +110,7 @@ func qqAPIOrigin(mode string) string {
 	if mode == qqSandbox {
 		return "https://sandbox.api.sgroup.qq.com"
 	}
-	return "https://api.bot.qq.com"
+	return "https://api.sgroup.qq.com"
 }
 
 func checkConnection(platform, target string, secret connectionSecret) error {

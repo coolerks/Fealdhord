@@ -72,3 +72,5 @@ RSS 恢复使用既有刷新服务的到期查询、并发限制和取消机制�
 三步向导支持在内存里临时接收「配对」事件，用户选中目标并保存后才写入渠道配置。接收平台与字段见 [后端契约](../../spec/backend/notification-pairing.md)。企业微信自建应用需要单独的消息回调接入，当前继续手填成员 ID。
 
 QQ 私聊配对回归补齐正式与沙箱路由，收到网关心跳确认后再提示等待消息。QQ 手机端真实账号仍待验证。
+
+QQ 手机端反复提示未连接时，网关 ACK 只能证明连接存活。正式域名和鉴权路由参照 [腾讯 SDK](https://github.com/tencent-connect/qqbot-nodejs/tree/main/src/protocol/api)，使用 READY 昵称及首个实际聊天事件区分身份和入站问题。

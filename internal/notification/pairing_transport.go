@@ -19,12 +19,12 @@ import (
 
 var errPairConnection = errors.New("无法接收配对消息，请检查机器人凭据和平台接收权限")
 
-func (t transport) listenPairing(ctx context.Context, platform, mode string, secret connectionSecret, slackToken string, ready func(), match func(string)) error {
+func (t transport) listenPairing(ctx context.Context, platform, mode string, secret connectionSecret, slackToken string, ready func(), match func(string), observeQQ func(qqPairingObservation)) error {
 	switch platform {
 	case "telegram":
 		return t.pairTelegram(ctx, secret.Address, ready, match)
 	case "qq", "discord":
-		return t.pairGateway(ctx, platform, mode, secret, ready, match)
+		return t.pairGateway(ctx, platform, mode, secret, ready, match, observeQQ)
 	case "slack":
 		return t.pairSlack(ctx, secret.Address, slackToken, ready, match)
 	case "dingtalk":
@@ -134,13 +134,18 @@ func (t transport) qqAccessToken(ctx context.Context, secret connectionSecret) (
 	var reply struct {
 		Token string `json:"access_token"`
 	}
-	if t.pairPost(ctx, "https://api.bot.qq.com/app/getAppAccessToken", map[string]any{"appId": secret.Address, "clientSecret": secret.Signing}, "", &reply) != nil || reply.Token == "" {
+	if t.pairPost(ctx, "https://bots.qq.com/app/getAppAccessToken", map[string]any{"appId": secret.Address, "clientSecret": secret.Signing}, "", &reply) != nil || reply.Token == "" {
 		return "", errPairConnection
 	}
 	return reply.Token, nil
 }
 
-func (t transport) pairGateway(ctx context.Context, platform, mode string, secret connectionSecret, ready func(), match func(string)) error {
+type qqPairingObservation struct {
+	botName         string
+	receivedMessage bool
+}
+
+func (t transport) pairGateway(ctx context.Context, platform, mode string, secret connectionSecret, ready func(), match func(string), observeQQ func(qqPairingObservation)) error {
 	endpoint, domain := "wss://gateway.discord.gg/?v=10&encoding=json", "gateway.discord.gg"
 	token, intents := secret.Address, 1<<12 // Discord: direct messages to the bot.
 	isQQ := platform == "qq"
@@ -155,6 +160,7 @@ func (t transport) pairGateway(ctx context.Context, platform, mode string, secre
 			return errPairConnection
 		}
 		req.Header.Set("Authorization", token)
+		req.Header.Set("User-Agent", "Fealdhord")
 		resp, err := t.client.Do(req)
 		if err != nil {
 			return errPairConnection
@@ -232,6 +238,7 @@ func (t transport) pairGateway(ctx context.Context, platform, mode string, secre
 	}
 	readCtx := handshake
 	var botID string
+	var receivedMessage bool
 	identified, confirmed := false, false
 	// Limit the first QQ heartbeat separately from the gateway's periodic heartbeat.
 	ackCtx, cancelAck := context.WithCancel(gatewayCtx)
@@ -271,7 +278,8 @@ func (t transport) pairGateway(ctx context.Context, platform, mode string, secre
 		case frame.Op == 0 && frame.Event == "READY" && !identified:
 			var identity struct {
 				User struct {
-					ID string `json:"id"`
+					ID       string `json:"id"`
+					Username string `json:"username"`
 				} `json:"user"`
 			}
 			_ = json.Unmarshal(frame.Data, &identity)
@@ -280,6 +288,7 @@ func (t transport) pairGateway(ctx context.Context, platform, mode string, secre
 			readCtx = gatewayCtx
 			cancel()
 			if isQQ {
+				observeQQ(qqPairingObservation{botName: clip(strings.TrimSpace(identity.User.Username), 80)})
 				timer := time.AfterFunc(min(heartbeatInterval, 12*time.Second), func() {
 					if ackCtx.Err() == nil {
 						stopGateway(errQQHeartbeat)
@@ -294,6 +303,10 @@ func (t transport) pairGateway(ctx context.Context, platform, mode string, secre
 			}
 			startHeartbeat()
 		case frame.Op == 0 && identified:
+			if isQQ && !receivedMessage && qqChatEvent(frame.Event) {
+				receivedMessage = true
+				observeQQ(qqPairingObservation{receivedMessage: true})
+			}
 			if target := gatewayPairingTarget(platform, botID, frame); target != "" {
 				match(target)
 			}
@@ -314,14 +327,19 @@ func qqGatewayFailure(err error) error {
 		return errors.New("QQ 网关拒绝了凭据，请核对 AppID 和 AppSecret")
 	case 4008:
 		return errors.New("QQ 网关限制了连接频率，请稍后重新配对")
-	case 4013, 4014:
-		return errors.New("QQ 网关拒绝了事件订阅，请核对机器人拥有的消息接收权限")
-	case 4914:
-		return errors.New("QQ 网关拒绝了当前环境，请检查机器人是否已上线或改用沙箱")
-	case 4915:
-		return errors.New("QQ 网关拒绝了机器人连接，请检查开放平台的机器人状态")
+	case 4013, 4014, 4914, 4915:
+		return errors.New("QQ 网关拒绝了事件订阅，请核对机器人的消息接收权限")
 	default:
 		return errors.New("QQ 网关已断开，请核对接入环境和机器人状态")
+	}
+}
+
+func qqChatEvent(name string) bool {
+	switch name {
+	case "C2C_MESSAGE_CREATE", "GROUP_AT_MESSAGE_CREATE", "GROUP_MESSAGE_CREATE", "AT_MESSAGE_CREATE":
+		return true
+	default:
+		return false
 	}
 }
 

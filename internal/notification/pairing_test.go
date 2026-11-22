@@ -108,12 +108,16 @@ func TestTelegramPairingIsTemporaryAndRequiresConfirmation(t *testing.T) {
 }
 
 func TestQQPairingGateway(t *testing.T) {
-	for _, ack := range []bool{true, false} {
-		name := "receives a private message after handshake"
-		if !ack {
-			name = "fails without a heartbeat acknowledgment"
-		}
-		t.Run(name, func(t *testing.T) {
+	for _, test := range []struct {
+		name, mode, host string
+		ack              bool
+	}{
+		{"production receives a private message", "", "api.sgroup.qq.com", true},
+		{"sandbox receives a private message", qqSandbox, "sandbox.api.sgroup.qq.com", true},
+		{"fails without a heartbeat acknowledgment", qqSandbox, "sandbox.api.sgroup.qq.com", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ack := test.ack
 			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := websocket.Accept(w, r, nil)
 				if err != nil {
@@ -143,15 +147,16 @@ func TestQQPairingGateway(t *testing.T) {
 					t.Errorf("bad identify: %+v, %v", identify, err)
 					return
 				}
-				if !write(`{"op":0,"t":"READY","s":1,"d":{"user":{"id":"123"}}}`) {
+				if !write(`{"op":0,"t":"READY","s":1,"d":{"user":{"id":"123","username":"文章通知机器人"}}}`) {
 					return
 				}
 				if err := wsjson.Read(ctx, conn, &heartbeat); err != nil || heartbeat.Op != 1 || string(heartbeat.Data) != "1" {
 					t.Errorf("bad heartbeat: %+v, %v", heartbeat, err)
 					return
 				}
-				if ack && write(`{"op":11}`) {
-					write(`{"op":0,"t":"C2C_MESSAGE_CREATE","s":2,"d":{"content":"配对","author":{"user_openid":"paired_user"}}}`)
+				if ack && write(`{"op":11}`) &&
+					write(`{"op":0,"t":"C2C_MESSAGE_CREATE","s":2,"d":{"content":"你好","author":{"user_openid":"other_user"}}}`) {
+					write(`{"op":0,"t":"C2C_MESSAGE_CREATE","s":3,"d":{"content":"配对","author":{"user_openid":"paired_user"}}}`)
 				}
 				_, _, _ = conn.Read(ctx)
 			}))
@@ -165,11 +170,11 @@ func TestQQPairingGateway(t *testing.T) {
 			underlying := client.Transport
 			client.Transport = sender(func(req *http.Request) (*http.Response, error) {
 				switch req.URL.String() {
-				case "https://api.bot.qq.com/app/getAppAccessToken":
+				case "https://bots.qq.com/app/getAppAccessToken":
 					return response(200, `{"access_token":"sample"}`), nil
-				case "https://sandbox.api.sgroup.qq.com/gateway":
-					return response(200, `{"url":"wss://sandbox.api.sgroup.qq.com/websocket"}`), nil
-				case "https://sandbox.api.sgroup.qq.com/websocket":
+				case "https://" + test.host + "/gateway":
+					return response(200, `{"url":"wss://`+test.host+`/websocket"}`), nil
+				case "https://" + test.host + "/websocket":
 					req = req.Clone(req.Context())
 					req.URL.Host = loopback.Host
 					return underlying.RoundTrip(req)
@@ -182,12 +187,23 @@ func TestQQPairingGateway(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 4*time.Second)
 			defer cancel()
 			ready := false
-			var target string
-			err = (transport{client: client}).pairGateway(ctx, "qq", qqSandbox,
+			var target, botName string
+			var received int
+			err = (transport{client: client}).pairGateway(ctx, "qq", test.mode,
 				connectionSecret{Address: "app", Signing: "secret"}, func() { ready = true }, func(value string) {
 					target = value
 					cancel()
+				}, func(observation qqPairingObservation) {
+					if observation.botName != "" {
+						botName = observation.botName
+					}
+					if observation.receivedMessage {
+						received++
+					}
 				})
+			if botName != "文章通知机器人" || (ack && received != 1) || (!ack && received != 0) {
+				t.Fatalf("unexpected observation: name=%q inbox=%d", botName, received)
+			}
 			if ack && (!ready || target != "c2c:paired_user") {
 				t.Fatalf("ready=%t target=%q error=%v", ready, target, err)
 			}

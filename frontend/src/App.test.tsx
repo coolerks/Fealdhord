@@ -1095,9 +1095,10 @@ describe('Phase 1 阅读 Shell', () => {
   })
 
   it('QQ 配对需要确认收件目标，最后才保存渠道', async () => {
-    const pair = { id: 'qq-pair', state: 'listening', targets: ['c2c:friend', 'group:team', 'channel:42'] }
-    notificationAPI.StartRecipientPairing.mockResolvedValue(pair)
-    notificationAPI.RecipientPairingStatus.mockResolvedValue(pair)
+    const pair = { id: 'qq-pair', state: 'listening', bot_name: '文章通知机器人', targets: ['c2c:friend', 'group:team', 'channel:42'] }
+    const waiting = { ...pair, targets: [] }
+    notificationAPI.StartRecipientPairing.mockResolvedValue(waiting)
+    notificationAPI.RecipientPairingStatus.mockResolvedValue(waiting)
     const user = userEvent.setup()
     setup()
     await user.click(await screen.findByRole('button', { name: '打开设置' }))
@@ -1113,7 +1114,12 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(screen.getByRole('button', { name: '下一步' }))
     await user.click(screen.getByRole('button', { name: '开始配对' }))
     expect(notificationAPI.StartRecipientPairing).toHaveBeenCalledWith(expect.objectContaining({ mode: 'sandbox' }), '')
-    const group = await screen.findByRole('checkbox', { name: 'group:team' })
+    expect(await screen.findByText('QQ 网关已连接，尚未收到聊天消息')).toBeInTheDocument()
+    expect(screen.getByText('QQ 机器人 · 文章通知机器人')).toBeInTheDocument()
+    notificationAPI.RecipientPairingStatus.mockResolvedValue({ ...waiting, received_message: true })
+    expect(await screen.findByText('已收到 QQ 消息。请单独发送「配对」。', {}, { timeout: 2000 })).toBeInTheDocument()
+    notificationAPI.RecipientPairingStatus.mockResolvedValue({ ...pair, received_message: true })
+    const group = await screen.findByRole('checkbox', { name: 'group:team' }, { timeout: 2000 })
     expect(group).not.toBeChecked()
     await user.click(group)
     await user.click(screen.getByRole('button', { name: '下一步' }))

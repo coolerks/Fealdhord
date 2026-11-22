@@ -477,21 +477,28 @@ export function NotificationSettings() {
                   <>
                     <p className="text-sm text-muted-foreground">{pairingInstructions[channel.platform]}</p>
                     {pairStatus?.state === 'connecting' && <p role="status" className="text-sm">正在连接机器人…</p>}
+                    {channel.platform === 'qq' && pairStatus?.bot_name && (
+                      <p className="text-xs text-muted-foreground">QQ 机器人 · {pairStatus.bot_name}</p>
+                    )}
                     {pairStatus?.state === 'listening' && (
                       <p role="status" className="text-sm">
                         {pairStatus.targets?.length ? '已收到配对消息，请勾选收件目标' :
-                          channel.platform === 'qq' ? 'QQ 网关已响应，正在等待配对消息' : '正在等待配对消息'}
+                          channel.platform === 'qq' ? (pairStatus.received_message
+                            ? '已收到 QQ 消息。请单独发送「配对」。'
+                            : 'QQ 网关已连接，尚未收到聊天消息') : '正在等待配对消息'}
                       </p>
                     )}
-                    {channel.platform === 'qq' && !pairStatus?.targets?.length && (
+                    {channel.platform === 'qq' && pairStatus?.state === 'listening' && !pairStatus.received_message && !pairStatus.targets?.length && (
                       <p className="text-xs text-muted-foreground">
                         {channel.mode === 'sandbox'
-                          ? '请在 QQ 开放平台的「沙箱配置」中确认测试账号，再从沙箱入口打开机器人会话。'
-                          : '机器人还在测试时，返回上一步选「沙箱（未上线测试）」。'}
+                          ? '请从 QQ 开放平台配置的沙箱账号和测试会话发送。'
+                          : '如果手机提示「未连接灵魂」，请点手机上的「查看指引」，核对当前聊天是否对应上方机器人。'}
                       </p>
                     )}
                     {pairStatus?.state === 'expired' && (
-                      <FieldError>{channel.platform === 'qq' && !pairStatus.targets?.length ? '等待超时，QQ 网关未送达可识别的配对消息' : '配对已超时'}</FieldError>
+                      <FieldError>{channel.platform === 'qq' && !pairStatus.targets?.length ? (pairStatus.received_message
+                        ? '已收到 QQ 消息，但未识别到「配对」。本次配对已结束。'
+                        : 'QQ 网关未送达聊天消息，本次配对已结束。') : '配对已超时'}</FieldError>
                     )}
                     {pairStatus?.state === 'failed' && <FieldError>{pairStatus.detail}</FieldError>}
                     {pairingPoll.isError && <FieldError>暂时无法读取配对状态</FieldError>}
