@@ -1193,3 +1193,25 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 44: QQ 沙箱配对与网关状态修复
+<!-- trellis-session: v=2 fp=e3a8e8ec42a19359 -->
+
+**Date**: 2026-11-22
+**Task**: QQ 沙箱配对与网关状态修复
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待心跳确认，超时或关闭码终止本次连接。模拟 WebSocket、沙箱发送、Go 全量和前端 163 项测试通过，真实账号待验证。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fd0d914` | fix(notification): 修复 QQ 沙箱配对与网关状态 |
+
+### Status
+
+[OK] **Completed**
