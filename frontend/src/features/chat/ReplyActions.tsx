@@ -6,8 +6,9 @@ import { notify } from '@/lib/notifications'
 import type { Message } from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
 
 const numbers = new Intl.NumberFormat('zh-CN')
-const seconds = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 })
+const decimals = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 })
 const count = (value?: number | null) => typeof value === 'number' ? numbers.format(value) : '未记录'
+export const formatDuration = (value: number) => `${decimals.format(value / 1000)} 秒`
 
 export function ReplyActions({ message, branchDisabled, onBranch }: {
   message: Message
@@ -18,8 +19,12 @@ export function ReplyActions({ message, branchDisabled, onBranch }: {
   const legacySuffix = ' · 工具模式（关闭思考）'
   const legacyToolMode = message.modelName.endsWith(legacySuffix)
   const modelName = legacyToolMode ? message.modelName.slice(0, -legacySuffix.length) : message.modelName
+  const firstToken = details?.firstTokenMs
+  const speed = details?.outputTokensPerSecond
   const rows = [
-    ['本次耗时', details ? `${seconds.format(details.durationMs / 1000)} 秒` : '未记录'],
+    ['本次耗时', details ? formatDuration(details.durationMs) : '未记录'],
+    ['首字耗时', typeof firstToken === 'number' ? formatDuration(firstToken) : '未记录'],
+    ['平均输出速度', typeof speed === 'number' ? `${decimals.format(speed)} token/s` : '未记录'],
     ['轮次', count(details?.rounds)],
     ['模型', modelName || '未记录'],
     ['思考等级', details?.reasoningEffort || (legacyToolMode ? '关闭' : '未记录')],

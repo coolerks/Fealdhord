@@ -3,6 +3,7 @@ package agentrun
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -17,8 +18,9 @@ const (
 )
 
 type ReadTool struct {
-	Definition ai.ToolDefinition
-	Read       func(context.Context, ai.ToolCall) (string, error)
+	Definition   ai.ToolDefinition
+	Read         func(context.Context, ai.ToolCall) (string, error)
+	activityName func(ai.ToolCall) string
 }
 
 // Stream retains the one-turn event contract. Only the final model turn ends the message.
@@ -111,7 +113,21 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 			}
 			record, exists := executed[call.ID]
 			if !exists {
-				result, err := allowed[call.Name].Read(ctx, call)
+				tool := allowed[call.Name]
+				name := call.Name
+				if tool.activityName != nil {
+					name = tool.activityName(call)
+				}
+				event := ai.ModelEvent{Type: "tool_work_started", CallID: call.ID, ToolName: name}
+				if !forward(event) {
+					return ctx.Err()
+				}
+				result, err := tool.Read(ctx, call)
+				event.Type = "tool_work_finished"
+				event.ToolStatus = toolWorkStatus(result, err)
+				if !forward(event) {
+					return ctx.Err()
+				}
 				if err != nil {
 					return err
 				}
@@ -129,6 +145,29 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 		}
 	}
 	return failure("AgentLimitExceeded")
+}
+
+func toolWorkStatus(output string, err error) string {
+	if err != nil {
+		return "failed"
+	}
+	var result struct {
+		OK      *bool           `json:"ok"`
+		IsError bool            `json:"isError"`
+		Error   json.RawMessage `json:"error"`
+	}
+	if json.Unmarshal([]byte(output), &result) == nil {
+		switch string(result.Error) {
+		case `"PermissionDenied"`, `"PermissionError"`, `"ToolNotAllowed"`:
+			return "denied"
+		case `"MCPResultUnknown"`:
+			return "unknown"
+		}
+		if (len(result.Error) > 0 && string(result.Error) != "null") || result.IsError || (result.OK != nil && !*result.OK) {
+			return "failed"
+		}
+	}
+	return "completed"
 }
 
 func validateCalls(calls []ai.ToolCall, allowed map[string]ReadTool, executed map[string]previousCall) error {
@@ -196,7 +235,7 @@ func collect(ctx context.Context, model ai.Model, request *ai.ModelRequest, forw
 					return reply, failure("ProviderProtocolError")
 				}
 				reply.calls = append(reply.calls, *event.ToolCall)
-			case "message_start", "usage":
+			case "message_start", "usage", "reasoning_started", "reasoning_summary_delta":
 				if !forward(event) {
 					return reply, ctx.Err()
 				}

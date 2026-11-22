@@ -13,17 +13,18 @@ type Model interface {
 }
 
 type ModelRequest struct {
-	Budget          Budget
-	Model           string
-	ReasoningEffort string
-	System          string
-	Messages        []Message
-	Tools           []ToolDefinition
-	ToolChoice      ToolChoice
-	Temperature     *float64
-	TopP            *float64
-	MaxOutputTokens *int
-	Stop            []string
+	Budget                  Budget
+	Model                   string
+	ReasoningEffort         string
+	IncludeReasoningSummary bool
+	System                  string
+	Messages                []Message
+	Tools                   []ToolDefinition
+	ToolChoice              ToolChoice
+	Temperature             *float64
+	TopP                    *float64
+	MaxOutputTokens         *int
+	Stop                    []string
 }
 
 type Message struct {
@@ -76,6 +77,7 @@ type ModelEvent struct {
 	Text             string
 	CallID           string
 	ToolName         string
+	ToolStatus       string
 	ArgumentsDelta   string
 	ToolCall         *ToolCall
 	Usage            *Usage
@@ -87,6 +89,7 @@ type ModelEvent struct {
 type ModelError struct {
 	Code       string
 	RetryAfter time.Duration
+	httpStatus int
 }
 
 func (e *ModelError) Error() string { return e.Code }

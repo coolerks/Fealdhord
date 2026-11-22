@@ -617,7 +617,8 @@ describe('Phase 1 阅读 Shell', () => {
     chat.Messages.mockImplementation(async (id: string) => [{
       id: id === 'source' ? 'reply' : 'branch-reply', role: 'assistant', status: 'complete', modelName: '测试 DeepSeek',
       text: id === 'source' ? '**回复内容**' : '分支内容',
-      details: { durationMs: 1234, rounds: 2, reasoningEffort: '低', inputTokens: 3500, cachedInputTokens: 0, outputTokens: 27 },
+      details: { durationMs: 1234, rounds: 2, reasoningEffort: '低', inputTokens: 3500, cachedInputTokens: 0, outputTokens: 27,
+        firstTokenMs: 320, outputTokensPerSecond: 29.54 },
     }])
     chat.Branch.mockResolvedValue({ id: 'branch', title: '分支会话' })
     setup()
@@ -628,13 +629,69 @@ describe('Phase 1 阅读 Shell', () => {
     expect(host.copy).toHaveBeenCalledWith('**回复内容**')
     await user.click(screen.getByRole('button', { name: '查看回复详情' }))
     const details = within(await screen.findByRole('dialog', { name: '回复详情' }))
-    for (const value of ['测试 DeepSeek', '1.23 秒', '2', '低', '3,500', '0', '27']) {
+    for (const value of ['测试 DeepSeek', '1.23 秒', '0.32 秒', '29.54 token/s', '2', '低', '3,500', '0', '27']) {
       expect(details.getByText(value)).toBeInTheDocument()
     }
     await user.keyboard('{Escape}')
     await user.click(screen.getByRole('button', { name: '分支到新聊天' }))
     expect(chat.Branch).toHaveBeenCalledWith('source', 'reply')
     expect(await screen.findByText('分支内容')).toBeInTheDocument()
+  })
+
+  it('流式回复在首字前显示思考和工具步骤，结束后折叠工作过程', async () => {
+    const user = userEvent.setup()
+    const running: Message = { id: 'reply', role: 'assistant', text: '', modelName: '模型', status: 'running', errorCode: '' }
+    chat.List.mockResolvedValue([{ id: 'history', title: '历史会话' }])
+    chat.Messages.mockResolvedValue([running])
+    const { client } = setup()
+    await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    const timeline = screen.getByRole('region', { name: '对话消息' })
+    expect(await within(timeline).findByRole('status')).toHaveTextContent('正在思考')
+
+    const work = { durationMs: 1450, reasoningObserved: true, reasoningSummary: '查找相关报道。',
+      tools: [{ name: 'article_search', status: 'running' }] }
+    const details = { durationMs: 0, rounds: 0, reasoningEffort: '', work }
+    act(() => client.setQueryData(['chat', 'messages', 'history'], [{ ...running, details }]))
+    expect(await screen.findByRole('button', { name: /正在思考/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('list', { name: '工具活动' })).toHaveTextContent('搜索文章进行中')
+
+    act(() => client.setQueryData(['chat', 'messages', 'history'], [{
+      ...running, text: '这是搜索结果。', status: 'complete',
+      details: { ...details, work: { ...work, tools: [{ name: 'article_search', status: 'completed' }] } },
+    }]))
+    const process = await screen.findByRole('button', { name: /工作过程.*1.45 秒/ })
+    expect(process).toHaveAttribute('aria-expanded', 'false')
+    expect(within(timeline).queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: '工具活动' })).not.toBeInTheDocument()
+    process.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('list', { name: '工具活动' })).toHaveTextContent('搜索文章已完成')
+    expect(screen.getByText('查找相关报道。')).toBeVisible()
+  })
+
+  it('点击新对话会清空上一个会话的文字选区', async () => {
+    const user = userEvent.setup()
+    chat.List.mockResolvedValue([{ id: 'history', title: '历史会话' }])
+    chat.Messages.mockResolvedValue([{
+      id: 'request', role: 'user', text: '切换前选中的问题', modelName: '', status: 'complete', errorCode: '',
+    }])
+    setup()
+    await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    const text = await screen.findByText('切换前选中的问题')
+    const range = document.createRange()
+    range.selectNodeContents(text)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+    try {
+      expect(selection.toString()).toBe('切换前选中的问题')
+      fireEvent.click(screen.getByRole('button', { name: '新对话' }))
+      expect(selection.rangeCount).toBe(0)
+      expect(screen.queryByText('切换前选中的问题')).not.toBeInTheDocument()
+      expect(document.querySelector('.text-selection > span')).not.toBeInTheDocument()
+    } finally {
+      selection.removeAllRanges()
+    }
   })
 
   it('全局回复安全渲染 Markdown，聊天代码主题和文章主题独立保存', async () => {

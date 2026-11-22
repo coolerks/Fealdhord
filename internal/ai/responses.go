@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -40,6 +41,7 @@ type responsePart struct {
 type responseOutput struct {
 	responseItem
 	Content []responsePart `json:"content"`
+	Summary []responsePart `json:"summary"`
 }
 
 type responsesResult struct {
@@ -86,8 +88,10 @@ func (r *Responses) request(ctx context.Context, req *ModelRequest, stream bool)
 		}
 	}
 	payload := map[string]any{"model": req.Model, "input": input, "store": false, "stream": stream}
+	var reasoning map[string]string
 	if req.ReasoningEffort != "" {
-		payload["reasoning"] = map[string]string{"effort": req.ReasoningEffort}
+		reasoning = map[string]string{"effort": req.ReasoningEffort}
+		payload["reasoning"] = reasoning
 	}
 	if req.System != "" {
 		payload["instructions"] = req.System
@@ -112,6 +116,16 @@ func (r *Responses) request(ctx context.Context, req *ModelRequest, stream bool)
 		payload["tool_choice"] = map[string]string{"type": "function", "name": req.ToolChoice.Name}
 	} else if req.ToolChoice.Mode != "" {
 		payload["tool_choice"] = req.ToolChoice.Mode
+	}
+	if stream && req.IncludeReasoningSummary && reasoning != nil && req.ReasoningEffort != "none" && r.host == "api.openai.com" {
+		reasoning["summary"] = "auto"
+		res, err := r.post(ctx, payload, false, stream)
+		var modelErr *ModelError
+		if !errors.As(err, &modelErr) || (modelErr.httpStatus != http.StatusBadRequest && modelErr.httpStatus != http.StatusForbidden) {
+			return res, err
+		}
+		// Reasoning summaries can require organization verification.
+		delete(reasoning, "summary")
 	}
 	return r.post(ctx, payload, false, stream)
 }
@@ -189,6 +203,7 @@ func (r *Responses) Stream(ctx context.Context, req *ModelRequest) (<-chan Model
 		return r.request(ctx, req, true)
 	}, func(body io.Reader, send func(ModelEvent) bool) error {
 		started := false
+		summaryStreamed := false
 		pending := make(map[string]*pendingChatCall)
 		callIDs := make(map[string]bool)
 		return readModelSSE(body, func(data string) (bool, error) {
@@ -218,6 +233,13 @@ func (r *Responses) Stream(ctx context.Context, req *ModelRequest) (<-chan Model
 					return false, protocolError()
 				}
 				return false, emit(send, ModelEvent{Type: "text_delta", Text: delta})
+			case "response.reasoning_summary_text.delta":
+				var delta string
+				if !started || json.Unmarshal(event.Delta, &delta) != nil {
+					return false, protocolError()
+				}
+				summaryStreamed = summaryStreamed || delta != ""
+				return false, emit(send, ModelEvent{Type: "reasoning_summary_delta", Text: delta})
 			case "response.output_item.added":
 				item := event.Item
 				if item.Type != "function_call" {
@@ -264,6 +286,24 @@ func (r *Responses) Stream(ctx context.Context, req *ModelRequest) (<-chan Model
 						call := pending[item.ID]
 						if call == nil || call.wire.ID != item.CallID || call.wire.Function.Name != item.Name || call.arguments.String() != *item.Arguments {
 							return false, protocolError()
+						}
+					}
+				}
+				if !summaryStreamed {
+					var summary []string
+					for _, item := range event.Response.Output {
+						if item.Type != "reasoning" {
+							continue
+						}
+						for _, part := range item.Summary {
+							if part.Type == "summary_text" && part.Text != "" {
+								summary = append(summary, part.Text)
+							}
+						}
+					}
+					if len(summary) > 0 {
+						if err := emit(send, ModelEvent{Type: "reasoning_summary_delta", Text: strings.Join(summary, "\n\n")}); err != nil {
+							return false, err
 						}
 					}
 				}

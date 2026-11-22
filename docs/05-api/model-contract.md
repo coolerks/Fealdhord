@@ -76,6 +76,8 @@ DeepSeek V4 系列经原生或兼容 Chat Completions 接入且本轮带工具�
 
 Responses 在配置的 API 基础路径追加 `responses`，用 `instructions` 传顶层提示，关闭服务端响应存储，使用本地历史传回函数调用与结果。工具片段按输出项 ID 归并，成功结束时与终态输出逐项核对。Responses 不支持 `stop`，在请求前返回 CapabilityError。
 
+Responses 流的 `response.reasoning_summary_text.delta` 和终态 `reasoning.summary` 可用作可展示的思考摘要。直接连接 OpenAI Responses 且显式启用思考档位时，聊天请求以 `reasoning.summary=auto` 请求摘要。该选项被 HTTP 400 或 403 拒绝时，原请求去掉摘要选项后重试一次。Chat Completions 的原始推理字段只产生一个可展示的推理状态信号。[OpenAI 推理摘要](https://developers.openai.com/api/docs/guides/reasoning#reasoning-summaries)
+
 Messages 追加 `messages`，使用 `x-api-key` 和 `anthropic-version: 2023-06-01`，缺省最大输出 4096 token。同角色连续消息合并，工具结果归入 user 块。流以块索引校验开始、增量和结束，消息用量按累计值覆盖，收到 `message_stop` 后输出最终用量。三种协议共用网络限制和错误映射。
 
 本轮测试覆盖两种新协议的本地 HTTP 路径、认证头、工具往返、文本与工具流、累计用量和缺失终态。尚待完整验收矩阵及真实模型验证。推理签名续传、服务端工具和协议私有状态仍待后续实现。

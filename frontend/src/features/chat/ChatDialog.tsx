@@ -33,6 +33,7 @@ import { useReaderCodeTheme } from '@/features/reader/code-themes'
 import { ChatMarkdown } from './ChatMarkdown'
 import { chatMessagesKey, useChatMessages } from './useChatMessages'
 import { ReplyActions } from './ReplyActions'
+import { ReplyProgress } from './ReplyProgress'
 import { notify } from '@/lib/notifications'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/api'
 import { List as listAIConfiguration } from '../../../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/api'
@@ -59,15 +60,6 @@ const statusLabels: Record<string, string> = {
   failed: '回复失败',
   cancelled: '已取消',
   interrupted: '上次回复已中断',
-}
-
-const toolStatusLabels: Record<string, string> = {
-  running: '正在读取文章',
-  completed: '已读取授权文章',
-  denied: '已拒绝未授权的文章读取',
-  failed: '文章读取失败',
-  cancelled: '已取消文章读取',
-  interrupted: '文章读取已中断',
 }
 
 const errorLabels: Record<string, string> = {
@@ -278,6 +270,7 @@ function ChatSession({ target, close, workspace }: {
     setTasksOpen(true)
   }
   function choose(id: string) {
+    if (id !== conversationId && timeline.current) clearSelectionWithin(timeline.current)
     setTasksOpen(false)
     follow.current = true
     setFollowing(true)
@@ -444,13 +437,11 @@ function ChatSession({ target, close, workspace }: {
       {messages.isError && <Button size="sm" variant="ghost" onClick={() => void messages.refetch()}>重新读取消息</Button>}
       {messages.data?.map(message => <section key={message.id} className={workspace ? 'chat-message' : message.role === 'user' ? 'ml-auto w-fit max-w-[90%] rounded-xl bg-muted p-3' : 'mr-3 rounded-xl border p-3'} data-role={workspace ? message.role : undefined}>
         {!workspace && message.role === 'user' && <p className="text-xs text-muted-foreground">你</p>}
+        {message.role === 'assistant' && <ReplyProgress message={message} />}
         {message.text && (workspace && message.role === 'assistant'
           ? <ChatMarkdown text={message.text} streaming={message.status === 'running'}
             reveal={workspace.motionMode === 'off' ? undefined : message.reveal} />
           : <p className="whitespace-pre-wrap break-words">{message.text}</p>)}
-        {!!message.tools?.length && <ul className="mt-2 text-xs text-muted-foreground" aria-label="工具活动">
-          {message.tools.map(tool => <li key={tool.id}>{toolStatusLabels[tool.status] ?? '文章工具状态未知'}</li>)}
-        </ul>}
         {statusLabels[message.status] && <p className="mt-1 text-sm text-muted-foreground">
           {statusLabels[message.status]}{errorLabels[message.errorCode] && ` · ${errorLabels[message.errorCode]}`}
         </p>}

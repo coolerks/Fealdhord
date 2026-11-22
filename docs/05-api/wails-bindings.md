@@ -1,6 +1,6 @@
 # Wails 应用边界契约
 
-`Chat.Branch(id, messageID)` 原子复制原会话到指定的已结束助手消息，返回新会话。目标消息须属于源会话，否则返回 `ChatBranchUnavailable`。`Chat.Messages` 的助手消息可包含 `details`，包括毫秒耗时、模型调用轮次、思考档位和服务用量。迁移 00023 保留旧记录，未采集字段可缺省。
+`Chat.Branch(id, messageID)` 原子复制原会话到指定的已结束助手消息，返回新会话。目标消息须属于源会话，否则返回 `ChatBranchUnavailable`。`Chat.Messages` 的助手消息可包含 `details`，包括毫秒耗时、模型调用轮次、思考档位、服务用量，以及可选的 `firstTokenMs`、`outputTokensPerSecond` 和 `work`。生成期间仅 `work` 有实际数据，通过现有消息快照刷新。结束后这些字段保存在迁移 00023 的详情 JSON 中。旧记录和未采集指标可缺省。
 
 ## 1. 范围与触发条件
 

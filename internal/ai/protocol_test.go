@@ -11,6 +11,56 @@ import (
 	"testing"
 )
 
+func TestResponsesRetriesWithoutUnavailableSummary(t *testing.T) {
+	requests := make(chan string, 3)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Error(err)
+			return
+		}
+		body := string(payload)
+		requests <- body
+		if strings.Contains(body, `"summary":"auto"`) {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"type\":\"response.created\"}\n\n")
+		fmt.Fprint(w, "data: {\"type\":\"response.output_text.delta\",\"delta\":\"answer\"}\n\n")
+		fmt.Fprint(w, "data: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\",\"output\":[{\"type\":\"reasoning\",\"summary\":[{\"type\":\"summary_text\",\"text\":\"final summary\"}]}]}}\n\n")
+	}))
+	defer server.Close()
+	model, err := NewResponses(server.URL, "test-key", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	model.host = "api.openai.com" // Exercise the official-host path without calling an external service.
+	events, err := model.Stream(t.Context(), &ModelRequest{
+		Model: "test-model", ReasoningEffort: "low", IncludeReasoningSummary: true,
+		Messages: []Message{{Role: "user", Content: []ContentBlock{{Type: "text", Text: "question"}}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var summary string
+	for event := range events {
+		if event.Error != nil {
+			t.Fatal(event.Error)
+		}
+		if event.Type == "reasoning_summary_delta" {
+			summary += event.Text
+		}
+	}
+	if len(requests) != 2 || summary != "final summary" {
+		t.Fatalf("requests = %d, summary = %q", len(requests), summary)
+	}
+	first, second := <-requests, <-requests
+	if !strings.Contains(first, `"summary":"auto"`) || strings.Contains(second, `"summary"`) || !strings.Contains(second, `"effort":"low"`) {
+		t.Fatalf("unexpected requests: %s, %s", first, second)
+	}
+}
+
 func TestProtocolToolRoundTrip(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -27,6 +77,8 @@ func TestProtocolToolRoundTrip(t *testing.T) {
 			stream: []string{
 				`{"type":"response.created"}`,
 				`{"type":"response.future.delta","delta":{"nested":true}}`,
+				`{"type":"response.reasoning_text.delta","delta":"private continuation"}`,
+				`{"type":"response.reasoning_summary_text.delta","delta":"provider summary"}`,
 				`{"type":"response.output_text.delta","delta":"checking"}`,
 				`{"type":"response.output_item.added","item":{"type":"function_call","id":"item","call_id":"next","name":"lookup","arguments":""}}`,
 				`{"type":"response.function_call_arguments.delta","item_id":"item","delta":"{\"q\":"}`,
@@ -125,6 +177,14 @@ func TestProtocolToolRoundTrip(t *testing.T) {
 							t.Fatalf("event identity = %+v", event)
 						}
 						switch event.Type {
+						case "reasoning_summary_delta":
+							if event.Text != "provider summary" {
+								t.Fatalf("summary = %q", event.Text)
+							}
+						case "text_delta":
+							if event.Text != "checking" {
+								t.Fatalf("visible text = %q", event.Text)
+							}
 						case "tool_call_end":
 							if event.ToolCall == nil || *event.ToolCall != want {
 								t.Fatalf("call = %+v", event.ToolCall)
@@ -140,6 +200,9 @@ func TestProtocolToolRoundTrip(t *testing.T) {
 						}
 					}
 					expected := []string{"message_start", "text_delta", "tool_call_start", "tool_call_arguments_delta", "tool_call_arguments_delta"}
+					if tc.name == "responses" {
+						expected = slices.Insert(expected, 1, "reasoning_summary_delta")
+					}
 					if truncated {
 						expected = append(expected, "error")
 					} else {

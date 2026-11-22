@@ -237,7 +237,7 @@ func (c *modelClient) do(request *http.Request, anthropic, stream bool) (*http.R
 func chatStatusError(response *http.Response) error {
 	switch response.StatusCode {
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return &ModelError{Code: "AuthenticationError"}
+		return &ModelError{Code: "AuthenticationError", httpStatus: response.StatusCode}
 	case http.StatusTooManyRequests:
 		value := response.Header.Get("Retry-After")
 		var delay time.Duration
@@ -248,7 +248,7 @@ func chatStatusError(response *http.Response) error {
 		}
 		return &ModelError{Code: "RateLimitError", RetryAfter: delay}
 	default:
-		return &ModelError{Code: "ProviderHTTPError"}
+		return &ModelError{Code: "ProviderHTTPError", httpStatus: response.StatusCode}
 	}
 }
 
@@ -411,6 +411,7 @@ func readChatStream(body io.Reader, offered map[string]bool, preserveReasoning b
 	var refused bool
 	var reasoning strings.Builder
 	var hasReasoning bool
+	var reasoningStarted bool
 	calls := make(map[int]*pendingChatCall)
 	if !send(ModelEvent{Type: "message_start"}) {
 		return context.Canceled
@@ -477,6 +478,12 @@ func readChatStream(body io.Reader, offered map[string]bool, preserveReasoning b
 				return false, nil
 			}
 			refused = refused || choice.Delta.Refusal != ""
+			if !reasoningStarted && choice.Delta.ReasoningContent != nil && *choice.Delta.ReasoningContent != "" {
+				reasoningStarted = true
+				if !send(ModelEvent{Type: "reasoning_started"}) {
+					return false, context.Canceled
+				}
+			}
 			if preserveReasoning && choice.Delta.ReasoningContent != nil {
 				hasReasoning = true
 				reasoning.WriteString(*choice.Delta.ReasoningContent)

@@ -188,6 +188,13 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	if len(withTools.Tools) != 2 || withTools.Tools[0].Status != "completed" || withTools.Tools[1].Status != "denied" {
 		t.Fatalf("audit = %+v", withTools.Tools)
 	}
+	if withTools.Details == nil || withTools.Details.Work == nil {
+		t.Fatalf("article activity missing: %+v", withTools.Details)
+	}
+	steps := withTools.Details.Work.Tools
+	if len(steps) != 2 || steps[0].Status != "completed" || steps[1].Status != "denied" {
+		t.Fatalf("article activity = %+v", steps)
+	}
 	initial, next := <-requests, <-requests
 	if !strings.Contains(initial, `"name":"read_article"`) || strings.Contains(initial, "不应发送的全文") {
 		t.Fatalf("bad initial tool request: %s", initial)

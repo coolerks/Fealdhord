@@ -54,7 +54,10 @@ func TestToolLoopWaitsForTerminalAndReusesPriorResult(t *testing.T) {
 	for event := range Stream(context.Background(), model, ai.ModelRequest{}, []ReadTool{tool}) {
 		output = append(output, event)
 	}
-	if reads != 1 || turn != 3 || len(output) != 2 || output[0].Text != "done" || output[1].FinishReason != "stop" {
+	if reads != 1 || turn != 3 || len(output) != 4 ||
+		output[0].Type != "tool_work_started" || output[0].ToolName != call.Name ||
+		output[1].Type != "tool_work_finished" || output[1].ToolStatus != "completed" ||
+		output[2].Text != "done" || output[3].FinishReason != "stop" {
 		t.Fatalf("reads=%d turns=%d output=%+v", reads, turn, output)
 	}
 }

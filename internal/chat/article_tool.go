@@ -57,16 +57,16 @@ func (s *Service) articleReadTool(messageID string, ids []string) agentrun.ReadT
 			decoder.DisallowUnknownFields()
 			if decoder.Decode(&input) != nil || decoder.Decode(new(any)) != io.EOF || input.ID == "" {
 				status, errorCode = "failed", "ValidationError"
-				return "ValidationError: 参数必须包含文章 ID。", nil
+				return `{"error":"ValidationError","message":"参数必须包含文章 ID。"}`, nil
 			}
 			if !allowed[input.ID] {
 				status, errorCode = "denied", "PermissionError"
-				return "PermissionError: 用户没有授权读取该文章。", nil
+				return `{"error":"PermissionError","message":"用户没有授权读取该文章。"}`, nil
 			}
 			text, err := s.store.ArticleText(ctx, input.ID)
 			if err != nil {
 				status, errorCode = "failed", "ContextUnavailable"
-				return "ContextUnavailable: 无法读取授权的文章。", nil
+				return `{"error":"ContextUnavailable","message":"无法读取授权的文章。"}`, nil
 			}
 			result = boundedText(text, 8<<10)
 			if len(result) < len(text) {

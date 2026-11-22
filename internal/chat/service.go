@@ -79,10 +79,12 @@ type UpdateEvent struct {
 }
 
 type run struct {
-	cancel context.CancelFunc
-	id     string
-	text   strings.Builder
-	failed bool
+	cancel  context.CancelFunc
+	id      string
+	started time.Time
+	text    strings.Builder
+	work    replyWork
+	failed  bool
 }
 
 type ToolSource func(string, []string, bool) ([]agentrun.ReadTool, string, error)
@@ -177,6 +179,9 @@ func (s *Service) Messages(ctx context.Context, id string) ([]Message, error) {
 			message.Text = current.text.String()
 			if current.failed {
 				message.Status, message.ErrorCode = "failed", "StorageError"
+			}
+			if work := current.work.snapshot(current.started, time.Now(), message.Status); work != nil {
+				message.Details = &ReplyDetails{Work: work}
 			}
 		}
 		items = append(items, message)
@@ -295,7 +300,8 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 		input.Text += "\n\n[用户选段]\n" + input.Selection
 	}
 	history = append(history, textMessage("user", input.Text))
-	request := ai.ModelRequest{Budget: ai.ContextBudget(model.Metadata), Model: model.Name, Messages: history, ReasoningEffort: input.ReasoningEffort}
+	request := ai.ModelRequest{Budget: ai.ContextBudget(model.Metadata), Model: model.Name, Messages: history,
+		ReasoningEffort: input.ReasoningEffort, IncludeReasoningSummary: true}
 	var tools []agentrun.ReadTool
 	if s.toolSource != nil && conversation.ScopeType == "global" {
 		available, instructions, toolErr := s.toolSource(conversation.ID, input.Skills, input.DisableTools)
@@ -337,7 +343,7 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 		return modelError("StorageError")
 	}
 	runCtx, cancel := context.WithCancel(s.root)
-	current := &run{cancel: cancel, id: reply.ID}
+	current := &run{cancel: cancel, id: reply.ID, started: time.Now()}
 	s.active[conversation.ID] = current
 	s.workers.Add(1)
 	go s.execute(runCtx, conversation.ID, current, adapter, request, tools, model.DisplayName, effortLabel(model, input.ReasoningEffort), compact)
@@ -365,7 +371,6 @@ func (s *Service) Cancel(_ context.Context, id string) error {
 }
 
 func (s *Service) execute(ctx context.Context, id string, current *run, adapter ai.Model, request ai.ModelRequest, tools []agentrun.ReadTool, modelName, effort string, compact *compaction) {
-	started := time.Now()
 	var usage replyUsage
 	defer s.workers.Done()
 	defer current.cancel()
@@ -428,11 +433,15 @@ func (s *Service) execute(ctx context.Context, id string, current *run, adapter 
 				switch event.Type {
 				case "message_start":
 					usage.startRound()
+					s.mu.Lock()
+					current.work.observe(event, time.Now())
+					s.mu.Unlock()
 				case "text_delta":
 					s.mu.Lock()
 					exceeded := current.text.Len()+len(event.Text) > maxReplyBytes
 					if !exceeded {
 						current.text.WriteString(event.Text)
+						current.work.observe(event, time.Now())
 					}
 					s.mu.Unlock()
 					if exceeded {
@@ -441,6 +450,10 @@ func (s *Service) execute(ctx context.Context, id string, current *run, adapter 
 					} else if s.publish != nil {
 						pending.WriteString(event.Text)
 					}
+				case "reasoning_started", "reasoning_summary_delta", "tool_work_started", "tool_work_finished":
+					s.mu.Lock()
+					current.work.observe(event, time.Now())
+					s.mu.Unlock()
 				case "usage":
 					usage.observe(event.Usage)
 					if event.Usage != nil && event.Usage.InputTokens != nil && *event.Usage.InputTokens > 0 {
@@ -467,13 +480,14 @@ func (s *Service) execute(ctx context.Context, id string, current *run, adapter 
 	if ctx.Err() != nil && status != "complete" && code != "ResponseLimit" {
 		status, code = "cancelled", "Cancelled"
 	}
+	ended := time.Now()
 	finishCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_, err = s.store.ChatQueries().FinishChatMessage(finishCtx, sqlc.FinishChatMessageParams{
 		ID: current.id, Content: current.text.String(), Status: status, ErrorCode: code,
-		ReplyDetails: usage.details(time.Since(started), effort),
+		ReplyDetails: usage.details(current.started, ended, effort, &current.work, status),
 	})
 	if err == nil {
 		if lastInput > 0 {

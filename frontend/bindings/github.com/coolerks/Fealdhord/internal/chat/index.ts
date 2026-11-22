@@ -12,6 +12,8 @@ export type {
     Conversation,
     Message,
     ReplyDetails,
+    ReplyToolStep,
+    ReplyWork,
     Scope,
     SendInput,
     ToolActivity,

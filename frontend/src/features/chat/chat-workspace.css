@@ -68,6 +68,29 @@
   padding: 24px var(--chat-gutter);
 }
 
+.chat-thinking-label {
+  display: inline-block;
+}
+
+@supports (background-clip: text) {
+  @media (prefers-reduced-motion: no-preference) {
+    html:not([data-motion=off]) .chat-thinking-label {
+      background: linear-gradient(110deg, var(--muted-foreground) 38%, color-mix(in oklab, var(--muted-foreground), white 55%) 50%, var(--muted-foreground) 62%) 100% / 250% 100%;
+      background-clip: text;
+      color: transparent;
+      animation: chat-thinking-sweep 1.8s linear infinite !important;
+    }
+  }
+}
+
+@keyframes chat-thinking-sweep {
+  to { background-position: 0%; }
+}
+
+@media (forced-colors: active) {
+  html:not([data-motion=off]) .chat-thinking-label { color: CanvasText; }
+}
+
 .chat-message {
   flex: none;
   align-self: center;

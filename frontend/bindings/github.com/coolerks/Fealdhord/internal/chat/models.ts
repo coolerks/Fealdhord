@@ -45,6 +45,21 @@ export interface ReplyDetails {
     "inputTokens"?: number | null;
     "cachedInputTokens"?: number | null;
     "outputTokens"?: number | null;
+    "firstTokenMs"?: number | null;
+    "outputTokensPerSecond"?: number | null;
+    "work"?: ReplyWork | null;
+}
+
+export interface ReplyToolStep {
+    "name": string;
+    "status": string;
+}
+
+export interface ReplyWork {
+    "durationMs": number;
+    "reasoningObserved": boolean;
+    "reasoningSummary"?: string;
+    "tools"?: ReplyToolStep[] | null;
 }
 
 export interface Scope {
