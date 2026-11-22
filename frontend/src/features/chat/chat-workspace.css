@@ -201,12 +201,6 @@
   border-radius: 18px;
   background: var(--card);
   box-shadow: 0 2px 9px color-mix(in srgb, var(--foreground) 6%, transparent);
-  transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
-}
-
-.chat-composer-form:focus-within {
-  border-color: var(--ring);
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--foreground) 9%, transparent);
 }
 
 .chat-composer-approval {
