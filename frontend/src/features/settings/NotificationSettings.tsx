@@ -334,6 +334,19 @@ export function NotificationSettings() {
                   }}
                 />
               )}
+              {channel.platform === 'qq' && (
+                <Selection
+                  id="qq-environment"
+                  label="QQ 接入环境"
+                  options={[{ value: 'production', label: '正式环境' }, { value: 'sandbox', label: '沙箱（未上线测试）' }]}
+                  value={channel.mode === 'sandbox' ? 'sandbox' : 'production'}
+                  disabled={busy || Boolean(channel.id) || channelStep === 3}
+                  onChange={value => {
+                    setChannelField('mode', value === 'sandbox' ? value : '')
+                    setRecipientText('')
+                  }}
+                />
+              )}
               {channel.id && !wechatMode && (
                 <p className="text-xs text-muted-foreground">凭据留空时沿用已保存的值。</p>
               )}
@@ -464,8 +477,22 @@ export function NotificationSettings() {
                   <>
                     <p className="text-sm text-muted-foreground">{pairingInstructions[channel.platform]}</p>
                     {pairStatus?.state === 'connecting' && <p role="status" className="text-sm">正在连接机器人…</p>}
-                    {pairStatus?.state === 'listening' && <p role="status" className="text-sm">正在等待配对消息</p>}
-                    {pairStatus?.state === 'expired' && <FieldError>配对已超时</FieldError>}
+                    {pairStatus?.state === 'listening' && (
+                      <p role="status" className="text-sm">
+                        {pairStatus.targets?.length ? '已收到配对消息，请勾选收件目标' :
+                          channel.platform === 'qq' ? 'QQ 网关已响应，正在等待配对消息' : '正在等待配对消息'}
+                      </p>
+                    )}
+                    {channel.platform === 'qq' && !pairStatus?.targets?.length && (
+                      <p className="text-xs text-muted-foreground">
+                        {channel.mode === 'sandbox'
+                          ? '请在 QQ 开放平台的「沙箱配置」中确认测试账号，再从沙箱入口打开机器人会话。'
+                          : '机器人还在测试时，返回上一步选「沙箱（未上线测试）」。'}
+                      </p>
+                    )}
+                    {pairStatus?.state === 'expired' && (
+                      <FieldError>{channel.platform === 'qq' && !pairStatus.targets?.length ? '等待超时，QQ 网关未送达可识别的配对消息' : '配对已超时'}</FieldError>
+                    )}
                     {pairStatus?.state === 'failed' && <FieldError>{pairStatus.detail}</FieldError>}
                     {pairingPoll.isError && <FieldError>暂时无法读取配对状态</FieldError>}
                     {(!pairStatus || ['failed', 'expired'].includes(pairStatus.state) || pairingPoll.isError) && (

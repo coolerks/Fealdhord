@@ -19,12 +19,12 @@ import (
 
 var errPairConnection = errors.New("无法接收配对消息，请检查机器人凭据和平台接收权限")
 
-func (t transport) listenPairing(ctx context.Context, platform string, secret connectionSecret, slackToken string, ready func(), match func(string)) error {
+func (t transport) listenPairing(ctx context.Context, platform, mode string, secret connectionSecret, slackToken string, ready func(), match func(string)) error {
 	switch platform {
 	case "telegram":
 		return t.pairTelegram(ctx, secret.Address, ready, match)
 	case "qq", "discord":
-		return t.pairGateway(ctx, platform, secret, ready, match)
+		return t.pairGateway(ctx, platform, mode, secret, ready, match)
 	case "slack":
 		return t.pairSlack(ctx, secret.Address, slackToken, ready, match)
 	case "dingtalk":
@@ -140,16 +140,17 @@ func (t transport) qqAccessToken(ctx context.Context, secret connectionSecret) (
 	return reply.Token, nil
 }
 
-func (t transport) pairGateway(ctx context.Context, platform string, secret connectionSecret, ready func(), match func(string)) error {
+func (t transport) pairGateway(ctx context.Context, platform, mode string, secret connectionSecret, ready func(), match func(string)) error {
 	endpoint, domain := "wss://gateway.discord.gg/?v=10&encoding=json", "gateway.discord.gg"
 	token, intents := secret.Address, 1<<12 // Discord: direct messages to the bot.
-	if platform == "qq" {
+	isQQ := platform == "qq"
+	if isQQ {
 		access, err := t.qqAccessToken(ctx, secret)
 		if err != nil {
-			return err
+			return errors.New("QQ 凭据验证失败，请核对 AppID 和 AppSecret")
 		}
 		token, intents = "QQBot "+access, 1<<25|1<<30
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.bot.qq.com/gateway", nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, qqAPIOrigin(mode)+"/gateway", nil)
 		if err != nil {
 			return errPairConnection
 		}
@@ -163,13 +164,16 @@ func (t transport) pairGateway(ctx context.Context, platform string, secret conn
 			URL string `json:"url"`
 		}
 		if resp.StatusCode != http.StatusOK || json.NewDecoder(io.LimitReader(resp.Body, maxWireResponse)).Decode(&gateway) != nil {
-			return errors.New("QQ 未提供网关连接，请检查机器人的事件接收方式")
+			return errors.New("QQ 未提供网关地址，请核对接入环境、事件接收方式及 IP 白名单")
 		}
 		endpoint, domain = gateway.URL, "qq.com"
 	}
 
 	conn, err := t.pairSocket(ctx, endpoint, domain)
 	if err != nil {
+		if isQQ {
+			return errors.New("无法连接 QQ 网关，请核对网络与 QQ 平台的接入配置")
+		}
 		return err
 	}
 	defer conn.CloseNow()
@@ -192,38 +196,55 @@ func (t transport) pairGateway(ctx context.Context, platform string, secret conn
 	if wsjson.Write(handshake, conn, map[string]any{"op": 2, "d": identify}) != nil {
 		return errPairConnection
 	}
-	heartbeatCtx, stopHeartbeat := context.WithCancel(ctx)
-	defer stopHeartbeat()
+	gatewayCtx, stopGateway := context.WithCancelCause(ctx)
+	defer stopGateway(nil)
 	var seq atomic.Pointer[int64]
-	if platform == "qq" {
-		var zero int64
-		seq.Store(&zero)
-	}
+	var pendingAck atomic.Bool
+	heartbeatInterval := time.Duration(interval.Millis) * time.Millisecond
 	sendHeartbeat := func() error {
-		ctx, cancel := context.WithTimeout(heartbeatCtx, 5*time.Second)
+		writeCtx, cancel := context.WithTimeout(gatewayCtx, 5*time.Second)
 		defer cancel()
-		return wsjson.Write(ctx, conn, map[string]any{"op": 1, "d": seq.Load()})
+		if isQQ {
+			pendingAck.Store(true)
+		}
+		return wsjson.Write(writeCtx, conn, map[string]any{"op": 1, "d": seq.Load()})
 	}
-	go func() {
-		ticker := time.NewTicker(time.Duration(interval.Millis) * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-heartbeatCtx.Done():
-				return
-			case <-ticker.C:
-				if sendHeartbeat() != nil {
-					_ = conn.CloseNow()
+	startHeartbeat := func() {
+		go func() {
+			ticker := time.NewTicker(heartbeatInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-gatewayCtx.Done():
 					return
+				case <-ticker.C:
+					if isQQ && pendingAck.Load() {
+						stopGateway(errQQHeartbeat)
+						return
+					}
+					if sendHeartbeat() != nil {
+						stopGateway(errPairConnection)
+						return
+					}
 				}
 			}
-		}
-	}()
+		}()
+	}
 	readCtx := handshake
 	var botID string
-	for ctx.Err() == nil {
+	identified, confirmed := false, false
+	// Limit the first QQ heartbeat separately from the gateway's periodic heartbeat.
+	ackCtx, cancelAck := context.WithCancel(gatewayCtx)
+	defer cancelAck()
+	for gatewayCtx.Err() == nil {
 		var frame pairingGatewayFrame
-		if wsjson.Read(readCtx, conn, &frame) != nil {
+		if err := wsjson.Read(readCtx, conn, &frame); err != nil {
+			if isQQ {
+				if errors.Is(context.Cause(gatewayCtx), errQQHeartbeat) {
+					return errQQHeartbeat
+				}
+				return qqGatewayFailure(err)
+			}
 			return errPairConnection
 		}
 		if frame.Seq != nil {
@@ -231,12 +252,23 @@ func (t transport) pairGateway(ctx context.Context, platform string, secret conn
 		}
 		switch {
 		case frame.Op == 7 || frame.Op == 9:
+			if isQQ {
+				return errors.New("QQ 网关已结束会话，请核对事件权限或其他正在运行的机器人连接")
+			}
 			return errPairConnection
 		case frame.Op == 1:
 			if sendHeartbeat() != nil {
 				return errPairConnection
 			}
-		case frame.Event == "READY":
+		case frame.Op == 11 && isQQ && identified:
+			pendingAck.Store(false)
+			if !confirmed {
+				readCtx = gatewayCtx
+				cancelAck()
+				confirmed = true
+				ready()
+			}
+		case frame.Op == 0 && frame.Event == "READY" && !identified:
 			var identity struct {
 				User struct {
 					ID string `json:"id"`
@@ -244,16 +276,53 @@ func (t transport) pairGateway(ctx context.Context, platform string, secret conn
 			}
 			_ = json.Unmarshal(frame.Data, &identity)
 			botID = identity.User.ID
-			readCtx = ctx
+			identified = true
+			readCtx = gatewayCtx
 			cancel()
-			ready()
-		case frame.Op == 0 && readCtx == ctx:
+			if isQQ {
+				timer := time.AfterFunc(min(heartbeatInterval, 12*time.Second), func() {
+					if ackCtx.Err() == nil {
+						stopGateway(errQQHeartbeat)
+					}
+				})
+				defer timer.Stop()
+				if sendHeartbeat() != nil {
+					return errQQHeartbeat
+				}
+			} else {
+				ready()
+			}
+			startHeartbeat()
+		case frame.Op == 0 && identified:
 			if target := gatewayPairingTarget(platform, botID, frame); target != "" {
 				match(target)
 			}
 		}
 	}
+	if isQQ && errors.Is(context.Cause(gatewayCtx), errQQHeartbeat) {
+		return errQQHeartbeat
+	}
+
 	return ctx.Err()
+}
+
+var errQQHeartbeat = errors.New("QQ 网关没有确认心跳，连接已结束，请重新配对")
+
+func qqGatewayFailure(err error) error {
+	switch websocket.CloseStatus(err) {
+	case 4004:
+		return errors.New("QQ 网关拒绝了凭据，请核对 AppID 和 AppSecret")
+	case 4008:
+		return errors.New("QQ 网关限制了连接频率，请稍后重新配对")
+	case 4013, 4014:
+		return errors.New("QQ 网关拒绝了事件订阅，请核对机器人拥有的消息接收权限")
+	case 4914:
+		return errors.New("QQ 网关拒绝了当前环境，请检查机器人是否已上线或改用沙箱")
+	case 4915:
+		return errors.New("QQ 网关拒绝了机器人连接，请检查开放平台的机器人状态")
+	default:
+		return errors.New("QQ 网关已断开，请核对接入环境和机器人状态")
+	}
 }
 
 type gatewayMention struct {

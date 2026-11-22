@@ -17,7 +17,8 @@ func isWebhook(platform, mode string) bool {
 }
 
 func (s *Service) checkRecipients(ctx context.Context, channel Channel, secret connectionSecret, targets []string) ([]string, error) {
-	if channel.Mode != "" && (channel.Mode != "app" || !isWebhook(channel.Platform, "")) {
+	if channel.Mode != "" && !(channel.Platform == "qq" && validQQMode(channel.Mode)) &&
+		(channel.Mode != "app" || !isWebhook(channel.Platform, "")) {
 		return nil, errors.New("不支持此渠道接入方式")
 	}
 	if isWebhook(channel.Platform, channel.Mode) {
@@ -118,5 +119,5 @@ func (s *Service) sendRecipient(ctx context.Context, channel sqlc.NotificationCh
 	if channel.Mode == "app" {
 		return s.transport.sendApp(ctx, channel.Platform, target, id, secret, message)
 	}
-	return s.transport.send(ctx, channel.Platform, target, id, secret, message, s.now())
+	return s.transport.send(ctx, channel.Platform, channel.Mode, target, id, secret, message, s.now())
 }

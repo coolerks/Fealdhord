@@ -102,6 +102,17 @@ func webhookURL(platform, address string) (*url.URL, error) {
 	return u, nil
 }
 
+const qqSandbox = "sandbox"
+
+func validQQMode(mode string) bool { return mode == "" || mode == qqSandbox }
+
+func qqAPIOrigin(mode string) string {
+	if mode == qqSandbox {
+		return "https://sandbox.api.sgroup.qq.com"
+	}
+	return "https://api.bot.qq.com"
+}
+
 func checkConnection(platform, target string, secret connectionSecret) error {
 	switch platform {
 	case "telegram":
@@ -318,7 +329,7 @@ func wecomPayload(m Message) map[string]any {
 	return map[string]any{"msgtype": "markdown", "markdown": map[string]string{"content": markdownMessage(m)}}
 }
 
-func makeRequest(platform, target string, secret connectionSecret, m Message, now time.Time) (string, map[string]any, error) {
+func makeRequest(platform, mode, target string, secret connectionSecret, m Message, now time.Time) (string, map[string]any, error) {
 	m = formatMessage(m)
 	switch platform {
 	case "telegram":
@@ -347,7 +358,7 @@ func makeRequest(platform, target string, secret connectionSecret, m Message, no
 		} else if m.Image != "" {
 			payload["image"] = m.Image
 		}
-		return "https://api.sgroup.qq.com" + path + id + "/messages", payload, nil
+		return qqAPIOrigin(mode) + path + id + "/messages", payload, nil
 	}
 	u, err := webhookURL(platform, secret.Address)
 	if err != nil {
@@ -433,7 +444,7 @@ func (t transport) post(ctx context.Context, endpoint string, params map[string]
 	return response, body, err
 }
 
-func (t transport) send(ctx context.Context, platform, target, deliveryID string, secret connectionSecret, m Message, now time.Time) deliveryResult {
+func (t transport) send(ctx context.Context, platform, mode, target, deliveryID string, secret connectionSecret, m Message, now time.Time) deliveryResult {
 	if err := checkConnection(platform, target, secret); err != nil {
 		return deliveryResult{state: "failed", detail: "configuration"}
 	}
@@ -446,21 +457,18 @@ func (t transport) send(ctx context.Context, platform, target, deliveryID string
 	if (platform == "feishu" || platform == "lark") && m.Image != "" {
 		m.imageKey = t.putFeishuCover(ctx, platform, secret, m.Image)
 	}
-	endpoint, payload, err := makeRequest(platform, target, secret, m, now)
+	endpoint, payload, err := makeRequest(platform, mode, target, secret, m, now)
 	if err != nil {
 		return deliveryResult{state: "failed", detail: "configuration"}
 	}
 	headers := map[string]string{}
 	switch platform {
 	case "qq":
-		response, data, err := t.post(ctx, "https://bots.qq.com/app/getAppAccessToken", map[string]any{"appId": secret.Address, "clientSecret": secret.Signing}, nil)
-		var token struct {
-			AccessToken string `json:"access_token"`
-		}
-		if err != nil || response.StatusCode != http.StatusOK || json.Unmarshal(data, &token) != nil || token.AccessToken == "" {
+		token, err := t.qqAccessToken(ctx, secret)
+		if err != nil {
 			return deliveryResult{state: "failed", detail: "authentication"}
 		}
-		headers["Authorization"] = "QQBot " + token.AccessToken
+		headers["Authorization"] = "QQBot " + token
 		if strings.HasPrefix(m.Image, "https://") && !strings.HasPrefix(target, "channel:") {
 			files := strings.TrimSuffix(endpoint, "/messages") + "/files"
 			upload, data, err := t.post(ctx, files, map[string]any{"file_type": 1, "url": m.Image, "srv_send_msg": false}, headers)
@@ -479,7 +487,7 @@ func (t transport) send(ctx context.Context, platform, target, deliveryID string
 	}
 	if platform == "telegram" && m.Image != "" && response.StatusCode == http.StatusBadRequest {
 		m.Image = ""
-		return t.send(ctx, platform, target, deliveryID, secret, m, now)
+		return t.send(ctx, platform, mode, target, deliveryID, secret, m, now)
 	}
 	if response.StatusCode == http.StatusTooManyRequests {
 		retry := time.Minute

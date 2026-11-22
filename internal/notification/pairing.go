@@ -94,6 +94,9 @@ func (s *Service) startRecipientPairing(ctx context.Context, input ChannelInput,
 			return PairingStatus{}, errors.New("请填写有效的 Telegram Bot Token")
 		}
 	case "qq":
+		if !validQQMode(input.Mode) {
+			return PairingStatus{}, errors.New("QQ 接入环境无效")
+		}
 		if err := checkConnection("qq", "c2c:1", secret); err != nil {
 			return PairingStatus{}, errors.New("请填写有效的 QQ AppID 和 AppSecret")
 		}
@@ -137,7 +140,7 @@ func (s *Service) startRecipientPairing(ctx context.Context, input ChannelInput,
 				}
 			})
 		}
-		err := s.transport.listenPairing(listen, platform, secret, slackToken, ready, match)
+		err := s.transport.listenPairing(listen, platform, input.Mode, secret, slackToken, ready, match)
 		update(func(value *PairingStatus) {
 			p.cancel = nil
 			if listen.Err() == context.DeadlineExceeded {

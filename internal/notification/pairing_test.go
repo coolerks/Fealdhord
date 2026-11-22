@@ -1,12 +1,20 @@
 package notification
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 func TestGatewayPairingTargets(t *testing.T) {
@@ -96,5 +104,96 @@ func TestTelegramPairingIsTemporaryAndRequiresConfirmation(t *testing.T) {
 	channel, err := api.SaveChannel(t.Context(), input)
 	if err != nil || channel.Verified || len(channel.Recipients) != 0 {
 		t.Fatalf("skipped channel %+v, %v", channel, err)
+	}
+}
+
+func TestQQPairingGateway(t *testing.T) {
+	for _, ack := range []bool{true, false} {
+		name := "receives a private message after handshake"
+		if !ack {
+			name = "fails without a heartbeat acknowledgment"
+		}
+		t.Run(name, func(t *testing.T) {
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := websocket.Accept(w, r, nil)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				defer conn.CloseNow()
+				ctx, cancel := context.WithTimeout(r.Context(), 4*time.Second)
+				defer cancel()
+				interval := 30000
+				if !ack {
+					interval = 1000
+				}
+				write := func(frame string) bool {
+					if err := conn.Write(ctx, websocket.MessageText, []byte(frame)); err != nil {
+						t.Error(err)
+						return false
+					}
+					return true
+				}
+				if !write(fmt.Sprintf(`{"op":10,"d":{"heartbeat_interval":%d}}`, interval)) {
+					return
+				}
+				var identify, heartbeat pairingGatewayFrame
+				if err := wsjson.Read(ctx, conn, &identify); err != nil || identify.Op != 2 ||
+					!strings.Contains(string(identify.Data), `"token":"QQBot sample"`) {
+					t.Errorf("bad identify: %+v, %v", identify, err)
+					return
+				}
+				if !write(`{"op":0,"t":"READY","s":1,"d":{"user":{"id":"123"}}}`) {
+					return
+				}
+				if err := wsjson.Read(ctx, conn, &heartbeat); err != nil || heartbeat.Op != 1 || string(heartbeat.Data) != "1" {
+					t.Errorf("bad heartbeat: %+v, %v", heartbeat, err)
+					return
+				}
+				if ack && write(`{"op":11}`) {
+					write(`{"op":0,"t":"C2C_MESSAGE_CREATE","s":2,"d":{"content":"配对","author":{"user_openid":"paired_user"}}}`)
+				}
+				_, _, _ = conn.Read(ctx)
+			}))
+			defer server.Close()
+
+			client := server.Client()
+			loopback, err := url.Parse(server.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			underlying := client.Transport
+			client.Transport = sender(func(req *http.Request) (*http.Response, error) {
+				switch req.URL.String() {
+				case "https://api.bot.qq.com/app/getAppAccessToken":
+					return response(200, `{"access_token":"sample"}`), nil
+				case "https://sandbox.api.sgroup.qq.com/gateway":
+					return response(200, `{"url":"wss://sandbox.api.sgroup.qq.com/websocket"}`), nil
+				case "https://sandbox.api.sgroup.qq.com/websocket":
+					req = req.Clone(req.Context())
+					req.URL.Host = loopback.Host
+					return underlying.RoundTrip(req)
+				default:
+					t.Errorf("incorrect QQ pairing URL %s", req.URL)
+					return response(500, "{}"), nil
+				}
+			})
+
+			ctx, cancel := context.WithTimeout(t.Context(), 4*time.Second)
+			defer cancel()
+			ready := false
+			var target string
+			err = (transport{client: client}).pairGateway(ctx, "qq", qqSandbox,
+				connectionSecret{Address: "app", Signing: "secret"}, func() { ready = true }, func(value string) {
+					target = value
+					cancel()
+				})
+			if ack && (!ready || target != "c2c:paired_user") {
+				t.Fatalf("ready=%t target=%q error=%v", ready, target, err)
+			}
+			if !ack && (ready || !errors.Is(err, errQQHeartbeat)) {
+				t.Fatalf("gateway must stay unconfirmed: ready=%t error=%v", ready, err)
+			}
+		})
 	}
 }

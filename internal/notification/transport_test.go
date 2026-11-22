@@ -21,7 +21,7 @@ func TestWebhookFormatsAndCredentialHost(t *testing.T) {
 	for platform, address := range addresses {
 		t.Run(platform, func(t *testing.T) {
 			secret := connectionSecret{Address: address, Signing: "key"}
-			_, payload, err := makeRequest(platform, "", secret, Message{
+			_, payload, err := makeRequest(platform, "", "", secret, Message{
 				Title: "标题", URL: "https://example.com/article",
 				Links: []ArticleLink{{Title: "另一篇", URL: "https://example.com/other"}},
 			}, time.Unix(1800, 0))
@@ -202,5 +202,33 @@ func TestWeChatSkippedPairingCanResume(t *testing.T) {
 	channel, err = service.completeWeChatBinding(ctx, pair.ID, input)
 	if err != nil || channel.ID != input.ID || len(channel.Recipients) != 1 || channel.Recipients[0].Target != status.Target {
 		t.Fatalf("repaired channel=%+v, err=%v", channel, err)
+	}
+}
+
+func TestQQSandboxDeliveryUsesSavedMode(t *testing.T) {
+	service, _ := newTestNotification(t)
+	service.transport.client.Transport = sender(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.String() {
+		case "https://api.bot.qq.com/app/getAppAccessToken":
+			return response(200, `{"access_token":"sample"}`), nil
+		case "https://sandbox.api.sgroup.qq.com/v2/users/paired_user/messages":
+			if r.Header.Get("Authorization") != "QQBot sample" {
+				t.Error("incorrect QQ authorization")
+			}
+			return response(200, `{"id":"message_id"}`), nil
+		default:
+			t.Errorf("incorrect QQ delivery URL %s", r.URL)
+			return response(500, "{}"), nil
+		}
+	})
+	channel, err := service.SaveChannel(t.Context(), ChannelInput{
+		Channel: Channel{Name: "QQ", Platform: "qq", Mode: qqSandbox, Enabled: true},
+		Address: "app", Signing: "secret", Targets: []string{"c2c:paired_user"},
+	})
+	if err != nil || channel.Mode != qqSandbox {
+		t.Fatalf("saved QQ mode: %q, error: %v", channel.Mode, err)
+	}
+	if err := service.TestChannel(t.Context(), channel.ID); err != nil {
+		t.Fatal(err)
 	}
 }

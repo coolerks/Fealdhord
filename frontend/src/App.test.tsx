@@ -1106,10 +1106,13 @@ describe('Phase 1 阅读 Shell', () => {
     await user.type(screen.getByRole('textbox', { name: '渠道名称' }), 'QQ 通知')
     await user.click(screen.getByRole('button', { name: '平台' }))
     await user.click(await screen.findByRole('option', { name: 'QQ' }))
+    await user.click(screen.getByRole('button', { name: 'QQ 接入环境' }))
+    await user.click(await screen.findByRole('option', { name: '沙箱（未上线测试）' }))
     await user.type(screen.getByLabelText('AppID'), '1234')
     await user.type(screen.getByLabelText('AppSecret'), 'example-secret')
     await user.click(screen.getByRole('button', { name: '下一步' }))
     await user.click(screen.getByRole('button', { name: '开始配对' }))
+    expect(notificationAPI.StartRecipientPairing).toHaveBeenCalledWith(expect.objectContaining({ mode: 'sandbox' }), '')
     const group = await screen.findByRole('checkbox', { name: 'group:team' })
     expect(group).not.toBeChecked()
     await user.click(group)
@@ -1119,7 +1122,7 @@ describe('Phase 1 阅读 Shell', () => {
     expect(screen.getByRole('textbox', { name: 'QQ 私聊 OpenID、群 OpenID 或子频道 ID' })).toHaveValue('group:team')
     await user.click(screen.getByRole('button', { name: '保存渠道' }))
     await waitFor(() => expect(notificationAPI.SaveChannel).toHaveBeenCalledWith(expect.objectContaining({
-      platform: 'qq', targets: ['group:team'],
+      platform: 'qq', mode: 'sandbox', targets: ['group:team'],
     })))
   })
 
