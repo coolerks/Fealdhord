@@ -53,4 +53,4 @@ Permission 表示静态风险声明；动态目标和数量由 Executor 在执�
 
 ## Chat 只读工具的活动记录
 
-迁移 00013 为 `read_article` 记录调用开始与终态。会话消息通过可选的 `tools` 返回 `id`、`name`、`status` 和 `errorCode`。状态有 running、completed、denied、failed、cancelled、interrupted。调用编号为模型原始编号的 SHA-256，数据库保留开始及结束时间。工具活动不保存参数或返回的文章正文。同一模型调用编号复用先前结果时不会增加执行记录。应用重启将运行中的消息和工具在一个事务内标记为中断。
+迁移 00013 为 `read_article` 记录调用开始与终态。会话消息通过可选的 `tools` 返回 `id`、`name`、`status` 和 `errorCode`。状态有 running、completed、denied、failed、cancelled、interrupted。调用编号为模型原始编号的 SHA-256，数据库保留开始及结束时间。审计表仅保存活动元数据。本机聊天消息的 `details.work.tools` 另存经结构化凭据脱敏的参数和结果，各限 16 KiB，超限标记截断。同一模型调用编号复用先前结果时不会增加执行记录。应用重启将运行中的消息和工具在一个事务内标记为中断。

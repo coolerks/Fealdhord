@@ -204,6 +204,7 @@ func (r *Responses) Stream(ctx context.Context, req *ModelRequest) (<-chan Model
 	}, func(body io.Reader, send func(ModelEvent) bool) error {
 		started := false
 		summaryStreamed := false
+		thinkingStreamed := false
 		pending := make(map[string]*pendingChatCall)
 		callIDs := make(map[string]bool)
 		return readModelSSE(body, func(data string) (bool, error) {
@@ -240,6 +241,13 @@ func (r *Responses) Stream(ctx context.Context, req *ModelRequest) (<-chan Model
 				}
 				summaryStreamed = summaryStreamed || delta != ""
 				return false, emit(send, ModelEvent{Type: "reasoning_summary_delta", Text: delta})
+			case "response.reasoning_text.delta":
+				var delta string
+				if !started || json.Unmarshal(event.Delta, &delta) != nil {
+					return false, protocolError()
+				}
+				thinkingStreamed = thinkingStreamed || delta != ""
+				return false, emit(send, ModelEvent{Type: "reasoning_text_delta", Text: delta})
 			case "response.output_item.added":
 				item := event.Item
 				if item.Type != "function_call" {
@@ -304,6 +312,20 @@ func (r *Responses) Stream(ctx context.Context, req *ModelRequest) (<-chan Model
 					if len(summary) > 0 {
 						if err := emit(send, ModelEvent{Type: "reasoning_summary_delta", Text: strings.Join(summary, "\n\n")}); err != nil {
 							return false, err
+						}
+					}
+				}
+				if !thinkingStreamed {
+					for _, item := range event.Response.Output {
+						if item.Type != "reasoning" {
+							continue
+						}
+						for _, part := range item.Content {
+							if part.Type == "reasoning_text" && part.Text != "" {
+								if err := emit(send, ModelEvent{Type: "reasoning_text_delta", Text: part.Text}); err != nil {
+									return false, err
+								}
+							}
 						}
 					}
 				}

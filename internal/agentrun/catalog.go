@@ -92,9 +92,9 @@ func CompactToolCatalog(request ai.ModelRequest, tools []ReadTool) []ReadTool {
 			}
 			return tool.Read(ctx, resolved)
 		},
-		activityName: func(call ai.ToolCall) string {
+		activityCall: func(call ai.ToolCall) ai.ToolCall {
 			resolved, _, _ := resolveInvocation(call)
-			return resolved.Name
+			return resolved
 		},
 	}
 	return []ReadTool{discovery, invocation}

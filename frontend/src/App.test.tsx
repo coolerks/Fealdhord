@@ -648,7 +648,7 @@ describe('Phase 1 阅读 Shell', () => {
     const timeline = screen.getByRole('region', { name: '对话消息' })
     expect(await within(timeline).findByRole('status')).toHaveTextContent('正在思考')
 
-    const work = { durationMs: 1450, reasoningObserved: true, reasoningSummary: '查找相关报道。',
+    const work = { durationMs: 1450, reasoningObserved: true, reasoningSummary: '查找相关报道。', reasoningText: '先检索本地文章库。',
       tools: [{ name: 'article_search', status: 'running' }] }
     const details = { durationMs: 0, rounds: 0, reasoningEffort: '', work }
     act(() => client.setQueryData(['chat', 'messages', 'history'], [{ ...running, details }]))
@@ -657,9 +657,10 @@ describe('Phase 1 阅读 Shell', () => {
 
     act(() => client.setQueryData(['chat', 'messages', 'history'], [{
       ...running, text: '这是搜索结果。', status: 'complete',
-      details: { ...details, work: { ...work, tools: [{ name: 'article_search', status: 'completed' }] } },
+      details: { ...details, work: { ...work, durationMs: 3_664_500,
+        tools: [{ name: 'article_search', status: 'completed', arguments: '{"query":"科技"}', result: '找到 3 篇报道' }] } },
     }]))
-    const process = await screen.findByRole('button', { name: /工作过程.*1.45 秒/ })
+    const process = await screen.findByRole('button', { name: '用时 1 小时 1 分钟 5 秒' })
     expect(process).toHaveAttribute('aria-expanded', 'false')
     expect(within(timeline).queryByRole('status')).not.toBeInTheDocument()
     expect(screen.queryByRole('list', { name: '工具活动' })).not.toBeInTheDocument()
@@ -667,6 +668,12 @@ describe('Phase 1 阅读 Shell', () => {
     await user.keyboard('{Enter}')
     expect(screen.getByRole('list', { name: '工具活动' })).toHaveTextContent('搜索文章已完成')
     expect(screen.getByText('查找相关报道。')).toBeVisible()
+    expect(screen.getByText('先检索本地文章库。')).toBeVisible()
+    const tool = screen.getByRole('button', { name: '搜索文章 已完成' })
+    expect(tool).toHaveAttribute('aria-expanded', 'false')
+    await user.click(tool)
+    expect(screen.getByText('{"query":"科技"}')).toBeVisible()
+    expect(screen.getByText('找到 3 篇报道')).toBeVisible()
   })
 
   it('点击新对话会清空上一个会话的文字选区', async () => {

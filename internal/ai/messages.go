@@ -25,6 +25,7 @@ func NewMessages(baseURL, apiKey string, client *http.Client) (*Messages, error)
 type messageBlock struct {
 	Type      string          `json:"type"`
 	Text      *string         `json:"text,omitempty"`
+	Thinking  string          `json:"thinking,omitempty"`
 	ID        string          `json:"id,omitempty"`
 	Name      string          `json:"name,omitempty"`
 	Input     json.RawMessage `json:"input,omitempty"`
@@ -278,6 +279,7 @@ func (s *messagesStream) read(data string, send func(ModelEvent) bool) (bool, er
 		Delta   struct {
 			Type       string `json:"type"`
 			Text       string `json:"text"`
+			Thinking   string `json:"thinking"`
 			Partial    string `json:"partial_json"`
 			StopReason string `json:"stop_reason"`
 		} `json:"delta"`
@@ -367,6 +369,10 @@ func (s *messagesStream) read(data string, send func(ModelEvent) bool) (bool, er
 			if event.Block.Text != nil && *event.Block.Text != "" {
 				return false, emit(send, ModelEvent{Type: "text_delta", Text: *event.Block.Text})
 			}
+		case "thinking":
+			if event.Block.Thinking != "" {
+				return false, emit(send, ModelEvent{Type: "reasoning_text_delta", Text: event.Block.Thinking})
+			}
 		case "tool_use":
 			if event.Block.ID == "" || !s.offered[event.Block.Name] {
 				return false, protocolError()
@@ -395,6 +401,11 @@ func (s *messagesStream) read(data string, send func(ModelEvent) bool) (bool, er
 			return false, protocolError()
 		}
 		return false, emit(send, ModelEvent{Type: "text_delta", Text: event.Delta.Text})
+	case "thinking_delta":
+		if block.kind != "thinking" {
+			return false, protocolError()
+		}
+		return false, emit(send, ModelEvent{Type: "reasoning_text_delta", Text: event.Delta.Thinking})
 	case "input_json_delta":
 		if block.call == nil {
 			return false, protocolError()

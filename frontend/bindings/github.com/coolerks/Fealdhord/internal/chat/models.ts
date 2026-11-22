@@ -53,12 +53,18 @@ export interface ReplyDetails {
 export interface ReplyToolStep {
     "name": string;
     "status": string;
+    "arguments"?: string | null;
+    "result"?: string | null;
+    "argumentsTruncated"?: boolean;
+    "resultTruncated"?: boolean;
 }
 
 export interface ReplyWork {
     "durationMs": number;
     "reasoningObserved": boolean;
     "reasoningSummary"?: string;
+    "reasoningText"?: string;
+    "reasoningTruncated"?: boolean;
     "tools"?: ReplyToolStep[] | null;
 }
 

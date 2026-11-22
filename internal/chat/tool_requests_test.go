@@ -109,9 +109,12 @@ func TestGlobalChatSendsAuthorizedToolsToRoutedDeepSeek(t *testing.T) {
 		t.Fatalf("incorrect aggregate reply usage: %+v", d)
 	}
 	work := reply.Details.Work
-	if work == nil || !work.ReasoningObserved || work.ReasoningSummary != "" || len(work.Tools) != 1 ||
-		work.Tools[0] != (ReplyToolStep{Name: "library_search", Status: "completed"}) {
+	if work == nil || !work.ReasoningObserved || work.ReasoningText != "provider reasoning" || work.ReasoningSummary != "" || len(work.Tools) != 1 {
 		t.Fatalf("incorrect recorded work: %+v", work)
+	}
+	if step := work.Tools[0]; step.Name != "library_search" || step.Status != "completed" ||
+		step.Arguments == nil || *step.Arguments != "{}" || step.Result == nil || !strings.Contains(*step.Result, "测试文章") {
+		t.Fatalf("incorrect tool record: %+v", step)
 	}
 
 	input.DisableTools = true
@@ -133,7 +136,9 @@ func TestGlobalChatSendsAuthorizedToolsToRoutedDeepSeek(t *testing.T) {
 	branchMessages, err := service.Messages(ctx, branch.ID)
 	if err != nil || len(branchMessages) != 2 || branchMessages[1].ID == reply.ID ||
 		branchMessages[1].Text != reply.Text || branchMessages[1].Details == nil ||
-		branchMessages[1].Details.Work == nil || len(branchMessages[1].Details.Work.Tools) != 1 {
+		branchMessages[1].Details.Work == nil || len(branchMessages[1].Details.Work.Tools) != 1 ||
+		branchMessages[1].Details.Work.ReasoningText != work.ReasoningText ||
+		branchMessages[1].Details.Work.Tools[0].Result == nil || *branchMessages[1].Details.Work.Tools[0].Result != *work.Tools[0].Result {
 		t.Fatalf("branch did not copy the selected prefix: %+v %v", branchMessages, err)
 	}
 	if _, err := service.Branch(ctx, branch.ID, reply.ID); err == nil || err.Error() != "ChatBranchUnavailable" {

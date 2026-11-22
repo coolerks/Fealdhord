@@ -72,11 +72,11 @@ Chat Completions 当前以配置的 API 基础路径追加 `chat/completions`，
 
 Chat Completions 的流式调用以工具索引累积参数，单轮最多 128 项，单项参数最多 64 KiB。收到 `tool_calls` 结束原因和 `[DONE]`，且整批调用 ID、工具名和 JSON 对象均验证通过后，才发出各项 `tool_call_end`。调用方应等到 `message_end` 再进入 Runtime 的参数 Schema 校验和审批。续轮按 `assistant.tool_calls` 和对应的 `role=tool` 消息编码，缺失、重复或无对应调用的结果在发请求前拒绝。
 
-DeepSeek V4 系列经原生或兼容 Chat Completions 接入且本轮带工具时，使用所选 `reasoning_effort` 并发送 `thinking.type=enabled`。显式选中 `none` 时发送 `thinking.type=disabled`。流式工具调用的 `reasoning_content` 和工具调用一起仅留在当前生成的内存中，原样随工具结果续传。推理已启用且工具调用缺少该字段时，在执行工具前返回协议错误。下一条用户消息将已保存的可见历史作为新请求的上下文附入。路由模型 ID 完整发送，模式识别使用末段。[DeepSeek 思考模式](https://api-docs.deepseek.com/guides/thinking_mode/)
+DeepSeek V4 系列经原生或兼容 Chat Completions 接入且本轮带工具时，使用所选 `reasoning_effort` 并发送 `thinking.type=enabled`。显式选中 `none` 时发送 `thinking.type=disabled`。流式工具调用的 `reasoning_content` 在当前生成内原样随工具结果续传，并单独保存一份有界文本用于聊天过程展示。推理已启用且工具调用缺少该字段时，在执行工具前返回协议错误。下一条用户消息仅使用已保存的对话正文作为新请求的上下文。路由模型 ID 完整发送，模式识别使用末段。[DeepSeek 思考模式](https://api-docs.deepseek.com/guides/thinking_mode/)
 
 Responses 在配置的 API 基础路径追加 `responses`，用 `instructions` 传顶层提示，关闭服务端响应存储，使用本地历史传回函数调用与结果。工具片段按输出项 ID 归并，成功结束时与终态输出逐项核对。Responses 不支持 `stop`，在请求前返回 CapabilityError。
 
-Responses 流的 `response.reasoning_summary_text.delta` 和终态 `reasoning.summary` 可用作可展示的思考摘要。直接连接 OpenAI Responses 且显式启用思考档位时，聊天请求以 `reasoning.summary=auto` 请求摘要。该选项被 HTTP 400 或 403 拒绝时，原请求去掉摘要选项后重试一次。Chat Completions 的原始推理字段只产生一个可展示的推理状态信号。[OpenAI 推理摘要](https://developers.openai.com/api/docs/guides/reasoning#reasoning-summaries)
+Responses 流的 `response.reasoning_summary_text.delta` 和终态 `reasoning.summary` 可用作可展示的思考摘要。直接连接 OpenAI Responses 且显式启用思考档位时，聊天请求以 `reasoning.summary=auto` 请求摘要。该选项被 HTTP 400 或 403 拒绝时，原请求去掉摘要选项后重试一次。Responses 路由提供的可读 `reasoning_text` 也可展示。Chat Completions 接收 `reasoning_content` 或文本 `reasoning`，Claude Messages 接收 `thinking` 和 `thinking_delta`。签名与加密推理块保持不透明。[OpenAI 推理摘要](https://developers.openai.com/api/docs/guides/reasoning#reasoning-summaries) [DeepSeek Responses](https://api-docs.deepseek.com/api/create-response/) [Claude 思考模式](https://platform.claude.com/docs/en/docs/build-with-claude/extended-thinking)
 
 Messages 追加 `messages`，使用 `x-api-key` 和 `anthropic-version: 2023-06-01`，缺省最大输出 4096 token。同角色连续消息合并，工具结果归入 user 块。流以块索引校验开始、增量和结束，消息用量按累计值覆盖，收到 `message_stop` 后输出最终用量。三种协议共用网络限制和错误映射。
 

@@ -2,6 +2,8 @@
 
 `Chat.Branch(id, messageID)` 原子复制原会话到指定的已结束助手消息，返回新会话。目标消息须属于源会话，否则返回 `ChatBranchUnavailable`。`Chat.Messages` 的助手消息可包含 `details`，包括毫秒耗时、模型调用轮次、思考档位、服务用量，以及可选的 `firstTokenMs`、`outputTokensPerSecond` 和 `work`。生成期间仅 `work` 有实际数据，通过现有消息快照刷新。结束后这些字段保存在迁移 00023 的详情 JSON 中。旧记录和未采集指标可缺省。
 
+`work` 可包含 `reasoningText`、`reasoningSummary`、`reasoningTruncated` 和工具步骤。每项 `work.tools` 可包含经过结构化凭据脱敏的 `arguments` 与 `result`（文本），以及各自的截断标记。字段缺失表示未记录或执行未返回，空字符串表示工具返回了空文本。
+
 ## 1. 范围与触发条件
 
 React → Go 服务的所有交互。以下为折栈逻辑 API，实际 Wails 生成语法和文件路径在 Phase 0 最小实验确认；不能把本节示意当成现成绑定。

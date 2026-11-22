@@ -78,6 +78,7 @@ type ModelEvent struct {
 	CallID           string
 	ToolName         string
 	ToolStatus       string
+	ToolOutput       *string
 	ArgumentsDelta   string
 	ToolCall         *ToolCall
 	Usage            *Usage

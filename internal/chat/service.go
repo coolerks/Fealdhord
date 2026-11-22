@@ -450,7 +450,7 @@ func (s *Service) execute(ctx context.Context, id string, current *run, adapter 
 					} else if s.publish != nil {
 						pending.WriteString(event.Text)
 					}
-				case "reasoning_started", "reasoning_summary_delta", "tool_work_started", "tool_work_finished":
+				case "reasoning_text_delta", "reasoning_summary_delta", "tool_work_started", "tool_work_finished":
 					s.mu.Lock()
 					current.work.observe(event, time.Now())
 					s.mu.Unlock()

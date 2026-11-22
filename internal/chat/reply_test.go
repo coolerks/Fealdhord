@@ -2,11 +2,25 @@ package chat
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/coolerks/Fealdhord/internal/ai"
 )
+
+func TestToolPreviewKeepsValuesAndMasksCredentials(t *testing.T) {
+	input := `{"nested":[{"Authorization":"fake-auth","url":"https://someone:fake-password@example.test/?token=fake-token&q=hello","text":"{\"clientSecret\":\"fake-secret\"}"}],"query":"科技","count":9007199254740993}`
+	display, truncated := toolPreview(input)
+	if truncated || strings.Contains(*display, "fake-") || !strings.Contains(*display, "科技") ||
+		!strings.Contains(*display, "q=hello") || !strings.Contains(*display, "9007199254740993") {
+		t.Fatalf("invalid tool preview: %s", *display)
+	}
+	display, truncated = toolPreview(strings.Repeat("文", maxToolPreviewBytes))
+	if !truncated || len(*display) > maxToolPreviewBytes || len(*display)%len("文") != 0 {
+		t.Fatalf("tool preview did not truncate at a character boundary: %d", len(*display))
+	}
+}
 
 func TestReplyDetailsMeasureFirstVisibleTextAndFinalRoundSpeed(t *testing.T) {
 	start := time.Now()

@@ -20,7 +20,7 @@ const (
 type ReadTool struct {
 	Definition   ai.ToolDefinition
 	Read         func(context.Context, ai.ToolCall) (string, error)
-	activityName func(ai.ToolCall) string
+	activityCall func(ai.ToolCall) ai.ToolCall
 }
 
 // Stream retains the one-turn event contract. Only the final model turn ends the message.
@@ -114,17 +114,21 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 			record, exists := executed[call.ID]
 			if !exists {
 				tool := allowed[call.Name]
-				name := call.Name
-				if tool.activityName != nil {
-					name = tool.activityName(call)
+				activity := call
+				if tool.activityCall != nil {
+					activity = tool.activityCall(call)
 				}
-				event := ai.ModelEvent{Type: "tool_work_started", CallID: call.ID, ToolName: name}
+				event := ai.ModelEvent{Type: "tool_work_started", CallID: call.ID, ToolName: activity.Name, ToolCall: &activity}
 				if !forward(event) {
 					return ctx.Err()
 				}
 				result, err := tool.Read(ctx, call)
 				event.Type = "tool_work_finished"
 				event.ToolStatus = toolWorkStatus(result, err)
+				event.ToolCall = nil
+				if err == nil || result != "" {
+					event.ToolOutput = &result
+				}
 				if !forward(event) {
 					return ctx.Err()
 				}
@@ -235,7 +239,7 @@ func collect(ctx context.Context, model ai.Model, request *ai.ModelRequest, forw
 					return reply, failure("ProviderProtocolError")
 				}
 				reply.calls = append(reply.calls, *event.ToolCall)
-			case "message_start", "usage", "reasoning_started", "reasoning_summary_delta":
+			case "message_start", "usage", "reasoning_text_delta", "reasoning_summary_delta":
 				if !forward(event) {
 					return reply, ctx.Err()
 				}

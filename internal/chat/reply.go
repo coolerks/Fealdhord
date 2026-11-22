@@ -28,15 +28,21 @@ type ReplyDetails struct {
 }
 
 type ReplyWork struct {
-	DurationMS        int64           `json:"durationMs"`
-	ReasoningObserved bool            `json:"reasoningObserved"`
-	ReasoningSummary  string          `json:"reasoningSummary,omitempty"`
-	Tools             []ReplyToolStep `json:"tools,omitempty"`
+	DurationMS         int64           `json:"durationMs"`
+	ReasoningObserved  bool            `json:"reasoningObserved"`
+	ReasoningSummary   string          `json:"reasoningSummary,omitempty"`
+	ReasoningText      string          `json:"reasoningText,omitempty"`
+	ReasoningTruncated bool            `json:"reasoningTruncated,omitempty"`
+	Tools              []ReplyToolStep `json:"tools,omitempty"`
 }
 
 type ReplyToolStep struct {
-	Name   string `json:"name"`
-	Status string `json:"status"`
+	Name               string  `json:"name"`
+	Status             string  `json:"status"`
+	Arguments          *string `json:"arguments,omitempty"`
+	Result             *string `json:"result,omitempty"`
+	ArgumentsTruncated bool    `json:"argumentsTruncated,omitempty"`
+	ResultTruncated    bool    `json:"resultTruncated,omitempty"`
 }
 
 type replyWork struct {
@@ -44,16 +50,35 @@ type replyWork struct {
 	roundFirstText    time.Time
 	lastActivity      time.Time
 	reasoningObserved bool
-	newSummaryRound   bool
-	summary           strings.Builder
+	summary           reasoningRecord
+	thinking          reasoningRecord
 	tools             []ReplyToolStep
+}
+
+type reasoningRecord struct {
+	text      strings.Builder
+	newRound  bool
+	truncated bool
+}
+
+func (r *reasoningRecord) append(delta string, limit int) {
+	if r.truncated {
+		return
+	}
+	if r.newRound && r.text.Len() > 0 && r.text.Len() < limit-2 {
+		r.text.WriteString("\n\n")
+	}
+	r.newRound = false
+	part := boundedText(delta, limit-r.text.Len())
+	r.truncated = len(part) < len(delta)
+	r.text.WriteString(part)
 }
 
 func (w *replyWork) observe(event ai.ModelEvent, now time.Time) {
 	switch event.Type {
 	case "message_start":
 		w.roundFirstText = time.Time{}
-		w.newSummaryRound = true
+		w.summary.newRound, w.thinking.newRound = true, true
 		return
 	case "text_delta":
 		if w.roundFirstText.IsZero() && strings.TrimSpace(event.Text) != "" {
@@ -63,24 +88,30 @@ func (w *replyWork) observe(event ai.ModelEvent, now time.Time) {
 			}
 		}
 		return
-	case "reasoning_started":
-		w.reasoningObserved = true
-	case "reasoning_summary_delta":
+	case "reasoning_text_delta", "reasoning_summary_delta":
 		if event.Text == "" {
 			return
 		}
 		w.reasoningObserved = true
-		if w.newSummaryRound && w.summary.Len() > 0 && w.summary.Len() < (16<<10)-2 {
-			w.summary.WriteString("\n\n")
+		if event.Type == "reasoning_text_delta" {
+			w.thinking.append(event.Text, 64<<10)
+		} else {
+			w.summary.append(event.Text, 16<<10)
 		}
-		w.newSummaryRound = false
-		w.summary.WriteString(boundedText(event.Text, max(0, (16<<10)-w.summary.Len())))
 	case "tool_work_started":
-		w.tools = append(w.tools, ReplyToolStep{Name: event.ToolName, Status: "running"})
+		step := ReplyToolStep{Name: event.ToolName, Status: "running"}
+		if event.ToolCall != nil {
+			step.Arguments, step.ArgumentsTruncated = toolPreview(event.ToolCall.ArgumentsJSON)
+		}
+		w.tools = append(w.tools, step)
 	case "tool_work_finished":
 		// The tool runtime executes one call at a time and emits a start before each finish.
 		if len(w.tools) > 0 {
-			w.tools[len(w.tools)-1].Status = event.ToolStatus
+			step := &w.tools[len(w.tools)-1]
+			step.Status = event.ToolStatus
+			if event.ToolOutput != nil {
+				step.Result, step.ResultTruncated = toolPreview(*event.ToolOutput)
+			}
 		}
 	}
 	w.lastActivity = now
@@ -108,7 +139,8 @@ func (w *replyWork) snapshot(started, ended time.Time, terminalStatus string) *R
 	}
 	return &ReplyWork{
 		DurationMS: until.Sub(started).Milliseconds(), Tools: tools,
-		ReasoningObserved: w.reasoningObserved, ReasoningSummary: w.summary.String(),
+		ReasoningObserved: w.reasoningObserved, ReasoningSummary: w.summary.text.String(), ReasoningText: w.thinking.text.String(),
+		ReasoningTruncated: w.summary.truncated || w.thinking.truncated,
 	}
 }
 

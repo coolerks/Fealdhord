@@ -70,12 +70,13 @@ func newModelClient(baseURL, apiKey, path string, client *http.Client) (*modelCl
 }
 
 type chatMessage struct {
-	Role             string         `json:"role"`
-	Content          string         `json:"content"`
-	Refusal          string         `json:"refusal,omitempty"`
-	ToolCalls        []chatToolCall `json:"tool_calls,omitempty"`
-	ToolCallID       string         `json:"tool_call_id,omitempty"`
-	ReasoningContent *string        `json:"reasoning_content,omitempty"`
+	Role             string          `json:"role"`
+	Content          string          `json:"content"`
+	Refusal          string          `json:"refusal,omitempty"`
+	ToolCalls        []chatToolCall  `json:"tool_calls,omitempty"`
+	ToolCallID       string          `json:"tool_call_id,omitempty"`
+	ReasoningContent *string         `json:"reasoning_content,omitempty"`
+	ReasoningText    json.RawMessage `json:"reasoning,omitempty"`
 }
 
 type chatRequest struct {
@@ -411,7 +412,6 @@ func readChatStream(body io.Reader, offered map[string]bool, preserveReasoning b
 	var refused bool
 	var reasoning strings.Builder
 	var hasReasoning bool
-	var reasoningStarted bool
 	calls := make(map[int]*pendingChatCall)
 	if !send(ModelEvent{Type: "message_start"}) {
 		return context.Canceled
@@ -478,11 +478,14 @@ func readChatStream(body io.Reader, offered map[string]bool, preserveReasoning b
 				return false, nil
 			}
 			refused = refused || choice.Delta.Refusal != ""
-			if !reasoningStarted && choice.Delta.ReasoningContent != nil && *choice.Delta.ReasoningContent != "" {
-				reasoningStarted = true
-				if !send(ModelEvent{Type: "reasoning_started"}) {
-					return false, context.Canceled
-				}
+			var thinking string
+			if choice.Delta.ReasoningContent != nil && *choice.Delta.ReasoningContent != "" {
+				thinking = *choice.Delta.ReasoningContent
+			} else if len(choice.Delta.ReasoningText) > 0 {
+				_ = json.Unmarshal(choice.Delta.ReasoningText, &thinking)
+			}
+			if thinking != "" && !send(ModelEvent{Type: "reasoning_text_delta", Text: thinking}) {
+				return false, context.Canceled
 			}
 			if preserveReasoning && choice.Delta.ReasoningContent != nil {
 				hasReasoning = true

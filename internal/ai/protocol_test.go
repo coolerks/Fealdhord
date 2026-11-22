@@ -77,7 +77,8 @@ func TestProtocolToolRoundTrip(t *testing.T) {
 			stream: []string{
 				`{"type":"response.created"}`,
 				`{"type":"response.future.delta","delta":{"nested":true}}`,
-				`{"type":"response.reasoning_text.delta","delta":"private continuation"}`,
+				`{"type":"response.output_item.added","item":{"type":"reasoning","id":"think","encrypted_content":"opaque"}}`,
+				`{"type":"response.reasoning_text.delta","delta":"Responses thinking"}`,
 				`{"type":"response.reasoning_summary_text.delta","delta":"provider summary"}`,
 				`{"type":"response.output_text.delta","delta":"checking"}`,
 				`{"type":"response.output_item.added","item":{"type":"function_call","id":"item","call_id":"next","name":"lookup","arguments":""}}`,
@@ -93,13 +94,17 @@ func TestProtocolToolRoundTrip(t *testing.T) {
 			stream: []string{
 				`{"type":"message_start","message":{"type":"message","role":"assistant","usage":{"input_tokens":5,"output_tokens":1}}}`,
 				`{"type":"ping"}`,
-				`{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`,
-				`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"checking"}}`,
+				`{"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}`,
+				`{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"Claude thinking"}}`,
+				`{"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"opaque"}}`,
 				`{"type":"content_block_stop","index":0}`,
-				`{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"next","name":"lookup","input":{}}}`,
-				`{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"q\":"}}`,
-				`{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"1}"}}`,
+				`{"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}`,
+				`{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"checking"}}`,
 				`{"type":"content_block_stop","index":1}`,
+				`{"type":"content_block_start","index":2,"content_block":{"type":"tool_use","id":"next","name":"lookup","input":{}}}`,
+				`{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{\"q\":"}}`,
+				`{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"1}"}}`,
+				`{"type":"content_block_stop","index":2}`,
 				`{"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":3}}`,
 			},
 		},
@@ -177,6 +182,11 @@ func TestProtocolToolRoundTrip(t *testing.T) {
 							t.Fatalf("event identity = %+v", event)
 						}
 						switch event.Type {
+						case "reasoning_text_delta":
+							if tc.name == "responses" && event.Text != "Responses thinking" ||
+								tc.name == "messages" && event.Text != "Claude thinking" {
+								t.Fatalf("thinking = %q", event.Text)
+							}
 						case "reasoning_summary_delta":
 							if event.Text != "provider summary" {
 								t.Fatalf("summary = %q", event.Text)
@@ -201,7 +211,9 @@ func TestProtocolToolRoundTrip(t *testing.T) {
 					}
 					expected := []string{"message_start", "text_delta", "tool_call_start", "tool_call_arguments_delta", "tool_call_arguments_delta"}
 					if tc.name == "responses" {
-						expected = slices.Insert(expected, 1, "reasoning_summary_delta")
+						expected = slices.Insert(expected, 1, "reasoning_text_delta", "reasoning_summary_delta")
+					} else {
+						expected = slices.Insert(expected, 1, "reasoning_text_delta")
 					}
 					if truncated {
 						expected = append(expected, "error")
