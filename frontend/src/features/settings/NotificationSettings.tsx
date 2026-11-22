@@ -27,34 +27,34 @@ const pairingInstructions: Record<string, string> = {
   wechat: '在「微信 ClawBot」私聊里发送「配对」。',
 }
 const terminalWeChatStatuses = ['connected', 'expired', 'verify_code_blocked', 'binded_redirect']
-const larkAppSteps = '去开放平台建一个企业自建应用并开启机器人，事件订阅选择「使用长连接接收事件」并添加「接收消息（im.message.receive_v1）」，发布应用后把 AppID 和 AppSecret 填到下方。点「下一步」开始配对后，在聊天里私聊机器人发送「配对」。'
-const larkWebhookSteps = '在目标群的「设置 → 群机器人」里添加自定义机器人，把 Webhook 网址填到下方；如果开启了签名校验，把加签密钥也填上。需要发送图片的话，可再填上用于上传图片的应用 AppID 和 AppSecret。'
+const larkAppSteps = '去开放平台建一个企业自建应用并开启机器人，事件订阅选择**使用长连接接收事件**并添加**接收消息（im.message.receive_v1）**，发布应用后把 **AppID** 和 **AppSecret** 填到下方。点**下一步**开始配对后，在聊天里私聊机器人发送**配对**。'
+const larkWebhookSteps = '在目标群的 **设置 → 群机器人** 里添加自定义机器人，把 **Webhook 网址**填到下方；如果开启了签名校验，把**加签密钥**也填上。需要发送图片的话，可再填上用于上传图片的应用 **AppID** 和 **AppSecret**。'
 const platforms: { value: string; label: string; steps: string; docs?: string; webhookDocs?: string; webhookSteps?: string }[] = [
   {
     value: 'telegram', label: 'Telegram',
     docs: 'https://core.telegram.org/bots/tutorial#obtain-your-bot-token',
-    steps: '在 Telegram 里搜索 @BotFather 并发送 /newbot，按提示创建机器人后，把收到的 Bot Token 填到下方。点「下一步」开始配对，然后去跟这个机器人私聊，点「开始」并发送「配对」；如果想推送到群里，把机器人拉进群再在群里发送「配对」（需把机器人设为管理员或关闭隐私模式，让它能收到群消息）。',
+    steps: '在 Telegram 里搜索 **@BotFather** 并发送 **/newbot**，按提示创建机器人后，把收到的 **Bot Token** 填到下方。点**下一步**开始配对，然后去跟这个机器人私聊，点**开始**并发送**配对**；如果想推送到群里，把机器人拉进群再在群里发送**配对**（需把机器人设为管理员或关闭隐私模式，让它能收到群消息）。',
   },
   {
     value: 'discord', label: 'Discord',
     docs: 'https://docs.discord.com/developers/quick-start/getting-started',
     webhookDocs: 'https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks',
-    steps: '去 Discord Developer Portal 创建一个应用，在 Bot 页面复制 Bot Token 填到下方，并把机器人邀请进你所在的服务器（服务器设置需允许成员私信）。点「下一步」开始配对后，在 Discord 里私信机器人发送「配对」。',
-    webhookSteps: '在 Discord 打开想收通知的文字频道，进入「编辑频道 → 集成 → Webhook」，新建一个 Webhook 并复制网址，填到下方 Webhook URL 即可。',
+    steps: '去 Discord Developer Portal 创建一个应用，在 **Bot** 页面复制 **Bot Token** 填到下方，并把机器人邀请进你所在的服务器（服务器设置需允许成员私信）。点**下一步**开始配对后，在 Discord 里私信机器人发送**配对**。',
+    webhookSteps: '在 Discord 打开想收通知的文字频道，进入 **编辑频道 → 集成 → Webhook**，新建一个 Webhook 并复制网址，填到下方 **Webhook URL** 即可。',
   },
   {
     value: 'slack', label: 'Slack',
     docs: 'https://docs.slack.dev/apis/events-api/using-socket-mode/',
     webhookDocs: 'https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/',
-    steps: '在 Slack 应用后台做三件事：1）在 OAuth & Permissions 给机器人加上 im:history、im:write、chat:write 权限，安装到工作区拿到 xoxb- 开头的 Bot Token；2）打开 Socket Mode，生成一个带 connections:write 权限的 xapp- 令牌；3）在 Event Subscriptions 开启订阅并添加 message.im。把两个令牌填到下方，点「下一步」开始配对后，去 Slack 私聊机器人发送「配对」。',
-    webhookSteps: '在 Slack 应用后台启用 Incoming Webhooks，把它添加到工作区并选好要收消息的频道，把生成的 Webhook 网址填到下方即可。',
+    steps: '在 Slack 应用后台做三件事：1）在 **OAuth & Permissions** 给机器人加上 im:history、im:write、chat:write 权限，安装到工作区拿到 **xoxb-** 开头的 **Bot Token**；2）打开 **Socket Mode**，生成一个带 connections:write 权限的 **xapp-** 令牌；3）在 **Event Subscriptions** 开启订阅并添加 **message.im**。把两个令牌填到下方，点**下一步**开始配对后，去 Slack 私聊机器人发送**配对**。',
+    webhookSteps: '在 Slack 应用后台启用 **Incoming Webhooks**，把它添加到工作区并选好要收消息的频道，把生成的 **Webhook 网址**填到下方即可。',
   },
   {
     value: 'dingtalk', label: '钉钉',
     docs: 'https://open-dingtalk.github.io/developerpedia/docs/explore/tutorials/stream/bot/nodejs/create-bot/',
     webhookDocs: 'https://open.dingtalk.com/document/group/custom-robot-access',
-    steps: '去钉钉开放平台建一个企业内部应用并开启机器人，消息接收模式选「Stream 模式」，然后发布应用。把应用的 AppKey 和 AppSecret 填到下方，点「下一步」开始配对后，在钉钉里私聊机器人发送「配对」。',
-    webhookSteps: '在钉钉群设置里添加一个「自定义」群机器人，把 Webhook 网址填到下方；如果安全设置选了「加签」，把加签密钥也一起填上。',
+    steps: '去钉钉开放平台建一个企业内部应用并开启机器人，消息接收模式选 **Stream 模式**，然后发布应用。把应用的 **AppKey** 和 **AppSecret** 填到下方，点**下一步**开始配对后，在钉钉里私聊机器人发送**配对**。',
+    webhookSteps: '在钉钉群设置里添加一个**自定义**群机器人，把 **Webhook 网址**填到下方；如果安全设置选了**加签**，把**加签密钥**也一起填上。',
   },
   {
     value: 'feishu', label: '飞书',
@@ -70,21 +70,28 @@ const platforms: { value: string; label: string; steps: string; docs?: string; w
   },
   {
     value: 'wechat', label: '微信',
-    steps: '先点下方的「生成微信二维码」，用手机微信扫码并确认授权（如果微信弹出验证码，把它填回这里的「微信验证码」框并确认）。授权后点「下一步」，用刚才扫码的微信号在「微信 ClawBot」聊天窗口里发送「配对」。',
+    steps: '先点下方的**生成微信二维码**，用手机微信扫码并确认授权（如果微信弹出验证码，把它填回这里的**微信验证码**框并确认）。授权后点**下一步**，用刚才扫码的微信号在 **微信 ClawBot** 聊天窗口里发送**配对**。',
   },
   {
     value: 'wecom', label: '企业微信',
     docs: 'https://hiflow.tencent.com/docs/applications/wwx-app/',
     webhookDocs: 'https://cloud.tencent.com/document/product/1759/128391',
-    steps: '去企业微信管理后台建一个自建应用，并把要收消息的同事加到应用的「可见范围」里。把企业 ID（CorpID）、应用 Secret 和 AgentID 填到下方，点「下一步」后选「跳过配对」，在下一页直接填写成员 UserID（一行一个）。',
-    webhookSteps: '在企业微信的目标群里打开「群设置 → 群机器人 → 添加机器人」，把复制到的 Webhook 网址填到下方即可。',
+    steps: '去企业微信管理后台建一个自建应用，并把要收消息的同事加到应用的**可见范围**里。把 **CorpID**、**应用 Secret** 和 **AgentID** 填到下方，点**下一步**后选**跳过配对**，在下一页直接填写成员 **UserID**（一行一个）。',
+    webhookSteps: '在企业微信的目标群里打开 **群设置 → 群机器人 → 添加机器人**，把复制到的 **Webhook 网址**填到下方即可。',
   },
   {
     value: 'qq', label: 'QQ',
     docs: 'https://bot.qq.com/',
-    steps: '去 QQ 开放平台创建机器人，把拿到的 AppID 和 AppSecret 填到下方，并在平台的「事件订阅与回调地址」里把接收方式选为 WebSocket。还在开放平台沙箱里测试时，接入环境选「沙箱（未上线测试）」，上线后选「正式环境」。点「下一步」开始配对后，私聊机器人发送「配对」，或在测试群、文字子频道里 @机器人 并发送「配对」。',
+    steps: '去 QQ 开放平台创建机器人，把拿到的 **AppID** 和 **AppSecret** 填到下方，并在平台的**事件订阅与回调地址**里把接收方式选为 **WebSocket**。还在开放平台沙箱里测试时，接入环境选**沙箱（未上线测试）**，上线后选**正式环境**。点**下一步**开始配对后，私聊机器人发送**配对**，或在测试群、文字子频道里 **@机器人** 并发送**配对**。',
   },
 ]
+function renderHighlightedSteps(text: string) {
+  return text.split(/(\*\*[^*]+\*\*)/gu).map((part, index) => (
+    part.startsWith('**') && part.endsWith('**')
+      ? <strong key={index} className="font-semibold text-blue-600 dark:text-blue-400">{part.slice(2, -2)}</strong>
+      : part
+  ))
+}
 const recipientFields: Record<string, { label: string; example: string }> = {
   telegram: { label: 'Telegram 用户 ID 或会话 ID', example: '123456789\n-100123456789' },
   discord: { label: 'Discord 用户 ID', example: '123456789012345678' },
@@ -401,8 +408,7 @@ export function NotificationSettings() {
                         <DialogHeader>
                           <DialogTitle>{platform.label}操作步骤</DialogTitle>
                           <DialogDescription className="leading-relaxed">
-                            {webhookMode ? platform.webhookSteps : platform.steps}
-                            最后保存渠道；如果弹出「验证收件」，去对应的聊天里找到发来的四位校验码，填回来就完成了。
+                            {renderHighlightedSteps(`${webhookMode ? platform.webhookSteps : platform.steps}最后保存渠道；如果弹出**验证收件**，去对应的聊天里找到发来的**四位校验码**，填回来就完成了。`)}
                           </DialogDescription>
                         </DialogHeader>
                       </DialogContent>
