@@ -55,7 +55,15 @@ const components: Components = {
     event.preventDefault()
     void native.openURL(href).catch(() => notify('无法打开链接', undefined, true))
   }}>{children}</a> : <span>{children}</span>,
-  img: ({ alt }) => alt ? <span>{alt}</span> : null,
+  img: ({ src, alt }) => {
+    const safe = src ? externalURL(src) : ''
+    if (!safe) return alt ? <span>{alt}</span> : null
+    return <a href={safe} onClick={event => {
+      event.preventDefault()
+      void native.openURL(safe).catch(() => notify('无法打开链接', undefined, true))
+    }}>{alt || '图片链接'}</a>
+  },
+  table: ({ children }) => <div className="chat-table-wrap"><table>{children}</table></div>,
   input: ({ type, checked }) => type === 'checkbox'
     ? <Checkbox aria-label={checked ? '已完成' : '未完成'} checked={checked} disabled />
     : null,

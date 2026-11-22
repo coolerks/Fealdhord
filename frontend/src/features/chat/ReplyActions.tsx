@@ -1,8 +1,11 @@
-import { Copy, GitBranch, Info } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Check, Copy, GitBranch, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { native } from '@/lib/native'
 import { notify } from '@/lib/notifications'
+import { cn } from '@/lib/utils'
 import type { Message } from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
 
 const numbers = new Intl.NumberFormat('zh-CN')
@@ -15,6 +18,13 @@ export function ReplyActions({ message, branchDisabled, onBranch }: {
   branchDisabled: boolean
   onBranch: () => void
 }) {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const timer = window.setTimeout(() => setCopied(false), 1600)
+    return () => window.clearTimeout(timer)
+  }, [copied])
+
   const details = message.details
   const legacySuffix = ' · 工具模式（关闭思考）'
   const legacyToolMode = message.modelName.endsWith(legacySuffix)
@@ -36,6 +46,7 @@ export function ReplyActions({ message, branchDisabled, onBranch }: {
   async function copy() {
     try {
       await native.copy(message.text)
+      setCopied(true)
       void notify('已复制回复')
     } catch {
       void notify('无法复制回复', undefined, true)
@@ -43,20 +54,41 @@ export function ReplyActions({ message, branchDisabled, onBranch }: {
   }
 
   return <div className="mt-2 flex items-center gap-1 text-muted-foreground" role="group" aria-label="回复操作">
-    <Button type="button" variant="ghost" size="icon-xs" aria-label="复制回复" title="复制"
-      disabled={!message.text} onClick={() => void copy()}><Copy /></Button>
-    <Button type="button" variant="ghost" size="icon-xs" aria-label="分支到新聊天" title="分支"
-      disabled={branchDisabled} onClick={onBranch}><GitBranch /></Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button type="button" variant="ghost" size="icon-xs" aria-label="复制回复"
+          disabled={!message.text} onClick={() => void copy()}>
+          {copied ? <Check /> : <Copy />}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{copied ? '已复制' : '复制'}</TooltipContent>
+    </Tooltip>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button type="button" variant="ghost" size="icon-xs" aria-label="分支到新聊天"
+          disabled={branchDisabled} onClick={onBranch}>
+          <GitBranch />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>从此处分支</TooltipContent>
+    </Tooltip>
     <Dialog>
-      <DialogTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-xs" aria-label="查看回复详情" title="详情"><Info /></Button>
-      </DialogTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>
+            <Button type="button" variant="ghost" size="icon-xs" aria-label="查看回复详情">
+              <Info />
+            </Button>
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent>详情</TooltipContent>
+      </Tooltip>
       <DialogContent aria-describedby={undefined} className="max-w-sm">
         <DialogHeader><DialogTitle>回复详情</DialogTitle></DialogHeader>
-        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3 text-sm">
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2.5 text-sm">
           {rows.map(([label, value]) => <div key={label} className="contents">
             <dt className="text-muted-foreground">{label}</dt>
-            <dd className="wrap-anywhere text-right tabular-nums">{value}</dd>
+            <dd className={cn('wrap-anywhere text-right tabular-nums', value === '未记录' && 'text-muted-foreground')}>{value}</dd>
           </div>)}
         </dl>
       </DialogContent>

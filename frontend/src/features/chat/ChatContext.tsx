@@ -67,19 +67,19 @@ export function ChatContext({ id, modelId, modelRevision, disabled, attachments,
           </dl> : <p className="text-muted-foreground">{state.isPending ? '正在读取上下文…' : '上下文用量不可用'}</p>}
         </HoverCardContent>
       </HoverCard>
-      <DialogContent>
+      <DialogContent className="max-h-[85dvh] overflow-y-auto">
         <DialogHeader><DialogTitle>会话上下文</DialogTitle>
           <DialogDescription>可以保留可见聊天记录，并从当前消息之后重新积累模型上下文。</DialogDescription></DialogHeader>
-        {state.isPending && <p role="status">读取上下文…</p>}
-        {state.isError && <p role="alert">无法读取上下文。</p>}
+        {state.isPending && <p role="status" className="text-sm text-muted-foreground">读取上下文…</p>}
+        {state.isError && <p role="alert" className="text-sm text-destructive">无法读取上下文。</p>}
         {state.data && <>
-          <dl className="grid grid-cols-[1fr_auto] gap-2 text-sm">
-            <dt>模型窗口{state.data.budget.estimated ? '（估算）' : ''}</dt><dd>{state.data.budget.context.toLocaleString()}</dd>
-            <dt>输入预算</dt><dd>{state.data.budget.inputLimit.toLocaleString()}</dd>
-            <dt>输出预留</dt><dd>{state.data.budget.outputReserve.toLocaleString()}</dd>
-            <dt>历史及摘要（估算）</dt><dd>{state.data.used.toLocaleString()}</dd>
-            <dt>可用历史轮次</dt><dd>{state.data.history}</dd>
-            {state.data.lastInput > 0 && <><dt title={state.data.lastModel}>上次服务报告的输入令牌</dt><dd>{state.data.lastInput.toLocaleString()}</dd></>}
+          <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 text-sm">
+            <dt className="text-muted-foreground">模型窗口{state.data.budget.estimated ? '（估算）' : ''}</dt><dd className="text-right tabular-nums">{state.data.budget.context.toLocaleString()}</dd>
+            <dt className="text-muted-foreground">输入预算</dt><dd className="text-right tabular-nums">{state.data.budget.inputLimit.toLocaleString()}</dd>
+            <dt className="text-muted-foreground">输出预留</dt><dd className="text-right tabular-nums">{state.data.budget.outputReserve.toLocaleString()}</dd>
+            <dt className="text-muted-foreground">历史及摘要（估算）</dt><dd className="text-right tabular-nums">{state.data.used.toLocaleString()}</dd>
+            <dt className="text-muted-foreground">可用历史轮次</dt><dd className="text-right tabular-nums">{state.data.history}</dd>
+            {state.data.lastInput > 0 && <><dt className="text-muted-foreground" title={state.data.lastModel}>上次服务报告的输入令牌</dt><dd className="text-right tabular-nums">{state.data.lastInput.toLocaleString()}</dd></>}
           </dl>
           {id && <>
             <div className="flex items-center gap-2 text-sm">
@@ -107,12 +107,12 @@ export function ChatContext({ id, modelId, modelRevision, disabled, attachments,
                 {summarize.isPending ? '正在整理…' : '用当前模型生成摘要'}
               </Button>
               {state.data.contextAfter > 0 && <Button variant="outline" disabled={disabled || save.isPending} onClick={() => save.mutate(true)}>恢复历史上下文</Button>}
-              <Button disabled={disabled || save.isPending} onClick={() => save.mutate(false)}>从这里重置上下文</Button>
+              <Button variant="destructive" disabled={disabled || save.isPending} onClick={() => save.mutate(false)}>从这里重置上下文</Button>
             </div></>}
-          {automatic.isError && <p role="alert">无法保存自动整理设置。</p>}
-          {pin.isError && <p role="alert">无法更新固定文章。请确认文章仍可用。</p>}
-          {summarize.isError && <p role="alert">无法生成摘要，可以手动编辑。</p>}
-          {save.isError && <p role="alert">保存失败。请停止当前回复，并检查摘要长度。</p>}
+          {automatic.isError && <p role="alert" className="text-sm text-destructive">无法保存自动整理设置。</p>}
+          {pin.isError && <p role="alert" className="text-sm text-destructive">无法更新固定文章。请确认文章仍可用。</p>}
+          {summarize.isError && <p role="alert" className="text-sm text-destructive">无法生成摘要，可以手动编辑。</p>}
+          {save.isError && <p role="alert" className="text-sm text-destructive">保存失败。请停止当前回复，并检查摘要长度。</p>}
         </>}
       </DialogContent>
     </Dialog>

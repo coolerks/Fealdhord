@@ -1,22 +1,11 @@
 import { useId, useState } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { Brain, ChevronDown, ChevronRight, Loader2, Wrench } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import type { Message, ReplyToolStep, ReplyWork } from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
 import { ChatMarkdown } from './ChatMarkdown'
 import type { RevealBatch } from './stream-reveal'
-
-const toolLabels: Record<string, string> = {
-  article_list: '列出文章',
-  article_search: '搜索文章',
-  article_get: '读取文章正文',
-  article_read: '读取文章正文',
-  article_get_metadata: '读取文章摘要',
-  article_extract: '提取文章正文',
-  read_article: '读取授权文章',
-  library_search: '搜索本地文章',
-  find_app_tools: '查找可用工具',
-  run_app_tool: '调用工具',
-}
+import { getToolMeta } from './tool-meta'
 
 const statusLabels: Record<string, string> = {
   running: '进行中',
@@ -26,6 +15,21 @@ const statusLabels: Record<string, string> = {
   interrupted: '已中断',
   cancelled: '已取消',
   unknown: '结果未知',
+}
+
+function statusTone(status: string) {
+  switch (status) {
+    case 'running':
+      return 'text-foreground font-medium'
+    case 'failed':
+    case 'denied':
+      return 'text-destructive'
+    case 'cancelled':
+    case 'interrupted':
+      return 'text-amber-600 dark:text-amber-400'
+    default:
+      return 'text-muted-foreground'
+  }
 }
 
 function elapsedLabel(ms: number) {
@@ -38,7 +42,7 @@ function elapsedLabel(ms: number) {
 
 function ToolPayload({ label, text, truncated }: { label: string; text: string; truncated?: boolean }) {
   return <div>
-    <div className="mb-1">{label}{truncated && '（已截断）'}</div>
+    <div className="mb-1 text-xs text-muted-foreground">{label}{truncated && '（已截断）'}</div>
     <pre className="max-h-40 overflow-auto rounded-md bg-muted p-2 text-xs whitespace-pre-wrap break-all text-foreground">{text || '（空）'}</pre>
   </div>
 }
@@ -46,19 +50,32 @@ function ToolPayload({ label, text, truncated }: { label: string; text: string; 
 function ToolStep({ tool }: { tool: ReplyToolStep }) {
   const id = useId()
   const [open, setOpen] = useState(false)
-  const label = Object.hasOwn(toolLabels, tool.name) ? toolLabels[tool.name] : tool.name
+  const meta = getToolMeta(tool.name)
+  const Icon = tool.status === 'running' ? Loader2 : meta.icon
   const status = statusLabels[tool.status] ?? '状态未知'
+  const tone = statusTone(tool.status)
   const hasData = tool.arguments != null || tool.result != null
-  if (!hasData) return <li className="flex flex-wrap items-baseline gap-x-2"><span>{label}</span><span>{status}</span></li>
+  const iconClass = cn('size-3.5 shrink-0', tool.status === 'running' ? 'chat-spin text-foreground' : 'text-muted-foreground')
+
+  if (!hasData) {
+    return <li className="flex min-h-7 items-center gap-1.5 text-xs">
+      <Icon className={iconClass} aria-hidden="true" />
+      <span className="truncate text-foreground/90">{meta.label}</span>
+      <span className={cn('shrink-0', tone)}>{status}</span>
+    </li>
+  }
 
   return <li>
-    <Button type="button" variant="ghost" size="sm" className="max-w-full" aria-label={`${label} ${status}`} aria-expanded={open} aria-controls={id}
+    <Button type="button" variant="ghost" size="sm" className="-ml-2 h-7 max-w-full gap-1.5 px-2 text-xs font-normal"
+      aria-label={`${meta.label} ${status}`} aria-expanded={open} aria-controls={id}
       onClick={() => setOpen(!open)}>
-      <span className="truncate">{label}</span><span>{status}</span>
+      <Icon className={iconClass} aria-hidden="true" />
+      <span className="truncate text-foreground/90">{meta.label}</span>
+      <span className={cn('shrink-0', tone)}>{status}</span>
       {open ? <ChevronDown data-icon="inline-end" /> : <ChevronRight data-icon="inline-end" />}
     </Button>
     <div id={id} hidden={!open}>
-      {open && <div className="flex flex-col gap-2 py-1">
+      {open && <div className="flex flex-col gap-2 py-1 pl-5">
         {tool.arguments != null && <ToolPayload label="调用参数" text={tool.arguments} truncated={tool.argumentsTruncated} />}
         {tool.result != null && <ToolPayload label="返回值" text={tool.result} truncated={tool.resultTruncated} />}
       </div>}
@@ -66,12 +83,13 @@ function ToolStep({ tool }: { tool: ReplyToolStep }) {
   </li>
 }
 
-function ReplyProgress({ message, sections }: { message: Message; sections?: ReplyWork[] }) {
+function ReplyProgress({ message, sections, compact = false }: {
+  message: Message; sections?: ReplyWork[]; compact?: boolean
+}) {
   const panelId = useId()
   const [toggle, setToggle] = useState<{ running: boolean; open: boolean }>()
   const running = message.status === 'running'
   const waiting = running && !message.text.trim()
-  const open = toggle?.running === running ? toggle.open : running
   const work = message.details?.work
   const entries = (sections ?? [{ ...work, tools: work?.tools ?? message.tools }]).map(entry => ({
     ...entry, summary: entry.reasoningSummary?.trim(), thinking: entry.reasoningText?.trim(),
@@ -79,39 +97,58 @@ function ReplyProgress({ message, sections }: { message: Message; sections?: Rep
   const hasProcess = entries.length > 0
   if (!waiting && !hasProcess) return null
 
-  const duration = sections?.at(-1)?.durationMs ?? work?.durationMs ?? message.details?.durationMs
-  const label = waiting ? '正在思考' : typeof duration === 'number' ? `用时 ${elapsedLabel(duration)}` : '查看记录'
-  const title = <span className={waiting ? 'chat-thinking-label' : undefined} role={waiting ? 'status' : undefined}>{label}</span>
+  const hasRunningTool = running && entries.some(entry => entry.tools?.some(tool => tool.status === 'running'))
+  const hasReasoning = entries.some(entry => entry.summary || entry.thinking || entry.reasoningObserved || entry.reasoningTruncated)
+  const hasTools = entries.some(entry => Boolean(entry.tools?.length))
+  const inProgress = waiting || hasRunningTool
+  const open = toggle?.running === running ? toggle.open : inProgress
 
-  return <div className="mb-3 text-sm text-muted-foreground">
+  const duration = sections?.at(-1)?.durationMs ?? work?.durationMs ?? message.details?.durationMs
+  const label = waiting
+    ? '正在思考'
+    : hasRunningTool
+      ? '正在调用工具'
+      : typeof duration === 'number'
+        ? `用时 ${elapsedLabel(duration)}`
+        : '查看记录'
+
+  const HeaderIcon = hasRunningTool ? Loader2 : (hasTools && !hasReasoning && !waiting) ? Wrench : Brain
+  const iconClass = cn('size-3.5 shrink-0', hasRunningTool && 'chat-spin')
+  const title = <span className={inProgress ? 'chat-thinking-label' : undefined} role={inProgress ? 'status' : undefined}>{label}</span>
+
+  return <div className={cn(compact ? 'my-0.5' : 'mb-3', 'text-sm text-muted-foreground')}>
     {hasProcess
       ? <>
-        <Button type="button" variant="ghost" size="sm" className="-ml-2"
+        <Button type="button" variant="ghost" size="sm" className="-ml-2 gap-1.5 text-muted-foreground hover:text-foreground"
           aria-controls={panelId} aria-expanded={open} onClick={() => setToggle({ running, open: !open })}>
+          <HeaderIcon className={iconClass} aria-hidden="true" />
           {title}
           {open ? <ChevronDown data-icon="inline-end" /> : <ChevronRight data-icon="inline-end" />}
         </Button>
-        <div id={panelId} hidden={!open} className="my-1 max-h-56 overflow-y-auto border-l pl-3">
+        <div id={panelId} hidden={!open} className="my-1 max-h-56 overflow-y-auto border-l border-border/80 pl-3">
           {open && <div className="flex flex-col gap-2">
             {entries.map((entry, index) => <div key={index} className="flex flex-col gap-2">
               {entry.summary && <div>
-                {entry.thinking && <p className="font-medium">思考摘要</p>}
+                {entry.thinking && <p className="mb-0.5 text-xs font-medium text-foreground/80">思考摘要</p>}
                 <ChatMarkdown text={entry.summary} streaming={running} />
               </div>}
               {entry.thinking && <div>
-                {entry.summary && <p className="font-medium">推理过程</p>}
-                <p className="whitespace-pre-wrap">{entry.thinking}</p>
+                {entry.summary && <p className="mb-0.5 text-xs font-medium text-foreground/80">推理过程</p>}
+                <p className="whitespace-pre-wrap text-xs leading-relaxed">{entry.thinking}</p>
               </div>}
-              {entry.reasoningTruncated && <p>思考内容已截断</p>}
-              {!entry.summary && !entry.thinking && entry.reasoningObserved && <p>{waiting ? '模型正在推理' : '模型已执行推理'}</p>}
-              {!!entry.tools?.length && <ul className="flex flex-col gap-1" aria-label="工具活动">
+              {entry.reasoningTruncated && <p className="text-xs">思考内容已截断</p>}
+              {!entry.summary && !entry.thinking && entry.reasoningObserved && <p className="text-xs">{waiting ? '模型正在推理' : '模型已执行推理'}</p>}
+              {!!entry.tools?.length && <ul className="flex flex-col gap-0.5" aria-label="工具活动">
                 {entry.tools.map((tool, index) => <ToolStep key={index} tool={tool} />)}
               </ul>}
             </div>)}
           </div>}
         </div>
       </>
-      : title}
+      : <div className="inline-flex items-center gap-1.5 py-1">
+        <HeaderIcon className={iconClass} aria-hidden="true" />
+        {title}
+      </div>}
   </div>
 }
 
@@ -154,9 +191,9 @@ export function ReplyBody({ message, markdown, reveal }: {
 
   return <div className="flex flex-col gap-2">
     {groups.map((group, i) =>
-      <div key={group.offset}>
+      <div key={group.offset} className="flex flex-col gap-2">
         {textBetween(groups[i - 1]?.offset ?? 0, group.offset)}
-        <ReplyProgress message={message} sections={group.sections} />
+        <ReplyProgress message={message} sections={group.sections} compact />
       </div>
     )}
     {textBetween(positions[positions.length - 1].offset, message.text.length)}

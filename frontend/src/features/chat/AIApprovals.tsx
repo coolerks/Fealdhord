@@ -8,6 +8,7 @@ import { DecideAction, PendingActions } from '../../../bindings/github.com/coole
 import type { PendingAction } from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/models'
 import { useLayoutEffect } from 'react'
 import { create } from 'zustand'
+import { getToolMeta } from './tool-meta'
 
 const key = ['ai-platform', 'pending']
 const useApprovalSurface = create<{ id: string }>(() => ({ id: '' }))
@@ -79,17 +80,26 @@ export function ToolApproval({ action, inline = false, onStop, stopping }: {
     },
   })
   const Footer = inline ? 'div' : DialogFooter
+  const meta = getToolMeta(action.tool)
+  const ToolIcon = meta.icon
+  const toolSummary = meta.label === action.tool ? action.tool : `${meta.label}（${action.tool}）`
   return <>
-      {inline ? <div>
-        <h3 className="font-medium">允许 AI 调用工具？</h3>
-        <p className="text-sm text-muted-foreground">{action.tool}</p>
+      {inline ? <div className="flex items-start gap-2">
+        <ToolIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <div className="min-w-0">
+          <h3 className="text-sm font-medium">允许 AI 调用工具？</h3>
+          <p className="truncate text-xs text-muted-foreground" title={toolSummary}>{toolSummary}</p>
+        </div>
       </div> : <DialogHeader>
-        <DialogTitle>允许 AI 调用工具？</DialogTitle>
-        <DialogDescription>{action.principal} · {action.tool}</DialogDescription>
+        <DialogTitle className="flex items-center gap-2">
+          <ToolIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          允许 AI 调用工具？
+        </DialogTitle>
+        <DialogDescription>{action.principal} · {toolSummary}</DialogDescription>
       </DialogHeader>}
       {['schedule.create', 'schedule.update'].includes(action.tool) ? <ScheduleApproval args={action.arguments} />
         : <pre className="max-h-52 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs">{action.arguments}</pre>}
-      {decision.isError && <p role="alert">提交失败，请重试。</p>}
+      {decision.isError && <p role="alert" className="text-sm text-destructive">提交失败，请重试。</p>}
       <Footer className={inline ? 'flex flex-wrap justify-end gap-2' : undefined}>
         {onStop && <Button type="button" variant="ghost" className="sm:mr-auto" disabled={stopping || decision.isPending} onClick={onStop}>停止回复</Button>}
         <Button type="button" variant="outline" disabled={stopping || decision.isPending} onClick={() => decision.mutate({ id: action.id, allow: false })}>拒绝</Button>
