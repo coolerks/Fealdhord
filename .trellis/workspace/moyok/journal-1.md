@@ -1479,3 +1479,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 57: 修复侧栏订阅未读数对齐
+<!-- trellis-session: v=2 fp=6f3668ef7a95dd42 -->
+
+**Date**: 2026-11-22
+**Task**: 修复侧栏订阅未读数对齐
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+复用标题省略样式，保留完整可访问名称和悬停提示。220px Chromium 布局对照、侧栏测试与生产构建通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `354b9de` | fix(sidebar): 对齐订阅未读数 |
+
+### Status
+
+[OK] **Completed**
