@@ -29,6 +29,10 @@ export function CompleteWeChatBinding(id: string, input: $models.ChannelInput): 
     return $Call.ByID(317641650, id, input);
 }
 
+export function ConfirmRecipientVerification(channelID: string, revision: number, recipientID: string, code: string): $CancellablePromise<void> {
+    return $Call.ByID(3151911364, channelID, revision, recipientID, code);
+}
+
 export function DeleteChannel(id: string, revision: number): $CancellablePromise<void> {
     return $Call.ByID(3274664230, id, revision);
 }
@@ -103,6 +107,10 @@ export function SaveTask(input: $models.Task): $CancellablePromise<$models.Task>
 
 export function SendArticle(input: $models.ArticleShare): $CancellablePromise<void> {
     return $Call.ByID(974845944, input);
+}
+
+export function SendRecipientVerification(channelID: string, revision: number, recipientID: string, pairingID: string, resend: boolean): $CancellablePromise<void> {
+    return $Call.ByID(1855849666, channelID, revision, recipientID, pairingID, resend);
 }
 
 export function StartRecipientPairing(input: $models.ChannelInput, slackAppToken: string): $CancellablePromise<$models.PairingStatus> {

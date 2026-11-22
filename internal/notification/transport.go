@@ -30,12 +30,14 @@ type ArticleLink struct {
 }
 
 type Message struct {
-	Title    string        `json:"title"`
-	URL      string        `json:"url,omitempty"`
-	Text     string        `json:"text,omitempty"`
-	Image    string        `json:"image,omitempty"`
-	Links    []ArticleLink `json:"links,omitempty"`
-	imageKey string
+	qqReplyID       string
+	qqReplySequence int
+	Title           string        `json:"title"`
+	URL             string        `json:"url,omitempty"`
+	Text            string        `json:"text,omitempty"`
+	Image           string        `json:"image,omitempty"`
+	Links           []ArticleLink `json:"links,omitempty"`
+	imageKey        string
 }
 
 type deliveryResult struct {
@@ -353,6 +355,12 @@ func makeRequest(platform, mode, target string, secret connectionSecret, m Messa
 		kind, id, _ := strings.Cut(target, ":")
 		path := map[string]string{"c2c": "/v2/users/", "group": "/v2/groups/", "channel": "/channels/"}[kind]
 		payload := map[string]any{"content": plainMessage(m)}
+		if m.qqReplyID != "" {
+			payload["msg_id"] = m.qqReplyID
+			if kind != "channel" {
+				payload["msg_seq"] = m.qqReplySequence
+			}
+		}
 		if kind != "channel" {
 			payload["msg_type"] = 0
 		} else if m.Image != "" {

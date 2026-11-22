@@ -8,6 +8,7 @@ import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field
 import { Textarea } from '@/components/ui/textarea'
 import { defaultZone, FlagField, Selection, TextField, time, toggle, zones } from '@/features/notifications/notification-fields'
 import { navigationAPI, navigationQueryKey } from '@/lib/navigation-api'
+import { NotificationVerification } from './NotificationVerification'
 import { ConfirmDialog, SettingCard, SettingEmpty, SettingRow, SettingSection, StatusBadge } from './settings-primitives'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/notification/api'
 import type { Channel, ChannelInput, PairingStatus, Rule, WeChatBinding } from '../../../bindings/github.com/coolerks/Fealdhord/internal/notification/models'
@@ -163,6 +164,13 @@ export function NotificationSettings() {
     setChannelStep(3)
   }
 
+  function openVerification(value: Channel) {
+    editChannel({ ...value, recipients: (value.recipients ?? []).filter(recipient =>
+      !recipient.verified) })
+    setWeChat(undefined)
+    setChannelStep(4)
+  }
+
   function closeChannelDialog() {
     void client.cancelQueries({ queryKey: [...key, 'wechat'] })
     setPairing(undefined)
@@ -197,7 +205,7 @@ export function NotificationSettings() {
               <div className="flex flex-wrap items-center gap-2">
                 <span className="truncate font-medium">{value.name}</span>
                 <StatusBadge tone={value.verified ? (value.enabled ? 'active' : 'muted') : 'warning'}>
-                  {value.verified ? (value.enabled ? '已启用' : '已停用') : '待测试'}
+                  {value.verified ? (value.enabled ? '已启用' : '已停用') : '待验证'}
                 </StatusBadge>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -206,9 +214,11 @@ export function NotificationSettings() {
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-1">
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => editChannel(value)}>编辑</Button>
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => mutation.mutate(() => api.TestChannel(value.id))}>
-                {(value.recipients?.length ?? 0) > 1 ? '测试全部收件目标' : '发送测试'}
-              </Button>
+              {value.recipients?.some(recipient => !recipient.verified) ? (
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => openVerification(value)}>验证收件</Button>
+              ) : value.recipients?.length ? (
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => mutation.mutate(() => api.TestChannel(value.id))}>发送测试</Button>
+              ) : null}
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => askDelete(value.name, () => api.DeleteChannel(value.id, value.revision))}>删除</Button>
             </div>
           </SettingRow>
@@ -301,19 +311,20 @@ export function NotificationSettings() {
       {channel && (
         <DialogContent aria-describedby={undefined} className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{channel.id ? '编辑渠道' : '添加渠道'}</DialogTitle>
+            <DialogTitle>{channelStep === 4 ? '验证收件' : channel.id ? '编辑渠道' : '添加渠道'}</DialogTitle>
           </DialogHeader>
-          {!webhookMode && (
-            <ol aria-label="设置进度" className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-              {['填写凭据', '配对收件目标', '确认配置'].map((label, index) => (
+          <ol aria-label="设置进度" className={`grid gap-2 text-xs text-muted-foreground ${webhookMode ? 'grid-cols-3' : 'grid-cols-4'}`}>
+            {['填写凭据', '配对收件目标', '确认配置', '验证收件'].map((label, index) =>
+              webhookMode && index === 1 ? null : (
                 <li key={label} aria-current={channelStep === index + 1 ? 'step' : undefined}
                   className={channelStep === index + 1 ? 'font-semibold text-foreground' : undefined}>
                   {index + 1}. {label}
                 </li>
               ))}
-            </ol>
-          )}
-          <FieldGroup>
+          </ol>
+          {channelStep === 4 ? (
+            <NotificationVerification channel={channel} pairingID={pairingID ?? ''} label={recipientLabel} onClose={closeChannelDialog} />
+          ) : <FieldGroup>
             {channelStep !== 2 && <>
               <TextField id="channel-name" label="渠道名称" value={channel.name} disabled={busy} onChange={value => setChannelField('name', value)} />
               <Selection id="channel-platform" label="平台" options={platforms} value={channel.platform} disabled={Boolean(channel.id || wechat) || busy || channelStep === 3} onChange={value => {
@@ -421,9 +432,11 @@ export function NotificationSettings() {
                       <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs" key={recipient.id}>
                         <span className="min-w-0 break-all">{recipientLabel(recipient.target)}</span>
                         <div className="flex shrink-0 items-center gap-1.5">
-                          <StatusBadge tone={recipient.verified ? 'active' : 'warning'}>{recipient.verified ? '已测试' : '待测试'}</StatusBadge>
-                          <Button variant="ghost" size="xs" disabled={busy}
-                            onClick={() => mutation.mutate(() => api.TestRecipient(channel.id, recipient.id))}>发送测试</Button>
+                          <StatusBadge tone={recipient.verified ? 'active' : 'warning'}>{recipient.verified ? '已验证' : '待验证'}</StatusBadge>
+                          {recipient.verified && (
+                            <Button variant="ghost" size="xs" disabled={busy}
+                              onClick={() => mutation.mutate(() => api.TestRecipient(channel.id, recipient.id))}>发送测试</Button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -545,7 +558,6 @@ export function NotificationSettings() {
                       setChannel({ ...channel, target, targets: bindingStatus === 'connected' ? [...new Set([...(channel.targets ?? []), target])] : channel.targets })
                       setWeChat(currentWeChat)
                     }
-                    setPairing(undefined)
                     setSlackAppToken('')
                     setChannelStep(3)
                   }}>
@@ -555,13 +567,15 @@ export function NotificationSettings() {
                 <Button size="sm" disabled={busy} onClick={() => mutation.mutate(async () => {
                   const targets = webhookMode ? [] : wechatMode ? channel.targets : pairedTargets
                   const config = { ...channel, targets }
-                  if (wechatID && (bindingMode || bindingStatus === 'connected')) await api.CompleteWeChatBinding(wechatID, config)
-                  else await api.SaveChannel(config)
-                  closeChannelDialog()
+                  const saved = wechatID && (bindingMode || bindingStatus === 'connected')
+                    ? await api.CompleteWeChatBinding(wechatID, config)
+                    : await api.SaveChannel(config)
+                  if (saved.recipients?.some(recipient => !recipient.verified)) openVerification(saved)
+                  else closeChannelDialog()
                 })}>保存渠道</Button>
               )}
             </DialogFooter>
-          </FieldGroup>
+          </FieldGroup>}
         </DialogContent>
       )}
     </Dialog>

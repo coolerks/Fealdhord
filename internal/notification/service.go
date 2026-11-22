@@ -29,17 +29,18 @@ type Credentials interface {
 type Summarizer func(context.Context, string, []Message) (string, error)
 
 type Service struct {
-	store       *database.Store
-	q           *sqlc.Queries
-	credentials Credentials
-	transport   transport
-	summarize   Summarizer
-	localNotice func(LocalNotice)
-	now         func() time.Time
-	wake        chan struct{}
-	configMu    sync.Mutex
-	wechat      wechatBinding
-	pairing     recipientPairing
+	store         *database.Store
+	q             *sqlc.Queries
+	credentials   Credentials
+	transport     transport
+	summarize     Summarizer
+	localNotice   func(LocalNotice)
+	now           func() time.Time
+	wake          chan struct{}
+	configMu      sync.Mutex
+	wechat        wechatBinding
+	pairing       recipientPairing
+	verifications recipientVerifications
 }
 
 func New(store *database.Store, credentials Credentials, summarize Summarizer) *Service {

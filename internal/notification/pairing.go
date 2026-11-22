@@ -22,9 +22,11 @@ type PairingStatus struct {
 }
 
 type recipientPairing struct {
-	mu     sync.Mutex
-	status PairingStatus
-	cancel context.CancelFunc
+	mu              sync.Mutex
+	status          PairingStatus
+	cancel          context.CancelFunc
+	qqAppID, qqMode string
+	qqReplies       map[string]qqPairingReply
 }
 
 func (a *API) StartRecipientPairing(ctx context.Context, input ChannelInput, slackAppToken string) (PairingStatus, error) {
@@ -65,6 +67,8 @@ func (p *recipientPairing) stop(id string) {
 		p.cancel = nil
 	}
 	p.status = PairingStatus{}
+	p.qqReplies = nil
+	p.qqAppID, p.qqMode = "", ""
 }
 
 func (s *Service) startRecipientPairing(ctx context.Context, input ChannelInput, slackToken string) (PairingStatus, error) {
@@ -122,6 +126,12 @@ func (s *Service) startRecipientPairing(ctx context.Context, input ChannelInput,
 	status := PairingStatus{ID: rand.Text(), State: "connecting"}
 	p.status, p.cancel = status, cancel
 	platform := input.Platform
+	if platform == "qq" {
+		p.qqAppID, p.qqMode = secret.Address, input.Mode
+		p.qqReplies = make(map[string]qqPairingReply)
+	} else {
+		p.qqAppID, p.qqMode, p.qqReplies = "", "", nil
+	}
 	go func() {
 		defer cancel()
 		update := func(apply func(*PairingStatus)) {
@@ -148,6 +158,12 @@ func (s *Service) startRecipientPairing(ctx context.Context, input ChannelInput,
 					value.BotName = event.botName
 				}
 				value.ReceivedMessage = value.ReceivedMessage || event.receivedMessage
+				if event.messageID != "" && qqTargetPattern.MatchString(event.target) {
+					reply, exists := p.qqReplies[event.target]
+					if reply.id != event.messageID && (exists || len(p.qqReplies) < 50) {
+						p.qqReplies[event.target] = qqPairingReply{id: event.messageID, received: s.now()}
+					}
+				}
 			})
 		}
 		err := s.transport.listenPairing(listen, platform, input.Mode, secret, slackToken, ready, match, observeQQ)
@@ -168,3 +184,24 @@ func (s *Service) startRecipientPairing(ctx context.Context, input ChannelInput,
 }
 
 func isPairingText(text string) bool { return strings.TrimSpace(text) == "配对" }
+
+type qqPairingReply struct {
+	id       string
+	received time.Time
+	sequence int
+}
+
+func (p *recipientPairing) nextQQReply(pairingID, appID, mode, target string, now time.Time) (string, int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if pairingID == "" || p.status.ID != pairingID || p.qqAppID != appID || p.qqMode != mode {
+		return "", 0
+	}
+	reply := p.qqReplies[target]
+	if reply.id == "" || now.Sub(reply.received) >= 10*time.Minute {
+		return "", 0
+	}
+	reply.sequence++
+	p.qqReplies[target] = reply
+	return reply.id, reply.sequence
+}

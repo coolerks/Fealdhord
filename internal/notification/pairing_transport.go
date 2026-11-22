@@ -141,8 +141,9 @@ func (t transport) qqAccessToken(ctx context.Context, secret connectionSecret) (
 }
 
 type qqPairingObservation struct {
-	botName         string
-	receivedMessage bool
+	botName           string
+	receivedMessage   bool
+	target, messageID string
 }
 
 func (t transport) pairGateway(ctx context.Context, platform, mode string, secret connectionSecret, ready func(), match func(string), observeQQ func(qqPairingObservation)) error {
@@ -308,6 +309,14 @@ func (t transport) pairGateway(ctx context.Context, platform, mode string, secre
 				observeQQ(qqPairingObservation{receivedMessage: true})
 			}
 			if target := gatewayPairingTarget(platform, botID, frame); target != "" {
+				if isQQ {
+					var reply struct {
+						ID string `json:"id"`
+					}
+					if json.Unmarshal(frame.Data, &reply) == nil && len(reply.ID) <= 512 {
+						observeQQ(qqPairingObservation{target: target, messageID: reply.ID})
+					}
+				}
 				match(target)
 			}
 		}

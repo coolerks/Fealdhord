@@ -49,7 +49,12 @@ const notificationAPI = vi.hoisted(() => ({
   SaveTask: vi.fn(),
   DeleteTask: vi.fn(),
   SaveRule: vi.fn().mockResolvedValue(undefined),
-  SaveChannel: vi.fn().mockResolvedValue(undefined),
+  SaveChannel: vi.fn().mockImplementation(async input => ({
+    ...input, id: 'saved-channel', revision: 1,
+    recipients: (input.targets ?? []).map((target: string, index: number) => ({ id: `recipient-${index}`, target, verified: false })),
+  })),
+  SendRecipientVerification: vi.fn().mockResolvedValue(undefined),
+  ConfirmRecipientVerification: vi.fn().mockResolvedValue(undefined),
   SendArticle: vi.fn().mockResolvedValue(undefined),
   StartWeChatBinding: vi.fn(),
   PollWeChatBinding: vi.fn(),
@@ -1123,13 +1128,23 @@ describe('Phase 1 阅读 Shell', () => {
     expect(group).not.toBeChecked()
     await user.click(group)
     await user.click(screen.getByRole('button', { name: '下一步' }))
-    expect(notificationAPI.CancelRecipientPairing).toHaveBeenCalledWith(pair.id)
+    expect(notificationAPI.CancelRecipientPairing).not.toHaveBeenCalled()
     expect(notificationAPI.SaveChannel).not.toHaveBeenCalled()
     expect(screen.getByRole('textbox', { name: 'QQ 私聊 OpenID、群 OpenID 或子频道 ID' })).toHaveValue('group:team')
     await user.click(screen.getByRole('button', { name: '保存渠道' }))
     await waitFor(() => expect(notificationAPI.SaveChannel).toHaveBeenCalledWith(expect.objectContaining({
       platform: 'qq', mode: 'sandbox', targets: ['group:team'],
     })))
+    const verify = within(await screen.findByRole('dialog', { name: '验证收件' }))
+    const code = await verify.findByRole('textbox', { name: '四位校验码' })
+    expect(notificationAPI.SendRecipientVerification).toHaveBeenCalledWith('saved-channel', 1, 'recipient-0', pair.id, false)
+    await user.type(code, '0421')
+    await user.click(verify.getByRole('button', { name: '验证' }))
+    expect(notificationAPI.ConfirmRecipientVerification).toHaveBeenCalledWith('saved-channel', 1, 'recipient-0', '0421')
+    expect(await verify.findByText('已验证')).toBeInTheDocument()
+    await user.click(verify.getByRole('button', { name: '完成' }))
+    expect(notificationAPI.CancelRecipientPairing).toHaveBeenCalledWith(pair.id)
+
   })
 
   it('从文章列表单选渠道，从阅读菜单发送到全部可用渠道', async () => {
