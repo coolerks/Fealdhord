@@ -1145,3 +1145,29 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 42: 合并批量文章并按长度分段
+<!-- trellis-session: v=2 fp=a2bd2a8fd3e3b180 -->
+
+**Date**: 2026-11-22
+**Task**: 合并批量文章并按长度分段
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+发送弹窗支持逐篇和字数上限，各渠道保留文章链接并按预算分段。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f9204a7` | feat(notification): 合并批量文章并按消息上限拆分 |
+
+### Testing
+
+- [OK] 162 项前端测试、生产构建、Go 全量测试和通知竞态通过。
+
+### Status
+
+[OK] **Completed**

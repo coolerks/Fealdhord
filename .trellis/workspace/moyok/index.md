@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 41
-- **Last Active**: 2026-11-21
+- **Total Sessions**: 42
+- **Last Active**: 2026-11-22
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1147 | Active |
+| `journal-1.md` | ~1173 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 42 | 2026-11-22 | 合并批量文章并按长度分段 | `f9204a7` | `codex/interface-clarity` |
 | 41 | 2026-11-21 | 在列表工具栏批量发送文章 | `381e50a` | `codex/interface-clarity` |
 | 40 | 2026-11-21 | 新增文章手动发送 | `7b0c5c6` | `codex/interface-clarity` |
 | 39 | 2026-11-21 | 修复微信通知绑定 | `ca6ce30` | `codex/interface-clarity` |
