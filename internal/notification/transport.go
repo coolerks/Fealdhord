@@ -26,6 +26,7 @@ const maxWireResponse = 256 << 10
 type ArticleLink struct {
 	Title string `json:"title"`
 	URL   string `json:"url"`
+	Text  string `json:"text,omitempty"`
 }
 
 type Message struct {
@@ -150,9 +151,9 @@ func markdownText(value string) string {
 func plainMessage(m Message) string {
 	text := strings.TrimSpace(m.Title + "\n" + m.Text + "\n" + m.URL)
 	for _, item := range m.Links {
-		text += "\n\n" + item.Title + "\n" + linkURL(item.URL)
+		text += "\n\n" + plainMessage(Message{Title: item.Title, URL: item.URL, Text: item.Text})
 	}
-	return text
+	return strings.TrimSpace(text)
 }
 
 func markdownLink(title, raw string) string {
@@ -170,9 +171,9 @@ func markdownLink(title, raw string) string {
 func markdownMessage(m Message) string {
 	text := strings.TrimSpace(markdownLink(m.Title, m.URL) + "\n\n" + markdownText(m.Text))
 	for _, item := range m.Links {
-		text += "\n\n" + markdownLink(item.Title, item.URL)
+		text += "\n\n" + strings.TrimSpace(markdownLink(item.Title, item.URL)+"\n"+markdownText(item.Text))
 	}
-	return text
+	return strings.TrimSpace(text)
 }
 
 func htmlLink(title, raw string) string {
@@ -248,16 +249,30 @@ func slackPayload(m Message) map[string]any {
 		blocks = append(blocks, map[string]any{"type": "section", "text": map[string]string{"type": "plain_text", "text": m.Text}})
 	}
 	for _, item := range m.Links {
-		text := escape.Replace(item.Title)
-		if target := linkURL(item.URL); target != "" {
-			text = "<" + strings.ReplaceAll(escape.Replace(target), "|", "%7C") + "|" + strings.ReplaceAll(text, "|", "｜") + ">"
+		if heading := slackArticleHeading(item); heading != "" {
+			blocks = append(blocks, map[string]any{"type": "section", "text": map[string]string{"type": "mrkdwn", "text": heading}})
 		}
-		blocks = append(blocks, map[string]any{"type": "section", "text": map[string]string{"type": "mrkdwn", "text": text}})
+		if item.Text != "" {
+			blocks = append(blocks, map[string]any{"type": "section", "text": map[string]string{"type": "plain_text", "text": item.Text}})
+		}
 	}
 	if m.Image != "" {
 		blocks = append(blocks, map[string]string{"type": "image", "image_url": m.Image, "alt_text": m.Title})
 	}
 	return map[string]any{"text": escape.Replace(plainMessage(m)), "blocks": blocks, "unfurl_links": false, "unfurl_media": false}
+}
+
+func slackArticleHeading(item ArticleLink) string {
+	escape := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+	title := escape.Replace(item.Title)
+	if target := linkURL(item.URL); target != "" {
+		target = escape.Replace(target)
+		if title == "" {
+			title = target
+		}
+		return "<" + strings.ReplaceAll(target, "|", "%7C") + "|" + strings.ReplaceAll(title, "|", "｜") + ">"
+	}
+	return title
 }
 
 func larkPost(m Message) map[string]any {
@@ -279,8 +294,16 @@ func larkPost(m Message) map[string]any {
 		link := map[string]string{"tag": "text", "text": item.Title}
 		if target := linkURL(item.URL); target != "" {
 			link["tag"], link["href"] = "a", target
+			if item.Title == "" {
+				link["text"] = target
+			}
 		}
-		content = append(content, []map[string]string{link})
+		if link["text"] != "" {
+			content = append(content, []map[string]string{link})
+		}
+		if item.Text != "" {
+			content = append(content, []map[string]string{{"tag": "text", "text": item.Text}})
+		}
 	}
 	if m.imageKey != "" {
 		content = append(content, []map[string]string{{"tag": "img", "image_key": m.imageKey}})
@@ -311,9 +334,9 @@ func makeRequest(platform, target string, secret connectionSecret, m Message, no
 		}
 		text := strings.TrimSpace(htmlLink(m.Title, m.URL) + "\n\n" + html.EscapeString(m.Text))
 		for _, link := range m.Links {
-			text += "\n\n" + htmlLink(link.Title, link.URL)
+			text += "\n\n" + strings.TrimSpace(htmlLink(link.Title, link.URL)+"\n"+html.EscapeString(link.Text))
 		}
-		payload[textKey] = text
+		payload[textKey] = strings.TrimSpace(text)
 		return "https://api.telegram.org/bot" + secret.Address + "/" + operation, payload, nil
 	case "qq":
 		kind, id, _ := strings.Cut(target, ":")

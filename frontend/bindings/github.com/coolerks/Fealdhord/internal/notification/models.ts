@@ -14,6 +14,8 @@ export interface ArticleShare {
     "link": boolean;
     "full_text": boolean;
     "summary_limit"?: number;
+    "split_articles"?: boolean;
+    "message_limit"?: number;
 }
 
 export interface Channel {

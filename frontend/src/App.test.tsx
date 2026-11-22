@@ -1113,7 +1113,7 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(dialog.getByRole('button', { name: '发送' }))
     await waitFor(() => expect(listSend).toHaveFocus())
     expect(notificationAPI.SendArticle).toHaveBeenLastCalledWith({
-      article_id: 'a-0', channel_ids: ['wechat'], title: true, summary: true, link: true, full_text: false, summary_limit: 50,
+      article_id: 'a-0', channel_ids: ['wechat'], title: true, summary: true, link: true, full_text: false, summary_limit: 50, message_limit: 1500, split_articles: false,
     })
 
     await user.click(openArticle)
@@ -1129,7 +1129,7 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(second.getByRole('button', { name: '发送' }))
     await waitFor(() => expect(more).toHaveFocus())
     expect(notificationAPI.SendArticle).toHaveBeenLastCalledWith({
-      article_id: 'a-0', channel_ids: ['telegram', 'wechat'], title: false, summary: false, link: false, full_text: true, summary_limit: 50,
+      article_id: 'a-0', channel_ids: ['telegram', 'wechat'], title: false, summary: false, link: false, full_text: true, summary_limit: 50, message_limit: 1500, split_articles: false,
     })
   })
 
@@ -1169,11 +1169,18 @@ describe('Phase 1 阅读 Shell', () => {
     for (const field of ['标题', '链接', '摘要']) {
       expect(share.getByRole('checkbox', { name: field })).toBeChecked()
     }
+    const split = share.getByRole('switch', { name: '逐篇发送' })
+    const limit = share.getByRole('spinbutton', { name: '单条消息字数上限' })
+    expect(split).not.toBeChecked()
+    expect(limit).toHaveValue(1500)
+    await user.click(split)
+    await user.clear(limit)
+    await user.type(limit, '900')
     await user.click(await share.findByRole('checkbox', { name: '全部渠道' }))
     await user.click(share.getByRole('button', { name: '发送' }))
     await waitFor(() => expect(notificationAPI.SendArticle).toHaveBeenLastCalledWith({
       article_ids: ['a-0', 'a-1', 'a-2'], channel_ids: ['wechat'],
-      title: true, link: true, summary: true, full_text: false, summary_limit: 25,
+      title: true, link: true, summary: true, full_text: false, summary_limit: 25, message_limit: 900, split_articles: true,
     }))
   })
 

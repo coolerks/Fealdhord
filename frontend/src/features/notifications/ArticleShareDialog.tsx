@@ -5,6 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { Selection, toggle } from './notification-fields'
 import type { Article } from '@/lib/library'
 import { notify } from '@/lib/notifications'
@@ -32,7 +33,10 @@ export function ArticleShareDialog({ articles, batch, defaultCount, summaryLimit
   const [destinations, setDestinations] = useState<string[]>([])
   const [content, setContent] = useState({ title: true, summary: true, link: true, full_text: false })
   const [count, setCount] = useState(String(batch ? Math.min(defaultCount, articles.length) : 1))
+  const [splitArticles, setSplitArticles] = useState(false)
+  const [messageLimit, setMessageLimit] = useState('1500')
   const articleCount = Number(count)
+  const maxMessageChars = Number(messageLimit)
   const validCount = Number.isInteger(articleCount) && articleCount > 0 && articleCount <= articles.length
   const options = (channels.data ?? []).filter(channel => channel.enabled && channel.verified)
     .map(channel => ({ value: channel.id, label: channel.name }))
@@ -43,6 +47,8 @@ export function ArticleShareDialog({ articles, batch, defaultCount, summaryLimit
       ...(batch ? { article_ids: articles.slice(0, articleCount).map(article => article.id) } : { article_id: articles[0].id }),
       channel_ids: selected,
       summary_limit: summaryLimit,
+      message_limit: maxMessageChars,
+      split_articles: splitArticles,
       ...content,
     }),
     onSuccess: () => {
@@ -52,7 +58,8 @@ export function ArticleShareDialog({ articles, batch, defaultCount, summaryLimit
     },
   })
   const busy = send.isPending
-  const canSend = validCount && channels.isSuccess && selected.length > 0 && Object.values(content).some(Boolean)
+  const validMessageLimit = Number.isInteger(maxMessageChars) && maxMessageChars >= 100 && maxMessageChars <= 2000
+  const canSend = validCount && validMessageLimit && channels.isSuccess && selected.length > 0 && Object.values(content).some(Boolean)
 
   return <Dialog open onOpenChange={open => { if (!open && !busy) onClose() }}>
     <DialogContent className="sm:max-w-md" onCloseAutoFocus={onCloseAutoFocus} showCloseButton={!busy}>
@@ -76,6 +83,18 @@ export function ArticleShareDialog({ articles, batch, defaultCount, summaryLimit
               </label>
             ))}
           </div>
+        </fieldset>
+        <fieldset className="space-y-2" disabled={busy}>
+          {batch && <div className="flex items-center justify-between gap-3">
+            <FieldLabel htmlFor="article-share-split">逐篇发送</FieldLabel>
+            <Switch id="article-share-split" checked={splitArticles} onCheckedChange={setSplitArticles} />
+          </div>}
+          <div className="flex items-center justify-between gap-3">
+            <FieldLabel htmlFor="article-share-message-limit">单条消息字数上限</FieldLabel>
+            <Input id="article-share-message-limit" type="number" min={100} max={2000} step={1}
+              value={messageLimit} onChange={event => setMessageLimit(event.target.value)} className="w-24" />
+          </div>
+          <p className="text-xs text-muted-foreground">超过上限会自动拆分。渠道限制更低时按渠道限制拆分。</p>
         </fieldset>
         {channels.isPending ? <p role="status" className="text-sm text-muted-foreground">正在读取通知渠道…</p>
           : channels.isError ? <FieldError>无法读取通知渠道</FieldError>

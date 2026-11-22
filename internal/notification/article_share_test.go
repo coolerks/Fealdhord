@@ -40,7 +40,7 @@ func TestArticleSharingQueuesSelectedContentAndKeepsFullText(t *testing.T) {
 	if err != nil || len(articles) != 1 {
 		t.Fatalf("article fixture: %v, %v", articles, err)
 	}
-	input := ArticleShare{ArticleID: articles[0].ID, ChannelIDs: channels, Title: true, Link: true, FullText: true}
+	input := ArticleShare{ArticleID: articles[0].ID, ChannelIDs: channels, Title: true, Link: true, FullText: true, MessageLimit: 500}
 	if err := s.sendArticle(ctx, input, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestArticleShareBatchUsesRequestedOrderAndTruncatesSummary(t *testing.T) {
 	targets := setupChannels(t, s)
 	sent = nil
 	_, err := s.store.AddSubscription(ctx, database.SubscriptionInput{Title: "RSS", URL: "https://example.com/feed"}, []database.ArticleInput{
-		{GUID: "a", Title: "带摘要", Summary: "第一段中文说明"},
+		{GUID: "a", Title: "带摘要", URL: "https://example.com/story", Summary: "第一段中文说明"},
 		{GUID: "b", Title: "纯标题"},
 	}, database.FeedCheck{At: now.UnixMilli()})
 	if err != nil {
@@ -138,6 +138,22 @@ func TestArticleShareBatchUsesRequestedOrderAndTruncatesSummary(t *testing.T) {
 		t.Fatal(err)
 	}
 	*now = now.Add(time.Second)
+	if delivered, err := s.deliver(ctx); !delivered || err != nil {
+		t.Fatalf("deliver = %t, %v", delivered, err)
+	}
+	if len(sent) != 1 || !strings.Contains(sent[0], "第一段中…") || !strings.Contains(sent[0], "href=") ||
+		strings.Index(sent[0], "纯标题") >= strings.Index(sent[0], "带摘要") || strings.Contains(sent[0], "文说明") {
+		t.Fatalf("unexpected combined message: %v", sent)
+	}
+	if delivered, err := s.deliver(ctx); delivered || err != nil {
+		t.Fatalf("merged batch queued more than one delivery = %t, %v", delivered, err)
+	}
+	sent = nil
+	input.SplitArticles = true
+	if err := s.sendArticle(ctx, input, nil); err != nil {
+		t.Fatal(err)
+	}
+	*now = now.Add(time.Second)
 	for range 2 {
 		if delivered, err := s.deliver(ctx); !delivered || err != nil {
 			t.Fatalf("deliver = %t, %v", delivered, err)
@@ -153,5 +169,33 @@ func TestArticleShareBatchUsesRequestedOrderAndTruncatesSummary(t *testing.T) {
 	}
 	if delivered, err := s.deliver(ctx); delivered || err != nil {
 		t.Fatalf("rejected batch queued a delivery = %t, %v", delivered, err)
+	}
+}
+
+func TestArticleSharePacksAtArticleBoundariesAndHonorsChannelLimits(t *testing.T) {
+	articles := []ArticleLink{
+		{Title: "第一篇", Text: strings.Repeat("甲", 45)},
+		{Title: "第二篇", Text: strings.Repeat("乙", 55)},
+		{Title: "第三篇", Text: "丙"},
+	}
+	messages, err := packArticleShare(articles, 100, false, "wechat")
+	if err != nil || len(messages) != 2 || len(messages[0].Links) != 1 || len(messages[1].Links) != 2 {
+		t.Fatalf("expected to split between articles, got %v, %v", messages, err)
+	}
+	body := strings.Repeat("中文字😀", 260)
+	messages, err = packArticleShare([]ArticleLink{{Text: body}}, 1500, false, "qq")
+	if err != nil || len(messages) < 2 {
+		t.Fatalf("expected automatic splitting for multi-byte text, got %d, %v", len(messages), err)
+	}
+	var restored strings.Builder
+	for _, message := range messages {
+		text := plainMessage(message)
+		if len(text) > 2000 {
+			t.Fatalf("message exceeds byte budget: %d", len(text))
+		}
+		restored.WriteString(text)
+	}
+	if restored.String() != body {
+		t.Fatal("splitting lost or reordered text")
 	}
 }
