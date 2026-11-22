@@ -65,6 +65,8 @@ const notificationAPI = vi.hoisted(() => ({
 }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/notification/api', () => notificationAPI)
 const listSkills = vi.hoisted(() => vi.fn())
+const pendingActions = vi.hoisted(() => vi.fn())
+const decideAction = vi.hoisted(() => vi.fn())
 const mcpGrants = vi.hoisted(() => ({
   Grants: vi.fn().mockResolvedValue([]),
   MCPServer: vi.fn().mockResolvedValue({ url: '', config: { port: 8769, tools: [] } }),
@@ -73,7 +75,7 @@ const mcpGrants = vi.hoisted(() => ({
   RotateGrantToken: vi.fn(),
 }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/appagent/api', () => ({
-  PendingActions: async () => [], ToolList: async () => [], Skills: listSkills, MCPClients: async () => [],
+  PendingActions: pendingActions, DecideAction: decideAction, ToolList: async () => [], Skills: listSkills, MCPClients: async () => [],
   ...mcpGrants,
 }))
 const copyImage = vi.hoisted(() => vi.fn())
@@ -83,6 +85,8 @@ import App from './App'
 let geometry: ReturnType<typeof installGeometry>
 beforeEach(() => {
   vi.clearAllMocks()
+  pendingActions.mockResolvedValue([])
+  decideAction.mockResolvedValue(true)
   notificationAPI.ListChannels.mockResolvedValue([])
   notificationAPI.ListTasks.mockResolvedValue([])
   notificationAPI.ListRuns.mockResolvedValue([])
@@ -451,13 +455,15 @@ describe('Phase 1 阅读 Shell', () => {
     expect(model).toHaveTextContent('默认模型推理增强')
     await user.type(input, '第一条')
     const send = screen.getByRole('button', { name: '发送' })
+    await user.click(screen.getByRole('button', { name: '审批方式' }))
+    await user.click(screen.getByRole('option', { name: '绕过审批' }))
     expect(send).toHaveClass('rounded-full')
     expect(send).toHaveTextContent(/^$/)
     expect(send.parentElement).toBe(model.parentElement)
     await user.click(send)
     const firstReply = (await screen.findByText('第一条回复')).closest('section')!
     expect(within(firstReply).queryByRole('group', { name: '回复操作' })).not.toBeInTheDocument()
-    expect(chat.Send).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: 'new', modelId: 'first', reasoningEffort: 'deep-custom', text: '第一条' }))
+    expect(chat.Send).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: 'new', modelId: 'first', reasoningEffort: 'deep-custom', text: '第一条', approvalMode: 'bypass' }))
     rows[1] = { ...rows[1], status: 'complete' }
     publish({ conversationId: 'new', messageId: rows[1].id, offset: rows[1].text.length, delta: '', done: true })
     await waitFor(() => expect(screen.queryByRole('button', { name: '停止回复' })).not.toBeInTheDocument())
@@ -645,7 +651,7 @@ describe('Phase 1 阅读 Shell', () => {
     chat.Messages.mockResolvedValue([running])
     const { client } = setup()
     await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
-    const timeline = screen.getByRole('region', { name: '对话消息' })
+    const timeline = await screen.findByRole('region', { name: '对话消息' })
     expect(await within(timeline).findByRole('status')).toHaveTextContent('正在思考')
 
     const work = { durationMs: 1450, reasoningObserved: true, reasoningSummary: '查找相关报道。', reasoningText: '先检索本地文章库。',
@@ -674,6 +680,56 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(tool)
     expect(screen.getByText('{"query":"科技"}')).toBeVisible()
     expect(screen.getByText('找到 3 篇报道')).toBeVisible()
+  })
+
+  it('历史回复按位置穿插正文与工具记录', async () => {
+    const user = userEvent.setup()
+    const introduction = '先搜索🙂。'
+    const conclusion = '这是搜索结果。'
+    chat.List.mockResolvedValue([{ id: 'history', title: '历史会话' }])
+    chat.Messages.mockResolvedValue([{
+      id: 'reply', role: 'assistant', text: introduction + conclusion, modelName: '模型', status: 'complete',
+      details: { durationMs: 2000, rounds: 2, reasoningEffort: '', work: {
+        durationMs: 1500, reasoningObserved: true, reasoningText: '调用前的推理调用后的推理',
+        positions: [
+          { offset: introduction.length, summaryEnd: 0, reasoningEnd: 6, toolEnd: 0, durationMs: 100 },
+          { offset: introduction.length, summaryEnd: 0, reasoningEnd: 6, toolEnd: 1, durationMs: 1000 },
+          { offset: introduction.length, summaryEnd: 0, reasoningEnd: 12, toolEnd: 1, durationMs: 1500 },
+        ],
+        tools: [{ name: 'article_search', status: 'completed' }],
+      } },
+    }])
+    setup()
+    await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    const process = await screen.findByRole('button', { name: '用时 2 秒' })
+    expect(screen.getByText(introduction).compareDocumentPosition(process) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(process.compareDocumentPosition(screen.getByText(conclusion)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await user.click(process)
+    const tools = screen.getByRole('list', { name: '工具活动' })
+    expect(tools).toHaveTextContent('搜索文章已完成')
+    expect(screen.getByText('调用前的推理').compareDocumentPosition(tools) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(tools.compareDocumentPosition(screen.getByText('调用后的推理')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it.each(['composer', 'dialog'] as const)('按偏好在 %s 中请求审批并保留草稿', async presentation => {
+    const user = userEvent.setup()
+    api.get.mockResolvedValue({ preferences: preferencesFixture({ chat_approval_presentation: presentation }), revision: 0 })
+    chat.List.mockResolvedValue([{ id: 'history', title: '历史会话' }])
+    chat.Messages.mockResolvedValue([])
+    const { client } = setup()
+    await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    const textarea = screen.getByRole('textbox', { name: '消息' })
+    await user.type(textarea, '保留这份草稿')
+    expect(screen.getByRole('button', { name: '审批方式' })).toHaveTextContent('需要审批')
+    const action = { id: 'action', principal: '会话 history', conversationId: 'history', tool: 'article.get', arguments: '{"id":"test"}' }
+    act(() => client.setQueryData(['ai-platform', 'pending'], [action]))
+    const prompt = presentation === 'composer'
+      ? await screen.findByRole('region', { name: '工具审批' })
+      : await screen.findByRole('dialog', { name: '允许 AI 调用工具？' })
+    if (presentation === 'composer') expect(screen.queryByRole('textbox', { name: '消息' })).not.toBeInTheDocument()
+    await user.click(within(prompt).getByRole('button', { name: '允许本次调用' }))
+    expect(decideAction).toHaveBeenCalledWith('action', true)
+    expect(await screen.findByRole('textbox', { name: '消息' })).toHaveValue('保留这份草稿')
   })
 
   it('点击新对话会清空上一个会话的文字选区', async () => {

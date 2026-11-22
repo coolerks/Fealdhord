@@ -5,8 +5,24 @@ import { ListChannels, PreviewTask } from '../../../bindings/github.com/coolerks
 import type { Task } from '../../../bindings/github.com/coolerks/Fealdhord/internal/notification/models'
 import { navigationAPI, navigationQueryKey } from '@/lib/navigation-api'
 import { DecideAction, PendingActions } from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/api'
+import type { PendingAction } from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/models'
+import { useLayoutEffect } from 'react'
+import { create } from 'zustand'
 
 const key = ['ai-platform', 'pending']
+const useApprovalSurface = create<{ id: string }>(() => ({ id: '' }))
+
+export function useInlineApproval(id: string, enabled: boolean) {
+  const pending = useQuery({ queryKey: key, queryFn: () => PendingActions(), enabled: false })
+  useLayoutEffect(() => {
+    if (!enabled || !id) return
+    useApprovalSurface.setState({ id })
+    return () => {
+      if (useApprovalSurface.getState().id === id) useApprovalSurface.setState({ id: '' })
+    }
+  }, [id, enabled])
+  return enabled && id ? pending.data?.find(action => action.conversationId === id) : undefined
+}
 
 function ScheduleApproval({ args }: { args: string }) {
   let task: Task | undefined
@@ -40,29 +56,44 @@ function ScheduleApproval({ args }: { args: string }) {
 }
 
 export function AIApprovals() {
-  const cache = useQueryClient()
+  const inline = useApprovalSurface(state => state.id)
   const pending = useQuery({ queryKey: key, queryFn: () => PendingActions(), refetchInterval: 1000, retry: false })
+  const action = pending.data?.find(item => !inline || item.conversationId !== inline)
+  return <Dialog open={Boolean(action)}>
+    {action && <DialogContent showCloseButton={false} onEscapeKeyDown={event => event.preventDefault()} onPointerDownOutside={event => event.preventDefault()}>
+      <ToolApproval key={action.id} action={action} />
+    </DialogContent>}
+  </Dialog>
+}
+
+export function ToolApproval({ action, inline = false, onStop, stopping }: {
+  action: PendingAction; inline?: boolean; onStop?: () => void; stopping?: boolean
+}) {
+  const cache = useQueryClient()
   const decision = useMutation({
     mutationFn: ({ id, allow }: { id: string; allow: boolean }) => Promise.resolve(DecideAction(id, allow)),
     onSettled: () => cache.invalidateQueries({ queryKey: key }),
-    onSuccess: (accepted, { allow }) => {
+    onSuccess: (accepted, { allow, id }) => {
+      cache.setQueryData<PendingAction[]>(key, current => current?.filter(item => item.id !== id))
       if (accepted && allow) window.setTimeout(() => { void cache.invalidateQueries() }, 1000)
     },
   })
-  const action = pending.data?.[0]
-  return <Dialog open={Boolean(action)}>
-    {action && <DialogContent showCloseButton={false} onEscapeKeyDown={event => event.preventDefault()} onPointerDownOutside={event => event.preventDefault()}>
-      <DialogHeader>
+  const Footer = inline ? 'div' : DialogFooter
+  return <>
+      {inline ? <div>
+        <h3 className="font-medium">允许 AI 调用工具？</h3>
+        <p className="text-sm text-muted-foreground">{action.tool}</p>
+      </div> : <DialogHeader>
         <DialogTitle>允许 AI 调用工具？</DialogTitle>
         <DialogDescription>{action.principal} · {action.tool}</DialogDescription>
-      </DialogHeader>
+      </DialogHeader>}
       {['schedule.create', 'schedule.update'].includes(action.tool) ? <ScheduleApproval args={action.arguments} />
         : <pre className="max-h-52 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs">{action.arguments}</pre>}
       {decision.isError && <p role="alert">提交失败，请重试。</p>}
-      <DialogFooter>
-        <Button variant="outline" disabled={decision.isPending} onClick={() => decision.mutate({ id: action.id, allow: false })}>拒绝</Button>
-        <Button disabled={decision.isPending} onClick={() => decision.mutate({ id: action.id, allow: true })}>允许本次调用</Button>
-      </DialogFooter>
-    </DialogContent>}
-  </Dialog>
+      <Footer className={inline ? 'flex flex-wrap justify-end gap-2' : undefined}>
+        {onStop && <Button type="button" variant="ghost" className="sm:mr-auto" disabled={stopping || decision.isPending} onClick={onStop}>停止回复</Button>}
+        <Button type="button" variant="outline" disabled={stopping || decision.isPending} onClick={() => decision.mutate({ id: action.id, allow: false })}>拒绝</Button>
+        <Button type="button" disabled={stopping || decision.isPending} onClick={() => decision.mutate({ id: action.id, allow: true })}>允许本次调用</Button>
+      </Footer>
+  </>
 }

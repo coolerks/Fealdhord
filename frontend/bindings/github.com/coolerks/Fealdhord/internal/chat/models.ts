@@ -66,6 +66,18 @@ export interface ReplyWork {
     "reasoningText"?: string;
     "reasoningTruncated"?: boolean;
     "tools"?: ReplyToolStep[] | null;
+    "positions"?: ReplyWorkPosition[] | null;
+}
+
+/**
+ * All string offsets use UTF-16 code units to match the frontend's source text.
+ */
+export interface ReplyWorkPosition {
+    "offset": number;
+    "summaryEnd": number;
+    "reasoningEnd": number;
+    "toolEnd": number;
+    "durationMs": number;
 }
 
 export interface Scope {
@@ -76,6 +88,7 @@ export interface Scope {
 export interface SendInput {
     "skills"?: string[] | null;
     "disableTools"?: boolean;
+    "approvalMode"?: string;
     "conversationId": string;
     "modelId"?: string;
     "reasoningEffort"?: string;
@@ -103,4 +116,5 @@ export interface UpdateEvent {
     "offset": number;
     "delta": string;
     "done": boolean;
+    "workChanged"?: boolean;
 }

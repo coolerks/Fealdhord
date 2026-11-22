@@ -32,6 +32,8 @@ export function useChatMessages(id: string) {
         void cache.invalidateQueries({ queryKey: chatContextKey(id) })
         return
       }
+      if (event.workChanged) void cache.invalidateQueries({ queryKey: key, exact: true })
+      if (!event.delta) return
       const saved = cache.getQueryData<Message[]>(key)?.find(message => message.id === event.messageId)
       if (saved && saved.status !== 'running') return
       const receivedAt = performance.now()

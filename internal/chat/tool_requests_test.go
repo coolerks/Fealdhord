@@ -28,7 +28,7 @@ func TestGlobalChatSendsAuthorizedToolsToRoutedDeepSeek(t *testing.T) {
 		requests <- string(body)
 		w.Header().Set("Content-Type", "text/event-stream")
 		if strings.Contains(string(body), `"tools":[`) && !strings.Contains(string(body), `"role":"tool"`) {
-			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"provider reasoning\",\"tool_calls\":[{\"index\":0,\"id\":\"call-1\",\"type\":\"function\",\"function\":{\"name\":\"library_search\",\"arguments\":\"{}\"}}]}}]}\n\n")
+			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"provider reasoning\",\"content\":\"先查🙂\",\"tool_calls\":[{\"index\":0,\"id\":\"call-1\",\"type\":\"function\",\"function\":{\"name\":\"library_search\",\"arguments\":\"{}\"}}]}}]}\n\n")
 			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"finish_reason\":\"tool_calls\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":20,\"prompt_cache_hit_tokens\":5,\"completion_tokens\":3}}\n\ndata: [DONE]\n\n")
 			return
 		}
@@ -68,7 +68,7 @@ func TestGlobalChatSendsAuthorizedToolsToRoutedDeepSeek(t *testing.T) {
 	}
 	defer service.Close()
 	registry := appagent.NewRegistry()
-	appagent.Register(registry, "library.search", "查找本地文章", false,
+	appagent.Register(registry, "library.search", "查找本地文章", true,
 		func(context.Context, struct{}) []string { return []string{"测试文章"} })
 	platform := appagent.NewPlatform(registry, t.TempDir())
 	service.SetToolSource(platform.RunTools)
@@ -82,7 +82,7 @@ func TestGlobalChatSendsAuthorizedToolsToRoutedDeepSeek(t *testing.T) {
 		t.Fatalf("unsupported tool combination must report an explicit error: %v", err)
 	}
 
-	input.ModelID = model.ID
+	input.ModelID, input.ApprovalMode = model.ID, "bypass"
 	if err := service.Send(ctx, input); err != nil {
 		t.Fatal(err)
 	}
@@ -111,6 +111,10 @@ func TestGlobalChatSendsAuthorizedToolsToRoutedDeepSeek(t *testing.T) {
 	work := reply.Details.Work
 	if work == nil || !work.ReasoningObserved || work.ReasoningText != "provider reasoning" || work.ReasoningSummary != "" || len(work.Tools) != 1 {
 		t.Fatalf("incorrect recorded work: %+v", work)
+	}
+	if len(work.Positions) != 2 || work.Positions[0].Offset != 0 || work.Positions[0].ToolEnd != 0 ||
+		work.Positions[1].Offset != 4 || work.Positions[1].ToolEnd != 1 || reply.Text != "先查🙂完成" {
+		t.Fatalf("unexpected work positions for %q: %+v", reply.Text, work.Positions)
 	}
 	if step := work.Tools[0]; step.Name != "library_search" || step.Status != "completed" ||
 		step.Arguments == nil || *step.Arguments != "{}" || step.Result == nil || !strings.Contains(*step.Result, "测试文章") {

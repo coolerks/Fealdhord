@@ -4,6 +4,10 @@
 
 `work` 可包含 `reasoningText`、`reasoningSummary`、`reasoningTruncated` 和工具步骤。每项 `work.tools` 可包含经过结构化凭据脱敏的 `arguments` 与 `result`（文本），以及各自的截断标记。字段缺失表示未记录或执行未返回，空字符串表示工具返回了空文本。
 
+`work.positions` 记录正文 UTF-16 偏移、推理文本与摘要的累计 UTF-16 边界、累计工具数及过程耗时。同偏移的记录按数组顺序呈现。聊天更新事件的 `workChanged` 触发工作记录快照刷新。
+
+`Chat.Send.approvalMode` 接受 `ask`、`bypass`、`deny`，省略时使用 `ask`，非法值返回 `ValidationError`。聊天审批返回 `PendingAction.conversationId`，供界面匹配所属输入框。
+
 ## 1. 范围与触发条件
 
 React → Go 服务的所有交互。以下为折栈逻辑 API，实际 Wails 生成语法和文件路径在 Phase 0 最小实验确认；不能把本节示意当成现成绑定。

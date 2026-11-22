@@ -164,6 +164,10 @@
   box-shadow: 0 2px 9px color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
+.chat-composer-approval {
+  padding: 12px 16px;
+}
+
 .chat-slash-menu {
   position: absolute;
   inset-inline: 0;

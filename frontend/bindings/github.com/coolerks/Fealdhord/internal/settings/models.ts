@@ -46,6 +46,8 @@ export interface Preferences {
     "reader_code_theme": string;
     "chat_code_theme": string;
     "chat_model_id": string;
+    "chat_approval_mode": string;
+    "chat_approval_presentation": string;
     "reader_outline": string;
 }
 

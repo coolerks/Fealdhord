@@ -42,6 +42,7 @@ export interface PendingAction {
     "principal": string;
     "tool": string;
     "arguments": string;
+    "conversationId"?: string;
 }
 
 export interface ServerConfig {

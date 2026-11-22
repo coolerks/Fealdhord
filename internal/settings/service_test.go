@@ -40,6 +40,9 @@ func TestPreferencesPersistAndReopen(t *testing.T) {
 		t.Fatalf("初始偏好错误：%+v", got)
 	}
 	prefs := got.Data.Preferences
+	if prefs.ChatApprovalMode != "ask" || prefs.ChatApprovalPresentation != "composer" {
+		t.Fatalf("初始审批偏好错误：%+v", prefs)
+	}
 	prefs.Theme = "dark"
 	prefs.RefreshToastAutoDismiss = true
 	prefs.ArticleShareCount = 18
@@ -48,6 +51,7 @@ func TestPreferencesPersistAndReopen(t *testing.T) {
 	prefs.SidebarWidth = 340
 	prefs.ListWidth = 760
 	prefs.ChatModelID = "SAVEDMODELID"
+	prefs.ChatApprovalMode, prefs.ChatApprovalPresentation = "deny", "dialog"
 	prefs.ScrollAnchors["all:masonry"] = ScrollAnchor{ArticleID: "article-7", Offset: 18}
 	saved := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: 0})
 	if !saved.OK || saved.Data.Revision != 1 {
@@ -67,6 +71,9 @@ func TestPreferencesPersistAndReopen(t *testing.T) {
 	}
 	if snapshot.Data.Preferences.ChatModelID != "SAVEDMODELID" {
 		t.Fatalf("重开丢失聊天模型：%+v", snapshot.Data.Preferences)
+	}
+	if snapshot.Data.Preferences.ChatApprovalMode != "deny" || snapshot.Data.Preferences.ChatApprovalPresentation != "dialog" {
+		t.Fatalf("重开丢失审批偏好：%+v", snapshot.Data.Preferences)
 	}
 	if snapshot.Data.Preferences.ArticleShareCount != 18 || snapshot.Data.Preferences.ArticleShareSummaryLimit != 75 {
 		t.Fatalf("重开丢失文章发送偏好：%+v", snapshot.Data.Preferences)

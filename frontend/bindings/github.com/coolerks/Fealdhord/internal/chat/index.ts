@@ -14,6 +14,7 @@ export type {
     ReplyDetails,
     ReplyToolStep,
     ReplyWork,
+    ReplyWorkPosition,
     Scope,
     SendInput,
     ToolActivity,

@@ -35,6 +35,7 @@ type Scope struct {
 type SendInput struct {
 	Skills            []string `json:"skills,omitempty"`
 	DisableTools      bool     `json:"disableTools,omitempty"`
+	ApprovalMode      string   `json:"approvalMode,omitempty"`
 	ConversationID    string   `json:"conversationId"`
 	ModelID           string   `json:"modelId,omitempty"`
 	ReasoningEffort   string   `json:"reasoningEffort,omitempty"`
@@ -76,6 +77,7 @@ type UpdateEvent struct {
 	Offset         int    `json:"offset"` // UTF-16 code units, as used by the frontend.
 	Delta          string `json:"delta"`
 	Done           bool   `json:"done"`
+	WorkChanged    bool   `json:"workChanged,omitempty"`
 }
 
 type run struct {
@@ -195,6 +197,9 @@ func (s *Service) Model(ctx context.Context) (aiconfig.Model, error) {
 
 func (s *Service) Send(ctx context.Context, input SendInput) error {
 	input.Text = strings.TrimSpace(input.Text)
+	if input.ApprovalMode != "" && !agentrun.ValidApprovalMode(input.ApprovalMode) {
+		return modelError("ValidationError")
+	}
 	if input.Text == "" || len(input.Text) > maxQuestionBytes || len(input.Selection) > maxContextBytes || len(input.ArticleIDs) > 3 {
 		return modelError("ValidationError")
 	}
@@ -346,7 +351,7 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 	current := &run{cancel: cancel, id: reply.ID, started: time.Now()}
 	s.active[conversation.ID] = current
 	s.workers.Add(1)
-	go s.execute(runCtx, conversation.ID, current, adapter, request, tools, model.DisplayName, effortLabel(model, input.ReasoningEffort), compact)
+	go s.execute(agentrun.WithApprovalMode(runCtx, input.ApprovalMode), conversation.ID, current, adapter, request, tools, model.DisplayName, effortLabel(model, input.ReasoningEffort), compact)
 	return nil
 }
 
@@ -407,18 +412,14 @@ func (s *Service) execute(ctx context.Context, id string, current *run, adapter 
 		defer updates.Stop()
 		var pending strings.Builder
 		flush := func() {
-			if pending.Len() == 0 {
+			if pending.Len() == 0 && !update.WorkChanged {
 				return
 			}
 			update.Delta = pending.String()
 			s.publish(update)
-			for _, r := range update.Delta {
-				update.Offset++
-				if r > 0xffff {
-					update.Offset++
-				}
-			}
+			update.Offset += utf16Length(update.Delta)
 			update.Delta = ""
+			update.WorkChanged = false
 			pending.Reset()
 		}
 	stream:
@@ -452,7 +453,12 @@ func (s *Service) execute(ctx context.Context, id string, current *run, adapter 
 					}
 				case "reasoning_text_delta", "reasoning_summary_delta", "tool_work_started", "tool_work_finished":
 					s.mu.Lock()
+					previousPositions := len(current.work.positions)
 					current.work.observe(event, time.Now())
+					if s.publish != nil && (len(current.work.positions) != previousPositions ||
+						event.Type == "tool_work_started" || event.Type == "tool_work_finished") {
+						update.WorkChanged = true
+					}
 					s.mu.Unlock()
 				case "usage":
 					usage.observe(event.Usage)

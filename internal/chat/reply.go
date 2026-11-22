@@ -28,12 +28,22 @@ type ReplyDetails struct {
 }
 
 type ReplyWork struct {
-	DurationMS         int64           `json:"durationMs"`
-	ReasoningObserved  bool            `json:"reasoningObserved"`
-	ReasoningSummary   string          `json:"reasoningSummary,omitempty"`
-	ReasoningText      string          `json:"reasoningText,omitempty"`
-	ReasoningTruncated bool            `json:"reasoningTruncated,omitempty"`
-	Tools              []ReplyToolStep `json:"tools,omitempty"`
+	DurationMS         int64               `json:"durationMs"`
+	ReasoningObserved  bool                `json:"reasoningObserved"`
+	ReasoningSummary   string              `json:"reasoningSummary,omitempty"`
+	ReasoningText      string              `json:"reasoningText,omitempty"`
+	ReasoningTruncated bool                `json:"reasoningTruncated,omitempty"`
+	Tools              []ReplyToolStep     `json:"tools,omitempty"`
+	Positions          []ReplyWorkPosition `json:"positions,omitempty"`
+}
+
+// All string offsets use UTF-16 code units to match the frontend's source text.
+type ReplyWorkPosition struct {
+	Offset       int   `json:"offset"`
+	SummaryEnd   int   `json:"summaryEnd"`
+	ReasoningEnd int   `json:"reasoningEnd"`
+	ToolEnd      int   `json:"toolEnd"`
+	DurationMS   int64 `json:"durationMs"`
 }
 
 type ReplyToolStep struct {
@@ -53,12 +63,17 @@ type replyWork struct {
 	summary           reasoningRecord
 	thinking          reasoningRecord
 	tools             []ReplyToolStep
+	textOffset        int
+	lastText          time.Time
+	positions         []ReplyWorkPosition
+	activity          string
 }
 
 type reasoningRecord struct {
 	text      strings.Builder
 	newRound  bool
 	truncated bool
+	length    int
 }
 
 func (r *reasoningRecord) append(delta string, limit int) {
@@ -67,20 +82,38 @@ func (r *reasoningRecord) append(delta string, limit int) {
 	}
 	if r.newRound && r.text.Len() > 0 && r.text.Len() < limit-2 {
 		r.text.WriteString("\n\n")
+		r.length += 2
 	}
 	r.newRound = false
 	part := boundedText(delta, limit-r.text.Len())
 	r.truncated = len(part) < len(delta)
 	r.text.WriteString(part)
+	r.length += utf16Length(part)
+}
+
+func utf16Length(text string) int {
+	length := 0
+	for _, r := range text {
+		length++
+		if r > 0xffff {
+			length++
+		}
+	}
+	return length
 }
 
 func (w *replyWork) observe(event ai.ModelEvent, now time.Time) {
+	activity := "tool"
 	switch event.Type {
 	case "message_start":
 		w.roundFirstText = time.Time{}
 		w.summary.newRound, w.thinking.newRound = true, true
 		return
 	case "text_delta":
+		if event.Text != "" {
+			w.textOffset += utf16Length(event.Text)
+			w.lastText = now
+		}
 		if w.roundFirstText.IsZero() && strings.TrimSpace(event.Text) != "" {
 			w.roundFirstText = now
 			if w.firstText.IsZero() {
@@ -93,6 +126,7 @@ func (w *replyWork) observe(event ai.ModelEvent, now time.Time) {
 			return
 		}
 		w.reasoningObserved = true
+		activity = "reasoning"
 		if event.Type == "reasoning_text_delta" {
 			w.thinking.append(event.Text, 64<<10)
 		} else {
@@ -115,6 +149,17 @@ func (w *replyWork) observe(event ai.ModelEvent, now time.Time) {
 		}
 	}
 	w.lastActivity = now
+	n := len(w.positions)
+	if n == 0 || w.positions[n-1].Offset != w.textOffset || w.activity != activity {
+		w.positions = append(w.positions, ReplyWorkPosition{Offset: w.textOffset})
+		n++
+	}
+	w.activity = activity
+	pos := &w.positions[n-1]
+	pos.SummaryEnd, pos.ReasoningEnd, pos.ToolEnd = w.summary.length, w.thinking.length, len(w.tools)
+	if !w.lastText.IsZero() {
+		pos.DurationMS = now.Sub(w.lastText).Milliseconds()
+	}
 }
 
 func (w *replyWork) snapshot(started, ended time.Time, terminalStatus string) *ReplyWork {
@@ -137,10 +182,26 @@ func (w *replyWork) snapshot(started, ended time.Time, terminalStatus string) *R
 			}
 		}
 	}
+	positions := slices.Clone(w.positions)
+	for i := range positions {
+		if positions[i].Offset != 0 {
+			break
+		}
+		initialEnd := w.lastActivity
+		if positions[len(positions)-1].Offset == 0 {
+			initialEnd = until
+		}
+		// The initial position updates as the run progresses and freezes at the first visible text.
+		if !w.firstText.IsZero() && initialEnd.After(w.firstText) {
+			initialEnd = w.firstText
+		}
+		positions[i].DurationMS = initialEnd.Sub(started).Milliseconds()
+	}
 	return &ReplyWork{
 		DurationMS: until.Sub(started).Milliseconds(), Tools: tools,
 		ReasoningObserved: w.reasoningObserved, ReasoningSummary: w.summary.text.String(), ReasoningText: w.thinking.text.String(),
 		ReasoningTruncated: w.summary.truncated || w.thinking.truncated,
+		Positions:          positions,
 	}
 }
 

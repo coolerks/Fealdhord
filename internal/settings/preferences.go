@@ -5,6 +5,8 @@ import (
 	"errors"
 	"math"
 	"regexp"
+
+	"github.com/coolerks/Fealdhord/internal/agentrun"
 )
 
 type ScrollAnchor struct {
@@ -53,6 +55,8 @@ type Preferences struct {
 	ReaderCodeTheme          string                  `json:"reader_code_theme"`
 	ChatCodeTheme            string                  `json:"chat_code_theme"`
 	ChatModelID              string                  `json:"chat_model_id"`
+	ChatApprovalMode         string                  `json:"chat_approval_mode"`
+	ChatApprovalPresentation string                  `json:"chat_approval_presentation"`
 	ReaderOutline            string                  `json:"reader_outline"`
 }
 
@@ -64,6 +68,7 @@ func Defaults() Preferences {
 		ReaderToolbarPinned: []string{"refresh", "favorite", "translate", "ai"},
 		ScrollAnchors:       map[string]ScrollAnchor{}, ReaderFontSize: 17, ReaderLineHeight: 1.7, ReaderWidth: 720,
 		ReaderImageWheel: "zoom", ReaderImageBackdropClose: true, ReaderOutline: "ticks", ReaderCodeTheme: "app", ChatCodeTheme: "app",
+		ChatApprovalMode: agentrun.ApprovalAsk, ChatApprovalPresentation: "composer",
 	}
 }
 
@@ -101,6 +106,9 @@ func validReaderToolbarPinned(actions []string) bool {
 }
 
 func (p Preferences) Validate() error {
+	if !agentrun.ValidApprovalMode(p.ChatApprovalMode) || !oneOf(p.ChatApprovalPresentation, "composer", "dialog") {
+		return errors.New("聊天工具审批选项无效。")
+	}
 	if !codeThemeID.MatchString(p.ReaderCodeTheme) || !codeThemeID.MatchString(p.ChatCodeTheme) {
 		return errors.New("代码块主题选项无效。")
 	}
@@ -159,6 +167,12 @@ func (p Preferences) Validate() error {
 // normalize 只用于读取旧设置；非法字段分别回退，保留其他有效偏好。
 func (p *Preferences) normalize() {
 	d := Defaults()
+	if !agentrun.ValidApprovalMode(p.ChatApprovalMode) {
+		p.ChatApprovalMode = d.ChatApprovalMode
+	}
+	if !oneOf(p.ChatApprovalPresentation, "composer", "dialog") {
+		p.ChatApprovalPresentation = d.ChatApprovalPresentation
+	}
 	if !codeThemeID.MatchString(p.ReaderCodeTheme) {
 		p.ReaderCodeTheme = d.ReaderCodeTheme
 	}

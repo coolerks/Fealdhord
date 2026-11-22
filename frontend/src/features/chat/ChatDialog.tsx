@@ -30,10 +30,11 @@ import { moveSidebarFocus } from '@/lib/sidebar-navigation'
 import { useChatTarget } from './chat-scope'
 import { aiConfigurationKey } from '@/lib/ai-configuration'
 import { useReaderCodeTheme } from '@/features/reader/code-themes'
-import { ChatMarkdown } from './ChatMarkdown'
 import { chatMessagesKey, useChatMessages } from './useChatMessages'
 import { ReplyActions } from './ReplyActions'
-import { ReplyProgress } from './ReplyProgress'
+import { ReplyBody } from './ReplyProgress'
+import { ToolApproval, useInlineApproval } from './AIApprovals'
+import { approvalModes } from './approval-options'
 import { notify } from '@/lib/notifications'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/api'
 import { List as listAIConfiguration } from '../../../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/api'
@@ -133,6 +134,8 @@ function ChatSession({ target, close, workspace }: {
   const cache = useQueryClient()
   const showSettings = useWorkspace(state => state.showSettings)
   const rememberedModelID = useWorkspace(state => state.preferences?.chat_model_id)
+  const defaultApprovalMode = useWorkspace(state => state.preferences?.chat_approval_mode) ?? 'ask'
+  const approvalPresentation = useWorkspace(state => state.preferences?.chat_approval_presentation) ?? 'composer'
   const patchPreferences = useWorkspace(state => state.patch)
   const [chosen, setChosen] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
@@ -142,6 +145,7 @@ function ChatSession({ target, close, workspace }: {
   const [highlightedSlash, setHighlightedSlash] = useState('')
   const [contextOpen, setContextOpen] = useState(false)
   const [tasksOpen, setTasksOpen] = useState(false)
+  const [approvalChoices, setApprovalChoices] = useState<Record<string, string>>({})
   const slashQuery = workspace && composerFocused && !slashDismissed ? slashCommand.exec(draft)?.[1] : undefined
   const [includeContext, setIncludeContext] = useState(false)
   const [allowArticleReads, setAllowArticleReads] = useState(false)
@@ -199,6 +203,9 @@ function ChatSession({ target, close, workspace }: {
   const reasoningEffort = modelID ? effortChoices[modelID] : undefined
   const invalidEffort = Boolean(reasoningEffort && !effortLevels.some(option => option.value === reasoningEffort))
   const conversationId = chosen ?? history.data?.[0]?.id ?? ''
+  const approvalMode = approvalChoices[conversationId] ?? defaultApprovalMode
+  const inlineApproval = useInlineApproval(conversationId,
+    approvalPresentation === 'composer' && !tasksOpen && (!workspace || workspace.present))
   const messages = useChatMessages(conversationId)
   const active = messages.data?.some(message => message.status === 'running') ?? false
   const theme = useReaderCodeTheme(workspace?.theme ?? 'app', Boolean(workspace && messages.data?.some(message => message.role === 'assistant')))
@@ -209,6 +216,10 @@ function ChatSession({ target, close, workspace }: {
         const title = Array.from(draft.trim()).slice(0, 64).join('')
         const conversation = await api.Create(scope, title)
         id = conversation.id
+        setApprovalChoices(current => {
+          const { '': draftMode, ...existing } = current
+          return draftMode ? { ...existing, [id]: draftMode } : current
+        })
         setChosen(id)
         void cache.invalidateQueries({ queryKey: listKey })
       }
@@ -218,6 +229,7 @@ function ChatSession({ target, close, workspace }: {
         ...(workspace && disableTools ? { disableTools: true } : {}),
         ...(workspace && selectedSkills.length ? { skills: selectedSkills } : {}),
         ...(workspace && reasoningEffort ? { reasoningEffort } : {}),
+        ...(workspace ? { approvalMode } : {}),
       })
       await Promise.all([
         cache.invalidateQueries({ queryKey: chatMessagesKey(id) }),
@@ -260,7 +272,7 @@ function ChatSession({ target, close, workspace }: {
   useLayoutEffect(() => {
     const element = timeline.current
     if (element && follow.current) element.scrollTop = element.scrollHeight
-  }, [messages.data, conversationId, theme, following, tasksOpen])
+  }, [messages.data, conversationId, theme, following, tasksOpen, inlineApproval?.id])
   const inWorkspace = Boolean(workspace?.present)
   useLayoutEffect(() => {
     if (inWorkspace && !tasksOpen) composer.current?.focus({ preventScroll: true })
@@ -275,6 +287,11 @@ function ChatSession({ target, close, workspace }: {
     follow.current = true
     setFollowing(true)
     setChosen(id)
+    if (!id && approvalChoices['']) setApprovalChoices(current => {
+      const existing = { ...current }
+      delete existing['']
+      return existing
+    })
     if (workspace && id !== conversationId) {
       setSlashPage('actions')
       setHighlightedSlash('')
@@ -437,11 +454,10 @@ function ChatSession({ target, close, workspace }: {
       {messages.isError && <Button size="sm" variant="ghost" onClick={() => void messages.refetch()}>重新读取消息</Button>}
       {messages.data?.map(message => <section key={message.id} className={workspace ? 'chat-message' : message.role === 'user' ? 'ml-auto w-fit max-w-[90%] rounded-xl bg-muted p-3' : 'mr-3 rounded-xl border p-3'} data-role={workspace ? message.role : undefined}>
         {!workspace && message.role === 'user' && <p className="text-xs text-muted-foreground">你</p>}
-        {message.role === 'assistant' && <ReplyProgress message={message} />}
-        {message.text && (workspace && message.role === 'assistant'
-          ? <ChatMarkdown text={message.text} streaming={message.status === 'running'}
-            reveal={workspace.motionMode === 'off' ? undefined : message.reveal} />
-          : <p className="whitespace-pre-wrap break-words">{message.text}</p>)}
+        {message.role === 'assistant'
+          ? <ReplyBody message={message} markdown={Boolean(workspace)}
+            reveal={workspace?.motionMode === 'off' ? undefined : message.reveal} />
+          : message.text && <p className="whitespace-pre-wrap break-words">{message.text}</p>}
         {statusLabels[message.status] && <p className="mt-1 text-sm text-muted-foreground">
           {statusLabels[message.status]}{errorLabels[message.errorCode] && ` · ${errorLabels[message.errorCode]}`}
         </p>}
@@ -500,7 +516,10 @@ function ChatSession({ target, close, workspace }: {
         <span className="truncate" title={selection}>选段 · {selection}</span>
         <Button size="sm" variant="ghost" disabled={send.isPending} onClick={() => setSelection('')}>移除</Button>
       </div>}
-      <form className={workspace ? 'chat-composer-form' : 'flex items-end gap-2'} onSubmit={event => {
+      {inlineApproval ? <section aria-label="工具审批" className={cn('flex flex-col gap-3 px-4 py-3', workspace ? 'chat-composer-form chat-composer-approval' : 'rounded-xl border')}>
+        <ToolApproval key={inlineApproval.id} action={inlineApproval} inline
+          onStop={() => cancel.mutate(conversationId)} stopping={cancel.isPending} />
+      </section> : <form className={workspace ? 'chat-composer-form' : 'flex items-end gap-2'} onSubmit={event => {
         event.preventDefault()
         if (canSend) send.mutate()
       }}>
@@ -545,9 +564,12 @@ function ChatSession({ target, close, workspace }: {
             }
           } : undefined} />
         <div className={workspace ? 'chat-composer-toolbar' : undefined}>
-          {workspace &&
+          {workspace && <div className="flex min-w-0 items-center gap-1">
             <Button size="icon" type="button" variant="ghost" aria-label="附加文章" title="附加文章" aria-expanded={picking} disabled={send.isPending} onClick={() => setPicking(!picking)}><Plus /></Button>
-          }
+            <SearchableSelect label="审批方式" value={approvalMode} options={approvalModes} variant="ghost"
+              announceSelection disabled={active || send.isPending}
+              onValueChange={value => setApprovalChoices(current => ({ ...current, [conversationId]: value }))} />
+          </div>}
           <div className={workspace ? 'chat-composer-actions' : undefined}>
             {workspace && selectedConfig && modelID && <ChatContext id={conversationId} modelId={modelID} modelRevision={selectedConfig.revision}
               disabled={active || send.isPending} attachments={sources} open={contextOpen} onOpenChange={setContextOpen} />}
@@ -568,7 +590,7 @@ function ChatSession({ target, close, workspace }: {
                 : <Button type="submit" disabled={!canSend}>发送</Button>}
           </div>
         </div>
-      </form>
+      </form>}
       {workspace && invalidEffort && !send.isError && <p role="alert">{errorLabels.ChatReasoningUnavailable}</p>}
       {(send.isError || cancel.isError) && <p role="alert">{errorText(send.error ?? cancel.error)}</p>}
     </div>

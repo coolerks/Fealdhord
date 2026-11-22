@@ -55,3 +55,20 @@ func TestReplyDetailsMeasureFirstVisibleTextAndFinalRoundSpeed(t *testing.T) {
 		t.Fatalf("unexpected work: %+v", details.Work)
 	}
 }
+
+func TestReplyWorkKeepsReasoningAroundToolAtSameOffset(t *testing.T) {
+	start := time.Now()
+	var work replyWork
+	work.observe(ai.ModelEvent{Type: "reasoning_text_delta", Text: "先查🙂"}, start.Add(time.Second))
+	work.observe(ai.ModelEvent{Type: "tool_work_started", ToolName: "search"}, start.Add(2*time.Second))
+	work.observe(ai.ModelEvent{Type: "tool_work_finished", ToolStatus: "completed"}, start.Add(3*time.Second))
+	work.observe(ai.ModelEvent{Type: "reasoning_text_delta", Text: "已找到"}, start.Add(4*time.Second))
+	work.observe(ai.ModelEvent{Type: "text_delta", Text: "结果"}, start.Add(5*time.Second))
+	positions := work.snapshot(start, start.Add(6*time.Second), "complete").Positions
+	if len(positions) != 3 || positions[0].ReasoningEnd != 4 || positions[0].ToolEnd != 0 ||
+		positions[1].ReasoningEnd != 4 || positions[1].ToolEnd != 1 ||
+		positions[2].ReasoningEnd != 7 || positions[2].ToolEnd != 1 ||
+		positions[2].Offset != 0 || positions[2].DurationMS != 5000 {
+		t.Fatalf("unexpected order and timing: %+v", positions)
+	}
+}

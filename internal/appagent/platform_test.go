@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coolerks/Fealdhord/internal/agentrun"
+	"github.com/coolerks/Fealdhord/internal/ai"
 	"github.com/coolerks/Fealdhord/internal/database"
 	"github.com/coolerks/Fealdhord/internal/library"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -73,6 +75,40 @@ func TestGuardedToolApprovalSingleUseAndAudit(t *testing.T) {
 	audit, err := os.ReadFile(filepath.Join(r.auditDir, "tool-audit.jsonl"))
 	if err != nil || !strings.Contains(string(audit), `"status":"complete"`) || strings.Contains(string(audit), `"id":"item"`) {
 		t.Fatalf("unexpected audit: %s, %v", audit, err)
+	}
+}
+
+func TestChatApprovalModes(t *testing.T) {
+	registry := NewRegistry()
+	Register(registry, "item.write", "write", true, func(_ context.Context, input id) id { return input })
+	tool := registry.ChatTools("conversation")[0]
+	call := ai.ToolCall{Name: tool.Definition.Name, ArgumentsJSON: `{"id":"item"}`}
+	for _, test := range []struct{ mode, want string }{
+		{agentrun.ApprovalBypass, `{"id":"item"}`}, {agentrun.ApprovalDeny, `{"error":"PermissionDenied"}`},
+	} {
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		result, err := tool.Read(agentrun.WithApprovalMode(ctx, test.mode), call)
+		cancel()
+		if err != nil || result != test.want || len(registry.Pending()) != 0 {
+			t.Fatalf("%s: result=%s pending=%v err=%v", test.mode, result, registry.Pending(), err)
+		}
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	done := make(chan string, 1)
+	go func() {
+		result, _ := tool.Read(agentrun.WithApprovalMode(ctx, agentrun.ApprovalAsk), call)
+		done <- result
+	}()
+	for len(registry.Pending()) == 0 && ctx.Err() == nil {
+		time.Sleep(time.Millisecond)
+	}
+	pending := registry.Pending()
+	if len(pending) != 1 || pending[0].ConversationID != "conversation" || !registry.Decide(pending[0].ID, true) {
+		t.Fatalf("expected a chat-scoped approval: %v", pending)
+	}
+	if result := <-done; result != `{"id":"item"}` {
+		t.Fatalf("approved result = %s", result)
 	}
 }
 

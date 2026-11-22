@@ -29,6 +29,7 @@ import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { AISettings } from './AISettings'
+import { approvalModes, approvalPresentations } from '@/features/chat/approval-options'
 import { MCPSettings, SkillsSettings } from './AIPlatformSettings'
 import { ArticleAISettings } from '@/features/article-ai/ArticleAISettings'
 import { useWorkspace } from '@/stores/workspace'
@@ -300,6 +301,22 @@ export function SettingsDialog({ sidebar, motionMode }: {
                 options={codeThemeOptions}
                 value={availableCodeTheme(preferences.chat_code_theme)}
                 onValueChange={value => set('chat_code_theme', value)} />
+            </SettingRow>
+          </SettingCard>
+        </SettingSection>
+        <SettingSection title="工具审批">
+          <SettingCard>
+            <SettingRow>
+              <FieldLabel htmlFor="chat-approval-presentation" className="font-normal">审批提示方式</FieldLabel>
+              <SearchableSelect id="chat-approval-presentation" label="审批提示方式" className="min-w-44"
+                options={approvalPresentations} value={preferences.chat_approval_presentation}
+                onValueChange={value => set('chat_approval_presentation', value)} />
+            </SettingRow>
+            <SettingRow>
+              <FieldLabel htmlFor="chat-approval-mode" className="font-normal">默认审批方式</FieldLabel>
+              <SearchableSelect id="chat-approval-mode" label="默认审批方式" className="min-w-44"
+                options={approvalModes} value={preferences.chat_approval_mode}
+                onValueChange={value => set('chat_approval_mode', value)} />
             </SettingRow>
           </SettingCard>
         </SettingSection>
