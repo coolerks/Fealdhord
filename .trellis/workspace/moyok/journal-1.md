@@ -1237,3 +1237,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 46: 通知渠道收件校验码
+<!-- trellis-session: v=2 fp=143bf1d563982e41 -->
+
+**Date**: 2026-11-22
+**Task**: 通知渠道收件校验码
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+渠道保存后进入第 4 步，向各未验证目标发送四位码，按目标验证。QQ 优先引用原配对消息。前端 163 项、Go 全量和通知竞态检查通过，真实账号回执待验证。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cc9789e` | feat(notification): 增加收件校验码验证步骤 |
+
+### Status
+
+[OK] **Completed**
