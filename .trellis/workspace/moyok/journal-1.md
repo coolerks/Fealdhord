@@ -1259,3 +1259,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 47: 通知渠道官方文档入口
+<!-- trellis-session: v=2 fp=c20aa272519c78bf -->
+
+**Date**: 2026-11-22
+**Task**: 通知渠道官方文档入口
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+在平台栏右侧提供九个通知渠道的官方接入文档，按应用机器人、Webhook 和 QQ 沙箱切换，由系统默认浏览器打开。前端类型、lint 和 164 项测试通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5b54817` | feat(notification): 添加渠道官方文档入口 |
+
+### Status
+
+[OK] **Completed**
