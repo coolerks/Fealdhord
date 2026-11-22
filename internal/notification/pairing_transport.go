@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -49,8 +50,11 @@ func (t transport) pairPost(ctx context.Context, endpoint string, request map[st
 
 func (t transport) pairSocket(ctx context.Context, endpoint, domain string) (*websocket.Conn, error) {
 	u, err := url.Parse(endpoint)
-	if err != nil || u.Scheme != "wss" || u.User != nil || u.Host != u.Hostname() ||
-		(u.Host != domain && !strings.HasSuffix(u.Host, "."+domain)) {
+	if err != nil || u.Scheme != "wss" || u.User != nil {
+		return nil, errPairConnection
+	}
+	host := u.Hostname()
+	if (u.Host != host && u.Host != host+":443") || (host != domain && !strings.HasSuffix(host, "."+domain)) {
 		return nil, errPairConnection
 	}
 	dialCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
@@ -479,22 +483,32 @@ func (t transport) pairDingTalk(ctx context.Context, secret connectionSecret, re
 		Endpoint string `json:"endpoint"`
 		Ticket   string `json:"ticket"`
 	}
-	if t.pairPost(ctx, "https://api.dingtalk.com/v1.0/gateway/connections/open", map[string]any{
-		"clientId": secret.Address, "clientSecret": secret.Signing, "userAgent": "Fealdhord",
+	resp, body, err := t.post(ctx, "https://api.dingtalk.com/v1.0/gateway/connections/open", map[string]any{
+		"clientId": secret.Address, "clientSecret": secret.Signing, "ua": "Fealdhord",
 		"subscriptions": []map[string]string{{"type": "CALLBACK", "topic": topic}},
-	}, "", &socket) != nil || socket.Ticket == "" {
-		return errPairConnection
+	}, map[string]string{"Accept": "application/json"})
+	if err != nil {
+		return errors.New("无法向钉钉申请 Stream 连接，请检查网络后重试")
+	}
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			return fmt.Errorf("钉钉拒绝了 Stream 连接申请（HTTP %d），请核对应用凭据和机器人 Stream 配置", resp.StatusCode)
+		}
+		return fmt.Errorf("钉钉 Stream 连接申请失败（HTTP %d），请稍后重试", resp.StatusCode)
+	}
+	if json.Unmarshal(body, &socket) != nil || socket.Endpoint == "" || socket.Ticket == "" {
+		return errors.New("钉钉未返回有效的 Stream 连接地址和凭证")
 	}
 	u, err := url.Parse(socket.Endpoint)
 	if err != nil {
-		return errPairConnection
+		return errors.New("钉钉返回的 Stream 连接地址无效")
 	}
 	query := u.Query()
 	query.Set("ticket", socket.Ticket)
 	u.RawQuery = query.Encode()
 	conn, err := t.pairSocket(ctx, u.String(), "dingtalk.com")
 	if err != nil {
-		return err
+		return errors.New("无法建立钉钉 Stream WebSocket 连接，请检查网络后重新配对")
 	}
 	defer conn.CloseNow()
 	started := time.Now().UnixMilli()
@@ -505,8 +519,8 @@ func (t transport) pairDingTalk(ctx context.Context, secret connectionSecret, re
 			Headers map[string]string `json:"headers"`
 			Data    string            `json:"data"`
 		}
-		if wsjson.Read(ctx, conn, &frame) != nil || frame.Headers["topic"] == "disconnect" {
-			return errPairConnection
+		if wsjson.Read(ctx, conn, &frame) != nil || (frame.Type == "SYSTEM" && frame.Headers["topic"] == "disconnect") {
+			return errors.New("钉钉 Stream 连接已断开，请重新配对")
 		}
 		data := ""
 		if frame.Type == "SYSTEM" && frame.Headers["topic"] == "ping" {
@@ -514,7 +528,7 @@ func (t transport) pairDingTalk(ctx context.Context, secret connectionSecret, re
 		}
 		ack := map[string]any{"code": 200, "headers": map[string]string{"messageId": frame.Headers["messageId"], "contentType": "application/json"}, "message": "OK", "data": data}
 		if wsjson.Write(ctx, conn, ack) != nil {
-			return errPairConnection
+			return errors.New("无法确认钉钉 Stream 消息，请重新配对")
 		}
 		if frame.Type == "CALLBACK" && frame.Headers["topic"] == topic {
 			var event struct {

@@ -25,6 +25,8 @@
 
 钉钉应用机器人的表单显示 Client ID 和 Client Secret，沿用 `ChannelInput.Address` 和 `ChannelInput.Signing`。Stream 握手使用 `clientId` 和 `clientSecret`，主动发送的 OAuth 接口仍使用 `appKey` 和 `appSecret`。Stream 接收配置与主动发送所需的「企业内机器人发送消息权限」分别在操作步骤中说明。
 
+钉钉向 `/v1.0/gateway/connections/open` 申请连接，只订阅机器人消息的 `CALLBACK`。使用返回的 endpoint 和临时 ticket 建立 WebSocket。共享网关校验接受受信域名的 `wss` 地址，可省略端口或显式使用 `443`。校验时按 hostname 检查域名边界，拒绝其他端口与 URL 用户信息。[钉钉 Stream 协议](https://open-dingtalk.github.io/developerpedia/docs/learn/stream/protocol/)
+
 QQ 渠道复用 `Channel.mode`。空字符串为正式环境，`sandbox` 为沙箱。两种环境共用 `bots.qq.com/app/getAppAccessToken`。正式和沙箱使用腾讯 SDK 的 `api.sgroup.qq.com` 系列地址。网关发现、投递和测试分别请求对应环境地址。渠道环境与验证过的收件目标一起保存，已有渠道更换环境时重新添加并配对。QQ 在 `READY` 后发送心跳并收到 `op=11` 后进入 `listening`，收到消息后才展示收件候选。连续未确认心跳或断线结束本次配对，由用户发起下一次连接。
 
 ## 4. 校验与错误
@@ -32,6 +34,8 @@ QQ 渠道复用 `Channel.mode`。空字符串为正式环境，`sandbox` 为沙�
 仅匹配去除首尾空白后的「配对」。QQ @ 事件去除机器人的前置提及，全量群事件必须含机器人的提及。接收目标经过发送侧格式校验，去重并限制为 50 个。已保存渠道使用 revision 校验并可复用凭据。Slack App-Level Token 仅用于当前监听。错误、关闭和超时结束监听。企业微信现有自建应用需要消息接收回调，仍通过手动 UserID 完成设置。
 
 飞书与 Lark 以 SDK 握手成功进入 `listening`。只有消息创建时间在本次监听窗口内的用户私聊才能报告收件。只有私聊文本「配对」并携带可用的 `open_id` 才产生候选。单聊权限 `im:message.p2p_msg:readonly` 和接收消息事件需随应用发布。若同一个 AppID 同时有多个长连接，平台可能把事件送给其他客户端。收件校验码需要机器人发送权限。
+
+钉钉连接申请、WebSocket 建连和连接中断分别返回中文诊断。申请被拒时可报告 HTTP 状态，禁止返回上游响应正文、凭证和含 ticket 的网关 URL。
 
 ## 5. 案例
 
@@ -44,6 +48,8 @@ QQ 渠道复用 `Channel.mode`。空字符串为正式环境，`sandbox` 为沙�
 断言三种 QQ 事件取对 ID、全量群消息必须提及机器人、Discord 跳过群聊与机器人。模拟 Telegram 初次积压、无关消息、新配对事件、取消网络轮询以及跳过后保存。微信测试覆盖扫码到手动完成、跳过后恢复绑定及回调过期。QQ 回环 WebSocket 验证正式与沙箱地址、READY 昵称、首个心跳、ACK、收到普通私聊及提取配对候选、无 ACK 时终止。模拟测试投递验证已保存的沙箱环境生效。
 
 飞书与 Lark 回环使用官方 Go SDK 接收事件帧，断言群聊、机器人和旧消息不会产生候选，普通私聊更新收件状态，私聊「配对」提取当前应用的 Open ID。界面测试区分长连接就绪、收到普通私聊和确认候选。
+
+钉钉 TLS 回环模拟官方显式 `:443` 地址，覆盖 ticket、心跳确认和消息回调，断言能够识别成员 UserID。另验证网关拒绝非标准端口、不受信域名和 URL 用户信息，以及申请错误不会回传凭据。
 
 ## 7. 错误与正确做法
 

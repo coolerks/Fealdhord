@@ -22,7 +22,7 @@ const pairingInstructions: Record<string, string> = {
   qq: '私聊发送「配对」，或在普通 QQ 群、QQ 频道的文字子频道中 @机器人并发送「配对」。',
   discord: '在 Discord 里私信机器人「配对」。',
   slack: '在 Slack 应用中启用 Socket Mode 并订阅 message.im，再私聊机器人发送「配对」。',
-  dingtalk: '用同一企业内部应用的 Client ID 和 Client Secret 连接。请确认机器人已启用 Stream 模式，应用已发布且对你的账号可见。连接就绪后，私聊机器人发送「配对」。',
+  dingtalk: '用同一企业内部应用的 Client ID 和 Client Secret 连接。在「应用能力 → 机器人」将消息接收模式设为 Stream 模式，发布版本后确认应用对你的账号可见。连接就绪后，私聊机器人发送「配对」。',
   feishu: '长连接就绪后，请私聊机器人，单独发送「配对」。',
   lark: '长连接就绪后，请私聊机器人，单独发送「配对」。',
   wechat: '在「微信 ClawBot」私聊里发送「配对」。',

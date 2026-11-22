@@ -18,6 +18,122 @@ import (
 	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 )
 
+func TestDingTalkPairingUsesOfficialStreamEndpoint(t *testing.T) {
+	const topic = "/v1.0/im/bot/messages/get"
+	const ticket = "fixture-ticket"
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/connect" || r.URL.Query().Get("ticket") != ticket {
+			t.Error("missing Stream path or ticket")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer conn.CloseNow()
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		send := func(kind, topic, id, data string) bool {
+			if err := wsjson.Write(ctx, conn, map[string]any{
+				"type": kind, "headers": map[string]string{"topic": topic, "messageId": id}, "data": data,
+			}); err != nil {
+				t.Error(err)
+				return false
+			}
+			var ack struct {
+				Code    int               `json:"code"`
+				Headers map[string]string `json:"headers"`
+				Data    string            `json:"data"`
+			}
+			if err := wsjson.Read(ctx, conn, &ack); err != nil || ack.Code != 200 ||
+				ack.Headers["messageId"] != id || (kind == "SYSTEM" && ack.Data != data) {
+				t.Errorf("unexpected %s acknowledgment: %+v, %v", kind, ack, err)
+				return false
+			}
+			return true
+		}
+		if send("SYSTEM", "ping", "1", `{"opaque":"fixture"}`) {
+			send("CALLBACK", topic, "2", fmt.Sprintf(`{"senderStaffId":"employee01","msgtype":"text","createAt":%d,"text":{"content":"配对"}}`, time.Now().Add(time.Second).UnixMilli()))
+		}
+	}))
+	defer server.Close()
+	client := server.Client()
+	loopback, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	underlying := client.Transport
+	client.Transport = sender(func(req *http.Request) (*http.Response, error) {
+		switch req.URL.Host {
+		case "api.dingtalk.com":
+			var body struct {
+				ClientID      string              `json:"clientId"`
+				ClientSecret  string              `json:"clientSecret"`
+				Subscriptions []map[string]string `json:"subscriptions"`
+			}
+			if err := json.NewDecoder(req.Body).Decode(&body); err != nil ||
+				req.URL.Path != "/v1.0/gateway/connections/open" || req.Header.Get("Accept") != "application/json" ||
+				body.ClientID != "fixture-id" || body.ClientSecret != "fixture-secret" ||
+				len(body.Subscriptions) != 1 || body.Subscriptions[0]["type"] != "CALLBACK" || body.Subscriptions[0]["topic"] != topic {
+				t.Error("incorrect Stream registration request")
+				return response(400, "{}"), nil
+			}
+			return response(200, `{"endpoint":"wss://wss-open-connection.dingtalk.com:443/connect","ticket":"fixture-ticket"}`), nil
+		case "wss-open-connection.dingtalk.com:443":
+			req = req.Clone(req.Context())
+			req.URL.Host = loopback.Host
+			return underlying.RoundTrip(req)
+		default:
+			t.Error("unexpected Stream host")
+			return response(500, "{}"), nil
+		}
+	})
+
+	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Second)
+	defer cancel()
+	var ready bool
+	var target string
+	err = (transport{client: client}).pairDingTalk(ctx, connectionSecret{Address: "fixture-id", Signing: "fixture-secret"},
+		func() { ready = true }, func(value string) { target = value })
+	if !ready || target != "employee01" {
+		t.Fatalf("official endpoint did not deliver the pairing message: ready=%t target=%q err=%v", ready, target, err)
+	}
+}
+
+func TestPairSocketRejectsUntrustedGateway(t *testing.T) {
+	client := &http.Client{Transport: sender(func(*http.Request) (*http.Response, error) {
+		t.Error("invalid gateway must be rejected before dialing")
+		return response(500, "{}"), nil
+	})}
+	for _, endpoint := range []string{
+		"wss://wss-open-connection.dingtalk.com:8443/connect",
+		"wss://wss-open-connection.dingtalk.com:/connect",
+		"wss://wss-open-connection.dingtalk.com.invalid:443/connect",
+		"wss://user@wss-open-connection.dingtalk.com:443/connect",
+		"ws://wss-open-connection.dingtalk.com:443/connect",
+	} {
+		if _, err := (transport{client: client}).pairSocket(t.Context(), endpoint, "dingtalk.com"); !errors.Is(err, errPairConnection) {
+			t.Errorf("invalid gateway %q: %v", endpoint, err)
+		}
+	}
+}
+
+func TestDingTalkPairingReportsSafeRegistrationFailure(t *testing.T) {
+	client := &http.Client{Transport: sender(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Host != "api.dingtalk.com" {
+			t.Error("unexpected connection request")
+		}
+		return response(403, `{"message":"fixture-secret-and-ticket"}`), nil
+	})}
+	err := (transport{client: client}).pairDingTalk(t.Context(), connectionSecret{Address: "fixture-id", Signing: "fixture-secret"},
+		func() { t.Error("rejected registration must not become ready") }, func(string) { t.Error("unexpected target") })
+	if err == nil || !strings.Contains(err.Error(), "HTTP 403") || strings.Contains(err.Error(), "fixture") {
+		t.Fatalf("expected only safe registration diagnostics, got %v", err)
+	}
+}
+
 func TestLarkPairingReceivesPrivateMessageEvents(t *testing.T) {
 	for _, platform := range []string{"feishu", "lark"} {
 		t.Run(platform, func(t *testing.T) {
