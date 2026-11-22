@@ -142,6 +142,7 @@ func (s *Service) startRecipientPairing(ctx context.Context, input ChannelInput,
 			}
 		}
 		ready := func() { update(func(value *PairingStatus) { value.State = "listening" }) }
+		received := func() { update(func(value *PairingStatus) { value.ReceivedMessage = true }) }
 		match := func(target string) {
 			if _, err := s.checkRecipients(listen, Channel{Platform: platform, Mode: input.Mode}, secret, []string{target}); err != nil {
 				return
@@ -166,7 +167,7 @@ func (s *Service) startRecipientPairing(ctx context.Context, input ChannelInput,
 				}
 			})
 		}
-		err := s.transport.listenPairing(listen, platform, input.Mode, secret, slackToken, ready, match, observeQQ)
+		err := s.transport.listenPairing(listen, platform, input.Mode, secret, slackToken, ready, received, match, observeQQ)
 		update(func(value *PairingStatus) {
 			p.cancel = nil
 			if listen.Err() == context.DeadlineExceeded {

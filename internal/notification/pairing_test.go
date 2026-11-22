@@ -15,7 +15,97 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 )
+
+func TestLarkPairingReceivesPrivateMessageEvents(t *testing.T) {
+	for _, platform := range []string{"feishu", "lark"} {
+		t.Run(platform, func(t *testing.T) {
+			service, _ := newTestNotification(t)
+			api := NewAPI(service, nil)
+			sendPairing := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := websocket.Accept(w, r, nil)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				defer conn.CloseNow()
+				ctx, cancel := context.WithTimeout(r.Context(), 4*time.Second)
+				defer cancel()
+				write := func(id int, chat, sender, openID, text string, created int64) {
+					payload := fmt.Sprintf(`{"schema":"2.0","header":{"event_id":"event-%d","event_type":"im.message.receive_v1"},"event":{"sender":{"sender_id":{"open_id":%q},"sender_type":%q},"message":{"chat_type":%q,"message_type":"text","create_time":"%d","content":%q}}}`,
+						id, openID, sender, chat, created, fmt.Sprintf(`{"text":%q}`, text))
+					frame := larkws.Frame{Method: int32(larkws.FrameTypeData), Payload: []byte(payload),
+						Headers: []larkws.Header{{Key: larkws.HeaderType, Value: "event"}, {Key: larkws.HeaderSum, Value: "1"}}}
+					data, err := frame.Marshal()
+					if err != nil {
+						t.Error(err)
+						return
+					}
+					if err := conn.Write(ctx, websocket.MessageBinary, data); err != nil {
+						t.Error(err)
+					}
+				}
+				now := time.Now().UnixMilli()
+				write(1, "group", "user", "ou_group", "配对", now)
+				write(2, "p2p", "app", "ou_robot", "配对", now)
+				write(3, "p2p", "user", "ou_old", "配对", 1)
+				write(4, "p2p", "user", "ou_member", "你好", now)
+				select {
+				case <-ctx.Done():
+					return
+				case <-sendPairing:
+					write(5, "p2p", "user", "ou_member", " 配对 ", time.Now().UnixMilli())
+				}
+				for ctx.Err() == nil {
+					if _, _, err := conn.Read(ctx); err != nil {
+						break
+					}
+				}
+			}))
+			defer server.Close()
+			domain := "open.feishu.cn"
+			if platform == "lark" {
+				domain = "open.larksuite.com"
+			}
+			service.transport.client.Transport = sender(func(r *http.Request) (*http.Response, error) {
+				if r.URL.Host != domain || r.URL.Path != "/callback/ws/endpoint" {
+					t.Errorf("unexpected bootstrap URL %s", r.URL)
+					return response(500, "{}"), nil
+				}
+				return response(200, fmt.Sprintf(`{"code":0,"data":{"URL":%q}}`, "ws"+strings.TrimPrefix(server.URL, "http")+"/?device_id=fixture&service_id=1")), nil
+			})
+			pair, err := api.StartRecipientPairing(t.Context(), ChannelInput{
+				Channel: Channel{Platform: platform, Mode: "app"}, Address: "cli_fixture", Signing: "fixture",
+			}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer api.CancelRecipientPairing(pair.ID)
+			waitForStatus := func(match func(PairingStatus) bool) PairingStatus {
+				t.Helper()
+				deadline := time.Now().Add(2 * time.Second)
+				for time.Now().Before(deadline) {
+					status := api.RecipientPairingStatus(pair.ID)
+					if match(status) || status.State == "failed" {
+						return status
+					}
+					time.Sleep(5 * time.Millisecond)
+				}
+				t.Fatalf("timed out waiting for pairing: %+v", api.RecipientPairingStatus(pair.ID))
+				return PairingStatus{}
+			}
+			if got := waitForStatus(func(status PairingStatus) bool { return status.ReceivedMessage }); got.State != "listening" || len(got.Targets) != 0 {
+				t.Fatalf("ordinary DM should be observed without adding a recipient: %+v", got)
+			}
+			close(sendPairing)
+			if got := waitForStatus(func(status PairingStatus) bool { return len(status.Targets) > 0 }); !slices.Equal(got.Targets, []string{"ou_member"}) {
+				t.Fatalf("private pairing event should provide the sender's open ID: %+v", got)
+			}
+		})
+	}
+}
 
 func TestGatewayPairingTargets(t *testing.T) {
 	tests := []struct {

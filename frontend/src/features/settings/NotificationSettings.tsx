@@ -23,13 +23,13 @@ const pairingInstructions: Record<string, string> = {
   discord: '在 Discord 里私信机器人「配对」。',
   slack: '在 Slack 应用中启用 Socket Mode 并订阅 message.im，再私聊机器人发送「配对」。',
   dingtalk: '启用机器人的 Stream 模式。在钉钉里私聊机器人发送「配对」。',
-  feishu: '为应用启用长连接并订阅接收消息事件，然后私聊机器人发送「配对」。',
-  lark: '为应用启用长连接并订阅接收消息事件，然后私聊机器人发送「配对」。',
+  feishu: '长连接就绪后，请私聊机器人，单独发送「配对」。',
+  lark: '长连接就绪后，请私聊机器人，单独发送「配对」。',
   wechat: '在「微信 ClawBot」私聊里发送「配对」。',
 }
 const terminalWeChatStatuses = ['connected', 'expired', 'verify_code_blocked', 'binded_redirect']
 const larkAppSteps = (portal: string, url: string) =>
-  `去 [${portal}](${url}) 建一个企业自建应用并开启机器人，事件订阅选择**使用长连接接收事件**并添加\`im.message.receive_v1\`（接收消息），发布应用后把 **AppID** 和 **AppSecret** 填到下方。点**下一步**开始配对后，在聊天里私聊机器人发送\`配对\`。`
+  `在 [${portal}](${url}) 创建企业自建应用并开启机器人。在权限管理中开通**获取用户发给机器人的单聊消息**（\`im:message.p2p_msg:readonly\`）和**以应用的身份发消息**（\`im:message:send_as_bot\`）。在折栈填入 **AppID** 和 **AppSecret**，点**下一步**，再点**开始配对**建立长连接。回到开放平台，在**事件与回调**中选择**使用长连接接收事件**，添加\`im.message.receive_v1\`，设置应用可用范围并发布。回到折栈确认长连接就绪，再私聊机器人发送\`配对\`。`
 const larkWebhookSteps = '在目标群的 **设置 → 群机器人** 里添加自定义机器人，把 **Webhook 网址**填到下方；如果开启了签名校验，把**加签密钥**也填上。需要发送图片的话，可再填上用于上传图片的应用 **AppID** 和 **AppSecret**。'
 const platforms: { value: string; label: string; steps: string; docs?: string; webhookDocs?: string; webhookSteps?: string }[] = [
   {
@@ -256,6 +256,7 @@ export function NotificationSettings() {
   const pairStatus = pairingPoll.data ?? pairing
   const appMode = channel?.mode === 'app'
   const platform = platforms.find(item => item.value === channel?.platform)
+  const larkPairing = channel?.platform === 'feishu' || channel?.platform === 'lark'
   const webhookMode = Boolean(platform?.webhookDocs && !appMode)
   const platformDocs = webhookMode ? platform?.webhookDocs : platform?.docs
   const savedRecipients = channels.data?.find(value => value.id === channel?.id)?.recipients ?? []
@@ -646,7 +647,9 @@ export function NotificationSettings() {
                         {pairStatus.targets?.length ? '已收到配对消息，请勾选收件目标' :
                           channel.platform === 'qq' ? (pairStatus.received_message
                             ? '已收到 QQ 消息。请单独发送「配对」。'
-                            : 'QQ 网关已连接，尚未收到聊天消息') : '正在等待配对消息'}
+                            : 'QQ 网关已连接，尚未收到聊天消息') : larkPairing
+                            ? (pairStatus.received_message ? '已收到私聊消息，请单独发送「配对」。' : '长连接已建立，尚未收到私聊消息。')
+                            : '正在等待配对消息'}
                       </p>
                     )}
                     {channel.platform === 'qq' && pairStatus?.state === 'listening' && !pairStatus.received_message && !pairStatus.targets?.length && (
@@ -656,10 +659,16 @@ export function NotificationSettings() {
                           : '如果手机提示「未连接灵魂」，请点手机上的「查看指引」，核对当前聊天是否对应上方机器人。'}
                       </p>
                     )}
+                    {larkPairing && ['listening', 'expired'].includes(pairStatus?.state ?? '') && !pairStatus?.received_message && (
+                      <p className="text-xs text-muted-foreground">
+                        请在开放平台确认已开通「获取用户发给机器人的单聊消息」并发布权限变更。配对期间请暂停使用同一 AppID 的其他长连接客户端。
+                      </p>
+                    )}
                     {pairStatus?.state === 'expired' && (
                       <FieldError>{channel.platform === 'qq' && !pairStatus.targets?.length ? (pairStatus.received_message
                         ? '已收到 QQ 消息，但未识别到「配对」。本次配对已结束。'
-                        : 'QQ 网关未送达聊天消息，本次配对已结束。') : '配对已超时'}</FieldError>
+                        : 'QQ 网关未送达聊天消息，本次配对已结束。') : larkPairing && !pairStatus.targets?.length && !pairStatus.received_message
+                        ? '配对已超时，未收到私聊消息。可在开放平台的「日志检索 → 事件日志检索」核对投递记录。' : '配对已超时'}</FieldError>
                     )}
                     {pairStatus?.state === 'failed' && <FieldError>{pairStatus.detail}</FieldError>}
                     {pairingPoll.isError && <FieldError>暂时无法读取配对状态</FieldError>}

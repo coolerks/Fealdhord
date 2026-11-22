@@ -29,6 +29,8 @@
 
 Telegram 私聊可直接使用数字用户 ID，每行一个。每位收件人首次接收前，需打开用于推送的机器人并点「开始」或发一条消息。详见 [Telegram 会话 ID](https://core.telegram.org/api/bots/ids#user-ids)和[机器人私聊规则](https://core.telegram.org/bots#how-are-bots-different-from-humans)。
 
+飞书和 Lark 私聊配对需要开通「获取用户发给机器人的单聊消息」（`im:message.p2p_msg:readonly`），订阅「接收消息」（`im.message.receive_v1`），并发布应用。发送收件校验码需要「以应用的身份发消息」（`im:message:send_as_bot`）。如果界面显示长连接已建立但一直收不到私聊，请在开放平台核对权限及事件日志，并暂停使用同一 AppID 的其他长连接客户端。[飞书长连接说明](https://open.feishu.cn/document/ukTMukTMukTM/uYDNxYjL2QTM24iN0EjN/event-subscription-configure-)
+
 个人微信在手机确认之后，需要扫码账号在「微信 ClawBot」私聊里发送「配对」。桌面端发现会话后可确认保存，从渠道列表发送测试。绑定过期或上游报错时停止自动轮询，可重新生成二维码。
 
 群或频道 Webhook 固定投递给绑定会话。需要个人定向收件时，添加相应的应用机器人连接。规则和 AI 工具选择已配置渠道，每个渠道会投递给其中已验证的收件目标。发送测试也只使用保存的目标。

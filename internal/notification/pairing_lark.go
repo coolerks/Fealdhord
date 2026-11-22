@@ -19,7 +19,7 @@ func (pairingLarkLogger) Info(context.Context, ...any)  {}
 func (pairingLarkLogger) Warn(context.Context, ...any)  {}
 func (pairingLarkLogger) Error(context.Context, ...any) {}
 
-func (t transport) pairLark(ctx context.Context, platform string, secret connectionSecret, ready func(), match func(string)) error {
+func (t transport) pairLark(ctx context.Context, platform string, secret connectionSecret, ready, received func(), match func(string)) error {
 	domain := "https://open.feishu.cn"
 	if platform == "lark" {
 		domain = "https://open.larksuite.com"
@@ -30,15 +30,23 @@ func (t transport) pairLark(ctx context.Context, platform string, secret connect
 			return nil
 		}
 		message, sender := event.Event.Message, event.Event.Sender
-		if message.Content == nil || message.CreateTime == nil || message.MessageType == nil || *message.MessageType != "text" ||
-			sender.SenderType == nil || *sender.SenderType != "user" || sender.SenderId == nil || sender.SenderId.OpenId == nil {
+		if message.ChatType == nil || *message.ChatType != "p2p" || message.CreateTime == nil ||
+			sender.SenderType == nil || *sender.SenderType != "user" {
 			return nil
 		}
-		created, _ := strconv.ParseInt(*message.CreateTime, 10, 64)
+		created, err := strconv.ParseInt(*message.CreateTime, 10, 64)
+		if err != nil || created < started {
+			return nil
+		}
+		received()
+		if message.Content == nil || message.MessageType == nil || *message.MessageType != "text" ||
+			sender.SenderId == nil || sender.SenderId.OpenId == nil || *sender.SenderId.OpenId == "" {
+			return nil
+		}
 		var content struct {
 			Text string `json:"text"`
 		}
-		if created >= started && json.Unmarshal([]byte(*message.Content), &content) == nil && isPairingText(content.Text) {
+		if json.Unmarshal([]byte(*message.Content), &content) == nil && isPairingText(content.Text) {
 			match(*sender.SenderId.OpenId)
 		}
 		return nil

@@ -19,7 +19,7 @@ import (
 
 var errPairConnection = errors.New("无法接收配对消息，请检查机器人凭据和平台接收权限")
 
-func (t transport) listenPairing(ctx context.Context, platform, mode string, secret connectionSecret, slackToken string, ready func(), match func(string), observeQQ func(qqPairingObservation)) error {
+func (t transport) listenPairing(ctx context.Context, platform, mode string, secret connectionSecret, slackToken string, ready, received func(), match func(string), observeQQ func(qqPairingObservation)) error {
 	switch platform {
 	case "telegram":
 		return t.pairTelegram(ctx, secret.Address, ready, match)
@@ -30,7 +30,7 @@ func (t transport) listenPairing(ctx context.Context, platform, mode string, sec
 	case "dingtalk":
 		return t.pairDingTalk(ctx, secret, ready, match)
 	case "feishu", "lark":
-		return t.pairLark(ctx, platform, secret, ready, match)
+		return t.pairLark(ctx, platform, secret, ready, received, match)
 	}
 	return errPairConnection
 }

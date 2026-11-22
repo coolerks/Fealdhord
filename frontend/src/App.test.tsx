@@ -1167,6 +1167,33 @@ describe('Phase 1 阅读 Shell', () => {
     })))
   })
 
+  it('飞书配对区分长连接就绪、收到私聊和识别配对', async () => {
+    const waiting = { id: 'feishu-pair', state: 'listening', targets: [] }
+    notificationAPI.StartRecipientPairing.mockResolvedValue(waiting)
+    notificationAPI.RecipientPairingStatus.mockResolvedValue(waiting)
+    const user = userEvent.setup()
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    await user.click(await screen.findByRole('button', { name: '通知' }))
+    await user.click(await screen.findByRole('button', { name: '添加渠道' }))
+    await user.click(screen.getByRole('button', { name: '平台' }))
+    await user.click(await screen.findByRole('option', { name: '飞书' }))
+    await user.click(screen.getByRole('button', { name: '接入方式' }))
+    await user.click(await screen.findByRole('option', { name: '应用机器人私发' }))
+    await user.type(screen.getByLabelText('AppID'), 'cli_fixture')
+    await user.type(screen.getByLabelText('AppSecret'), 'example-secret')
+    await user.click(screen.getByRole('button', { name: '下一步' }))
+    await user.click(screen.getByRole('button', { name: '开始配对' }))
+    expect(await screen.findByText('长连接已建立，尚未收到私聊消息。')).toBeInTheDocument()
+    expect(screen.getByText(/获取用户发给机器人的单聊消息/)).toBeInTheDocument()
+
+    notificationAPI.RecipientPairingStatus.mockResolvedValue({ ...waiting, received_message: true })
+    expect(await screen.findByText('已收到私聊消息，请单独发送「配对」。', {}, { timeout: 2000 })).toBeInTheDocument()
+    notificationAPI.RecipientPairingStatus.mockResolvedValue({ ...waiting, received_message: true, targets: ['ou_member'] })
+    expect(await screen.findByRole('checkbox', { name: 'ou_member' }, { timeout: 2000 })).not.toBeChecked()
+    expect(notificationAPI.SaveChannel).not.toHaveBeenCalled()
+  })
+
   it('QQ 配对需要确认收件目标，最后才保存渠道', async () => {
     const pair = { id: 'qq-pair', state: 'listening', bot_name: '文章通知机器人', targets: ['c2c:friend', 'group:team', 'channel:42'] }
     const waiting = { ...pair, targets: [] }

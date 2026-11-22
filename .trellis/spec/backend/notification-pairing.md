@@ -12,7 +12,7 @@
 
 ## 3. 契约
 
-`PairingStatus` 包含 `id`、`state`、`targets` 和可选 `detail`。QQ 另返回 `bot_name` 与 `received_message`，分别来自 READY 的机器人昵称和首次受支持的聊天事件。心跳、机器人进群事件和其他通用帧不设置聊天收件标志。状态为 `connecting`、`listening`、`failed` 或 `expired`。配对只在内存运行，同一时间最多一个非微信监听，最长三分钟。前端勾选候选后将收件目标写入确认页的草稿，使用 `SaveChannel` 提交。空收件目标草稿保持待验证。
+`PairingStatus` 包含 `id`、`state`、`targets` 和可选 `detail`。QQ 从 READY 返回 `bot_name`，收到受支持的聊天事件后设置 `received_message`。飞书和 Lark 收到本次监听期间由用户发送的 `p2p` 消息后设置同一个 `received_message`。心跳、机器人进群事件和其他通用帧不设置聊天收件标志。状态为 `connecting`、`listening`、`failed` 或 `expired`。配对只在内存运行，同一时间最多一个非微信监听，最长三分钟。前端勾选候选后将收件目标写入确认页的草稿，使用 `SaveChannel` 提交。空收件目标草稿保持待验证。
 
 | 平台 | 事件与目标 |
 | --- | --- |
@@ -20,7 +20,7 @@
 | Discord | Gateway 的私聊 `MESSAGE_CREATE` → `author.id` |
 | Slack | Socket Mode `message.im` → `user`，与 Bot Token 的工作区一致 |
 | 钉钉 | Stream 机器人文本回调 → `senderStaffId` |
-| 飞书与 Lark | 长连接 `im.message.receive_v1` → `sender.sender_id.open_id` |
+| 飞书与 Lark | 长连接 `im.message.receive_v1`，`message.chat_type=p2p` 且 `sender.sender_type=user` → `sender.sender_id.open_id` |
 | QQ | `C2C_MESSAGE_CREATE` → `c2c:user_openid`，群 @ → `group:group_openid`，文字子频道 @ → `channel:channel_id` |
 
 QQ 渠道复用 `Channel.mode`。空字符串为正式环境，`sandbox` 为沙箱。两种环境共用 `bots.qq.com/app/getAppAccessToken`。正式和沙箱使用腾讯 SDK 的 `api.sgroup.qq.com` 系列地址。网关发现、投递和测试分别请求对应环境地址。渠道环境与验证过的收件目标一起保存，已有渠道更换环境时重新添加并配对。QQ 在 `READY` 后发送心跳并收到 `op=11` 后进入 `listening`，收到消息后才展示收件候选。连续未确认心跳或断线结束本次配对，由用户发起下一次连接。
@@ -28,6 +28,8 @@ QQ 渠道复用 `Channel.mode`。空字符串为正式环境，`sandbox` 为沙�
 ## 4. 校验与错误
 
 仅匹配去除首尾空白后的「配对」。QQ @ 事件去除机器人的前置提及，全量群事件必须含机器人的提及。接收目标经过发送侧格式校验，去重并限制为 50 个。已保存渠道使用 revision 校验并可复用凭据。Slack App-Level Token 仅用于当前监听。错误、关闭和超时结束监听。企业微信现有自建应用需要消息接收回调，仍通过手动 UserID 完成设置。
+
+飞书与 Lark 以 SDK 握手成功进入 `listening`。只有消息创建时间在本次监听窗口内的用户私聊才能报告收件。只有私聊文本「配对」并携带可用的 `open_id` 才产生候选。单聊权限 `im:message.p2p_msg:readonly` 和接收消息事件需随应用发布。若同一个 AppID 同时有多个长连接，平台可能把事件送给其他客户端。收件校验码需要机器人发送权限。
 
 ## 5. 案例
 
@@ -38,6 +40,8 @@ QQ 渠道复用 `Channel.mode`。空字符串为正式环境，`sandbox` 为沙�
 ## 6. 必需测试
 
 断言三种 QQ 事件取对 ID、全量群消息必须提及机器人、Discord 跳过群聊与机器人。模拟 Telegram 初次积压、无关消息、新配对事件、取消网络轮询以及跳过后保存。微信测试覆盖扫码到手动完成、跳过后恢复绑定及回调过期。QQ 回环 WebSocket 验证正式与沙箱地址、READY 昵称、首个心跳、ACK、收到普通私聊及提取配对候选、无 ACK 时终止。模拟测试投递验证已保存的沙箱环境生效。
+
+飞书与 Lark 回环使用官方 Go SDK 接收事件帧，断言群聊、机器人和旧消息不会产生候选，普通私聊更新收件状态，私聊「配对」提取当前应用的 Open ID。界面测试区分长连接就绪、收到普通私聊和确认候选。
 
 ## 7. 错误与正确做法
 
