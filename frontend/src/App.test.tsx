@@ -32,7 +32,7 @@ vi.mock('@/lib/rss-api',()=>({feedsQueryKey:['rss','feeds'],rssAPI:{list:vi.fn(a
 vi.mock('@/lib/navigation-api',()=>({navigationQueryKey:['navigation'],navigationAPI:{list:vi.fn(async()=>({categories:[],feeds:[],totals:{total:0,unread:0,favorites:0}}))}}))
 const reader=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
 vi.mock('@/lib/reader-api',()=>({readerAPI:reader}))
-const chat = vi.hoisted(() => ({ List: vi.fn(), Create: vi.fn(), Messages: vi.fn(), Send: vi.fn(), Cancel: vi.fn(), Model: vi.fn(), ContextStatus: vi.fn() }))
+const chat = vi.hoisted(() => ({ List: vi.fn(), Create: vi.fn(), Branch: vi.fn(), Messages: vi.fn(), Send: vi.fn(), Cancel: vi.fn(), Model: vi.fn(), ContextStatus: vi.fn() }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/chat/api', () => chat)
 const listAIConfiguration = vi.hoisted(() => vi.fn())
 const saveAIModel = vi.hoisted(() => vi.fn())
@@ -606,6 +606,32 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(await within(models).findByRole('button', { name: '编辑' }))
     expect(screen.getByRole('button', { name: '删除档位 深度' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '删除档位 中' })).not.toBeInTheDocument()
+  })
+
+  it('回复操作复制正文、按消息分支并在弹窗显示详情', async () => {
+    const user = userEvent.setup()
+    chat.List.mockResolvedValue([{ id: 'source', title: '原始会话' }])
+    chat.Messages.mockImplementation(async (id: string) => [{
+      id: id === 'source' ? 'reply' : 'branch-reply', role: 'assistant', status: 'complete', modelName: '测试 DeepSeek',
+      text: id === 'source' ? '**回复内容**' : '分支内容',
+      details: { durationMs: 1234, rounds: 2, reasoningEffort: '低', inputTokens: 3500, cachedInputTokens: 0, outputTokens: 27 },
+    }])
+    chat.Branch.mockResolvedValue({ id: 'branch', title: '分支会话' })
+    setup()
+    await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    expect(await screen.findByText('回复内容')).toBeInTheDocument()
+    expect(screen.queryByText('测试 DeepSeek')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '复制回复' }))
+    expect(host.copy).toHaveBeenCalledWith('**回复内容**')
+    await user.click(screen.getByRole('button', { name: '查看回复详情' }))
+    const details = within(await screen.findByRole('dialog', { name: '回复详情' }))
+    for (const value of ['测试 DeepSeek', '1.23 秒', '2', '低', '3,500', '0', '27']) {
+      expect(details.getByText(value)).toBeInTheDocument()
+    }
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: '分支到新聊天' }))
+    expect(chat.Branch).toHaveBeenCalledWith('source', 'reply')
+    expect(await screen.findByText('分支内容')).toBeInTheDocument()
   })
 
   it('全局回复安全渲染 Markdown，聊天代码主题和文章主题独立保存', async () => {

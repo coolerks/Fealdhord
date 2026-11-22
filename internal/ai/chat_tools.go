@@ -115,6 +115,7 @@ func encodeChatHistory(payload *chatRequest, req *ModelRequest) error {
 		switch message.Role {
 		case "system", "user":
 		case "assistant":
+			wire.ReasoningContent = message.ReasoningContent
 			if len(message.ToolCalls) > maxChatTools {
 				return invalid
 			}
@@ -143,6 +144,29 @@ func encodeChatHistory(payload *chatRequest, req *ModelRequest) error {
 		return invalid
 	}
 	return nil
+}
+
+// Persisted history contains visible messages only. Start the provider's
+// resumable history at the current question and carry prior turns as context.
+func deepSeekHistory(messages []chatMessage) []chatMessage {
+	start, end := 0, 0
+	if messages[0].Role == "system" {
+		start = 1
+	}
+	for i, message := range messages[start:] {
+		if message.Role == "assistant" && message.ReasoningContent == nil && len(message.ToolCalls) == 0 {
+			end = start + i + 1
+		}
+	}
+	if end <= start || end >= len(messages) || messages[end].Role != "user" {
+		return messages
+	}
+	var history strings.Builder
+	for _, message := range messages[start:end] {
+		history.WriteString(message.Role + ": " + message.Content + "\n\n")
+	}
+	messages[end].Content = "先前可见对话（仅供参考）：\n" + history.String() + "本轮用户消息：\n" + messages[end].Content
+	return append(messages[:start], messages[end:]...)
 }
 
 func completeChatCalls(wire []chatToolCall, offered map[string]bool) ([]ToolCall, error) {

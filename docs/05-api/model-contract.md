@@ -72,7 +72,7 @@ Chat Completions 当前以配置的 API 基础路径追加 `chat/completions`，
 
 Chat Completions 的流式调用以工具索引累积参数，单轮最多 128 项，单项参数最多 64 KiB。收到 `tool_calls` 结束原因和 `[DONE]`，且整批调用 ID、工具名和 JSON 对象均验证通过后，才发出各项 `tool_call_end`。调用方应等到 `message_end` 再进入 Runtime 的参数 Schema 校验和审批。续轮按 `assistant.tool_calls` 和对应的 `role=tool` 消息编码，缺失、重复或无对应调用的结果在发请求前拒绝。
 
-DeepSeek V4 系列经原生或兼容 Chat Completions 接入且本轮带工具时，发送 `thinking.type=disabled`，省略 `reasoning_effort`。路由模型 ID 完整发送，模式识别使用末段。该模式用于折栈只保存可见历史的对话，避免推理模式在工具续轮要求回传 `reasoning_content`。无工具请求仍使用选定思考档位。[DeepSeek 思考模式](https://api-docs.deepseek.com/guides/thinking_mode/)
+DeepSeek V4 系列经原生或兼容 Chat Completions 接入且本轮带工具时，使用所选 `reasoning_effort` 并发送 `thinking.type=enabled`。显式选中 `none` 时发送 `thinking.type=disabled`。流式工具调用的 `reasoning_content` 和工具调用一起仅留在当前生成的内存中，原样随工具结果续传。推理已启用且工具调用缺少该字段时，在执行工具前返回协议错误。下一条用户消息将已保存的可见历史作为新请求的上下文附入。路由模型 ID 完整发送，模式识别使用末段。[DeepSeek 思考模式](https://api-docs.deepseek.com/guides/thinking_mode/)
 
 Responses 在配置的 API 基础路径追加 `responses`，用 `instructions` 传顶层提示，关闭服务端响应存储，使用本地历史传回函数调用与结果。工具片段按输出项 ID 归并，成功结束时与终态输出逐项核对。Responses 不支持 `stop`，在请求前返回 CapabilityError。
 

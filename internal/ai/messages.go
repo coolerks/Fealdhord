@@ -224,7 +224,24 @@ func normalizeMessages(reason string, usage *tokenUsage, wire []chatToolCall, of
 	if err != nil {
 		return nil, err
 	}
-	return &ModelResponse{Message: Message{Role: "assistant", ToolCalls: calls}, FinishReason: finish, Usage: usage.normalized()}, nil
+	combined := usage.normalized()
+	if combined != nil {
+		combined.CachedInputTokens = usage.CacheRead
+		if usage.Input != nil && (usage.CacheRead != nil || usage.CacheCreation != nil) {
+			input := *usage.Input
+			for _, value := range []*int{usage.CacheRead, usage.CacheCreation} {
+				if value != nil {
+					input += *value
+				}
+			}
+			combined.InputTokens = &input
+			if usage.Total == nil && usage.Output != nil {
+				total := input + *usage.Output
+				combined.TotalTokens = &total
+			}
+		}
+	}
+	return &ModelResponse{Message: Message{Role: "assistant", ToolCalls: calls}, FinishReason: finish, Usage: combined}, nil
 }
 
 func (m *Messages) Stream(ctx context.Context, req *ModelRequest) (<-chan ModelEvent, error) {
@@ -302,6 +319,12 @@ func (s *messagesStream) read(data string, send func(ModelEvent) bool) (bool, er
 			}
 			if event.Usage.Output != nil {
 				s.usage.Output = event.Usage.Output
+			}
+			if event.Usage.CacheRead != nil {
+				s.usage.CacheRead = event.Usage.CacheRead
+			}
+			if event.Usage.CacheCreation != nil {
+				s.usage.CacheCreation = event.Usage.CacheCreation
 			}
 		}
 		return false, nil

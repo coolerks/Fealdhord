@@ -27,10 +27,11 @@ type ModelRequest struct {
 }
 
 type Message struct {
-	Role       string
-	Content    []ContentBlock
-	ToolCalls  []ToolCall
-	ToolCallID string
+	Role             string
+	Content          []ContentBlock
+	ToolCalls        []ToolCall
+	ToolCallID       string
+	ReasoningContent *string
 }
 
 type ToolDefinition struct {
@@ -56,9 +57,10 @@ type ContentBlock struct {
 }
 
 type Usage struct {
-	InputTokens  *int
-	OutputTokens *int
-	TotalTokens  *int
+	InputTokens       *int
+	CachedInputTokens *int
+	OutputTokens      *int
+	TotalTokens       *int
 }
 
 type ModelResponse struct {
@@ -68,17 +70,18 @@ type ModelResponse struct {
 }
 
 type ModelEvent struct {
-	Type           string
-	MessageID      string
-	Sequence       uint64
-	Text           string
-	CallID         string
-	ToolName       string
-	ArgumentsDelta string
-	ToolCall       *ToolCall
-	Usage          *Usage
-	FinishReason   string
-	Error          error
+	Type             string
+	MessageID        string
+	Sequence         uint64
+	Text             string
+	CallID           string
+	ToolName         string
+	ArgumentsDelta   string
+	ToolCall         *ToolCall
+	Usage            *Usage
+	FinishReason     string
+	ReasoningContent *string
+	Error            error
 }
 
 type ModelError struct {

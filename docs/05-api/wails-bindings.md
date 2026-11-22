@@ -1,5 +1,7 @@
 # Wails 应用边界契约
 
+`Chat.Branch(id, messageID)` 原子复制原会话到指定的已结束助手消息，返回新会话。目标消息须属于源会话，否则返回 `ChatBranchUnavailable`。`Chat.Messages` 的助手消息可包含 `details`，包括毫秒耗时、模型调用轮次、思考档位和服务用量。迁移 00023 保留旧记录，未采集字段可缺省。
+
 ## 1. 范围与触发条件
 
 React → Go 服务的所有交互。以下为折栈逻辑 API，实际 Wails 生成语法和文件路径在 Phase 0 最小实验确认；不能把本节示意当成现成绑定。

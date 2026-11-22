@@ -8,9 +8,14 @@ import (
 )
 
 type tokenUsage struct {
-	Input  *int `json:"input_tokens"`
-	Output *int `json:"output_tokens"`
-	Total  *int `json:"total_tokens"`
+	Input        *int `json:"input_tokens"`
+	Output       *int `json:"output_tokens"`
+	Total        *int `json:"total_tokens"`
+	InputDetails struct {
+		CachedTokens *int `json:"cached_tokens"`
+	} `json:"input_tokens_details"`
+	CacheRead     *int `json:"cache_read_input_tokens"`
+	CacheCreation *int `json:"cache_creation_input_tokens"`
 }
 
 func (u *tokenUsage) normalized() *Usage {
@@ -22,7 +27,7 @@ func (u *tokenUsage) normalized() *Usage {
 		sum := *u.Input + *u.Output
 		total = &sum
 	}
-	return &Usage{InputTokens: u.Input, OutputTokens: u.Output, TotalTokens: total}
+	return &Usage{InputTokens: u.Input, CachedInputTokens: u.InputDetails.CachedTokens, OutputTokens: u.Output, TotalTokens: total}
 }
 
 func decodeModelResponse(response *http.Response, result any) error {

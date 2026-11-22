@@ -14,7 +14,7 @@ func SupportsReasoningTools(adapter Model, model, effort string) bool {
 		// Stateless continuation would need to replay the provider's reasoning items.
 		return effort == "none"
 	case *ChatCompletions:
-		if UsesDeepSeekToolMode(adapter, model) {
+		if SupportsDeepSeekThinkingTools(adapter, model) {
 			return true
 		}
 		// Some providers reject this combination or require reasoning data on tool continuations.
@@ -25,9 +25,8 @@ func SupportsReasoningTools(adapter Model, model, effort string) bool {
 	}
 }
 
-// UsesDeepSeekToolMode identifies the Chat Completions routes where we can
-// explicitly select DeepSeek's non-thinking mode while sending tools.
-func UsesDeepSeekToolMode(adapter Model, model string) bool {
+// SupportsDeepSeekThinkingTools identifies routes using DeepSeek's continuation protocol.
+func SupportsDeepSeekThinkingTools(adapter Model, model string) bool {
 	client, ok := adapter.(*ChatCompletions)
 	if !ok || client.host == "openrouter.ai" || client.host == "api.openai.com" {
 		return false

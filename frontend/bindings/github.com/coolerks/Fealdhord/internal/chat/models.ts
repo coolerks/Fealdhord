@@ -34,7 +34,17 @@ export interface Message {
     "status": string;
     "errorCode": string;
     "modelName": string;
+    "details"?: ReplyDetails | null;
     "tools"?: ToolActivity[] | null;
+}
+
+export interface ReplyDetails {
+    "durationMs": number;
+    "rounds": number;
+    "reasoningEffort": string;
+    "inputTokens"?: number | null;
+    "cachedInputTokens"?: number | null;
+    "outputTokens"?: number | null;
 }
 
 export interface Scope {

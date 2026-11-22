@@ -94,6 +94,9 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 			return err
 		}
 		continuationBytes += len(reply.text)
+		if reply.reasoning != nil {
+			continuationBytes += len(*reply.reasoning)
+		}
 		for _, call := range reply.calls {
 			continuationBytes += len(call.ArgumentsJSON) + len(call.Name) + len(call.ID)
 		}
@@ -101,7 +104,7 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 			return failure("AgentLimitExceeded")
 		}
 		attempts += len(reply.calls)
-		request.Messages = append(request.Messages, ai.Message{Role: "assistant", Content: textContent(reply.text), ToolCalls: reply.calls})
+		request.Messages = append(request.Messages, ai.Message{Role: "assistant", Content: textContent(reply.text), ToolCalls: reply.calls, ReasoningContent: reply.reasoning})
 		for _, call := range reply.calls {
 			if err := ctx.Err(); err != nil {
 				return err
@@ -146,9 +149,10 @@ func validateCalls(calls []ai.ToolCall, allowed map[string]ReadTool, executed ma
 }
 
 type turnReply struct {
-	text   string
-	finish string
-	calls  []ai.ToolCall
+	text      string
+	finish    string
+	calls     []ai.ToolCall
+	reasoning *string
 }
 
 func collect(ctx context.Context, model ai.Model, request *ai.ModelRequest, forward func(ai.ModelEvent) bool) (turnReply, error) {
@@ -192,12 +196,13 @@ func collect(ctx context.Context, model ai.Model, request *ai.ModelRequest, forw
 					return reply, failure("ProviderProtocolError")
 				}
 				reply.calls = append(reply.calls, *event.ToolCall)
-			case "usage":
+			case "message_start", "usage":
 				if !forward(event) {
 					return reply, ctx.Err()
 				}
 			case "message_end":
 				reply.finish = event.FinishReason
+				reply.reasoning = event.ReasoningContent
 			case "error":
 				if event.Error == nil {
 					return reply, failure("ProviderProtocolError")

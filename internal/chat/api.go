@@ -24,6 +24,13 @@ func (a *API) Create(ctx context.Context, scope Scope, title string) (Conversati
 	return a.service.Create(ctx, scope, title)
 }
 
+func (a *API) Branch(ctx context.Context, id, messageID string) (Conversation, error) {
+	if a.service == nil {
+		return Conversation{}, modelError("StorageError")
+	}
+	return a.service.Branch(ctx, id, messageID)
+}
+
 func (a *API) Messages(ctx context.Context, id string) ([]Message, error) {
 	if a.service == nil {
 		return nil, modelError("StorageError")

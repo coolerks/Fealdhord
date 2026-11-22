@@ -32,6 +32,8 @@ import { aiConfigurationKey } from '@/lib/ai-configuration'
 import { useReaderCodeTheme } from '@/features/reader/code-themes'
 import { ChatMarkdown } from './ChatMarkdown'
 import { chatMessagesKey, useChatMessages } from './useChatMessages'
+import { ReplyActions } from './ReplyActions'
+import { notify } from '@/lib/notifications'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/api'
 import { List as listAIConfiguration } from '../../../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/api'
 import './chat-workspace.css'
@@ -248,6 +250,17 @@ function ChatSession({ target, close, workspace }: {
     mutationFn: (id: string) => api.Cancel(id),
     onSuccess: (_result, id) => cache.invalidateQueries({ queryKey: chatMessagesKey(id) }),
   })
+  const branch = useMutation({
+    mutationFn: ({ id, messageId }: { id: string; messageId: string }) => api.Branch(id, messageId),
+    onSuccess: (created, { id }) => {
+      void cache.invalidateQueries({ queryKey: listKey })
+      if (conversationId === id) {
+        choose(created.id)
+        composer.current?.focus({ preventScroll: true })
+      }
+    },
+    onError: () => { void notify('无法创建聊天分支', undefined, true) },
+  })
   function selectModel(id: string) {
     if (id !== rememberedModelID) patchPreferences({ chat_model_id: id })
     send.reset()
@@ -430,7 +443,7 @@ function ChatSession({ target, close, workspace }: {
     }}>
       {messages.isError && <Button size="sm" variant="ghost" onClick={() => void messages.refetch()}>重新读取消息</Button>}
       {messages.data?.map(message => <section key={message.id} className={workspace ? 'chat-message' : message.role === 'user' ? 'ml-auto w-fit max-w-[90%] rounded-xl bg-muted p-3' : 'mr-3 rounded-xl border p-3'} data-role={workspace ? message.role : undefined}>
-        {(!workspace || message.role !== 'user') && <p className="text-xs text-muted-foreground">{message.role === 'user' ? '你' : message.modelName}</p>}
+        {!workspace && message.role === 'user' && <p className="text-xs text-muted-foreground">你</p>}
         {message.text && (workspace && message.role === 'assistant'
           ? <ChatMarkdown text={message.text} streaming={message.status === 'running'} />
           : <p className="whitespace-pre-wrap break-words">{message.text}</p>)}
@@ -440,6 +453,8 @@ function ChatSession({ target, close, workspace }: {
         {statusLabels[message.status] && <p className="mt-1 text-sm text-muted-foreground">
           {statusLabels[message.status]}{errorLabels[message.errorCode] && ` · ${errorLabels[message.errorCode]}`}
         </p>}
+        {message.role === 'assistant' && <ReplyActions message={message} branchDisabled={branch.isPending || send.isPending}
+          onBranch={() => branch.mutate({ id: conversationId, messageId: message.id })} />}
       </section>)}
     </div>
     {workspace && !following && <Button className="chat-latest" variant="outline" size="icon" aria-label="回到最新" onClick={() => {

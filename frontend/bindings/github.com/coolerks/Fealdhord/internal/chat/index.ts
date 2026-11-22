@@ -11,6 +11,7 @@ export type {
     ContextStatus,
     Conversation,
     Message,
+    ReplyDetails,
     Scope,
     SendInput,
     ToolActivity,

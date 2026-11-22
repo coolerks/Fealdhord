@@ -113,7 +113,7 @@ func TestChatStreamIdleTimeout(t *testing.T) {
 			stream, err := modelStreamWithIdleTimeout(ctx, func(ctx context.Context) (*http.Response, error) {
 				return model.request(ctx, request, true)
 			}, func(body io.Reader, send func(ModelEvent) bool) error {
-				return readChatStream(body, nil, send)
+				return readChatStream(body, nil, false, send)
 			}, idle)
 			if err != nil {
 				t.Fatal(err)
@@ -149,7 +149,7 @@ func TestChatStreamRepeatedFinishInUsageFrame(t *testing.T) {
 			stream := "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"你好\"},\"finish_reason\":\"stop\"}]}\n\n" +
 				"data: {\"choices\":[" + test.usageChoice + "],\"usage\":{\"total_tokens\":3}}\n\ndata: [DONE]\n\n"
 			var events []ModelEvent
-			err := readChatStream(strings.NewReader(stream), nil, func(event ModelEvent) bool {
+			err := readChatStream(strings.NewReader(stream), nil, false, func(event ModelEvent) bool {
 				events = append(events, event)
 				return true
 			})
@@ -298,5 +298,24 @@ func TestChatToolStreamInterleaving(t *testing.T) {
 				t.Fatalf("完整调用拼接错误：%+v", complete)
 			}
 		})
+	}
+}
+
+func TestThinkingToolRequiresContinuationContent(t *testing.T) {
+	const stream = `data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"one","type":"function","function":{"name":"lookup","arguments":"{}"}}]}}]}
+
+data: {"choices":[{"index":0,"finish_reason":"tool_calls"}]}
+
+data: [DONE]
+
+`
+	err := readChatStream(strings.NewReader(stream), map[string]bool{"lookup": true}, true, func(event ModelEvent) bool {
+		if event.Type == "message_end" || event.Type == "tool_call_end" {
+			t.Errorf("emitted %s without DeepSeek reasoning continuation", event.Type)
+		}
+		return true
+	})
+	if err == nil || err.Error() != "ProviderProtocolError" {
+		t.Fatalf("expected missing continuation to fail, got %v", err)
 	}
 }

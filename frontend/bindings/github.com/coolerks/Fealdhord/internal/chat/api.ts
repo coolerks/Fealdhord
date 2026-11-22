@@ -13,6 +13,10 @@ import * as aiconfig$0 from "../aiconfig/models.js";
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
+export function Branch(id: string, messageID: string): $CancellablePromise<$models.Conversation> {
+    return $Call.ByID(1911365695, id, messageID);
+}
+
 export function Cancel(id: string): $CancellablePromise<void> {
     return $Call.ByID(1421854345, id);
 }

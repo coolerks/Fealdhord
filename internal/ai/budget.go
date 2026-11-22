@@ -54,6 +54,9 @@ func EstimateRequest(request ModelRequest) int {
 			count += 16 + EstimateTokens(call.ID) + EstimateTokens(call.Name) + EstimateTokens(call.ArgumentsJSON)
 		}
 		count += EstimateTokens(message.ToolCallID)
+		if message.ReasoningContent != nil {
+			count += EstimateTokens(*message.ReasoningContent)
+		}
 	}
 	for _, tool := range request.Tools {
 		count += 16 + EstimateTokens(tool.Name) + EstimateTokens(tool.Description) + EstimateTokens(string(tool.InputSchema))

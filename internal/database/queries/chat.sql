@@ -18,7 +18,7 @@ VALUES (sqlc.arg(id),sqlc.arg(conversation_id),
  sqlc.arg(role),sqlc.arg(content),sqlc.arg(status),sqlc.arg(model_name)) RETURNING *;
 
 -- name: FinishChatMessage :execrows
-UPDATE messages SET status=?, content=?, error_code=? WHERE id=? AND status='running';
+UPDATE messages SET status=?, content=?, error_code=?, reply_details=? WHERE id=? AND status='running';
 
 -- name: InterruptChatMessages :exec
 UPDATE messages SET status='interrupted' WHERE status='running';
@@ -88,3 +88,19 @@ UPDATE conversations SET auto_compact=? WHERE id=? AND scope_type='global';
 -- name: AdvanceContextSummary :execrows
 UPDATE conversations SET context_after=sqlc.arg(new_after), context_summary=sqlc.arg(summary)
 WHERE id=sqlc.arg(id) AND context_after=sqlc.arg(old_after) AND auto_compact=1;
+
+-- name: CreateChatBranch :one
+INSERT INTO conversations (id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, auto_compact)
+SELECT sqlc.arg(new_id), c.scope_type, c.scope_id, c.title, sqlc.arg(now), sqlc.arg(now),
+ min(c.context_after, m.position), CASE WHEN c.context_after <= m.position THEN c.context_summary ELSE '' END, c.auto_compact
+FROM conversations c JOIN messages m ON m.conversation_id=c.id
+WHERE c.id=sqlc.arg(source_id) AND m.id=sqlc.arg(message_id) AND m.role='assistant' AND m.status<>'running'
+RETURNING *;
+
+-- name: CopyChatBranchMessages :exec
+INSERT INTO messages (id, conversation_id, position, role, content, status, error_code, model_name, reply_details)
+SELECT lower(hex(randomblob(16))), sqlc.arg(new_id), source.position, source.role, source.content, source.status, source.error_code, source.model_name, source.reply_details
+FROM messages source
+WHERE source.conversation_id=sqlc.arg(source_id) AND source.position <= (
+ SELECT branch_point.position FROM messages branch_point WHERE branch_point.id=sqlc.arg(message_id)
+);

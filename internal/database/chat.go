@@ -8,6 +8,21 @@ import (
 
 func (s *Store) ChatQueries() *sqlc.Queries { return s.queries }
 
+func (s *Store) BranchChat(ctx context.Context, input sqlc.CreateChatBranchParams) (sqlc.Conversation, error) {
+	var branch sqlc.Conversation
+	err := s.transaction(ctx, func(q *sqlc.Queries) error {
+		var err error
+		branch, err = q.CreateChatBranch(ctx, input)
+		if err != nil {
+			return err
+		}
+		return q.CopyChatBranchMessages(ctx, sqlc.CopyChatBranchMessagesParams{
+			NewID: branch.ID, SourceID: input.SourceID, MessageID: input.MessageID,
+		})
+	})
+	return branch, err
+}
+
 func (s *Store) AppendChatTurn(ctx context.Context, user, assistant sqlc.AppendChatMessageParams, updatedAt int64) (sqlc.Message, error) {
 	s.write.Lock()
 	defer s.write.Unlock()

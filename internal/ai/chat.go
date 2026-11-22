@@ -70,11 +70,12 @@ func newModelClient(baseURL, apiKey, path string, client *http.Client) (*modelCl
 }
 
 type chatMessage struct {
-	Role       string         `json:"role"`
-	Content    string         `json:"content"`
-	Refusal    string         `json:"refusal,omitempty"`
-	ToolCalls  []chatToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string         `json:"tool_call_id,omitempty"`
+	Role             string         `json:"role"`
+	Content          string         `json:"content"`
+	Refusal          string         `json:"refusal,omitempty"`
+	ToolCalls        []chatToolCall `json:"tool_calls,omitempty"`
+	ToolCallID       string         `json:"tool_call_id,omitempty"`
+	ReasoningContent *string        `json:"reasoning_content,omitempty"`
 }
 
 type chatRequest struct {
@@ -102,9 +103,13 @@ type chatResponse struct {
 		FinishReason string      `json:"finish_reason"`
 	} `json:"choices"`
 	Usage *struct {
-		InputTokens  *int `json:"prompt_tokens"`
-		OutputTokens *int `json:"completion_tokens"`
-		TotalTokens  *int `json:"total_tokens"`
+		InputTokens    *int `json:"prompt_tokens"`
+		OutputTokens   *int `json:"completion_tokens"`
+		TotalTokens    *int `json:"total_tokens"`
+		CacheHitTokens *int `json:"prompt_cache_hit_tokens"`
+		PromptDetails  struct {
+			CachedTokens *int `json:"cached_tokens"`
+		} `json:"prompt_tokens_details"`
 	} `json:"usage"`
 }
 
@@ -112,7 +117,11 @@ func (r chatResponse) usage() *Usage {
 	if r.Usage == nil {
 		return nil
 	}
-	return &Usage{InputTokens: r.Usage.InputTokens, OutputTokens: r.Usage.OutputTokens, TotalTokens: r.Usage.TotalTokens}
+	cached := r.Usage.PromptDetails.CachedTokens
+	if cached == nil {
+		cached = r.Usage.CacheHitTokens
+	}
+	return &Usage{InputTokens: r.Usage.InputTokens, CachedInputTokens: cached, OutputTokens: r.Usage.OutputTokens, TotalTokens: r.Usage.TotalTokens}
 }
 
 func (c *ChatCompletions) request(ctx context.Context, req *ModelRequest, stream bool) (*http.Response, error) {
@@ -123,9 +132,15 @@ func (c *ChatCompletions) request(ctx context.Context, req *ModelRequest, stream
 		Model: req.Model, Temperature: req.Temperature, TopP: req.TopP,
 		MaxOutputTokens: req.MaxOutputTokens, Stop: req.Stop, Stream: stream,
 	}
-	if len(req.Tools) > 0 && UsesDeepSeekToolMode(c, req.Model) {
-		// Chat history stores visible messages, without DeepSeek's reasoning_content.
-		payload.Thinking = map[string]string{"type": "disabled"}
+	deepSeek := len(req.Tools) > 0 && SupportsDeepSeekThinkingTools(c, req.Model)
+	if deepSeek {
+		kind := "enabled"
+		if req.ReasoningEffort == "none" {
+			kind = "disabled"
+		} else {
+			payload.ReasoningEffort = req.ReasoningEffort
+		}
+		payload.Thinking = map[string]string{"type": kind}
 	} else if req.ReasoningEffort != "" {
 		if c.host == "openrouter.ai" {
 			payload.Reasoning = map[string]string{"effort": req.ReasoningEffort}
@@ -138,6 +153,9 @@ func (c *ChatCompletions) request(ctx context.Context, req *ModelRequest, stream
 	}
 	if err := encodeChatHistory(&payload, req); err != nil {
 		return nil, err
+	}
+	if deepSeek && req.ReasoningEffort != "none" {
+		payload.Messages = deepSeekHistory(payload.Messages)
 	}
 	return c.post(ctx, payload, false, stream)
 }
@@ -307,7 +325,7 @@ func (c *ChatCompletions) Stream(ctx context.Context, req *ModelRequest) (<-chan
 	return modelStream(ctx, func(ctx context.Context) (*http.Response, error) {
 		return c.request(ctx, req, true)
 	}, func(body io.Reader, send func(ModelEvent) bool) error {
-		return readChatStream(body, offered, send)
+		return readChatStream(body, offered, SupportsDeepSeekThinkingTools(c, req.Model) && len(offered) > 0 && req.ReasoningEffort != "none", send)
 	})
 }
 
@@ -388,9 +406,11 @@ func (r streamReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-func readChatStream(body io.Reader, offered map[string]bool, send func(ModelEvent) bool) error {
+func readChatStream(body io.Reader, offered map[string]bool, preserveReasoning bool, send func(ModelEvent) bool) error {
 	var finish string
 	var refused bool
+	var reasoning strings.Builder
+	var hasReasoning bool
 	calls := make(map[int]*pendingChatCall)
 	if !send(ModelEvent{Type: "message_start"}) {
 		return context.Canceled
@@ -404,6 +424,14 @@ func readChatStream(body io.Reader, offered map[string]bool, send func(ModelEven
 			reason, err := chatFinish(finish, refused, len(calls))
 			if err != nil {
 				return false, err
+			}
+			var continuation *string
+			if preserveReasoning && len(calls) > 0 {
+				if !hasReasoning {
+					return false, protocolError()
+				}
+				text := reasoning.String()
+				continuation = &text
 			}
 			// Validate the whole batch before emitting any completed call.
 			completed := make([]chatToolCall, len(calls))
@@ -423,7 +451,7 @@ func readChatStream(body io.Reader, offered map[string]bool, send func(ModelEven
 					return false, context.Canceled
 				}
 			}
-			send(ModelEvent{Type: "message_end", FinishReason: reason})
+			send(ModelEvent{Type: "message_end", FinishReason: reason, ReasoningContent: continuation})
 			return true, nil
 		}
 		var chunk chatResponse
@@ -440,7 +468,7 @@ func readChatStream(body io.Reader, offered map[string]bool, send func(ModelEven
 				// Accept accounting only; content and tool calls must already be complete.
 				usage := chunk.usage()
 				if usage == nil || choice.FinishReason != finish || choice.Delta.Content != "" ||
-					choice.Delta.Refusal != "" || len(choice.Delta.ToolCalls) != 0 {
+					choice.Delta.Refusal != "" || choice.Delta.ReasoningContent != nil || len(choice.Delta.ToolCalls) != 0 {
 					return false, protocolError()
 				}
 				if !send(ModelEvent{Type: "usage", Usage: usage}) {
@@ -449,6 +477,10 @@ func readChatStream(body io.Reader, offered map[string]bool, send func(ModelEven
 				return false, nil
 			}
 			refused = refused || choice.Delta.Refusal != ""
+			if preserveReasoning && choice.Delta.ReasoningContent != nil {
+				hasReasoning = true
+				reasoning.WriteString(*choice.Delta.ReasoningContent)
+			}
 			if delta := choice.Delta.Content + choice.Delta.Refusal; delta != "" && !send(ModelEvent{Type: "text_delta", Text: delta}) {
 				return false, context.Canceled
 			}

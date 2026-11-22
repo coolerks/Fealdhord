@@ -39,7 +39,7 @@ const appendChatMessage = `-- name: AppendChatMessage :one
 INSERT INTO messages (id,conversation_id,position,role,content,status,model_name)
 VALUES (?1,?2,
  (SELECT COALESCE(MAX(position),0)+1 FROM messages WHERE conversation_id=?2),
- ?3,?4,?5,?6) RETURNING id, conversation_id, position, role, content, status, error_code, model_name
+ ?3,?4,?5,?6) RETURNING id, conversation_id, position, role, content, status, error_code, model_name, reply_details
 `
 
 type AppendChatMessageParams struct {
@@ -70,6 +70,7 @@ func (q *Queries) AppendChatMessage(ctx context.Context, arg AppendChatMessagePa
 		&i.Status,
 		&i.ErrorCode,
 		&i.ModelName,
+		&i.ReplyDetails,
 	)
 	return i, err
 }
@@ -160,6 +161,67 @@ func (q *Queries) CheckpointChatMessage(ctx context.Context, arg CheckpointChatM
 	return err
 }
 
+const copyChatBranchMessages = `-- name: CopyChatBranchMessages :exec
+INSERT INTO messages (id, conversation_id, position, role, content, status, error_code, model_name, reply_details)
+SELECT lower(hex(randomblob(16))), ?1, source.position, source.role, source.content, source.status, source.error_code, source.model_name, source.reply_details
+FROM messages source
+WHERE source.conversation_id=?2 AND source.position <= (
+ SELECT branch_point.position FROM messages branch_point WHERE branch_point.id=?3
+)
+`
+
+type CopyChatBranchMessagesParams struct {
+	NewID     string `json:"new_id"`
+	SourceID  string `json:"source_id"`
+	MessageID string `json:"message_id"`
+}
+
+func (q *Queries) CopyChatBranchMessages(ctx context.Context, arg CopyChatBranchMessagesParams) error {
+	_, err := q.db.ExecContext(ctx, copyChatBranchMessages, arg.NewID, arg.SourceID, arg.MessageID)
+	return err
+}
+
+const createChatBranch = `-- name: CreateChatBranch :one
+INSERT INTO conversations (id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, auto_compact)
+SELECT ?1, c.scope_type, c.scope_id, c.title, ?2, ?2,
+ min(c.context_after, m.position), CASE WHEN c.context_after <= m.position THEN c.context_summary ELSE '' END, c.auto_compact
+FROM conversations c JOIN messages m ON m.conversation_id=c.id
+WHERE c.id=?3 AND m.id=?4 AND m.role='assistant' AND m.status<>'running'
+RETURNING id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact
+`
+
+type CreateChatBranchParams struct {
+	NewID     string `json:"new_id"`
+	Now       int64  `json:"now"`
+	SourceID  string `json:"source_id"`
+	MessageID string `json:"message_id"`
+}
+
+func (q *Queries) CreateChatBranch(ctx context.Context, arg CreateChatBranchParams) (Conversation, error) {
+	row := q.db.QueryRowContext(ctx, createChatBranch,
+		arg.NewID,
+		arg.Now,
+		arg.SourceID,
+		arg.MessageID,
+	)
+	var i Conversation
+	err := row.Scan(
+		&i.ID,
+		&i.ScopeType,
+		&i.ScopeID,
+		&i.Title,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextAfter,
+		&i.ContextSummary,
+		&i.ContextPins,
+		&i.LastInputTokens,
+		&i.LastUsageModel,
+		&i.AutoCompact,
+	)
+	return i, err
+}
+
 const createConversation = `-- name: CreateConversation :one
 INSERT INTO conversations (id,scope_type,scope_id,title,created_at,updated_at)
 VALUES (?,?,?,?,?,?) RETURNING id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact
@@ -202,14 +264,15 @@ func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversation
 }
 
 const finishChatMessage = `-- name: FinishChatMessage :execrows
-UPDATE messages SET status=?, content=?, error_code=? WHERE id=? AND status='running'
+UPDATE messages SET status=?, content=?, error_code=?, reply_details=? WHERE id=? AND status='running'
 `
 
 type FinishChatMessageParams struct {
-	Status    string `json:"status"`
-	Content   string `json:"content"`
-	ErrorCode string `json:"error_code"`
-	ID        string `json:"id"`
+	Status       string `json:"status"`
+	Content      string `json:"content"`
+	ErrorCode    string `json:"error_code"`
+	ReplyDetails string `json:"reply_details"`
+	ID           string `json:"id"`
 }
 
 func (q *Queries) FinishChatMessage(ctx context.Context, arg FinishChatMessageParams) (int64, error) {
@@ -217,6 +280,7 @@ func (q *Queries) FinishChatMessage(ctx context.Context, arg FinishChatMessagePa
 		arg.Status,
 		arg.Content,
 		arg.ErrorCode,
+		arg.ReplyDetails,
 		arg.ID,
 	)
 	if err != nil {
@@ -331,8 +395,8 @@ func (q *Queries) ListChatToolAudit(ctx context.Context, conversationID string) 
 }
 
 const listContextMessages = `-- name: ListContextMessages :many
-SELECT id, conversation_id, position, role, content, status, error_code, model_name FROM (
- SELECT id, conversation_id, position, role, content, status, error_code, model_name FROM messages WHERE conversation_id = ?1
+SELECT id, conversation_id, position, role, content, status, error_code, model_name, reply_details FROM (
+ SELECT id, conversation_id, position, role, content, status, error_code, model_name, reply_details FROM messages WHERE conversation_id = ?1
  AND position > ?2 ORDER BY position DESC LIMIT 200
 ) ORDER BY position
 `
@@ -360,6 +424,7 @@ func (q *Queries) ListContextMessages(ctx context.Context, arg ListContextMessag
 			&i.Status,
 			&i.ErrorCode,
 			&i.ModelName,
+			&i.ReplyDetails,
 		); err != nil {
 			return nil, err
 		}
@@ -375,7 +440,7 @@ func (q *Queries) ListContextMessages(ctx context.Context, arg ListContextMessag
 }
 
 const listConversationMessages = `-- name: ListConversationMessages :many
-SELECT id, conversation_id, position, role, content, status, error_code, model_name FROM (SELECT id, conversation_id, position, role, content, status, error_code, model_name FROM messages WHERE conversation_id=? ORDER BY position DESC LIMIT 100) ORDER BY position
+SELECT id, conversation_id, position, role, content, status, error_code, model_name, reply_details FROM (SELECT id, conversation_id, position, role, content, status, error_code, model_name, reply_details FROM messages WHERE conversation_id=? ORDER BY position DESC LIMIT 100) ORDER BY position
 `
 
 func (q *Queries) ListConversationMessages(ctx context.Context, conversationID string) ([]Message, error) {
@@ -396,6 +461,7 @@ func (q *Queries) ListConversationMessages(ctx context.Context, conversationID s
 			&i.Status,
 			&i.ErrorCode,
 			&i.ModelName,
+			&i.ReplyDetails,
 		); err != nil {
 			return nil, err
 		}

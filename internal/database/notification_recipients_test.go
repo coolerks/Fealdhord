@@ -10,15 +10,15 @@ import (
 	"github.com/coolerks/Fealdhord/migrations"
 )
 
-func TestNotificationMigrationPreservesQueuedRecipient(t *testing.T) {
-	ctx := t.Context()
+func sqlMigrationsBefore(t *testing.T, version string) fstest.MapFS {
+	t.Helper()
 	oldMigrations := fstest.MapFS{}
 	entries, err := fs.ReadDir(migrations.Files, ".")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, entry := range entries {
-		if filepath.Ext(entry.Name()) != ".sql" || entry.Name() >= "00020" {
+		if filepath.Ext(entry.Name()) != ".sql" || entry.Name() >= version {
 			continue
 		}
 		data, err := fs.ReadFile(migrations.Files, entry.Name())
@@ -27,8 +27,13 @@ func TestNotificationMigrationPreservesQueuedRecipient(t *testing.T) {
 		}
 		oldMigrations[entry.Name()] = &fstest.MapFile{Data: data}
 	}
+	return oldMigrations
+}
+
+func TestNotificationMigrationPreservesQueuedRecipient(t *testing.T) {
+	ctx := t.Context()
 	filename := filepath.Join(t.TempDir(), "library.db")
-	old, err := openWithMigrations(ctx, filename, oldMigrations)
+	old, err := openWithMigrations(ctx, filename, sqlMigrationsBefore(t, "00020"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +70,7 @@ func TestNotificationSchemaRepairUpgradesEarlyDevDatabase(t *testing.T) {
 	ctx := t.Context()
 	filename := filepath.Join(t.TempDir(), "library.db")
 	// Use only the SQL migrations to reproduce a database that recorded v20.
-	old, err := openWithMigrations(ctx, filename, migrations.Files)
+	old, err := openWithMigrations(ctx, filename, sqlMigrationsBefore(t, "00021"))
 	if err != nil {
 		t.Fatal(err)
 	}

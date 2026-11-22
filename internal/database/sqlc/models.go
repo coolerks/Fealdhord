@@ -245,6 +245,7 @@ type Message struct {
 	Status         string `json:"status"`
 	ErrorCode      string `json:"error_code"`
 	ModelName      string `json:"model_name"`
+	ReplyDetails   string `json:"reply_details"`
 }
 
 type ModelAssignment struct {

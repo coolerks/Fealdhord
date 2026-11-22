@@ -18,7 +18,7 @@ import (
 func TestGlobalChatSendsAuthorizedToolsToRoutedDeepSeek(t *testing.T) {
 	ctx := t.Context()
 	const modelID = "commandcode-plan/deepseek/deepseek-v4.1-flash"
-	requests := make(chan string, 3)
+	requests := make(chan string, 5)
 	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body json.RawMessage
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -28,12 +28,12 @@ func TestGlobalChatSendsAuthorizedToolsToRoutedDeepSeek(t *testing.T) {
 		requests <- string(body)
 		w.Header().Set("Content-Type", "text/event-stream")
 		if strings.Contains(string(body), `"tools":[`) && !strings.Contains(string(body), `"role":"tool"`) {
-			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call-1\",\"type\":\"function\",\"function\":{\"name\":\"library_search\",\"arguments\":\"{}\"}}]}}]}\n\n")
-			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"finish_reason\":\"tool_calls\"}]}\n\ndata: [DONE]\n\n")
+			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"provider reasoning\",\"tool_calls\":[{\"index\":0,\"id\":\"call-1\",\"type\":\"function\",\"function\":{\"name\":\"library_search\",\"arguments\":\"{}\"}}]}}]}\n\n")
+			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"finish_reason\":\"tool_calls\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":20,\"prompt_cache_hit_tokens\":5,\"completion_tokens\":3}}\n\ndata: [DONE]\n\n")
 			return
 		}
 		fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"完成\"}}]}\n\n")
-		fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+		fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"finish_reason\":\"stop\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":30,\"prompt_tokens_details\":{\"cached_tokens\":7},\"completion_tokens\":5}}\n\ndata: [DONE]\n\n")
 	}))
 	defer gateway.Close()
 
@@ -87,23 +87,26 @@ func TestGlobalChatSendsAuthorizedToolsToRoutedDeepSeek(t *testing.T) {
 		t.Fatal(err)
 	}
 	reply := waitMessage(t, service, conversation.ID, 2, "complete")
-	if audit := registry.RecentAudit(); !strings.Contains(reply.ModelName, "关闭思考") ||
+	if audit := registry.RecentAudit(); reply.ModelName != model.DisplayName ||
 		len(audit) != 1 || audit[0].Tool != "library.search" || audit[0].Status != "complete" {
 		t.Fatalf("incorrect model mode or tool audit: reply=%+v audit=%+v", reply, audit)
 	}
 	first, next := <-requests, <-requests
 	for _, payload := range []string{first, next} {
-		for _, required := range []string{fmt.Sprintf(`"model":%q`, modelID), `"thinking":{"type":"disabled"}`, `"name":"library_search"`, `"parameters":{`, "以本轮实际提供的工具"} {
+		for _, required := range []string{fmt.Sprintf(`"model":%q`, modelID), `"thinking":{"type":"enabled"}`, `"reasoning_effort":"low"`, `"name":"library_search"`, `"parameters":{`, "以本轮实际提供的工具"} {
 			if !strings.Contains(payload, required) {
 				t.Fatalf("request missing %q: %s", required, payload)
 			}
 		}
-		if strings.Contains(payload, "reasoning_effort") {
-			t.Fatalf("non-thinking request still includes effort: %s", payload)
-		}
 	}
-	if !strings.Contains(next, `"tool_call_id":"call-1"`) || !strings.Contains(next, "测试文章") {
+	if !strings.Contains(next, `"tool_call_id":"call-1"`) || !strings.Contains(next, "测试文章") || !strings.Contains(next, `"reasoning_content":"provider reasoning"`) {
 		t.Fatalf("tool result not returned to the model: %s", next)
+	}
+
+	if d := reply.Details; d == nil || d.Rounds != 2 || d.ReasoningEffort != "低" ||
+		d.InputTokens == nil || *d.InputTokens != 50 || d.CachedInputTokens == nil || *d.CachedInputTokens != 12 ||
+		d.OutputTokens == nil || *d.OutputTokens != 8 {
+		t.Fatalf("incorrect aggregate reply usage: %+v", d)
 	}
 
 	input.DisableTools = true
@@ -117,4 +120,28 @@ func TestGlobalChatSendsAuthorizedToolsToRoutedDeepSeek(t *testing.T) {
 		strings.Contains(plain, `"tools":`) || strings.Contains(plain, `"thinking":`) {
 		t.Fatalf("tool-free chat did not preserve selected effort or report its runtime capabilities: %s", plain)
 	}
+
+	branch, err := service.Branch(ctx, conversation.ID, reply.ID)
+	if err != nil || branch.ID == conversation.ID {
+		t.Fatalf("branch was not created: %+v %v", branch, err)
+	}
+	branchMessages, err := service.Messages(ctx, branch.ID)
+	if err != nil || len(branchMessages) != 2 || branchMessages[1].ID == reply.ID ||
+		branchMessages[1].Text != reply.Text || branchMessages[1].Details == nil {
+		t.Fatalf("branch did not copy the selected prefix: %+v %v", branchMessages, err)
+	}
+	if _, err := service.Branch(ctx, branch.ID, reply.ID); err == nil || err.Error() != "ChatBranchUnavailable" {
+		t.Fatalf("foreign branch point accepted: %v", err)
+	}
+	input.ConversationID, input.DisableTools, input.Text = branch.ID, false, "继续查找"
+	if err := service.Send(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+	waitMessage(t, service, branch.ID, 4, "complete")
+	resumed := <-requests
+	if strings.Contains(resumed, `"role":"assistant"`) || strings.Contains(resumed, "provider reasoning") ||
+		!strings.Contains(resumed, "先前可见对话") || !strings.Contains(resumed, "继续查找") {
+		t.Fatalf("persisted visible history was not passed as context: %s", resumed)
+	}
+	<-requests
 }
