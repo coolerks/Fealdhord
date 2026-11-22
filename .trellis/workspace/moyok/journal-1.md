@@ -1611,3 +1611,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 63: 工具活动穿插正文与聊天审批模式
+<!-- trellis-session: v=2 fp=8f9fa1067c9c20c3 -->
+
+**Date**: 2026-11-22
+**Task**: 工具活动穿插正文与聊天审批模式
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+保存 UTF-16 活动位置和同位置顺序。支持输入框内或对话框审批，以及需要审批、绕过审批、拒绝审批。前端 70 项应用回归、生产构建和 Go 相关包竞态测试通过。旧回复无位置数据时保留原记录布局，真实模型和原生桌面待复测。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8bba1ba` | feat(chat): 按顺序展示工具记录并支持聊天审批模式 |
+
+### Status
+
+[OK] **Completed**
