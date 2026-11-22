@@ -1281,3 +1281,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 48: 通知渠道操作步骤
+<!-- trellis-session: v=2 fp=4e89642e008240a7 -->
+
+**Date**: 2026-11-22
+**Task**: 通知渠道操作步骤
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+九个平台可查看随接入方式切换的操作步骤。官方文档使用纯文字，QQ 统一指向 bot.qq.com，个人微信只显示操作步骤。前端 164 项测试、类型检查和构建通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8311ba4` | fix(notification): 调整文档入口并添加操作步骤 |
+
+### Status
+
+[OK] **Completed**
