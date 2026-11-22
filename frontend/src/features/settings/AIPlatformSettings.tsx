@@ -12,6 +12,7 @@ import { native } from '@/lib/native'
 import { navigationAPI, navigationQueryKey } from '@/lib/navigation-api'
 import { notify } from '@/lib/notifications'
 import { ConfirmDialog, SettingCard, SettingEmpty, SettingRow, SettingSection, StatusBadge } from './settings-primitives'
+import { getToolMeta } from '@/features/chat/tool-meta'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/api'
 import type { ClientConfig, MCPGrant, ServerConfig, Skill, Tool } from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/models'
 
@@ -45,10 +46,12 @@ const formatAuditTime = (value: string) => {
 
 function toolOption(name: string, tool?: Tool) {
   const description = tool?.description
+  const meta = getToolMeta(name)
   return {
     value: name,
     label: name,
-    keywords: description ? [description] : undefined,
+    graphic: <AnimatedGlyph meaning={meta.icon} />,
+    keywords: description ? [description, meta.label, meta.summary] : [meta.label, meta.summary],
     description: description && tool?.requiresApproval && !description.includes('确认')
       ? `${description}\n运行前需确认` : description,
   }

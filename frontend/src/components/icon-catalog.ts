@@ -17,6 +17,7 @@ import { CircleCheckIcon } from './icons/circle-check'
 import { CircleDashedIcon } from './icons/circle-dashed'
 import { CircleHelpIcon } from './icons/circle-help'
 import { ClipboardCheckIcon } from './icons/clipboard-check'
+import { ClockIcon } from './icons/clock'
 import { CopyIcon } from './icons/copy'
 import { DatabaseBackupIcon } from './icons/database-backup'
 import { DeleteIcon } from './icons/delete'
@@ -55,6 +56,7 @@ import { SunIcon } from './icons/sun'
 import { UndoIcon } from './icons/undo'
 import { UploadIcon } from './icons/upload'
 import { WebhookIcon } from './icons/webhook'
+import { WrenchIcon } from './icons/wrench'
 import { XIcon } from './icons/x'
 
 export const animatedIcons = {
@@ -76,6 +78,7 @@ export const animatedIcons = {
   'circle-dashed': CircleDashedIcon,
   'circle-help': CircleHelpIcon,
   'clipboard-check': ClipboardCheckIcon,
+  'clock': ClockIcon,
   'copy': CopyIcon,
   'database-backup': DatabaseBackupIcon,
   'delete': DeleteIcon,
@@ -114,6 +117,7 @@ export const animatedIcons = {
   'undo': UndoIcon,
   'upload': UploadIcon,
   'webhook': WebhookIcon,
+  'wrench': WrenchIcon,
   'x': XIcon,
 }
 export type AnimatedIconName = keyof typeof animatedIcons

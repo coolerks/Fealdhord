@@ -8,6 +8,7 @@ import { DecideAction, PendingActions } from '../../../bindings/github.com/coole
 import type { PendingAction } from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/models'
 import { useLayoutEffect } from 'react'
 import { create } from 'zustand'
+import { AnimatedGlyph } from '@/components/animated-glyph'
 import { getToolMeta } from './tool-meta'
 
 const key = ['ai-platform', 'pending']
@@ -81,18 +82,17 @@ export function ToolApproval({ action, inline = false, onStop, stopping }: {
   })
   const Footer = inline ? 'div' : DialogFooter
   const meta = getToolMeta(action.tool)
-  const ToolIcon = meta.icon
   const toolSummary = meta.label === action.tool ? action.tool : `${meta.label}（${action.tool}）`
   return <>
       {inline ? <div className="flex items-start gap-2">
-        <ToolIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <AnimatedGlyph meaning={meta.icon} className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0">
           <h3 className="text-sm font-medium">允许 AI 调用工具？</h3>
           <p className="truncate text-xs text-muted-foreground" title={toolSummary}>{toolSummary}</p>
         </div>
       </div> : <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
-          <ToolIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <AnimatedGlyph meaning={meta.icon} className="size-4 shrink-0 text-muted-foreground" />
           允许 AI 调用工具？
         </DialogTitle>
         <DialogDescription>{action.principal} · {toolSummary}</DialogDescription>

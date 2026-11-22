@@ -682,7 +682,7 @@ describe('Phase 1 阅读 Shell', () => {
     expect(screen.getByText('找到 3 篇报道')).toBeVisible()
   })
 
-  it('历史回复按位置穿插正文与工具记录', async () => {
+  it('历史回复默认折叠总耗时，展开后按位置穿插正文与活动摘要', async () => {
     const user = userEvent.setup()
     const introduction = '先搜索🙂。'
     const conclusion = '这是搜索结果。'
@@ -702,9 +702,14 @@ describe('Phase 1 阅读 Shell', () => {
     setup()
     await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
     const process = await screen.findByRole('button', { name: '用时 2 秒' })
-    expect(screen.getByText(introduction).compareDocumentPosition(process) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(process.compareDocumentPosition(screen.getByText(conclusion)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(process).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByText(conclusion)).toBeVisible()
+    expect(screen.queryByText(introduction)).not.toBeInTheDocument()
     await user.click(process)
+    const activity = screen.getByRole('button', { name: '搜索了文章' })
+    expect(screen.getByText(introduction).compareDocumentPosition(activity) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(activity.compareDocumentPosition(screen.getByText(conclusion)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await user.click(activity)
     const tools = screen.getByRole('list', { name: '工具活动' })
     expect(tools).toHaveTextContent('搜索文章已完成')
     expect(screen.getByText('调用前的推理').compareDocumentPosition(tools) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
