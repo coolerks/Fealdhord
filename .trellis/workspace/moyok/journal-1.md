@@ -1435,3 +1435,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 55: 新建通知渠道优先选择机器人私发
+<!-- trellis-session: v=2 fp=6023235da4c7e23c -->
+
+**Date**: 2026-11-22
+**Task**: 新建通知渠道优先选择机器人私发
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+调整两种接入方式的默认值，保留群 Webhook 选择和已有渠道配置。四项前端通知回归、类型检查、lint 与生产构建通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c59364c` | fix(notification): 新建渠道默认选中机器人私发 |
+
+### Status
+
+[OK] **Completed**
