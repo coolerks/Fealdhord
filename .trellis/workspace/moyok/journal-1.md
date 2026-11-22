@@ -1567,3 +1567,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 61: 聊天工作过程、首字状态与旧选区修复
+<!-- trellis-session: v=2 fp=8675d9a3c566f967 -->
+
+**Date**: 2026-11-22
+**Task**: 聊天工作过程、首字状态与旧选区修复
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+切换会话同步清理文字选区。回复首字前显示等待掠光，详情记录首字耗时和末轮平均输出速度。保存公开思考摘要与实际工具状态，回复结束自动折叠。Go 相关包竞态测试、前端回归和生产构建通过，桌面 WebView 和真实模型路由待复测。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `19a0fc0` | feat(chat): 展示回复过程和首字计时并清理旧选区 |
+
+### Status
+
+[OK] **Completed**

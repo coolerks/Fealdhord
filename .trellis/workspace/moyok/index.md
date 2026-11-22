@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 60
+- **Total Sessions**: 61
 - **Last Active**: 2026-11-22
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1569 | Active |
+| `journal-1.md` | ~1591 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 61 | 2026-11-22 | 聊天工作过程、首字状态与旧选区修复 | `19a0fc0` | `codex/interface-clarity` |
 | 60 | 2026-11-22 | 平滑显示 AI 流式回复 | `606cc50` | `codex/interface-clarity` |
 | 59 | 2026-11-22 | 增加 AI 回复操作与详情并保留思考档位 | `08180dd` | `codex/interface-clarity` |
 | 58 | 2026-11-22 | 修复 DeepSeek 全局聊天工具丢失 | `c369ba6` | `codex/interface-clarity` |
