@@ -1457,3 +1457,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 56: 修复企业微信长连接握手
+<!-- trellis-session: v=2 fp=d2fa9aec745a454b -->
+
+**Date**: 2026-11-22
+**Task**: 修复企业微信长连接握手
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+真网关复现 Go 握手 HTTP 404，保留 Sec-WebSocket 请求头大小写后返回 HTTP 101 与测试凭据认证回执。通知包竞态测试通过，真实机器人配对待验收。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5f960ca` | fix(notification): 兼容企业微信长连接握手头 |
+
+### Status
+
+[OK] **Completed**
