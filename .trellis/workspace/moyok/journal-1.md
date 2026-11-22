@@ -1215,3 +1215,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 45: QQ 正式网关和聊天收件诊断
+<!-- trellis-session: v=2 fp=054a1b18c2239b6f -->
+
+**Date**: 2026-11-22
+**Task**: QQ 正式网关和聊天收件诊断
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+对照腾讯 QQ 官方 SDK 恢复正式网关与凭据接口。显示 READY 机器人昵称和实际收到的聊天事件，区分网关应答与消息送达。模拟正式与沙箱事件、Go 全量及竞态检查、前端 163 项测试通过。真实 QQ 账号仍待验证。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `70e23c7` | fix(notification): 对齐 QQ 正式网关并显示收件状态 |
+
+### Status
+
+[OK] **Completed**
