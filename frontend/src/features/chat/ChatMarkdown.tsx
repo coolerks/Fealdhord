@@ -1,4 +1,4 @@
-import { createContext, memo, useContext, useEffect, useState } from 'react'
+import { createContext, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Markdown from 'react-markdown'
 import type { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -7,6 +7,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { native } from '@/lib/native'
 import { notify } from '@/lib/notifications'
 import type { highlightText } from '@/features/reader/highlight-code'
+import { animateReplyFragment, revealMarkdown } from './stream-reveal'
+import type { RevealBatch } from './stream-reveal'
 
 const Streaming = createContext(false)
 const remarkPlugins = [remarkGfm]
@@ -42,6 +44,13 @@ function externalURL(url: string) {
 }
 
 const components: Components = {
+  span: ({ node, children }) => {
+    const revealAt = node?.properties.dataChatRevealAt
+    const offset = node?.properties.dataChatRevealKey
+    return typeof revealAt === 'number' && typeof offset === 'number'
+      ? <RevealFragment at={revealAt} offset={offset}>{children}</RevealFragment>
+      : <span>{children}</span>
+  },
   a: ({ href, children }) => href ? <a href={href} onClick={event => {
     event.preventDefault()
     void native.openURL(href).catch(() => notify('无法打开链接', undefined, true))
@@ -62,10 +71,21 @@ const components: Components = {
   },
 }
 
-export const ChatMarkdown = memo(function ChatMarkdown({ text, streaming }: { text: string; streaming: boolean }) {
+function RevealFragment({ at, offset, children }: { at: number; offset: number; children: React.ReactNode }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  useLayoutEffect(() => {
+    if (ref.current) return animateReplyFragment(ref.current, at)
+  }, [at, offset])
+  return <span ref={ref} data-chat-reveal="">{children}</span>
+}
+
+export const ChatMarkdown = memo(function ChatMarkdown({ text, streaming, reveal }: {
+  text: string; streaming: boolean; reveal?: readonly RevealBatch[]
+}) {
+  const rehypePlugins = useMemo(() => streaming && reveal?.length ? [revealMarkdown(text, reveal)] : [], [text, streaming, reveal])
   return <div className="reader-prose chat-answer">
     <Streaming.Provider value={streaming}>
-      <Markdown skipHtml urlTransform={externalURL} remarkPlugins={remarkPlugins} components={components}>
+      <Markdown skipHtml urlTransform={externalURL} remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={components}>
         {text}
       </Markdown>
     </Streaming.Provider>

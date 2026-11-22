@@ -445,7 +445,8 @@ function ChatSession({ target, close, workspace }: {
       {messages.data?.map(message => <section key={message.id} className={workspace ? 'chat-message' : message.role === 'user' ? 'ml-auto w-fit max-w-[90%] rounded-xl bg-muted p-3' : 'mr-3 rounded-xl border p-3'} data-role={workspace ? message.role : undefined}>
         {!workspace && message.role === 'user' && <p className="text-xs text-muted-foreground">你</p>}
         {message.text && (workspace && message.role === 'assistant'
-          ? <ChatMarkdown text={message.text} streaming={message.status === 'running'} />
+          ? <ChatMarkdown text={message.text} streaming={message.status === 'running'}
+            reveal={workspace.motionMode === 'off' ? undefined : message.reveal} />
           : <p className="whitespace-pre-wrap break-words">{message.text}</p>)}
         {!!message.tools?.length && <ul className="mt-2 text-xs text-muted-foreground" aria-label="工具活动">
           {message.tools.map(tool => <li key={tool.id}>{toolStatusLabels[tool.status] ?? '文章工具状态未知'}</li>)}
@@ -453,7 +454,7 @@ function ChatSession({ target, close, workspace }: {
         {statusLabels[message.status] && <p className="mt-1 text-sm text-muted-foreground">
           {statusLabels[message.status]}{errorLabels[message.errorCode] && ` · ${errorLabels[message.errorCode]}`}
         </p>}
-        {message.role === 'assistant' && <ReplyActions message={message} branchDisabled={branch.isPending || send.isPending}
+        {message.role === 'assistant' && message.status !== 'running' && <ReplyActions message={message} branchDisabled={branch.isPending || send.isPending}
           onBranch={() => branch.mutate({ id: conversationId, messageId: message.id })} />}
       </section>)}
     </div>

@@ -15,7 +15,6 @@ export function ReplyActions({ message, branchDisabled, onBranch }: {
   onBranch: () => void
 }) {
   const details = message.details
-  const settled = message.status !== 'running'
   const legacySuffix = ' · 工具模式（关闭思考）'
   const legacyToolMode = message.modelName.endsWith(legacySuffix)
   const modelName = legacyToolMode ? message.modelName.slice(0, -legacySuffix.length) : message.modelName
@@ -42,10 +41,10 @@ export function ReplyActions({ message, branchDisabled, onBranch }: {
     <Button type="button" variant="ghost" size="icon-xs" aria-label="复制回复" title="复制"
       disabled={!message.text} onClick={() => void copy()}><Copy /></Button>
     <Button type="button" variant="ghost" size="icon-xs" aria-label="分支到新聊天" title="分支"
-      disabled={branchDisabled || !settled} onClick={onBranch}><GitBranch /></Button>
+      disabled={branchDisabled} onClick={onBranch}><GitBranch /></Button>
     <Dialog>
       <DialogTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-xs" aria-label="查看回复详情" title="详情" disabled={!settled}><Info /></Button>
+        <Button type="button" variant="ghost" size="icon-xs" aria-label="查看回复详情" title="详情"><Info /></Button>
       </DialogTrigger>
       <DialogContent aria-describedby={undefined} className="max-w-sm">
         <DialogHeader><DialogTitle>回复详情</DialogTitle></DialogHeader>

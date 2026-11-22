@@ -4,13 +4,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { FealdhordChatUpdate } from '../../../bindings/events'
 import { Messages } from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/api'
 import type { Message } from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
+import { addRevealBatch } from './stream-reveal'
+import type { RevealBatch } from './stream-reveal'
+
+type LiveMessage = Message & { reveal?: readonly RevealBatch[] }
 
 export const chatContextKey = (id: string) => ['chat-context', id] as const
 export const chatMessagesKey = (id: string) => ['chat', 'messages', id] as const
 
 export function useChatMessages(id: string) {
   const cache = useQueryClient()
-  const [live, setLive] = useState<{ conversationId: string; messageId: string; text: string }>()
+  const [live, setLive] = useState<{ conversationId: string; messageId: string; text: string; reveal: RevealBatch[] }>()
   const query = useQuery({
     queryKey: chatMessagesKey(id),
     queryFn: () => Messages(id),
@@ -30,21 +34,27 @@ export function useChatMessages(id: string) {
       }
       const saved = cache.getQueryData<Message[]>(key)?.find(message => message.id === event.messageId)
       if (saved && saved.status !== 'running') return
+      const receivedAt = performance.now()
       setLive(previous => {
-        const text = previous?.conversationId === id && previous.messageId === event.messageId ? previous.text : ''
+        const message = previous?.conversationId === id && previous.messageId === event.messageId ? previous : undefined
+        const text = message?.text ?? ''
         const base = saved && saved.text.length > text.length ? saved.text : text
         const overlap = base.length - event.offset
         // A snapshot may already include part of this batch, or a gap may need the next snapshot.
         if (overlap < 0 || overlap >= event.delta.length) return previous
-        return { conversationId: id, messageId: event.messageId, text: base + event.delta.slice(overlap) }
+        const next = base + event.delta.slice(overlap)
+        return {
+          conversationId: id, messageId: event.messageId, text: next,
+          reveal: addRevealBatch(message?.reveal ?? [], { start: base.length, end: next.length, receivedAt }),
+        }
       })
     })
   }, [id, cache])
 
-  const data = useMemo(() => {
+  const data = useMemo<LiveMessage[] | null | undefined>(() => {
     if (!live || live.conversationId !== id) return query.data
-    return query.data?.map(message => message.id === live.messageId && message.status === 'running' && live.text.length > message.text.length
-      ? { ...message, text: live.text }
+    return query.data?.map(message => message.id === live.messageId && message.status === 'running' && live.text.length >= message.text.length
+      ? { ...message, text: live.text, reveal: live.reveal }
       : message)
   }, [id, query.data, live])
 
