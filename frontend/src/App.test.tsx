@@ -1136,6 +1136,13 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(await screen.findByRole('option', { name: '沙箱（未上线测试）' }))
     expect(docs()).toHaveAttribute('href', 'https://bot.qq.com/')
     await showSteps('QQ', /WebSocket/)
+    await user.click(dialog.getByRole('button', { name: '操作步骤' }))
+    const qqGuide = await screen.findByRole('dialog', { name: 'QQ操作步骤' })
+    const qqPortal = within(qqGuide).getByRole('link', { name: 'QQ 开放平台' })
+    expect(qqPortal).toHaveAttribute('href', 'https://q.qq.com/')
+    await user.click(qqPortal)
+    expect(host.openURL).toHaveBeenLastCalledWith('https://q.qq.com/')
+    await user.keyboard('{Escape}')
 
     await user.click(dialog.getByRole('button', { name: '平台' }))
     await user.click(await screen.findByRole('option', { name: '微信' }))

@@ -28,7 +28,8 @@ const pairingInstructions: Record<string, string> = {
   wechat: '在「微信 ClawBot」私聊里发送「配对」。',
 }
 const terminalWeChatStatuses = ['connected', 'expired', 'verify_code_blocked', 'binded_redirect']
-const larkAppSteps = '去开放平台建一个企业自建应用并开启机器人，事件订阅选择**使用长连接接收事件**并添加`im.message.receive_v1`（接收消息），发布应用后把 **AppID** 和 **AppSecret** 填到下方。点**下一步**开始配对后，在聊天里私聊机器人发送`配对`。'
+const larkAppSteps = (portal: string, url: string) =>
+  `去 [${portal}](${url}) 建一个企业自建应用并开启机器人，事件订阅选择**使用长连接接收事件**并添加\`im.message.receive_v1\`（接收消息），发布应用后把 **AppID** 和 **AppSecret** 填到下方。点**下一步**开始配对后，在聊天里私聊机器人发送\`配对\`。`
 const larkWebhookSteps = '在目标群的 **设置 → 群机器人** 里添加自定义机器人，把 **Webhook 网址**填到下方；如果开启了签名校验，把**加签密钥**也填上。需要发送图片的话，可再填上用于上传图片的应用 **AppID** 和 **AppSecret**。'
 const platforms: { value: string; label: string; steps: string; docs?: string; webhookDocs?: string; webhookSteps?: string }[] = [
   {
@@ -40,34 +41,34 @@ const platforms: { value: string; label: string; steps: string; docs?: string; w
     value: 'discord', label: 'Discord',
     docs: 'https://docs.discord.com/developers/quick-start/getting-started',
     webhookDocs: 'https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks',
-    steps: '去 Discord Developer Portal 创建一个应用，在 **Bot** 页面复制 **Bot Token** 填到下方，并把机器人邀请进你所在的服务器（服务器设置需允许成员私信）。点**下一步**开始配对后，在 Discord 里私信机器人发送`配对`。',
+    steps: '去 [Discord Developer Portal](https://discord.com/developers/applications) 创建一个应用，在 **Bot** 页面复制 **Bot Token** 填到下方，并把机器人邀请进你所在的服务器（服务器设置需允许成员私信）。点**下一步**开始配对后，在 Discord 里私信机器人发送`配对`。',
     webhookSteps: '在 Discord 打开想收通知的文字频道，进入 **编辑频道 → 集成 → Webhook**，新建一个 Webhook 并复制网址，填到下方 **Webhook URL** 即可。',
   },
   {
     value: 'slack', label: 'Slack',
     docs: 'https://docs.slack.dev/apis/events-api/using-socket-mode/',
     webhookDocs: 'https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/',
-    steps: '在 Slack 应用后台做三件事：1）在 **OAuth & Permissions** 给机器人加上`im:history`、`im:write`、`chat:write`权限，安装到工作区拿到 **xoxb-** 开头的 **Bot Token**；2）打开 **Socket Mode**，生成一个带`connections:write`权限的 **xapp-** 令牌；3）在 **Event Subscriptions** 开启订阅并添加`message.im`。把两个令牌填到下方，点**下一步**开始配对后，去 Slack 私聊机器人发送`配对`。',
-    webhookSteps: '在 Slack 应用后台启用 **Incoming Webhooks**，把它添加到工作区并选好要收消息的频道，把生成的 **Webhook 网址**填到下方即可。',
+    steps: '在 [Slack 应用后台](https://api.slack.com/apps) 做三件事：1）在 **OAuth & Permissions** 给机器人加上`im:history`、`im:write`、`chat:write`权限，安装到工作区拿到 **xoxb-** 开头的 **Bot Token**；2）打开 **Socket Mode**，生成一个带`connections:write`权限的 **xapp-** 令牌；3）在 **Event Subscriptions** 开启订阅并添加`message.im`。把两个令牌填到下方，点**下一步**开始配对后，去 Slack 私聊机器人发送`配对`。',
+    webhookSteps: '在 [Slack 应用后台](https://api.slack.com/apps) 启用 **Incoming Webhooks**，把它添加到工作区并选好要收消息的频道，把生成的 **Webhook 网址**填到下方即可。',
   },
   {
     value: 'dingtalk', label: '钉钉',
     docs: 'https://open-dingtalk.github.io/developerpedia/docs/explore/tutorials/stream/bot/nodejs/create-bot/',
     webhookDocs: 'https://open.dingtalk.com/document/group/custom-robot-access',
-    steps: '去钉钉开放平台建一个企业内部应用并开启机器人，消息接收模式选 **Stream 模式**，然后发布应用。把应用的 **AppKey** 和 **AppSecret** 填到下方，点**下一步**开始配对后，在钉钉里私聊机器人发送`配对`。',
+    steps: '去 [钉钉开放平台](https://open.dingtalk.com/) 建一个企业内部应用并开启机器人，消息接收模式选 **Stream 模式**，然后发布应用。把应用的 **AppKey** 和 **AppSecret** 填到下方，点**下一步**开始配对后，在钉钉里私聊机器人发送`配对`。',
     webhookSteps: '在钉钉群设置里添加一个**自定义**群机器人，把 **Webhook 网址**填到下方；如果安全设置选了**加签**，把**加签密钥**也一起填上。',
   },
   {
     value: 'feishu', label: '飞书',
     docs: 'https://open.feishu.cn/document/home/develop-a-bot-in-5-minutes/step-1-create-app-and-enable-robot-capabilities',
     webhookDocs: 'https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot?lang=zh-CN',
-    steps: larkAppSteps, webhookSteps: larkWebhookSteps,
+    steps: larkAppSteps('飞书开放平台', 'https://open.feishu.cn/app'), webhookSteps: larkWebhookSteps,
   },
   {
     value: 'lark', label: 'Lark',
     docs: 'https://open.larksuite.com/document/home/develop-a-bot-in-5-minutes/step-1-create-app-and-enable-robot-capabilities',
     webhookDocs: 'https://open.larksuite.com/document/uAjLw4CM/ukTMukTMukTM/bot-v3/use-custom-bots-in-a-group',
-    steps: larkAppSteps, webhookSteps: larkWebhookSteps,
+    steps: larkAppSteps('Lark 开放平台', 'https://open.larksuite.com/app'), webhookSteps: larkWebhookSteps,
   },
   {
     value: 'wechat', label: '微信',
@@ -77,13 +78,13 @@ const platforms: { value: string; label: string; steps: string; docs?: string; w
     value: 'wecom', label: '企业微信',
     docs: 'https://hiflow.tencent.com/docs/applications/wwx-app/',
     webhookDocs: 'https://cloud.tencent.com/document/product/1759/128391',
-    steps: '去企业微信管理后台建一个自建应用，并把要收消息的同事加到应用的**可见范围**里。把 **CorpID**、**应用 Secret** 和 **AgentID** 填到下方，点**下一步**后选**跳过配对**，在下一页直接填写成员 **UserID**（一行一个）。',
+    steps: '去 [企业微信管理后台](https://work.weixin.qq.com/) 建一个自建应用，并把要收消息的同事加到应用的**可见范围**里。把 **CorpID**、**应用 Secret** 和 **AgentID** 填到下方，点**下一步**后选**跳过配对**，在下一页直接填写成员 **UserID**（一行一个）。',
     webhookSteps: '在企业微信的目标群里打开 **群设置 → 群机器人 → 添加机器人**，把复制到的 **Webhook 网址**填到下方即可。',
   },
   {
     value: 'qq', label: 'QQ',
     docs: 'https://bot.qq.com/',
-    steps: '去 QQ 开放平台创建机器人，把拿到的 **AppID** 和 **AppSecret** 填到下方，并在平台的**事件订阅与回调地址**里把接收方式选为 **WebSocket**。还在开放平台沙箱里测试时，接入环境选**沙箱（未上线测试）**，上线后选**正式环境**。点**下一步**开始配对后，私聊机器人发送`配对`，或在测试群、文字子频道里 **@机器人** 并发送`配对`。',
+    steps: '去 [QQ 开放平台](https://q.qq.com/) 创建机器人，把拿到的 **AppID** 和 **AppSecret** 填到下方，并在平台的**事件订阅与回调地址**里把接收方式选为 **WebSocket**。还在开放平台沙箱里测试时，接入环境选**沙箱（未上线测试）**，上线后选**正式环境**。点**下一步**开始配对后，私聊机器人发送`配对`，或在测试群、文字子频道里 **@机器人** 并发送`配对`。',
   },
 ]
 function CopyableKbd({ value }: { value: string }) {
@@ -120,12 +121,29 @@ function CopyableKbd({ value }: { value: string }) {
   )
 }
 function renderHighlightedSteps(text: string) {
-  return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/gu).map((part, index) => {
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\(https:\/\/[^)]+\))/gu).map((part, index) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={index} className="font-semibold text-blue-600 dark:text-blue-400">{part.slice(2, -2)}</strong>
     }
     if (part.startsWith('`') && part.endsWith('`')) {
       return <CopyableKbd key={index} value={part.slice(1, -1)} />
+    }
+    const link = /^\[([^\]]+)\]\((https:\/\/[^)]+)\)$/u.exec(part)
+    if (link) {
+      const [, label, url] = link
+      return (
+        <a
+          key={index}
+          href={url}
+          className="font-medium text-foreground underline decoration-muted-foreground/70 underline-offset-4 transition-colors hover:text-blue-600 hover:decoration-blue-600 dark:hover:text-blue-400 dark:hover:decoration-blue-400"
+          onClick={event => {
+            event.preventDefault()
+            void native.openURL(url).catch(() => { void notify('无法打开网页', undefined, true) })
+          }}
+        >
+          {label}
+        </a>
+      )
     }
     return part
   })
