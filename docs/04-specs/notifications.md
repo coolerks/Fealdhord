@@ -30,6 +30,8 @@
 | [个人微信](https://github.com/Tencent/openclaw-weixin/blob/main/docs/protocol.md) | 每个私聊扫码授权后发送「配对」。白名单可从已绑定私聊中多选 | — | 纯文本链接与 iLink 图片上传 |
 | [QQ](https://github.com/tencent-connect/bot-docs/blob/main/docs/develop/api-v2/server-inter/message/send-receive/send.md) | AppID、AppSecret 与 `c2c:用户 OpenID`、`group:群 OpenID` 或 `channel:子频道 ID` | — | 文本链接，按目标能力生成图片消息 |
 
+企业微信智能机器人的配对页会区分长连接握手失败、认证失败和认证后断线。如果界面显示机器人认证被拒绝，请核对 Bot ID 和 Secret 是否来自同一个 API 模式长连接机器人。握手阶段失败时可根据提示中的 HTTP 状态排查。
+
 Telegram 私聊可直接使用数字用户 ID，每行一个。每位收件人首次接收前，需打开用于推送的机器人并点「开始」或发一条消息。详见 [Telegram 会话 ID](https://core.telegram.org/api/bots/ids#user-ids)和[机器人私聊规则](https://core.telegram.org/bots#how-are-bots-different-from-humans)。
 
 飞书和 Lark 私聊配对需要开通「获取用户发给机器人的单聊消息」（`im:message.p2p_msg:readonly`），订阅「接收消息」（`im.message.receive_v1`），并发布应用。发送收件校验码需要「以应用的身份发消息」（`im:message:send_as_bot`）。如果界面显示长连接已建立但一直收不到私聊，请在开放平台核对权限及事件日志，并暂停使用同一 AppID 的其他长连接客户端。[飞书长连接说明](https://open.feishu.cn/document/ukTMukTMukTM/uYDNxYjL2QTM24iN0EjN/event-subscription-configure-)

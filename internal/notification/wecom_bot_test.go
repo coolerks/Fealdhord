@@ -98,6 +98,11 @@ func TestWeComBotPairingVerificationAndStandaloneDelivery(t *testing.T) {
 			t.Error("unexpected WebSocket target")
 			return response(400, "{}"), nil
 		}
+		// Check the actual outbound spelling before net/http normalizes received headers.
+		if len(req.Header["Sec-WebSocket-Key"]) != 1 || !slices.Equal(req.Header["Sec-WebSocket-Version"], []string{"13"}) {
+			t.Error("WeCom gateway requires Sec-WebSocket-* handshake headers")
+			return response(http.StatusNotFound, "{}"), nil
+		}
 		req = req.Clone(req.Context())
 		req.URL.Host = endpoint.Host
 		return underlying.RoundTrip(req)
@@ -153,5 +158,17 @@ func TestWeComBotPairingVerificationAndStandaloneDelivery(t *testing.T) {
 	result := s.transport.sendWeComBot(ctx, connectionSecret{Address: input.Address, Signing: input.Signing}, recipient.Target, message)
 	if result.state != "unknown" {
 		t.Fatalf("send request without acknowledgement has result %+v", result)
+	}
+}
+
+func TestWeComBotHandshakeReportsSafeHTTPStatus(t *testing.T) {
+	tr := newTransport()
+	tr.client.Transport = sender(func(req *http.Request) (*http.Response, error) {
+		return response(http.StatusForbidden, "upstream response with fixture-secret"), nil
+	})
+	err := tr.pairWeComBot(t.Context(), connectionSecret{Address: "bot_fixture", Signing: "fixture-secret"},
+		func() { t.Error("failed handshake became ready") }, func() {}, func(string) {})
+	if err == nil || !strings.Contains(err.Error(), "握手失败（HTTP 403）") || strings.Contains(err.Error(), "fixture-secret") {
+		t.Fatalf("expected only a safe handshake diagnostic, got %v", err)
 	}
 }

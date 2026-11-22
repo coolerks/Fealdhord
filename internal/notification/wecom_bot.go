@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -16,14 +17,12 @@ import (
 )
 
 const (
-	wecomBotEndpoint = "wss://openws.work.weixin.qq.com"
-	wecomBotHost     = "openws.work.weixin.qq.com"
-	wecomBotTimeout  = 12 * time.Second
+	wecomBotHost    = "openws.work.weixin.qq.com"
+	wecomBotTimeout = 12 * time.Second
 )
 
 var (
 	errWeComBotCredentials = errors.New("请填写智能机器人的 Bot ID 和 Secret")
-	errWeComBotConnection  = errors.New("无法连接企业微信智能机器人，请检查网络后重试")
 	errWeComBotReplaced    = errors.New("企业微信智能机器人的连接被替换，请关闭使用同一 Bot ID 的其他客户端后重试")
 )
 
@@ -72,7 +71,7 @@ func wecomBotAck(ctx context.Context, conn *websocket.Conn, requestID string) (i
 	for {
 		var frame wecomBotFrame
 		if err := wsjson.Read(ctx, conn, &frame); err != nil {
-			return 0, errWeComBotConnection
+			return 0, err
 		}
 		if frame.replaced() {
 			return 0, errWeComBotReplaced
@@ -96,21 +95,49 @@ func (t transport) lockWeComBot(ctx context.Context, botID string) (func(), erro
 	}
 }
 
-func (t transport) connectWeComBot(ctx context.Context, secret connectionSecret) (*websocket.Conn, int, error) {
-	conn, err := t.pairSocket(ctx, wecomBotEndpoint, wecomBotHost)
-	if err != nil {
-		return nil, 0, errWeComBotConnection
+type wecomBotHandshakeTransport struct{ http.RoundTripper }
+
+func (t wecomBotHandshakeTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	// The public gateway returns HTTP 404 for net/http's Sec-Websocket-* spelling.
+	for _, name := range []string{"Sec-WebSocket-Key", "Sec-WebSocket-Version"} {
+		if value := req.Header.Get(name); value != "" {
+			req.Header.Del(name)
+			req.Header[name] = []string{value}
+		}
 	}
+	return t.RoundTripper.RoundTrip(req)
+}
+
+func (t transport) connectWeComBot(ctx context.Context, secret connectionSecret) (*websocket.Conn, int, error) {
+	client := *t.client
+	base := client.Transport
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	client.Transport = wecomBotHandshakeTransport{base}
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	conn, resp, err := websocket.Dial(ctx, "wss://"+wecomBotHost, &websocket.DialOptions{HTTPClient: &client})
+	if err != nil {
+		if resp != nil && resp.StatusCode != http.StatusSwitchingProtocols {
+			return nil, 0, fmt.Errorf("企业微信长连接握手失败（HTTP %d），请重试", resp.StatusCode)
+		}
+		return nil, 0, errors.New("无法建立企业微信长连接，请检查网络后重试")
+	}
+	conn.SetReadLimit(maxWireResponse)
 	reqID := "aibot_subscribe_" + rand.Text()
 	if err = wecomBotCommand(ctx, conn, "aibot_subscribe", reqID, map[string]any{
 		"bot_id": secret.Address, "secret": secret.Signing,
 	}); err != nil {
 		_ = conn.CloseNow()
-		return nil, 0, errWeComBotConnection
+		return nil, 0, errors.New("企业微信长连接已建立，但无法发送机器人认证请求，请重新配对")
 	}
 	code, err := wecomBotAck(ctx, conn, reqID)
 	if err != nil || code != 0 {
 		_ = conn.CloseNow()
+		if err != nil && !errors.Is(err, errWeComBotReplaced) {
+			err = errors.New("企业微信长连接已建立，但未收到机器人认证回执，请重新配对")
+		}
 		return nil, code, err
 	}
 	return conn, 0, nil
@@ -155,7 +182,7 @@ func (t transport) pairWeComBot(ctx context.Context, secret connectionSecret, re
 	for {
 		var frame wecomBotFrame
 		if err := wsjson.Read(listen, conn, &frame); err != nil {
-			return errWeComBotConnection
+			return errors.New("企业微信智能机器人已认证，但长连接已断开，请重新配对")
 		}
 		if frame.replaced() {
 			return errWeComBotReplaced

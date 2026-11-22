@@ -32,6 +32,8 @@ QQ 渠道复用 `Channel.mode`。空字符串为正式环境，`sandbox` 为沙�
 
 企业微信新增的私发渠道使用 `Channel.mode=bot`，`ChannelInput.Address` 和 `ChannelInput.Signing` 分别保存 Bot ID 和 Secret。向固定的 `wss://openws.work.weixin.qq.com` 发出 `aibot_subscribe`（`bot_id`、`secret`），匹配 `headers.req_id` 且收到 `errcode=0` 后进入监听。配对阶段每 30 秒发送 `ping`，连续两次未确认时结束监听。收到私聊时设置 `received_message`。前端离开配对页时取消当前监听，确认页继续保留所选目标。单个 Bot ID 的连接在进程内串行处理，收到 `disconnected_event` 时结束配对并提示检查同凭据的其他客户端。[企业微信智能机器人 SDK](https://github.com/WecomTeam/aibot-node-sdk)
 
+企业微信公网网关握手要求出站请求头使用 `Sec-WebSocket-Key` 和 `Sec-WebSocket-Version`。Go 默认序列化成 `Sec-Websocket-*` 时网关可能返回 HTTP 404。在企业微信专用 HTTP transport 临发送前保留原大小写，探测确认可完成升级。连接仅使用固定网关并拒绝重定向。配对诊断区分网络建连失败、HTTP 握手拒绝、认证未返回、平台认证错误码与认证后的断线。只暴露安全的数字状态和提示。
+
 ## 4. 校验与错误
 
 仅匹配去除首尾空白后的「配对」。QQ @ 事件去除机器人的前置提及，全量群事件必须含机器人的提及。接收目标经过发送侧格式校验，去重并限制为 50 个。已保存渠道使用 revision 校验并可复用凭据。Slack App-Level Token 仅用于当前监听。错误、关闭和超时结束监听。企业微信现有自建应用需要消息接收回调，仍通过手动 UserID 完成设置。
@@ -56,6 +58,8 @@ QQ 渠道复用 `Channel.mode`。空字符串为正式环境，`sandbox` 为沙�
 钉钉 TLS 回环模拟官方显式 `:443` 地址，覆盖 ticket、心跳确认和消息回调，断言能够识别成员 UserID。另验证网关拒绝非标准端口、不受信域名和 URL 用户信息，以及申请错误不会回传凭据。
 
 企业微信 TLS 回环覆盖 Bot ID 和 Secret 认证、忽略群聊和非关键词、提取成员 UserID、取消配对后独立连接主动发码、成功验证后独立发送，以及发送回执丢失时标记结果未知。前端覆盖新建默认方式、官方链接、凭据传递与释放配对连接。
+
+TLS 回环的请求转发层直接断言原始请求头键名。Go 服务端解析入站请求时会规范化大小写，单独断言服务端收到的头值无法发现这项兼容问题。模拟握手拒绝时断言只展示 HTTP 状态，不包含上游正文或凭据。
 
 ## 7. 错误与正确做法
 
