@@ -1369,3 +1369,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 52: 钉钉 Stream 网关连接修复
+<!-- trellis-session: v=2 fp=f078ebbaf2dded50 -->
+
+**Date**: 2026-11-22
+**Task**: 钉钉 Stream 网关连接修复
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+用官方显式 :443 的网关地址复现拨号前失败，接受标准 TLS 端口并保留域名校验。申请、WebSocket 握手与断开分别报告安全诊断。TLS 回环、通知竞态、前端相关测试及构建通过。实际钉钉账号待复测。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `12eee54` | fix(notification): 修复钉钉 Stream 网关连接 |
+
+### Status
+
+[OK] **Completed**
