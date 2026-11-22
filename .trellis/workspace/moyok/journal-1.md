@@ -1347,3 +1347,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 51: 钉钉凭据名称与权限说明
+<!-- trellis-session: v=2 fp=73aef4bb55713289 -->
+
+**Date**: 2026-11-22
+**Task**: 钉钉凭据名称与权限说明
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+钉钉应用机器人表单显示 Client ID 和 Client Secret，操作步骤与配对提示补齐 Stream 模式、发布和可见范围，单列主动发送需要的企业内机器人发送消息权限。定向测试、类型检查、lint 和构建通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `58b9af0` | fix(notification): 更新钉钉凭据名称和权限指引 |
+
+### Status
+
+[OK] **Completed**

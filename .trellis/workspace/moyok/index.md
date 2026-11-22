@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 50
+- **Total Sessions**: 51
 - **Last Active**: 2026-11-22
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1349 | Active |
+| `journal-1.md` | ~1371 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 51 | 2026-11-22 | 钉钉凭据名称与权限说明 | `58b9af0` | `codex/interface-clarity` |
 | 50 | 2026-11-22 | 飞书和 Lark 私聊配对排查 | `cb3b32d` | `codex/interface-clarity` |
 | 49 | 2026-11-22 | 通知渠道标签多选与复选框修复 | `49ce392` | `codex/interface-clarity` |
 | 48 | 2026-11-22 | 通知渠道操作步骤 | `8311ba4` | `codex/interface-clarity` |
