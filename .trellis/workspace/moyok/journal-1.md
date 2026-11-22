@@ -1171,3 +1171,25 @@ Chromium 逐帧检查两侧同步水平位移、无右侧露底、宽度只变�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 43: 通知收件目标三步配对
+<!-- trellis-session: v=2 fp=ac6e29ba431df89b -->
+
+**Date**: 2026-11-22
+**Task**: 通知收件目标三步配对
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+新增凭据、消息配对、确认配置。QQ 覆盖私聊、群与文字子频道的事件解析，微信可跳过后恢复。企业微信自建应用仍需回调接入。前端 163 项测试、生产构建、Go 全量测试和通知竞态检查通过，真实机器人待验证。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8ffc461` | feat(notification): 增加三步设置和收件目标配对 |
+
+### Status
+
+[OK] **Completed**
