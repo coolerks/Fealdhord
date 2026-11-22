@@ -1501,3 +1501,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 58: 修复 DeepSeek 全局聊天工具丢失
+<!-- trellis-session: v=2 fp=c673f045422fd813 -->
+
+**Date**: 2026-11-22
+**Task**: 修复 DeepSeek 全局聊天工具丢失
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+确认会话兼容判断静默移除工具。DeepSeek V4 工具轮次明确关闭思考并标记实际模式。模拟网关验证工具声明、执行审计、结果续传和无工具思考档位，真实 Magpie 转发待复测。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c369ba6` | fix(chat): 保留 DeepSeek 会话的授权工具 |
+
+### Status
+
+[OK] **Completed**
