@@ -634,7 +634,7 @@ export function NotificationSettings() {
             {channelStep === 2 && !wechatMode && (
               <div className="space-y-3 rounded-lg border border-border p-3">
                 {channel.platform === 'wecom' ? (
-                  <p className="text-sm text-muted-foreground">企业微信自建应用需要配置消息回调。可跳过配对，直接填写成员 UserID。</p>
+                  <p className="text-sm text-muted-foreground">主动发送通知无需配置消息回调。点击「跳过配对」，填写应用可见范围内的成员 UserID，也就是企业微信通讯录里的「账号」。</p>
                 ) : (
                   <>
                     <p className="text-sm text-muted-foreground">{pairingInstructions[channel.platform]}</p>

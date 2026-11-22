@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -83,6 +84,7 @@ type appReply struct {
 	InvalidStaff   []string `json:"invalidStaffIdList"`
 	ThrottledStaff []string `json:"flowControlledStaffIdList"`
 	InvalidUser    string   `json:"invaliduser"`
+	UnlicensedUser string   `json:"unlicenseduser"`
 	AccessToken    string   `json:"accessToken"`
 	WeComToken     string   `json:"access_token"`
 	TenantToken    string   `json:"tenant_access_token"`
@@ -243,25 +245,57 @@ func (t transport) sendWeComApp(ctx context.Context, target string, secret conne
 	query := url.Values{"corpid": {secret.Address}, "corpsecret": {secret.Signing}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"gettoken?"+query.Encode(), nil)
 	if err != nil {
-		return deliveryResult{state: "failed", detail: "authentication"}
+		return deliveryResult{state: "failed", detail: "configuration"}
 	}
 	response, err := t.client.Do(req)
 	if err != nil {
-		return deliveryResult{state: "failed", detail: "authentication"}
+		return deliveryResult{state: "failed", detail: "connection", userHint: "无法连接企业微信获取访问令牌，请检查网络后重试"}
 	}
 	defer response.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxWireResponse+1))
 	var token appReply
 	if response.StatusCode != http.StatusOK || err != nil || len(data) > maxWireResponse ||
-		json.Unmarshal(data, &token) != nil || token.ErrCode == nil || *token.ErrCode != 0 || token.WeComToken == "" {
-		return deliveryResult{state: "failed", detail: "authentication"}
+		json.Unmarshal(data, &token) != nil || token.ErrCode == nil {
+		return deliveryResult{state: "failed", detail: "authentication", userHint: "获取企业微信访问令牌失败，请检查网络和应用配置后重试"}
+	}
+	if *token.ErrCode != 0 {
+		return wecomAppRejection(*token.ErrCode, "企业微信拒绝获取访问令牌")
+	}
+	if token.WeComToken == "" {
+		return deliveryResult{state: "failed", detail: "invalid_response", userHint: "企业微信未返回访问令牌，请检查应用配置后重试"}
 	}
 	payload := wecomPayload(message)
 	agent, _ := strconv.ParseUint(secret.Context, 10, 32)
 	payload["agentid"], payload["touser"] = agent, target
 	reply, result := t.appPost(ctx, base+"message/send?access_token="+url.QueryEscape(token.WeComToken), payload, nil, true)
+	if reply.ErrCode != nil && *reply.ErrCode != 0 {
+		return wecomAppRejection(*reply.ErrCode, "企业微信拒绝发送消息")
+	}
+	if reply.InvalidUser != "" {
+		return deliveryResult{state: "failed", detail: "recipient_not_available", userHint: "企业微信无法向该成员发送消息，请核对 UserID 和应用可见范围"}
+	}
+	if reply.UnlicensedUser != "" {
+		return deliveryResult{state: "failed", detail: "recipient_not_licensed", userHint: "该企业微信成员缺少有效的基础接口许可，请在企业微信管理后台检查许可"}
+	}
 	if result.state == "accepted" && reply.ErrCode == nil {
 		return deliveryResult{state: "unknown", detail: "invalid_response"}
 	}
 	return result
+}
+
+func wecomAppRejection(code int, action string) deliveryResult {
+	message := fmt.Sprintf("%s（%d）", action, code)
+	switch code {
+	case 60020:
+		message += "，请将折栈当前的公网出口 IP 加入自建应用的「企业可信 IP」"
+	case 40001, 40013, 40014:
+		message += "，请核对同一自建应用的企业 ID（CorpID）和应用 Secret"
+	case 40056:
+		message += "，请核对与应用 Secret 对应的应用 AgentID"
+	case 40003, 40031, 50002, 60021, 60111, 81013:
+		message += "，请核对成员 UserID 和应用可见范围"
+	case 50003:
+		message += "，请在企业微信管理后台启用自建应用"
+	}
+	return deliveryResult{state: "failed", detail: fmt.Sprintf("wecom_%d", code), userHint: message}
 }

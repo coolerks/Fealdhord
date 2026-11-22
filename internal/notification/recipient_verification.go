@@ -82,6 +82,9 @@ func (s *Service) sendRecipientVerification(ctx context.Context, channelID strin
 		return nil
 	}
 	challenge.code = ""
+	if result.userHint != "" {
+		return errors.New(result.userHint)
+	}
 	return errors.New("校验码发送失败，请确认渠道配置后重发")
 }
 

@@ -7,6 +7,48 @@ import (
 	"testing"
 )
 
+func TestWeComVerificationReportsSafeDeliveryRejection(t *testing.T) {
+	const token = `{"errcode":0,"access_token":"fixture-token"}`
+	for _, test := range []struct{ name, auth, send, want string }{
+		{"IP rejected at gettoken", `{"errcode":60020,"errmsg":"fixture-secret and source IP"}`, "", "企业可信 IP"},
+		{"bad credentials", `{"errcode":40001,"errmsg":"fixture-secret"}`, "", "应用 Secret"},
+		{"IP rejected at send", token, `{"errcode":60020,"errmsg":"fixture-token"}`, "公网出口 IP"},
+		{"bad agent", token, `{"errcode":40056}`, "应用 AgentID"},
+		{"invalid member", token, `{"errcode":81013,"errmsg":"fixture-member"}`, "应用可见范围"},
+		{"rejected member in successful response", token, `{"errcode":0,"invaliduser":"fixture-member"}`, "应用可见范围"},
+		{"unlicensed member in successful response", token, `{"errcode":0,"unlicenseduser":"fixture-member"}`, "基础接口许可"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s, _ := newTestNotification(t)
+			ctx := t.Context()
+			channel, err := s.SaveChannel(ctx, ChannelInput{
+				Channel: Channel{Name: "企业微信", Platform: "wecom", Mode: "app", Enabled: true},
+				Address: "corp", Signing: "fixture-secret", Context: "10001", Targets: []string{"fixture-member"},
+			})
+			if err != nil || len(channel.Recipients) != 1 {
+				t.Fatalf("could not save test channel: %v", err)
+			}
+			s.transport.client.Transport = sender(func(r *http.Request) (*http.Response, error) {
+				if r.URL.Path == "/cgi-bin/gettoken" {
+					return response(200, test.auth), nil
+				}
+				if r.URL.Path != "/cgi-bin/message/send" || test.send == "" {
+					t.Fatal("unexpected message request")
+				}
+				return response(200, test.send), nil
+			})
+			recipient := channel.Recipients[0]
+			err = NewAPI(s, nil).SendRecipientVerification(ctx, channel.ID, channel.Revision, recipient.ID, "", false)
+			if err == nil || !strings.Contains(err.Error(), test.want) || strings.Contains(err.Error(), "fixture-") {
+				t.Fatalf("unexpected verification error: %v", err)
+			}
+			if challenge := s.verifications.pending[recipient.ID]; challenge == nil || challenge.code != "" || challenge.sending {
+				t.Fatal("rejected verification must invalidate its code")
+			}
+		})
+	}
+}
+
 func TestRecipientVerificationChecksTargetCodeAndRevision(t *testing.T) {
 	s, now := newTestNotification(t)
 	ctx := t.Context()

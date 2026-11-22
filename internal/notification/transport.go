@@ -43,6 +43,7 @@ type Message struct {
 type deliveryResult struct {
 	state, detail string
 	wait          time.Duration
+	userHint      string
 }
 
 type webhook struct {
