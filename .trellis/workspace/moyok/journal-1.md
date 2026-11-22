@@ -1545,3 +1545,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 60: 平滑显示 AI 流式回复
+<!-- trellis-session: v=2 fp=13daefed19c98d88 -->
+
+**Date**: 2026-11-22
+**Task**: 平滑显示 AI 流式回复
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+生成中隐藏三个操作按钮。Markdown 新增短片段错峰淡入。界面回归、Chromium 中间帧、类型检查和生产构建通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `606cc50` | feat(chat): 平滑显示流式回复并延后回复操作 |
+
+### Status
+
+[OK] **Completed**
