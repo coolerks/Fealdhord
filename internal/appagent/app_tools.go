@@ -52,11 +52,17 @@ func Builtins(s Services) *Registry {
 		if input.Scope.Kind == "" {
 			input.Scope.Kind = "all"
 		}
-		if input.Sort == "" {
-			input.Sort = "relevance"
-			if input.Search == "" {
-				input.Sort = "newest"
+		switch input.Sort {
+		case "":
+			if input.Search != "" {
+				input.Sort = "relevance"
+			} else {
+				input.Sort = "published_desc"
 			}
+		case "newest":
+			input.Sort = "published_desc"
+		case "oldest":
+			input.Sort = "published_asc"
 		}
 		if input.Limit == 0 {
 			input.Limit = 12
@@ -71,7 +77,7 @@ func Builtins(s Services) *Registry {
 		}
 		return result
 	}
-	Register(r, "article.list", "按范围、状态或订阅列出文章摘要", false, query)
+	Register(r, "article.list", "按范围、状态或订阅列出文章摘要。scope.kind 可为 all/unread/favorites/featured/feed/category（feed/category 需提供 scope.id），read 可为 all/read/unread，sort 可为 published_desc/published_asc", false, query)
 	Register(r, "article.search", "按关键词搜索本地文章。查询使用 search 字段，返回稳定文章 ID 和摘要", false, query)
 	Register(r, "article.get", "读取指定文章的纯文本正文，需用户确认", true, func(ctx context.Context, input id) any {
 		return s.Library.Get(ctx, library.IDRequest{ArticleID: input.ID})

@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { clearSelectionWithin } from '@/app/TextSelection'
 import { AnimatedGlyph } from '@/components/animated-glyph'
@@ -53,6 +53,20 @@ function normalizeEntries(sections: Partial<ReplyWork>[]) {
     summary: entry.reasoningSummary?.trim(),
     thinking: entry.reasoningText?.trim(),
   })).filter(entry => entry.summary || entry.thinking || entry.reasoningObserved || entry.reasoningTruncated || entry.tools?.length)
+}
+
+const NEXT_ROUND_THINKING_DELAY_MS = 250
+
+// 仅在持续处于等待状态超过阈值时才显示，避免同一轮并行工具交接的毫秒级闪烁；退出等待时立即隐藏。
+function useDelayedTrue(active: boolean, delayMs = NEXT_ROUND_THINKING_DELAY_MS) {
+  const [visible, setVisible] = useState(false)
+  if (!active && visible) setVisible(false)
+  useEffect(() => {
+    if (!active) return
+    const timer = setTimeout(() => setVisible(true), delayMs)
+    return () => clearTimeout(timer)
+  }, [active, delayMs])
+  return active && visible
 }
 
 function ThinkingIndicator() {
@@ -197,6 +211,8 @@ function SingleStageProgress({ message }: { message: Message }) {
   const entries = normalizeEntries([section])
   const hasProcess = entries.length > 0
   const hasRunningTool = running && entries.some(entry => entry.tools?.some(tool => tool.status === 'running'))
+  const hasAnyTools = Boolean(section.tools?.length)
+  const showNextRoundThinking = useDelayedTrue(running && !hasRunningTool && !hasText && hasAnyTools)
   const open = toggle?.running === running ? toggle.open : false
 
   useLayoutEffect(() => {
@@ -208,10 +224,9 @@ function SingleStageProgress({ message }: { message: Message }) {
   if (running) {
     if (!hasText && !hasProcess) return <ThinkingIndicator />
     if (!hasProcess) return null
-    const waitingForNextRound = !hasRunningTool && !hasText && Boolean(section.tools?.length)
     return <>
       <ActivityRound sections={[section]} running={running} waiting={!hasText} activeRound={!hasText} />
-      {waitingForNextRound && <ThinkingIndicator />}
+      {showNextRoundThinking && <ThinkingIndicator />}
     </>
   }
 
@@ -258,6 +273,9 @@ export function ReplyBody({ message, markdown, reveal }: {
   const hasMultiStage = Boolean(work && positions?.length)
   const finalOffset = hasMultiStage ? positions![positions!.length - 1].offset : 0
   const hasFinalText = Boolean(message.text.slice(finalOffset).trim())
+  const hasRunningTool = Boolean(running && hasMultiStage && work!.tools?.some(tool => tool.status === 'running'))
+  const hasAnyTools = Boolean(hasMultiStage && work!.tools?.length)
+  const showNextRoundThinking = useDelayedTrue(running && hasMultiStage && !hasRunningTool && !hasFinalText && hasAnyTools)
   const open = toggle?.running === running ? toggle.open : !hasFinalText
 
   useLayoutEffect(() => {
@@ -293,9 +311,6 @@ export function ReplyBody({ message, markdown, reveal }: {
   const finalBody = textBetween(finalOffset, message.text.length)
 
   if (running) {
-    const hasRunningTool = work!.tools?.some(tool => tool.status === 'running') ?? false
-    const lastSection = groups.at(-1)?.sections.at(-1)
-    const waitingForNextRound = !hasRunningTool && !hasFinalText && Boolean(lastSection?.tools?.length)
     return <div className="flex flex-col gap-2">
       {groups.map((group, i) => {
         const before = textBetween(groups[i - 1]?.offset ?? 0, group.offset)
@@ -305,7 +320,7 @@ export function ReplyBody({ message, markdown, reveal }: {
           <ActivityRound sections={group.sections} running={running} waiting={waiting} activeRound={isLast && !hasFinalText} />
         </div>
       })}
-      {waitingForNextRound && <ThinkingIndicator />}
+      {showNextRoundThinking && <ThinkingIndicator />}
       {finalBody}
     </div>
   }

@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -69,12 +68,8 @@ func openWithMigrations(ctx context.Context, filename string, files fs.FS, optio
 			err = errors.Join(err, lock.Close())
 		}
 	}()
-	path = filepath.ToSlash(path)
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
 	query := url.Values{"_pragma": {"foreign_keys(1)", "busy_timeout(5000)", "journal_mode(WAL)"}}
-	dsn := (&url.URL{Scheme: "file", Path: path, RawQuery: query.Encode()}).String()
+	dsn := formatSQLiteFileDSN(path, query.Encode())
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("打开数据库: %w", err)

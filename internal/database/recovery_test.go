@@ -156,3 +156,16 @@ func TestFutureDatabaseVersionIsRejected(t *testing.T) {
 		t.Fatal("旧应用打开了未来版本库")
 	}
 }
+
+func TestFormatSQLiteFileDSNNormalizesWindowsPaths(t *testing.T) {
+	got := formatSQLiteFileDSN(`C:\Users\Alice\AppData\Roaming\Fealdhord\fealdhord.db.backups\before-v23.db`, "mode=ro")
+	want := "file:///C:/Users/Alice/AppData/Roaming/Fealdhord/fealdhord.db.backups/before-v23.db?mode=ro"
+	if got != want {
+		t.Fatalf("formatSQLiteFileDSN = %q, want %q", got, want)
+	}
+	unixGot := formatSQLiteFileDSN("/Users/alice/fealdhord.db", "mode=ro")
+	unixWant := "file:///Users/alice/fealdhord.db?mode=ro"
+	if unixGot != unixWant {
+		t.Fatalf("formatSQLiteFileDSN unix = %q, want %q", unixGot, unixWant)
+	}
+}

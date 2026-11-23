@@ -10,7 +10,16 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
+
+func formatSQLiteFileDSN(absPath, rawQuery string) string {
+	path := strings.ReplaceAll(filepath.ToSlash(absPath), "\\", "/")
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return (&url.URL{Scheme: "file", Path: path, RawQuery: rawQuery}).String()
+}
 
 func checkDatabase(ctx context.Context, db *sql.DB) error {
 	var status string
@@ -88,8 +97,7 @@ func openSnapshot(filename string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	dsn := (&url.URL{Scheme: "file", Path: filepath.ToSlash(path), RawQuery: "mode=ro"}).String()
-	return sql.Open("sqlite", dsn)
+	return sql.Open("sqlite", formatSQLiteFileDSN(path, "mode=ro"))
 }
 
 func (s *Store) Backup(ctx context.Context, destination string) error {

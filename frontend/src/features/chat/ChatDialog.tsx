@@ -8,8 +8,7 @@ import { ModelBrand } from '@/features/settings/ModelMetadata'
 import { skillsKey } from '@/features/settings/AIPlatformSettings'
 import { Skills } from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/api'
 import { SearchableSelect } from '@/components/ui/searchable-select'
-import { FieldLabel } from '@/components/ui/field'
-import { Popover } from 'radix-ui'
+import { ChatModelMenu } from './ChatModelMenu'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
@@ -18,7 +17,7 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 're
 import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, useIsPresent } from 'motion/react'
-import { ArrowDown, ArrowUp, BookOpen, Box, Brain, CalendarClock, Check, ChevronDown, Copy, FileText, Gauge, Paperclip, Plus, Settings, Sparkles, Square, Wrench, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, Box, Brain, CalendarClock, Check, Copy, FileText, Gauge, Paperclip, Plus, Settings, Sparkles, Square, Wrench, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { SemanticButton } from '@/components/semantic-button'
@@ -621,40 +620,19 @@ function ChatSession({ target, close, workspace }: {
             </span>}
             {workspace && selectedConfig && modelID && <ChatContext id={conversationId} modelId={modelID} modelRevision={selectedConfig.revision}
               disabled={active || send.isPending} attachments={sources} open={contextOpen} onOpenChange={setContextOpen} />}
-            {workspace && (modelOptions.length ? <Popover.Root>
-              <Popover.Trigger asChild>
-                <Button type="button" variant="ghost" size="sm" aria-label="聊天模型"
-                  className="chat-model chat-toolbar-select max-w-full justify-between gap-1.5 font-normal"
-                  disabled={send.isPending}>
-                  {selectedModel?.graphic}
-                  <span className="truncate">{selectedModel?.label ?? '选择模型'}</span>
-                  {selectedEffortLabel && <span className="max-w-24 shrink-0 truncate text-muted-foreground">{selectedEffortLabel}</span>}
-                  <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                </Button>
-              </Popover.Trigger>
-              <Popover.Portal>
-                <Popover.Content role="dialog" aria-label="模型与推理等级" side="top" align="end" sideOffset={6} collisionPadding={8}
-                  className="z-50 w-72 space-y-3 rounded-xl border bg-popover p-3 shadow-md outline-none">
-                  <div className="space-y-1.5">
-                    <FieldLabel htmlFor="chat-model-select" className="text-xs font-normal text-muted-foreground">模型</FieldLabel>
-                    <SearchableSelect id="chat-model-select" label="选择模型" className="w-full" value={modelID ?? ''}
-                      options={modelOptions} announceSelection placeholder="选择模型" disabled={send.isPending}
-                      onValueChange={selectModel} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <FieldLabel htmlFor="chat-reasoning-select" className="text-xs font-normal text-muted-foreground">推理等级</FieldLabel>
-                    <SearchableSelect id="chat-reasoning-select" label="推理等级" className="w-full"
-                      value={effortLevels.length ? (reasoningEffort || defaultEffortOption.value) : ''}
-                      options={effortLevels.length ? [defaultEffortOption, ...effortLevels] : []}
-                      announceSelection disabled={send.isPending || effortLevels.length === 0}
-                      placeholder={effortLevels.length === 0 ? '该模型未配置推理等级' : '使用服务默认'}
-                      onValueChange={effort => {
-                        if (modelID) setEffortChoices(current => ({ ...current, [modelID]: effort === defaultEffortOption.value ? '' : effort }))
-                      }} />
-                  </div>
-                </Popover.Content>
-              </Popover.Portal>
-            </Popover.Root>
+            {workspace && (modelOptions.length ? <ChatModelMenu
+              modelOptions={modelOptions}
+              selectedModel={selectedModel}
+              effortOptions={effortLevels}
+              selectedEffort={reasoningEffort}
+              selectedEffortLabel={selectedEffortLabel}
+              defaultEffortValue={defaultEffortOption.value}
+              disabled={send.isPending}
+              onSelectModel={selectModel}
+              onSelectEffort={effort => {
+                if (modelID) setEffortChoices(current => ({ ...current, [modelID]: effort === defaultEffortOption.value ? '' : effort }))
+              }}
+            />
               : configuration.isError ? <Button type="button" size="sm" variant="ghost" onClick={() => void configuration.refetch()}>重新读取模型</Button>
                 : configuration.isPending ? <span role="status" className="px-2 text-xs text-muted-foreground">正在读取模型…</span>
                   : <Button type="button" size="sm" variant="ghost" onClick={() => showSettings('ai')}>配置模型</Button>)}
