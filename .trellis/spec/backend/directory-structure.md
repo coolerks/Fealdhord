@@ -43,3 +43,5 @@ internal/desktop 负责窗口选项与系统菜单，main 注册 CommandEvent。
 「帮助 → 开发者工具」的 macOS 原生菜单由 SettingsService 提交成功后的 `DeveloperModeChanged(enabled, revision)` 更新，主线程按 revision 丢弃旧回调。应用构建要保留 `devtools`，macOS 保留 `private_mac_apis`，并在打开时先补齐当前 WKWebView 的本地 Inspector 偏好。发布版本通过 Go 链接参数注入 `internal/app.version`，由 BootstrapService.GetInfo 返回。详见[原生体验契约](../../../docs/04-specs/native-experience.md)。
 
 主窗口用 `WindowClosePreference.Install(app, window)` 统一处理原生和自绘窗口关闭。关闭 Wails 的最后窗口自动退出策略，由公用关闭 hook 调用 `Hide()` 或 `App.Quit()`，避免隐藏最后一个可见窗口时触发 macOS 自动退出。偏好缺失时后台留存，过期或失败的保存不改变原生行为。托盘与 Linux 启动器复用 `RestoreMainWindow(window)`，检查原窗口隐藏后仍在窗口管理器中、恢复使用同一窗口以及退出触发清理。完整行为和设置契约见[原生体验规格](../../../docs/04-specs/native-experience.md)与[偏好规格](../../../docs/04-specs/preferences.md)。
+
+Windows 任务栏从 EXE 的多尺寸 ICO 读取，托盘从内嵌 PNG 读取。替换图标时应重新生成 Windows 资源文件并核对 EXE 中的两种资源。裁切和验证步骤见[发布门禁](../../../docs/07-quality/release-checklist.md)。
