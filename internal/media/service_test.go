@@ -267,3 +267,36 @@ func TestEnablingWebFallbackRetriesNone(t *testing.T) {
 	}
 	t.Fatal("启用补图未重试无图记录", record)
 }
+
+func TestCacheSizeReportsDiskAndClears(t *testing.T) {
+	ctx := context.Background()
+	cacheDir := t.TempDir()
+	service, err := New(ctx, nil, nil, cacheDir, func(context.Context) Policy {
+		return Policy{RemoteImages: "always", CacheEnabled: true}
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+
+	size, err := service.CacheSize(ctx)
+	if err != nil || size != 0 {
+		t.Fatalf("empty cache size = %d, %v", size, err)
+	}
+	key := cacheKey("https://example.test/sample.png")
+	payload := []byte("0123456789abcdef")
+	if err := service.cache.put(key, payload, true); err != nil {
+		t.Fatal(err)
+	}
+	size, err = service.CacheSize(ctx)
+	if err != nil || size != int64(len(payload)+8) {
+		t.Fatalf("disk cache size = %d, want %d, err = %v", size, len(payload)+8, err)
+	}
+	if err := service.ClearCache(); err != nil {
+		t.Fatal(err)
+	}
+	size, err = service.CacheSize(ctx)
+	if err != nil || size != 0 {
+		t.Fatalf("cleared cache size = %d, %v", size, err)
+	}
+}

@@ -1195,6 +1195,12 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(dialog.getByRole('button', { name: '通知' }))
     const mode = within(dialog.getByRole('radiogroup', { name: '通知方式' }))
     expect(mode.getByRole('radio', { name: '应用内通知' })).toBeChecked()
+    const refreshToggle = dialog.getByRole('switch', { name: '订阅更新通知' })
+    expect(refreshToggle).not.toBeChecked()
+    expect(dialog.queryByRole('switch', { name: '自动收起应用内订阅更新通知' })).not.toBeInTheDocument()
+
+    await user.click(refreshToggle)
+    expect(refreshToggle).toBeChecked()
     const autoDismiss = dialog.getByRole('switch', { name: '自动收起应用内订阅更新通知' })
     expect(autoDismiss).not.toBeChecked()
 
@@ -1205,6 +1211,7 @@ describe('Phase 1 阅读 Shell', () => {
     expect(mode.getByRole('radio', { name: '系统通知' })).toBeChecked()
     await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(expect.objectContaining({
       notification_mode: 'native',
+      refresh_notifications_enabled: true,
       refresh_toast_auto_dismiss: true,
     }), expect.any(Number)))
 

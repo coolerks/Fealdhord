@@ -44,7 +44,10 @@ import { useRSSSync } from './use-rss-sync'
 import { RefreshStatus } from '@/features/feeds/RefreshStatus'
 
 
-const readFeedIcons = (page: Page) => new Map(page.items?.map(feed => [feed.id, feed.icon_data]))
+const readFeedMeta = (page: Page) => ({
+  icons: new Map(page.items?.map(feed => [feed.id, feed.icon_data])),
+  readerOpenModes: new Map(page.items?.map(feed => [feed.id, feed.reader_open_mode])),
+})
 const listMinWidth = 300
 const listMaxWidth = 760
 const listMaxShare = 0.62
@@ -107,11 +110,13 @@ export function Shell() {
   const loadMore = useCallback(() => { void fetchNextPage({ cancelRefetch: false }) }, [fetchNextPage])
   const pageFailed = library.isFetchNextPageError || (library.isRefetchError && library.hasNextPage)
   const selected = data.find(article=>article.id===preferences.selected_article_id) ?? findCachedArticle(client,preferences.selected_article_id)
-  const { data: feedIcons } = useQuery({
-    queryKey: feedsQueryKey, queryFn: rssAPI.list, enabled: preferences.remote_images !== 'never',
-    retry: false, select: readFeedIcons,
+  const { data: feedMeta } = useQuery({
+    queryKey: feedsQueryKey, queryFn: rssAPI.list,
+    retry: false, select: readFeedMeta,
   })
+  const feedIcons = preferences.remote_images === 'never' ? undefined : feedMeta?.icons
   const selectedFeedIcon = selected?.feedID ? feedIcons?.get(selected.feedID) : undefined
+  const selectedFeedReaderOpenMode = selected?.feedID ? feedMeta?.readerOpenModes.get(selected.feedID) : undefined
   const systemDark = useMediaQuery('(prefers-color-scheme: dark)')
   const systemReduced = useMediaQuery('(prefers-reduced-motion: reduce)')
   const mode = effectiveMotion(preferences, systemReduced)
@@ -242,7 +247,7 @@ export function Shell() {
 
   const emptySearch = search.trim() !== ''
   const platform = native.isMac() ? 'mac' : native.isWindows() ? 'windows' : 'other'
-  const reader = readerVisible && <Reader feedIcon={selectedFeedIcon} article={selected} preferences={preferences} overlay={overlay}
+  const reader = readerVisible && <Reader feedIcon={selectedFeedIcon} feedReaderOpenMode={selectedFeedReaderOpenMode} article={selected} preferences={preferences} overlay={overlay}
     onClose={closeReader} onFavorite={favorite} onRead={read} onShare={shareArticle} onAnchor={saveAnchor} />
   useLayoutEffect(() => {
     if (settingsWorkspace && workspace.current) clearSelectionWithin(workspace.current)

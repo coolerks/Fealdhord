@@ -22,6 +22,33 @@ func NewAPI(service *Service, writeClipboard func([]byte) error) *API {
 	return &API{service: service, writeClipboard: writeClipboard}
 }
 
+type CacheSizeData struct {
+	Bytes int64 `json:"bytes"`
+}
+
+type CacheSizeResult struct {
+	OK        bool           `json:"ok"`
+	Data      *CacheSizeData `json:"data,omitempty"`
+	Error     *app.AppError  `json:"error,omitempty"`
+	RequestID string         `json:"request_id"`
+}
+
+func (a *API) CacheSize(ctx context.Context) CacheSizeResult {
+	out := CacheSizeResult{RequestID: rand.Text()}
+	if a.service == nil {
+		out.Error = &app.AppError{Code: "MediaError", Message: "无法计算图片缓存大小，请稍后重试。", Retryable: true}
+		return out
+	}
+	size, err := a.service.CacheSize(ctx)
+	if err != nil {
+		out.Error = &app.AppError{Code: "MediaError", Message: "无法计算图片缓存大小，请稍后重试。", Retryable: true}
+		return out
+	}
+	out.OK = true
+	out.Data = &CacheSizeData{Bytes: size}
+	return out
+}
+
 type ClearResult struct {
 	OK        bool          `json:"ok"`
 	Error     *app.AppError `json:"error,omitempty"`

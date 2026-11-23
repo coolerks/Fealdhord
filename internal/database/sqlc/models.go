@@ -207,27 +207,28 @@ type Favorite struct {
 }
 
 type Feed struct {
-	ID            string        `json:"id"`
-	Title         string        `json:"title"`
-	Url           string        `json:"url"`
-	NormalizedUrl string        `json:"normalized_url"`
-	SiteUrl       string        `json:"site_url"`
-	Description   string        `json:"description"`
-	IconUrl       string        `json:"icon_url"`
-	Etag          string        `json:"etag"`
-	LastModified  string        `json:"last_modified"`
-	LastCheckedAt sql.NullInt64 `json:"last_checked_at"`
-	LastSuccessAt sql.NullInt64 `json:"last_success_at"`
-	NextCheckAt   sql.NullInt64 `json:"next_check_at"`
-	ErrorCount    int64         `json:"error_count"`
-	LastError     string        `json:"last_error"`
-	CreatedAt     int64         `json:"created_at"`
-	UpdatedAt     int64         `json:"updated_at"`
-	ArchivedAt    sql.NullInt64 `json:"archived_at"`
-	SortPosition  int64         `json:"sort_position"`
-	Revision      int64         `json:"revision"`
-	LastErrorCode string        `json:"last_error_code"`
-	CustomIconUrl string        `json:"custom_icon_url"`
+	ID             string        `json:"id"`
+	Title          string        `json:"title"`
+	Url            string        `json:"url"`
+	NormalizedUrl  string        `json:"normalized_url"`
+	SiteUrl        string        `json:"site_url"`
+	Description    string        `json:"description"`
+	IconUrl        string        `json:"icon_url"`
+	Etag           string        `json:"etag"`
+	LastModified   string        `json:"last_modified"`
+	LastCheckedAt  sql.NullInt64 `json:"last_checked_at"`
+	LastSuccessAt  sql.NullInt64 `json:"last_success_at"`
+	NextCheckAt    sql.NullInt64 `json:"next_check_at"`
+	ErrorCount     int64         `json:"error_count"`
+	LastError      string        `json:"last_error"`
+	CreatedAt      int64         `json:"created_at"`
+	UpdatedAt      int64         `json:"updated_at"`
+	ArchivedAt     sql.NullInt64 `json:"archived_at"`
+	SortPosition   int64         `json:"sort_position"`
+	Revision       int64         `json:"revision"`
+	LastErrorCode  string        `json:"last_error_code"`
+	CustomIconUrl  string        `json:"custom_icon_url"`
+	ReaderOpenMode string        `json:"reader_open_mode"`
 }
 
 type FeedCategory struct {

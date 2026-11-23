@@ -436,7 +436,8 @@ func (s *Service) PolicyChanged(ctx context.Context, policy Policy) error {
 	}
 	return nil
 }
-func (s *Service) ClearCache() error { return s.cache.clear() }
+func (s *Service) CacheSize(ctx context.Context) (int64, error) { return s.cache.size(ctx) }
+func (s *Service) ClearCache() error                           { return s.cache.clear() }
 func (s *Service) Close() {
 	s.mu.Lock()
 	s.closed = true

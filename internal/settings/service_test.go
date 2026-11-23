@@ -143,11 +143,14 @@ func TestLegacyValuesNormalizeIndividually(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := NewService(store).Get(ctx)
-	if !got.OK || got.Data.Preferences.Theme != "dark" || got.Data.Preferences.ArticleViewMode != "list" || got.Data.Preferences.SidebarWidth != 248 || got.Data.Preferences.ReaderFontSize != 19 {
+	if !got.OK || got.Data.Preferences.Theme != "dark" || got.Data.Preferences.ArticleViewMode != "masonry" || got.Data.Preferences.SidebarWidth != 248 || got.Data.Preferences.ReaderFontSize != 19 {
 		t.Fatalf("旧值恢复错误：%+v", got)
 	}
-	if got.Data.Preferences.ReaderOpenMode != "feed" {
-		t.Fatal("旧偏好应继续打开订阅预览")
+	if got.Data.Preferences.ReaderOpenMode != "full" {
+		t.Fatal("旧偏好缺省时应默认打开阅读模式")
+	}
+	if got.Data.Preferences.RefreshNotificationsEnabled {
+		t.Fatal("旧设置的订阅更新通知应默认关闭")
 	}
 	if got.Data.Preferences.RefreshToastAutoDismiss {
 		t.Fatal("旧设置的订阅刷新通知默认保留")

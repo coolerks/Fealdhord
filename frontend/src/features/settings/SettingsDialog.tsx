@@ -275,7 +275,12 @@ export function SettingsDialog({ sidebar, motionMode }: {
         <FeedSettings />
       </>}
       {tab === 'notifications' && <>
-        <NotificationPreferences mode={preferences.notification_mode} autoDismiss={preferences.refresh_toast_auto_dismiss} patch={patch} />
+        <NotificationPreferences
+          mode={preferences.notification_mode}
+          refreshEnabled={preferences.refresh_notifications_enabled}
+          autoDismiss={preferences.refresh_toast_auto_dismiss}
+          patch={patch}
+        />
         <SettingSection title="文章发送">
           <SettingCard>
             <ArticleSharePreference id="article-share-default-count" label="默认发送条数"
@@ -401,8 +406,9 @@ function ArticleSharePreference({ id, label, value, max, onChange }: {
   </SettingRow>
 }
 
-function NotificationPreferences({ mode, autoDismiss, patch }: {
+function NotificationPreferences({ mode, refreshEnabled, autoDismiss, patch }: {
   mode: string
+  refreshEnabled: boolean
   autoDismiss: boolean
   patch: (delta: Partial<Preferences>) => void
 }) {
@@ -431,10 +437,17 @@ function NotificationPreferences({ mode, autoDismiss, patch }: {
           choices={[['toast', '应用内通知', 'panel-right-open'], ['native', '系统通知', 'monitor-cog']]}
           onChange={next => { void selectMode(next) }} />
         <SettingRow>
-          <FieldLabel htmlFor="refresh-toast-auto-dismiss" className="font-normal">自动收起应用内订阅更新通知</FieldLabel>
-          <Switch id="refresh-toast-auto-dismiss" checked={autoDismiss}
-            onCheckedChange={checked => patch({ refresh_toast_auto_dismiss: checked })} />
+          <FieldLabel htmlFor="refresh-notifications-enabled" className="font-normal">订阅更新通知</FieldLabel>
+          <Switch id="refresh-notifications-enabled" checked={refreshEnabled}
+            onCheckedChange={checked => patch({ refresh_notifications_enabled: checked })} />
         </SettingRow>
+        {refreshEnabled && (
+          <SettingRow>
+            <FieldLabel htmlFor="refresh-toast-auto-dismiss" className="font-normal">自动收起应用内订阅更新通知</FieldLabel>
+            <Switch id="refresh-toast-auto-dismiss" checked={autoDismiss}
+              onCheckedChange={checked => patch({ refresh_toast_auto_dismiss: checked })} />
+          </SettingRow>
+        )}
       </SettingCard>
     </SettingSection>
   )

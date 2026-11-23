@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { rssAPI } from '@/lib/rss-api'
 import { invalidateRSS } from '@/lib/refresh'
 import { useRefresh, isRefreshing } from '@/stores/refresh'
+import { useWorkspace } from '@/stores/workspace'
 export function useRSSSync() {
   const client = useQueryClient()
   const snapshot = useRefresh(state=>state.snapshot)
@@ -15,6 +16,7 @@ export function useRSSSync() {
   useEffect(() => {
     if (!snapshot?.operation_id || isRefreshing(snapshot) || snapshot.generation <= notified.current) return
     notified.current = snapshot.generation
+    if (!useWorkspace.getState().preferences?.refresh_notifications_enabled) return
     const failed = snapshot.failed_count ?? snapshot.results?.filter(result => result.status === 'failed').length ?? 0
     const skipped = snapshot.skipped_count ?? 0
     const cancelled = snapshot.cancelled_count ?? 0

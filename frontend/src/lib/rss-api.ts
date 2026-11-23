@@ -32,6 +32,9 @@ export const rssAPI = {
   async get(operation_id:string) { return unwrap(await RefreshService.Get({operation_id})) },
   async current() { return unwrap(await RefreshService.Current()) },
   async cancel(operation_id:string) { return unwrap(await RefreshService.Cancel({operation_id})) },
+  async cacheSize() {
+    return unwrap(await MediaService.CacheSize()).bytes
+  },
   async clearCache() {
     const result = await MediaService.ClearCache()
     if (!result.ok) throw new APIError(result.error ?? {code:'IOError',message:'清理缓存失败。',retryable:true})

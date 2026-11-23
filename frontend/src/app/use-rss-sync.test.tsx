@@ -4,6 +4,8 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 import type { Snapshot } from '@/lib/rss-api'
 import { useRefresh } from '@/stores/refresh'
+import { useWorkspace } from '@/stores/workspace'
+import { preferencesFixture } from '@/test/fixtures'
 const api=vi.hoisted(()=>({current:vi.fn(),get:vi.fn(),subscribeRefresh:vi.fn(),subscribeLibrary:vi.fn()}))
 vi.mock('@/lib/rss-api',()=>({rssAPI:api,feedsQueryKey:['rss','feeds']}))
 const notify = vi.hoisted(() => vi.fn())
@@ -12,6 +14,7 @@ import { useRSSSync } from './use-rss-sync'
 const running:Snapshot={generation:2,sequence:3,status:'running',operation_id:'new',completed:1,total:2,results:[]}
 beforeEach(()=>{
   vi.resetAllMocks();useRefresh.setState({snapshot:null,error:null,dismissedGeneration:-1,pending:false})
+  useWorkspace.setState({preferences:preferencesFixture({refresh_notifications_enabled:false})})
   api.subscribeRefresh.mockReturnValue(vi.fn());api.subscribeLibrary.mockReturnValue(vi.fn());api.current.mockResolvedValue(running)
 })
 afterEach(()=>vi.useRealTimers())
@@ -55,7 +58,16 @@ it('丢失结束事件时轮询恢复终态，不持续重复请求',async()=>{
   expect(api.get).toHaveBeenCalledTimes(1);next.unmount()
 })
 
-it('刷新终态通过通知报告累计失败数，同一批次只通知一次', async () => {
+it('默认关闭订阅更新通知时不提示刷新终态', async () => {
+  setup()
+  await waitFor(() => expect(useRefresh.getState().snapshot).toEqual(running))
+  const listener = api.subscribeRefresh.mock.calls[0][0]
+  act(() => listener({...running, sequence:4, status:'completed', completed:2}))
+  expect(notify).not.toHaveBeenCalled()
+})
+
+it('开启订阅更新通知时刷新终态通过通知报告累计失败数，同一批次只通知一次', async () => {
+  useWorkspace.setState({preferences:preferencesFixture({refresh_notifications_enabled:true})})
   setup()
   await waitFor(() => expect(useRefresh.getState().snapshot).toEqual(running))
   const listener = api.subscribeRefresh.mock.calls[0][0]

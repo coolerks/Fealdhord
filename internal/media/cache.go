@@ -1,6 +1,7 @@
 package media
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -164,6 +165,36 @@ func (c *cache) pruneDisk() {
 			total -= file.size
 		}
 	}
+}
+func (c *cache) size(ctx context.Context) (int64, error) {
+	c.mu.Lock()
+	directory := c.directory
+	total := c.memoryBytes
+	c.mu.Unlock()
+	if directory == "" {
+		return total, nil
+	}
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return total, nil
+		}
+		return 0, err
+	}
+	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		if !validKey(entry.Name()) {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		total += info.Size()
+	}
+	return total, nil
 }
 func (c *cache) clear() error {
 	c.mu.Lock()

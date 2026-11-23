@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,34 @@ import { useRefresh } from '@/stores/refresh'
 import { useWorkspace } from '@/stores/workspace'
 import type { CategorySummary } from '../../../bindings/github.com/coolerks/Fealdhord/internal/database/models'
 import { FeedIcon, FeedIconField } from './FeedIcon'
+
+type FeedReaderOpenMode = 'global' | 'full' | 'feed'
+
+function normalizeFeedReaderOpenMode(value?: string): FeedReaderOpenMode {
+  return value === 'full' || value === 'feed' ? value : 'global'
+}
+
+function FeedReaderOpenModeField({ value, onChange, disabled }: {
+  value: FeedReaderOpenMode; onChange: (mode: FeedReaderOpenMode) => void; disabled: boolean
+}) {
+  const labelID = useId()
+  return (
+    <Field>
+      <FieldLabel id={labelID}>点击文章时</FieldLabel>
+      <SegmentedControl
+        size="sm"
+        aria-labelledby={labelID}
+        disabled={disabled}
+        value={value}
+        onValueChange={next => { if (next === 'global' || next === 'full' || next === 'feed') onChange(next) }}
+      >
+        <ToggleGroupItem value="global"><AnimatedGlyph meaning="settings" />跟随全局设置</ToggleGroupItem>
+        <ToggleGroupItem value="full"><AnimatedGlyph meaning="scan-text" />阅读模式</ToggleGroupItem>
+        <ToggleGroupItem value="feed"><AnimatedGlyph meaning="book-text" />订阅预览</ToggleGroupItem>
+      </SegmentedControl>
+    </Field>
+  )
+}
 
 function Categories({ items, value, onChange, disabled }: {
   items: CategorySummary[]; value: string[]; onChange: (ids: string[]) => void; disabled: boolean
@@ -57,6 +85,7 @@ export function FeedSettings() {
   const [removing, setRemoving] = useState<Feed | null>(null)
   const [useDefaultIcon, setUseDefaultIcon] = useState(false)
   const [customIconURL, setCustomIconURL] = useState<string>()
+  const [readerOpenMode, setReaderOpenMode] = useState<FeedReaderOpenMode>('global')
   const [editing, setEditing] = useState<UpdateRequest | null>(null)
   const prefs = useWorkspace(state => state.preferences)!
   const originalFeed = query.data?.items?.find(feed => feed.id === editing?.id)
@@ -99,6 +128,7 @@ export function FeedSettings() {
   function discover() {
     setCustomIconURL(undefined)
     setUseDefaultIcon(false)
+    setReaderOpenMode('global')
     setCandidates([])
     setSelected('')
     action.reset()
@@ -150,6 +180,7 @@ export function FeedSettings() {
                   url: selected,
                   title,
                   category_ids: ids,
+                  reader_open_mode: readerOpenMode,
                   ...(allowIcons && customIconURL ? { custom_icon_url: customIconURL } : useDefaultIcon ? { use_default_icon: true } : {}),
                 })
                 setURL('')
@@ -157,6 +188,7 @@ export function FeedSettings() {
                 setSelected('')
                 setTitle('')
                 setIDs([])
+                setReaderOpenMode('global')
               })
             }}
           >
@@ -200,6 +232,7 @@ export function FeedSettings() {
                 onCustomURLChange={setCustomIconURL}
               />
             )}
+            <FeedReaderOpenModeField value={readerOpenMode} onChange={setReaderOpenMode} disabled={busy} />
             <Categories items={categories} value={ids} onChange={setIDs} disabled={busy} />
             {action.error && !editing && !removing && <FieldError>{action.error.message}</FieldError>}
             <div className="flex justify-end gap-2">
@@ -304,6 +337,7 @@ export function FeedSettings() {
                             url: feed.url,
                             title: feed.title,
                             custom_icon_url: feed.custom_icon_url,
+                            reader_open_mode: normalizeFeedReaderOpenMode(feed.reader_open_mode),
                             category_ids: feed.category_ids ?? [],
                           })
                         }}>编辑</Button>
@@ -369,6 +403,11 @@ export function FeedSettings() {
                 customURL={editing.custom_icon_url}
                 customData={allowIcons && editing.custom_icon_url === originalFeed?.custom_icon_url && originalFeed?.custom_icon_url ? originalFeed.icon_data : undefined}
                 onCustomURLChange={custom_icon_url => setEditing({ ...editing, custom_icon_url, use_default_icon: undefined })}
+              />
+              <FeedReaderOpenModeField
+                value={normalizeFeedReaderOpenMode(editing.reader_open_mode)}
+                onChange={next => setEditing({ ...editing, reader_open_mode: next })}
+                disabled={busy}
               />
               <Categories items={categories} value={editing.category_ids ?? []} disabled={busy}
                 onChange={category_ids => setEditing({ ...editing, category_ids })} />

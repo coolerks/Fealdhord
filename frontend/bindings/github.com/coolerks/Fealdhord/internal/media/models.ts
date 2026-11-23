@@ -5,6 +5,17 @@
 // @ts-ignore: Unused imports
 import * as app$0 from "../app/models.js";
 
+export interface CacheSizeData {
+    "bytes": number;
+}
+
+export interface CacheSizeResult {
+    "ok": boolean;
+    "data"?: CacheSizeData | null;
+    "error"?: app$0.AppError | null;
+    "request_id": string;
+}
+
 export interface ClearResult {
     "ok": boolean;
     "error"?: app$0.AppError | null;

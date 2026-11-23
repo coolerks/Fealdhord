@@ -7,6 +7,8 @@ export {
 };
 
 export type {
+    CacheSizeData,
+    CacheSizeResult,
     ClearResult,
     CopyImageResult
 } from "./models.js";

@@ -24,17 +24,22 @@ import { ReaderOutline } from './ReaderOutline'
 import { ArticleHTML } from './ArticleHTML'
 import './reader-prose.css'
 
-type ReaderProps={feedIcon?:string;article?:Article;preferences:Preferences;overlay:boolean;onClose:()=>void;onFavorite:(id:string)=>void;onRead:(id:string)=>void;onShare?:(article:Article,trigger:HTMLButtonElement)=>void;onAnchor:(key:string,anchor:{article_id:string;offset:number})=>void}
+type ReaderProps={feedIcon?:string;feedReaderOpenMode?:string;article?:Article;preferences:Preferences;overlay:boolean;onClose:()=>void;onFavorite:(id:string)=>void;onRead:(id:string)=>void;onShare?:(article:Article,trigger:HTMLButtonElement)=>void;onAnchor:(key:string,anchor:{article_id:string;offset:number})=>void}
+function resolveReaderOpenMode(feedReaderOpenMode: string | undefined, globalMode: string): 'feed' | 'full' {
+ if (feedReaderOpenMode === 'full' || feedReaderOpenMode === 'feed') return feedReaderOpenMode
+ return globalMode === 'full' ? 'full' : 'feed'
+}
 export function Reader(props:ReaderProps){
  const markedRef=useRef('')
- return <ReaderPane key={`${props.article?.id}:${props.article?.revision ?? 0}:${props.preferences.reader_open_mode}`} {...props} markedRef={markedRef}/>
+ const effectiveOpenMode = resolveReaderOpenMode(props.feedReaderOpenMode, props.preferences.reader_open_mode)
+ return <ReaderPane key={`${props.article?.id}:${props.article?.revision ?? 0}:${effectiveOpenMode}`} {...props} effectiveOpenMode={effectiveOpenMode} markedRef={markedRef}/>
 }
 
 export function ReaderEmpty() {
  return <Empty className="reader-empty"><EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={BookOpen} meaning="book"/></EmptyMedia><EmptyTitle>选择文章</EmptyTitle></EmptyHeader></Empty>
 }
 
-function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onRead,onShare,onAnchor,markedRef}:ReaderProps&{markedRef:RefObject<string>}){
+function ReaderPane({feedIcon,article,preferences,effectiveOpenMode,overlay,onClose,onFavorite,onRead,onShare,onAnchor,markedRef}:ReaderProps&{effectiveOpenMode:'feed'|'full';markedRef:RefObject<string>}){
  const content=useRef<HTMLDivElement>(null),timer=useRef<ReturnType<typeof setTimeout>|null>(null),pending=useRef<number|null>(null),save=useRef(onAnchor),title=useRef<HTMLHeadingElement>(null)
  const articleID=article?.id
  const publicationDate=article?.publishedAt.slice(0,10)
@@ -42,7 +47,7 @@ function ReaderPane({feedIcon,article,preferences,overlay,onClose,onFavorite,onR
  const prose = useRef<HTMLDivElement>(null)
  const imagesAllowed = preferences.remote_images !== 'never'
  const [showToolbarTitle,setShowToolbarTitle]=useState(false)
- const [view,setView]=useState<ArticleView>(preferences.reader_open_mode==='full'?'reader':'feed')
+ const [view,setView]=useState<ArticleView>(effectiveOpenMode==='full'?'reader':'feed')
  const [gallery, setGallery] = useState<{ images: ReaderImage[]; index: number; html: string; origin: DOMRectReadOnly }>()
  const viewing = imagesAllowed && gallery?.html === body.html ? gallery : undefined
  if (gallery && !viewing) setGallery(undefined)

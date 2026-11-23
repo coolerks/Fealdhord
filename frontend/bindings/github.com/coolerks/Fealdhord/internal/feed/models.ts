@@ -11,6 +11,7 @@ import * as database$0 from "../database/models.js";
 export interface AddRequest {
     "custom_icon_url"?: string;
     "use_default_icon"?: boolean;
+    "reader_open_mode"?: string;
     "url": string;
     "title": string;
     "category_ids": string[] | null;
@@ -35,6 +36,7 @@ export interface DiscoverResult {
 
 export interface Feed {
     "custom_icon_url"?: string;
+    "reader_open_mode"?: string;
     "id": string;
     "title": string;
     "url": string;
@@ -88,6 +90,7 @@ export interface UpdateRequest {
     "custom_icon_url"?: string;
     "use_default_icon"?: boolean | null;
     "apply_existing"?: boolean | null;
+    "reader_open_mode"?: string;
     "id": string;
     "revision": number;
     "url": string;

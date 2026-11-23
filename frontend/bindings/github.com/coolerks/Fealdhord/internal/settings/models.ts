@@ -10,6 +10,7 @@ export interface Preferences {
     "quit_on_window_close": boolean;
     "refresh_interval_minutes": number;
     "notification_mode": string;
+    "refresh_notifications_enabled": boolean;
     "refresh_toast_auto_dismiss": boolean;
     "article_share_count": number;
     "article_share_summary_limit": number;

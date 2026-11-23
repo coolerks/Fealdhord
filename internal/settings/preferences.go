@@ -17,9 +17,10 @@ type ScrollAnchor struct {
 type Preferences struct {
 	DeveloperMode            bool                    `json:"developer_mode"`
 	QuitOnWindowClose        bool                    `json:"quit_on_window_close"`
-	RefreshIntervalMinutes   int                     `json:"refresh_interval_minutes"`
-	NotificationMode         string                  `json:"notification_mode"`
-	RefreshToastAutoDismiss  bool                    `json:"refresh_toast_auto_dismiss"`
+	RefreshIntervalMinutes      int                     `json:"refresh_interval_minutes"`
+	NotificationMode            string                  `json:"notification_mode"`
+	RefreshNotificationsEnabled bool                    `json:"refresh_notifications_enabled"`
+	RefreshToastAutoDismiss     bool                    `json:"refresh_toast_auto_dismiss"`
 	ArticleShareCount        int                     `json:"article_share_count"`
 	ArticleShareSummaryLimit int                     `json:"article_share_summary_limit"`
 	WebImageFallback         bool                    `json:"web_image_fallback"`
@@ -61,8 +62,8 @@ type Preferences struct {
 }
 
 func Defaults() Preferences {
-	return Preferences{RefreshIntervalMinutes: 30, NotificationMode: "toast", ArticleShareCount: 10, ArticleShareSummaryLimit: DefaultArticleShareSummaryLimit, ReaderLayout: "fill", ReaderOpenMode: "feed", ReaderAutoRead: true, ReaderFontFamily: "sans", RemoteImages: "subscriptions", MediaCacheEnabled: true,
-		Theme: "system", SettingsOpenMode: "full", ArticleViewMode: "list", ListDensity: "compact", ListThumbnail: "none",
+	return Preferences{RefreshIntervalMinutes: 30, NotificationMode: "toast", RefreshNotificationsEnabled: false, ArticleShareCount: 10, ArticleShareSummaryLimit: DefaultArticleShareSummaryLimit, ReaderLayout: "fill", ReaderOpenMode: "full", ReaderAutoRead: true, ReaderFontFamily: "sans", RemoteImages: "subscriptions", MediaCacheEnabled: true,
+		Theme: "system", SettingsOpenMode: "full", ArticleViewMode: "masonry", ListDensity: "compact", ListThumbnail: "none",
 		MasonryImageMode: "original_ratio", Animation: "full", FollowSystemReduceMotion: true,
 		SidebarWidth: 248, ListWidth: 360, ReaderOpen: false, SelectedScope: "all",
 		ReaderToolbarPinned: []string{"refresh", "favorite", "translate", "ai"},

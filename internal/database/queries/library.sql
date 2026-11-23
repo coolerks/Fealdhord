@@ -80,6 +80,7 @@ SELECT * FROM feeds WHERE archived_at IS NULL AND
 -- name: SaveFeedDetails :execrows
 UPDATE feeds SET title=sqlc.arg(title),url=sqlc.arg(url),normalized_url=sqlc.arg(normalized_url),
  site_url=sqlc.arg(site_url),description=sqlc.arg(description),
+ reader_open_mode=sqlc.arg(reader_open_mode),
  icon_url=COALESCE(sqlc.narg(icon_data),icon_url),
  custom_icon_url=CASE WHEN sqlc.narg(icon_data) IS NULL THEN custom_icon_url ELSE sqlc.arg(custom_icon_url) END,updated_at=sqlc.arg(updated_at),revision=revision+1,
  etag=CASE WHEN normalized_url<>sqlc.arg(normalized_url) THEN '' ELSE etag END,
