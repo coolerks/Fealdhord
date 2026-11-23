@@ -451,8 +451,16 @@ describe('Phase 1 阅读 Shell', () => {
     expect(model).toHaveTextContent('默认模型推理增强')
     await user.type(input, '第一条')
     const send = screen.getByRole('button', { name: '发送' })
-    await user.click(screen.getByRole('button', { name: '审批方式' }))
+    const approval = screen.getByRole('button', { name: '审批方式' })
+    expect(approval.firstElementChild).toHaveAttribute('data-meaning', 'clipboard-check')
+    await user.click(approval)
+    expect(screen.getByRole('combobox', { name: '搜索审批方式' })).toHaveFocus()
+    for (const [label, meaning] of [['需要审批', 'clipboard-check'], ['绕过审批', 'key'], ['拒绝审批', 'x']]) {
+      expect(screen.getByRole('option', { name: label }).firstElementChild).toHaveAttribute('data-meaning', meaning)
+    }
     await user.click(screen.getByRole('option', { name: '绕过审批' }))
+    expect(approval.firstElementChild).toHaveAttribute('data-meaning', 'key')
+    expect(approval).toHaveAccessibleDescription('绕过审批')
     expect(send).toHaveClass('rounded-full')
     expect(send).toHaveTextContent(/^$/)
     expect(send.parentElement).toBe(model.parentElement)
