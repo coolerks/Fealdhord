@@ -1633,3 +1633,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 64: Windows 任务栏与托盘图标放大
+<!-- trellis-session: v=2 fp=d711968821d21865 -->
+
+**Date**: 2026-11-23
+**Task**: Windows 任务栏与托盘图标放大
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+收紧 Windows 彩色应用图标的透明边距，主体宽度从约 91% 提高到约 97%。Windows x64 交叉编译通过，已核对 EXE 中任务栏 ICO 及托盘 PNG，16、20、24、32 px 四角透明。Windows 实机显示待验。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3caa14f` | fix(windows): 放大任务栏和托盘图标主体 |
+
+### Status
+
+[OK] **Completed**
