@@ -18,7 +18,7 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 're
 import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, useIsPresent } from 'motion/react'
-import { ArrowDown, ArrowUp, BookOpen, Box, Brain, CalendarClock, Check, Copy, FileText, Gauge, Paperclip, Plus, Settings, Sparkles, Square, Wrench, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, Box, Brain, CalendarClock, Check, Copy, FileText, Gauge, Paperclip, Plus, Settings, Sparkles, Square, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { SemanticButton } from '@/components/semantic-button'
@@ -74,7 +74,7 @@ const errorLabels: Record<string, string> = {
   ChatModelUnavailable: '所选模型已不可用，请重新选择。',
   ContextWindowExceeded: '本轮内容超过模型上下文限制，请缩短消息或减少附加内容。',
   ChatReasoningUnavailable: '所选思考档位已不可用，请重新选择。',
-  ChatReasoningToolsUnavailable: '当前思考档位无法与本轮工具同时使用。请选择服务默认，或关闭本轮工具并取消正文读取授权。',
+  ChatReasoningToolsUnavailable: '当前思考档位无法与本轮工具同时使用。请将思考档位设为「使用服务默认」。',
   ProviderHTTPError: '模型服务拒绝了请求，请检查模型设置及思考档位，或稍后重试。',
   CredentialError: '请检查服务的 API 密钥。',
   AuthenticationError: '服务拒绝了当前密钥。',
@@ -157,7 +157,6 @@ function ChatSession({ target, close, workspace }: {
   const [allowArticleReads, setAllowArticleReads] = useState(false)
   const [selection, setSelection] = useState(target.selection ?? '')
   const [sources, setSources] = useState<Article[]>([])
-  const [disableTools, setDisableTools] = useState(false)
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
   const [picking, setPicking] = useState(false)
   const [effortChoices, setEffortChoices] = useState<Record<string, string>>({})
@@ -224,7 +223,6 @@ function ChatSession({ target, close, workspace }: {
       await api.Send({
         conversationId: id, text: draft, includeContext, selection, allowArticleReads,
         articleIds: sources.map(article => article.id), ...(workspace && modelID ? { modelId: modelID } : {}),
-        ...(workspace && disableTools ? { disableTools: true } : {}),
         ...(workspace && selectedSkills.length ? { skills: selectedSkills } : {}),
         ...(workspace && reasoningEffort ? { reasoningEffort } : {}),
         ...(workspace ? { approvalMode } : {}),
@@ -336,7 +334,6 @@ function ChatSession({ target, close, workspace }: {
     { key: 'skills', label: '技能', icon: Sparkles, detail: '应用已启用的技能', aliases: ['skill'], page: 'skills' },
     { key: 'new', label: '新对话', icon: Plus, detail: '开启空白对话', aliases: ['new-chat'], action: 'new' },
     { key: 'attach', label: '附加文章', icon: Paperclip, detail: '从本地文章中选择', aliases: ['article'], action: 'attach' },
-    { key: 'tools', label: disableTools ? '开启工具调用' : '关闭工具调用', icon: Wrench, detail: disableTools ? '当前已关闭' : '当前已开启', aliases: ['tool', '工具'], action: 'tools' },
     ...(modelOptions.length ? [{ key: 'model', label: '模型', icon: Box, page: 'models' } satisfies SlashItem] : []),
     ...(effortLevels.length ? [{ key: 'reasoning', label: '思考档位', icon: Brain, detail: selectedEffortLabel,
       aliases: ['effort', '推理'], page: 'effort' } satisfies SlashItem] : []),
@@ -376,7 +373,6 @@ function ChatSession({ target, close, workspace }: {
     switch (item.action) {
       case 'new': choose(''); break
       case 'attach': setPicking(true); break
-      case 'tools': setDisableTools(value => !value); break
       case 'context': setContextOpen(true); break
       case 'settings': showSettings(item.key === 'manage-skills' ? 'skills' : 'ai'); break
       case 'tasks': openTasks(); break
@@ -391,7 +387,7 @@ function ChatSession({ target, close, workspace }: {
   const canSend = !slashOpen && !active && Boolean(draft.trim()) && modelReady && !invalidEffort && !send.isPending && !history.isPending &&
     !(conversationId && messages.isPending)
   const isEmptyWorkspace = Boolean(workspace && !tasksOpen && (!conversationId || (!messages.isPending && !messages.isError && (messages.data?.length ?? 0) === 0)))
-  const hasComposerChips = Boolean(workspace && (selectedSkills.length > 0 || sources.length > 0 || disableTools))
+  const hasComposerChips = Boolean(workspace && (selectedSkills.length > 0 || sources.length > 0))
   return <div className={workspace ? 'chat-session reader-html' : 'flex min-h-0 flex-col gap-3'} data-code-theme={workspace ? theme : undefined} data-empty={isEmptyWorkspace ? 'true' : undefined}>
     {workspace?.sidebar && createPortal(
       <motion.aside id={workspace.present ? 'workspace-sidebar' : undefined} className="glass-sidebar chat-sidebar workspace-mode-chat"
@@ -549,11 +545,6 @@ function ChatSession({ target, close, workspace }: {
               onCheckedChange={value => setAllowArticleReads(value === true)} />
             <span>允许读取正文</span>
           </label>}
-          {disableTools && <div className="chat-chip border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300">
-            <Wrench className="size-3 shrink-0" aria-hidden="true" />
-            <span>已关闭工具</span>
-            <Button type="button" size="icon-xs" variant="ghost" className="size-5 rounded-full" aria-label="重新开启工具" disabled={send.isPending} onClick={() => setDisableTools(false)}><X /></Button>
-          </div>}
         </div>}
         <Textarea ref={composer} className={workspace ? 'chat-input' : 'max-h-40 resize-y'} aria-label="消息" placeholder="输入消息…（输入 / 打开命令）" value={draft}
           onFocus={workspace ? () => setComposerFocused(true) : undefined}
@@ -601,19 +592,8 @@ function ChatSession({ target, close, workspace }: {
               </TooltipTrigger>
               <TooltipContent>附加文章</TooltipContent>
             </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button size="icon-sm" type="button" variant={disableTools ? 'secondary' : 'ghost'}
-                  className={cn(disableTools && 'text-amber-700 dark:text-amber-300')}
-                  aria-label="可调用工具" aria-pressed={!disableTools} disabled={send.isPending}
-                  onClick={() => setDisableTools(value => !value)}>
-                  <Wrench />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{disableTools ? '工具调用：已关闭（点击开启）' : '工具调用：已开启（点击关闭）'}</TooltipContent>
-            </Tooltip>
             <SearchableSelect label="审批方式" className="chat-toolbar-select" value={approvalMode} options={approvalModes} variant="ghost"
-              announceSelection disabled={active || send.isPending || disableTools}
+              announceSelection disabled={active || send.isPending}
               onValueChange={value => setApprovalChoices(current => ({ ...current, [conversationId]: value }))} />
           </div>}
           <div className={workspace ? 'chat-composer-actions' : undefined}>
