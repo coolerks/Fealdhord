@@ -9,6 +9,7 @@ import { skillsKey } from '@/features/settings/AIPlatformSettings'
 import { Skills } from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/api'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { ChatModelMenu } from './ChatModelMenu'
+import { ChatTimelineRail } from './ChatTimelineRail'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
@@ -471,7 +472,7 @@ function ChatSession({ target, close, workspace }: {
         <AppMark className="size-14" />
         <p className="text-lg font-medium text-foreground">{greeting}</p>
       </div>}
-      {messages.data?.map(message => <section key={message.id} className={workspace ? 'chat-message group/message' : message.role === 'user' ? 'ml-auto w-fit max-w-[90%] rounded-xl bg-muted p-3' : 'mr-3 rounded-xl border p-3'} data-role={workspace ? message.role : undefined}>
+      {messages.data?.map(message => <section key={message.id} data-message-id={message.id} className={workspace ? 'chat-message group/message' : message.role === 'user' ? 'ml-auto w-fit max-w-[90%] rounded-xl bg-muted p-3' : 'mr-3 rounded-xl border p-3'} data-role={workspace ? message.role : undefined}>
         {!workspace && message.role === 'user' && <p className="text-xs text-muted-foreground">你</p>}
         {message.role === 'assistant'
           ? <ReplyBody message={message} markdown={Boolean(workspace)}
@@ -489,6 +490,7 @@ function ChatSession({ target, close, workspace }: {
           onBranch={() => branch.mutate({ id: conversationId, messageId: message.id })} />}
       </section>)}
     </div>
+    {workspace && !isEmptyWorkspace && <ChatTimelineRail messages={messages.data} viewport={timeline} />}
     {workspace && !following && <Button className="chat-latest" variant="outline" size="icon" aria-label="回到最新" onClick={() => {
       timeline.current?.focus({ preventScroll: true })
       follow.current = true
