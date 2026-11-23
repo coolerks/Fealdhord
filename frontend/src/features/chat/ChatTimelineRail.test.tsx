@@ -54,6 +54,10 @@ it('悬停刻度展示 HoverCard 预览并形成波浪宽度，点击刻度可�
   const firstTick = screen.getByRole('button', { name: /跳转到第 1 轮/ })
   const secondTick = screen.getByRole('button', { name: /跳转到第 2 轮/ })
 
+  expect(firstTick.querySelector('.chat-rail-tick')).toHaveStyle({ width: '8px' })
+  expect(secondTick.querySelector('.chat-rail-tick')).toHaveStyle({ width: '8px' })
+  expect(secondTick.querySelector('.chat-rail-tick')).toHaveClass('bg-foreground')
+
   await user.hover(firstTick)
   expect(firstTick.querySelector('.chat-rail-tick')).toHaveStyle({ width: '26px' })
   expect(secondTick.querySelector('.chat-rail-tick')).toHaveStyle({ width: '18px' })

@@ -50,7 +50,7 @@ export function buildChatTurns(messages: readonly Message[] | null | undefined):
   return turns
 }
 
-function tickWidth(index: number, hoveredIndex: number | null, active: boolean): number {
+function tickWidth(index: number, hoveredIndex: number | null): number {
   if (hoveredIndex !== null) {
     const distance = Math.abs(index - hoveredIndex)
     if (distance === 0) return 26
@@ -59,7 +59,7 @@ function tickWidth(index: number, hoveredIndex: number | null, active: boolean):
     if (distance === 3) return 10
     return 8
   }
-  return active ? 20 : 8
+  return 8
 }
 
 export function ChatTimelineRail({
@@ -144,7 +144,7 @@ export function ChatTimelineRail({
         {turns.map((turn, index) => {
           const isActive = turn.id === resolvedActiveID
           const isHovered = hoveredIndex === index
-          const width = tickWidth(index, hoveredIndex, isActive)
+          const width = tickWidth(index, hoveredIndex)
           return (
             <HoverCard key={turn.id} openDelay={60} closeDelay={60}>
               <HoverCardTrigger asChild>
