@@ -63,6 +63,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-gutter: stable both-edges;
   padding: 24px var(--chat-gutter);
 }
 
