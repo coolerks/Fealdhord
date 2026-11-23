@@ -75,5 +75,5 @@ func emitResult(send func(ModelEvent) bool, result *ModelResponse) error {
 			return err
 		}
 	}
-	return emit(send, ModelEvent{Type: "message_end", FinishReason: result.FinishReason})
+	return emit(send, ModelEvent{Type: "message_end", FinishReason: result.FinishReason, ReasoningContent: result.Message.ReasoningContent})
 }

@@ -76,6 +76,8 @@ DeepSeek V4 系列经原生或兼容 Chat Completions 接入且本轮带工具�
 
 Responses 在配置的 API 基础路径追加 `responses`，用 `instructions` 传顶层提示，关闭服务端响应存储，使用本地历史传回函数调用与结果。工具片段按输出项 ID 归并，成功结束时与终态输出逐项核对。Responses 不支持 `stop`，在请求前返回 CapabilityError。
 
+DeepSeek V4 系列经原生或兼容 Responses 接入时，显式思考档位可与函数工具同时使用。请求保留模型的完整路由 ID 和所选 `reasoning.effort`。工具续轮将当前回复的成功终态中返回的可读 `reasoning_text` 放在对应函数调用前，随后携带匹配的工具结果。DeepSeek 官方服务将 `medium` 和 `xhigh` 都映射为 `high`，兼容网关按其上游实现解释参数。[DeepSeek Responses API](https://api-docs.deepseek.com/api/create-response/)
+
 Responses 流的 `response.reasoning_summary_text.delta` 和终态 `reasoning.summary` 可用作可展示的思考摘要。直接连接 OpenAI Responses 且显式启用思考档位时，聊天请求以 `reasoning.summary=auto` 请求摘要。该选项被 HTTP 400 或 403 拒绝时，原请求去掉摘要选项后重试一次。Responses 路由提供的可读 `reasoning_text` 也可展示。Chat Completions 接收 `reasoning_content` 或文本 `reasoning`，Claude Messages 接收 `thinking` 和 `thinking_delta`。签名与加密推理块保持不透明。[OpenAI 推理摘要](https://developers.openai.com/api/docs/guides/reasoning#reasoning-summaries) [DeepSeek Responses](https://api-docs.deepseek.com/api/create-response/) [Claude 思考模式](https://platform.claude.com/docs/en/docs/build-with-claude/extended-thinking)
 
 Messages 追加 `messages`，使用 `x-api-key` 和 `anthropic-version: 2023-06-01`，缺省最大输出 4096 token。同角色连续消息合并，工具结果归入 user 块。流以块索引校验开始、增量和结束，消息用量按累计值覆盖，收到 `message_stop` 后输出最终用量。三种协议共用网络限制和错误映射。

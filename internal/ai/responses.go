@@ -35,7 +35,7 @@ type responseItem struct {
 type responsePart struct {
 	Type    string `json:"type"`
 	Text    string `json:"text"`
-	Refusal string `json:"refusal"`
+	Refusal string `json:"refusal,omitempty"`
 }
 
 type responseOutput struct {
@@ -71,6 +71,7 @@ func (r *Responses) request(ctx context.Context, req *ModelRequest, stream bool)
 		return nil, &ModelError{Code: "CapabilityError"}
 	}
 	input := make([]responseItem, 0, len(history.Messages))
+	preserveReasoning := r.supportsDeepSeekReasoning(req.Model) && req.ReasoningEffort != "none"
 	messages := history.Messages
 	if req.System != "" {
 		messages = messages[1:]
@@ -79,6 +80,11 @@ func (r *Responses) request(ctx context.Context, req *ModelRequest, stream bool)
 		if msg.Role == "tool" {
 			input = append(input, responseItem{Type: "function_call_output", CallID: msg.ToolCallID, Output: &msg.Content})
 			continue
+		}
+		if preserveReasoning && len(msg.ToolCalls) > 0 && msg.ReasoningContent != nil {
+			input = append(input, responseItem{Type: "reasoning", Content: []responsePart{
+				{Type: "reasoning_text", Text: *msg.ReasoningContent},
+			}})
 		}
 		if msg.Content != "" || len(msg.ToolCalls) == 0 {
 			input = append(input, responseItem{Role: msg.Role, Content: msg.Content})
@@ -139,10 +145,10 @@ func (r *Responses) Generate(ctx context.Context, req *ModelRequest) (*ModelResp
 	if err := decodeModelResponse(res, &result); err != nil {
 		return nil, err
 	}
-	return result.normalize(offeredChatTools(req))
+	return result.normalize(offeredChatTools(req), r.supportsDeepSeekReasoning(req.Model) && req.ReasoningEffort != "none")
 }
 
-func (r responsesResult) normalize(offered map[string]bool) (*ModelResponse, error) {
+func (r responsesResult) normalize(offered map[string]bool, preserveReasoning bool) (*ModelResponse, error) {
 	result := &ModelResponse{Message: Message{Role: "assistant"}, Usage: r.Usage.normalized()}
 	switch r.Status {
 	case "completed":
@@ -193,6 +199,23 @@ func (r responsesResult) normalize(offered map[string]bool) (*ModelResponse, err
 			return nil, protocolError()
 		}
 		result.FinishReason = "tool_calls"
+		if preserveReasoning {
+			var reasoning strings.Builder
+			for _, item := range r.Output {
+				if item.Type != "reasoning" {
+					continue
+				}
+				for _, part := range item.Content {
+					if part.Type == "reasoning_text" {
+						reasoning.WriteString(part.Text)
+					}
+				}
+			}
+			if reasoning.Len() > 0 {
+				text := reasoning.String()
+				result.Message.ReasoningContent = &text
+			}
+		}
 	}
 	return result, err
 }
@@ -202,6 +225,7 @@ func (r *Responses) Stream(ctx context.Context, req *ModelRequest) (<-chan Model
 	return modelStream(ctx, func(ctx context.Context) (*http.Response, error) {
 		return r.request(ctx, req, true)
 	}, func(body io.Reader, send func(ModelEvent) bool) error {
+		preserveReasoning := r.supportsDeepSeekReasoning(req.Model) && req.ReasoningEffort != "none"
 		started := false
 		summaryStreamed := false
 		thinkingStreamed := false
@@ -279,7 +303,7 @@ func (r *Responses) Stream(ctx context.Context, req *ModelRequest) (<-chan Model
 				if !started || event.Type != "response."+event.Response.Status {
 					return false, protocolError()
 				}
-				result, err := event.Response.normalize(offered)
+				result, err := event.Response.normalize(offered, preserveReasoning)
 				if err != nil {
 					return false, err
 				}

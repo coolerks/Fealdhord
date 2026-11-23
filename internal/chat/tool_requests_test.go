@@ -9,11 +9,117 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coolerks/Fealdhord/internal/aiconfig"
 	"github.com/coolerks/Fealdhord/internal/appagent"
 	"github.com/coolerks/Fealdhord/internal/database"
 )
+
+func TestGlobalChatContinuesRoutedDeepSeekResponsesWithReasoning(t *testing.T) {
+	ctx := t.Context()
+	const modelID = "commandcode-plan/deepseek/deepseek-v4.1-flash"
+	requests := make(chan string, 2)
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+			return
+		}
+		if r.URL.Path != "/v1/responses" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		payload := string(body)
+		select {
+		case requests <- payload:
+		default:
+			t.Error("unexpected extra request")
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		events := []string{`{"type":"response.created"}`}
+		if strings.Contains(payload, `"type":"function_call_output"`) {
+			events = append(events,
+				`{"type":"response.output_text.delta","delta":"找到测试文章"}`,
+				`{"type":"response.completed","response":{"status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"找到测试文章"}]}]}}`,
+			)
+		} else {
+			events = append(events,
+				`{"type":"response.reasoning_text.delta","delta":"先查本地资料"}`,
+				`{"type":"response.output_item.added","item":{"type":"function_call","id":"item-1","call_id":"call-1","name":"library_search","arguments":""}}`,
+				`{"type":"response.function_call_arguments.delta","item_id":"item-1","delta":"{}"}`,
+				`{"type":"response.completed","response":{"status":"completed","output":[{"type":"reasoning","content":[{"type":"reasoning_text","text":"先查本地资料"}]},{"type":"function_call","id":"item-1","call_id":"call-1","name":"library_search","arguments":"{}"}]}}`,
+			)
+		}
+		for _, event := range events {
+			fmt.Fprintf(w, "data: %s\n\n", event)
+		}
+	}))
+	defer gateway.Close()
+
+	db, err := database.Open(ctx, filepath.Join(t.TempDir(), "chat.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	config := aiconfig.New(db.AIProviderQueries(), nil)
+	provider, err := config.SaveProvider(ctx, aiconfig.ProviderInput{Provider: aiconfig.Provider{
+		Name: "Gateway", Protocol: "responses", BaseURL: gateway.URL + "/v1", Enabled: true,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model, err := config.SaveModel(ctx, aiconfig.Model{
+		ProviderID: provider.ID, Name: modelID, Enabled: true,
+		ReasoningLevels: []aiconfig.ReasoningLevel{{Label: "中", Value: "medium"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := New(ctx, db, config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	registry := appagent.NewRegistry()
+	appagent.Register(registry, "library.search", "查找本地文章", true,
+		func(context.Context, struct{}) []string { return []string{"测试文章"} })
+	service.SetToolSource(appagent.NewPlatform(registry, t.TempDir()).RunTools)
+	conversation, err := service.Create(ctx, Scope{Kind: "global"}, "Responses 工具回归")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Send(ctx, SendInput{ConversationID: conversation.ID, ModelID: model.ID,
+		ReasoningEffort: "medium", ApprovalMode: "ask", Text: "看一下最近的 AI 文章"}); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	pending := registry.Pending()
+	for len(pending) == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+		pending = registry.Pending()
+	}
+	if len(pending) != 1 || pending[0].ConversationID != conversation.ID || !registry.Decide(pending[0].ID, true) {
+		t.Fatalf("expected one approval for the conversation, got %v", pending)
+	}
+	reply := waitMessage(t, service, conversation.ID, 2, "complete")
+	if reply.Text != "找到测试文章" || len(registry.RecentAudit()) != 1 || len(requests) != 2 {
+		t.Fatalf("unexpected reply or tool audit: %+v, %+v", reply, registry.RecentAudit())
+	}
+	first, next := <-requests, <-requests
+	for _, payload := range []string{first, next} {
+		for _, required := range []string{`"model":"` + modelID + `"`, `"reasoning":{"effort":"medium"}`, `"tools":[`, `"name":"library_search"`} {
+			if !strings.Contains(payload, required) {
+				t.Fatalf("request missing %s: %s", required, payload)
+			}
+		}
+	}
+	reasoningAt := strings.Index(next, `{"type":"reasoning","content":[{"type":"reasoning_text","text":"先查本地资料"}]}`)
+	callAt := strings.Index(next, `{"type":"function_call","call_id":"call-1"`)
+	resultAt := strings.Index(next, `{"type":"function_call_output","call_id":"call-1"`)
+	if reasoningAt == -1 || callAt <= reasoningAt || resultAt <= callAt || !strings.Contains(next, "测试文章") {
+		t.Fatalf("incorrect tool continuation: %s", next)
+	}
+}
 
 func TestGlobalChatSendsAuthorizedToolsToRoutedDeepSeek(t *testing.T) {
 	ctx := t.Context()

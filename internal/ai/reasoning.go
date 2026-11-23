@@ -11,8 +11,7 @@ func SupportsReasoningTools(adapter Model, model, effort string) bool {
 	case *Messages:
 		return false
 	case *Responses:
-		// Stateless continuation would need to replay the provider's reasoning items.
-		return effort == "none"
+		return effort == "none" || client.supportsDeepSeekReasoning(model)
 	case *ChatCompletions:
 		if SupportsDeepSeekThinkingTools(adapter, model) {
 			return true
@@ -31,6 +30,14 @@ func SupportsDeepSeekThinkingTools(adapter Model, model string) bool {
 	if !ok || client.host == "openrouter.ai" || client.host == "api.openai.com" {
 		return false
 	}
+	return isDeepSeekV4Model(model)
+}
+
+func (r *Responses) supportsDeepSeekReasoning(model string) bool {
+	return r.host != "api.openai.com" && r.host != "openrouter.ai" && isDeepSeekV4Model(model)
+}
+
+func isDeepSeekV4Model(model string) bool {
 	model = strings.ToLower(model[strings.LastIndex(model, "/")+1:])
 	model, _, _ = strings.Cut(model, ":")
 	return strings.HasPrefix(model, "deepseek-v4") || model == "deepseek-flash"
