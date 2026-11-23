@@ -111,6 +111,10 @@ const sectionGroups: SectionGroup[] = [
 ]
 
 const allSections = sectionGroups.flatMap(group => group.items)
+const chatRetryOptions = Array.from({ length: 11 }, (_, count) => ({
+  value: String(count),
+  label: count === 0 ? '不重试' : `${count} 次`,
+}))
 
 export function SettingsDialog({ sidebar, motionMode }: {
   sidebar: HTMLElement | null
@@ -306,6 +310,13 @@ export function SettingsDialog({ sidebar, motionMode }: {
                 options={codeThemeOptions}
                 value={availableCodeTheme(preferences.chat_code_theme)}
                 onValueChange={value => set('chat_code_theme', value)} />
+            </SettingRow>
+            <SettingRow>
+              <FieldLabel htmlFor="chat-max-retries" className="font-normal">失败自动重试次数</FieldLabel>
+              <SearchableSelect id="chat-max-retries" label="失败自动重试次数" className="min-w-44"
+                options={chatRetryOptions}
+                value={String(preferences.chat_max_retries ?? 5)}
+                onValueChange={value => set('chat_max_retries', Number(value))} />
             </SettingRow>
           </SettingCard>
         </SettingSection>

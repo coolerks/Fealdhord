@@ -133,3 +133,29 @@ it('轮次调用工具中只展示当前工具进行中摘要且无旋转圆圈�
   fireEvent.click(summaryBtn)
   expect(screen.getByRole('button', { name: '查看了文章列表，读取了文章' })).toBeVisible()
 })
+
+it('流式失败自动重试时展示带掠光的重试进度提示', () => {
+  render(
+    <ReplyBody
+      message={makeMessage({
+        details: {
+          durationMs: 0,
+          rounds: 1,
+          reasoningEffort: '',
+          work: {
+            durationMs: 1200,
+            reasoningObserved: false,
+            retryAttempt: 2,
+            retryMax: 5,
+            tools: [{ name: 'article_list', status: 'completed' }],
+            positions: [{ offset: 0, summaryEnd: 0, reasoningEnd: 0, toolEnd: 1, durationMs: 1200 }],
+          },
+        },
+      })}
+      markdown
+    />,
+  )
+  const retry = screen.getByRole('status')
+  expect(retry).toHaveTextContent('网络或服务异常，正在重试（第 2/5 次）…')
+  expect(retry).toHaveClass('chat-thinking-label')
+})

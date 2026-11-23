@@ -67,6 +67,8 @@ export interface ReplyWork {
     "reasoningTruncated"?: boolean;
     "tools"?: ReplyToolStep[] | null;
     "positions"?: ReplyWorkPosition[] | null;
+    "retryAttempt"?: number;
+    "retryMax"?: number;
 }
 
 /**
@@ -117,4 +119,5 @@ export interface UpdateEvent {
     "delta": string;
     "done": boolean;
     "workChanged"?: boolean;
+    "resetText"?: boolean;
 }

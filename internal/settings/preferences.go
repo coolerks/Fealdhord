@@ -58,6 +58,7 @@ type Preferences struct {
 	ChatModelID              string                  `json:"chat_model_id"`
 	ChatApprovalMode         string                  `json:"chat_approval_mode"`
 	ChatApprovalPresentation string                  `json:"chat_approval_presentation"`
+	ChatMaxRetries           int                     `json:"chat_max_retries"`
 	ReaderOutline            string                  `json:"reader_outline"`
 }
 
@@ -69,7 +70,7 @@ func Defaults() Preferences {
 		ReaderToolbarPinned: []string{"refresh", "favorite", "translate", "ai"},
 		ScrollAnchors:       map[string]ScrollAnchor{}, ReaderFontSize: 17, ReaderLineHeight: 1.7, ReaderWidth: 720,
 		ReaderImageWheel: "zoom", ReaderImageBackdropClose: true, ReaderOutline: "ticks", ReaderCodeTheme: "app", ChatCodeTheme: "app",
-		ChatApprovalMode: agentrun.ApprovalAsk, ChatApprovalPresentation: "composer",
+		ChatApprovalMode: agentrun.ApprovalAsk, ChatApprovalPresentation: "composer", ChatMaxRetries: DefaultChatMaxRetries,
 	}
 }
 
@@ -90,6 +91,8 @@ const (
 	MaxArticleShareCount            = 50
 	DefaultArticleShareSummaryLimit = 50
 	MaxArticleShareSummaryLimit     = 500
+	DefaultChatMaxRetries           = 5
+	MaxChatMaxRetries               = 10
 )
 
 func validReaderToolbarPinned(actions []string) bool {
@@ -109,6 +112,9 @@ func validReaderToolbarPinned(actions []string) bool {
 func (p Preferences) Validate() error {
 	if !agentrun.ValidApprovalMode(p.ChatApprovalMode) || !oneOf(p.ChatApprovalPresentation, "composer", "dialog") {
 		return errors.New("聊天工具审批选项无效。")
+	}
+	if p.ChatMaxRetries < 0 || p.ChatMaxRetries > MaxChatMaxRetries {
+		return errors.New("聊天失败重试次数须为 0 至 10 次。")
 	}
 	if !codeThemeID.MatchString(p.ReaderCodeTheme) || !codeThemeID.MatchString(p.ChatCodeTheme) {
 		return errors.New("代码块主题选项无效。")
@@ -173,6 +179,9 @@ func (p *Preferences) normalize() {
 	}
 	if !oneOf(p.ChatApprovalPresentation, "composer", "dialog") {
 		p.ChatApprovalPresentation = d.ChatApprovalPresentation
+	}
+	if p.ChatMaxRetries < 0 || p.ChatMaxRetries > MaxChatMaxRetries {
+		p.ChatMaxRetries = d.ChatMaxRetries
 	}
 	if !codeThemeID.MatchString(p.ReaderCodeTheme) {
 		p.ReaderCodeTheme = d.ReaderCodeTheme

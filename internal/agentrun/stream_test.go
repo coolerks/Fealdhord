@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/coolerks/Fealdhord/internal/ai"
 )
@@ -110,5 +111,85 @@ func TestToolLoopStopsBeforeUnsafeCalls(t *testing.T) {
 				t.Fatalf("got %q, %d reads", got, reads)
 			}
 		})
+	}
+}
+
+func TestStreamWithOptionsRetriesTransientErrorsAndPreservesPriorTools(t *testing.T) {
+	var attempts, toolCalls int
+	model := streamModel(func(_ context.Context, _ *ai.ModelRequest) (<-chan ai.ModelEvent, error) {
+		attempts++
+		switch attempts {
+		case 1:
+			call := ai.ToolCall{ID: "c1", Name: "read", ArgumentsJSON: "{}"}
+			return modelEvents(
+				ai.ModelEvent{Type: "tool_call_end", ToolCall: &call},
+				ai.ModelEvent{Type: "message_end", FinishReason: "tool_calls"},
+			), nil
+		case 2:
+			// Simulate mid-stream cut off (missing message_end -> ProviderProtocolError)
+			return modelEvents(ai.ModelEvent{Type: "text_delta", Text: "残缺"}), nil
+		case 3:
+			// Simulate transient connection failure
+			return nil, &ai.ModelError{Code: "ProviderConnectionError"}
+		default:
+			return modelEvents(
+				ai.ModelEvent{Type: "text_delta", Text: "重试成功"},
+				ai.ModelEvent{Type: "message_end", FinishReason: "stop"},
+			), nil
+		}
+	})
+	tool := ReadTool{
+		Definition: ai.ToolDefinition{Name: "read"},
+		Read: func(context.Context, ai.ToolCall) (string, error) {
+			toolCalls++
+			return "ok", nil
+		},
+	}
+
+	var retries []int
+	var finished bool
+	var lastErr error
+	for event := range StreamWithOptions(context.Background(), model, ai.ModelRequest{}, []ReadTool{tool}, StreamOptions{
+		MaxRetries: 5,
+		BaseDelay:  time.Millisecond,
+	}) {
+		if event.Type == "retry_scheduled" {
+			retries = append(retries, event.RetryAttempt)
+		}
+		if event.Type == "message_end" {
+			finished = true
+		}
+		if event.Error != nil && event.Type == "error" {
+			lastErr = event.Error
+		}
+	}
+	if !finished || lastErr != nil {
+		t.Fatalf("expected retry success, finished=%v err=%v", finished, lastErr)
+	}
+	if toolCalls != 1 {
+		t.Fatalf("expected prior tool call preserved (1), got %d", toolCalls)
+	}
+	if len(retries) != 2 || retries[0] != 1 || retries[1] != 2 {
+		t.Fatalf("unexpected retry attempts: %v", retries)
+	}
+}
+
+func TestStreamWithOptionsDoesNotRetryAuthErrors(t *testing.T) {
+	var attempts int
+	model := streamModel(func(_ context.Context, _ *ai.ModelRequest) (<-chan ai.ModelEvent, error) {
+		attempts++
+		return nil, &ai.ModelError{Code: "AuthenticationError"}
+	})
+	var got string
+	for event := range StreamWithOptions(context.Background(), model, ai.ModelRequest{}, nil, StreamOptions{
+		MaxRetries: 5,
+		BaseDelay:  time.Millisecond,
+	}) {
+		if event.Type == "error" && event.Error != nil {
+			got = event.Error.Error()
+		}
+	}
+	if attempts != 1 || got != "AuthenticationError" {
+		t.Fatalf("expected 1 attempt with AuthenticationError, got %d (%q)", attempts, got)
 	}
 }

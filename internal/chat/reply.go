@@ -35,6 +35,8 @@ type ReplyWork struct {
 	ReasoningTruncated bool                `json:"reasoningTruncated,omitempty"`
 	Tools              []ReplyToolStep     `json:"tools,omitempty"`
 	Positions          []ReplyWorkPosition `json:"positions,omitempty"`
+	RetryAttempt       int                 `json:"retryAttempt,omitempty"`
+	RetryMax           int                 `json:"retryMax,omitempty"`
 }
 
 // All string offsets use UTF-16 code units to match the frontend's source text.
@@ -67,6 +69,86 @@ type replyWork struct {
 	lastText          time.Time
 	positions         []ReplyWorkPosition
 	activity          string
+	retryAttempt      int
+	retryMax          int
+}
+
+type replyWorkCheckpoint struct {
+	firstText         time.Time
+	roundFirstText    time.Time
+	lastActivity      time.Time
+	reasoningObserved bool
+	summaryText       string
+	summaryNewRound   bool
+	summaryTruncated  bool
+	summaryLength     int
+	thinkingText      string
+	thinkingNewRound  bool
+	thinkingTruncated bool
+	thinkingLength    int
+	tools             []ReplyToolStep
+	textOffset        int
+	lastText          time.Time
+	positions         []ReplyWorkPosition
+	activity          string
+}
+
+func (w *replyWork) checkpoint() replyWorkCheckpoint {
+	return replyWorkCheckpoint{
+		firstText:         w.firstText,
+		roundFirstText:    w.roundFirstText,
+		lastActivity:      w.lastActivity,
+		reasoningObserved: w.reasoningObserved,
+		summaryText:       w.summary.text.String(),
+		summaryNewRound:   w.summary.newRound,
+		summaryTruncated:  w.summary.truncated,
+		summaryLength:     w.summary.length,
+		thinkingText:      w.thinking.text.String(),
+		thinkingNewRound:  w.thinking.newRound,
+		thinkingTruncated: w.thinking.truncated,
+		thinkingLength:    w.thinking.length,
+		tools:             slices.Clone(w.tools),
+		textOffset:        w.textOffset,
+		lastText:          w.lastText,
+		positions:         slices.Clone(w.positions),
+		activity:          w.activity,
+	}
+}
+
+func (w *replyWork) restore(cp replyWorkCheckpoint) {
+	w.firstText = cp.firstText
+	w.roundFirstText = cp.roundFirstText
+	w.lastActivity = cp.lastActivity
+	w.reasoningObserved = cp.reasoningObserved
+	w.summary.text.Reset()
+	w.summary.text.WriteString(cp.summaryText)
+	w.summary.newRound = cp.summaryNewRound
+	w.summary.truncated = cp.summaryTruncated
+	w.summary.length = cp.summaryLength
+	w.thinking.text.Reset()
+	w.thinking.text.WriteString(cp.thinkingText)
+	w.thinking.newRound = cp.thinkingNewRound
+	w.thinking.truncated = cp.thinkingTruncated
+	w.thinking.length = cp.thinkingLength
+	w.tools = slices.Clone(cp.tools)
+	w.textOffset = cp.textOffset
+	w.lastText = cp.lastText
+	w.positions = slices.Clone(cp.positions)
+	w.activity = cp.activity
+}
+
+func (w *replyWork) setRetry(attempt, maxRetries int) {
+	w.retryAttempt = attempt
+	w.retryMax = maxRetries
+}
+
+func (w *replyWork) clearRetry() bool {
+	if w.retryAttempt == 0 && w.retryMax == 0 {
+		return false
+	}
+	w.retryAttempt = 0
+	w.retryMax = 0
+	return true
 }
 
 type reasoningRecord struct {
@@ -163,7 +245,7 @@ func (w *replyWork) observe(event ai.ModelEvent, now time.Time) {
 }
 
 func (w *replyWork) snapshot(started, ended time.Time, terminalStatus string) *ReplyWork {
-	if w.lastActivity.IsZero() {
+	if w.lastActivity.IsZero() && (terminalStatus != "running" || w.retryAttempt == 0) {
 		return nil
 	}
 	until := ended
@@ -197,11 +279,17 @@ func (w *replyWork) snapshot(started, ended time.Time, terminalStatus string) *R
 		}
 		positions[i].DurationMS = initialEnd.Sub(started).Milliseconds()
 	}
+	retryAttempt, retryMax := 0, 0
+	if terminalStatus == "running" {
+		retryAttempt, retryMax = w.retryAttempt, w.retryMax
+	}
 	return &ReplyWork{
 		DurationMS: until.Sub(started).Milliseconds(), Tools: tools,
 		ReasoningObserved: w.reasoningObserved, ReasoningSummary: w.summary.text.String(), ReasoningText: w.thinking.text.String(),
 		ReasoningTruncated: w.summary.truncated || w.thinking.truncated,
 		Positions:          positions,
+		RetryAttempt:       retryAttempt,
+		RetryMax:           retryMax,
 	}
 }
 

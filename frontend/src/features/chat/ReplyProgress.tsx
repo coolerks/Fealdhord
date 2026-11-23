@@ -75,6 +75,12 @@ function ThinkingIndicator() {
   </div>
 }
 
+function RetryIndicator({ attempt, max }: { attempt: number; max: number }) {
+  return <div className="py-0.5 text-sm text-muted-foreground">
+    <span className="chat-thinking-label" role="status">网络或服务异常，正在重试（第 {attempt}/{max} 次）…</span>
+  </div>
+}
+
 function ToolPayload({ label, text, truncated }: { label: string; text: string; truncated?: boolean }) {
   return <div>
     <div className="mb-1 text-xs text-muted-foreground">{label}{truncated && '（已截断）'}</div>
@@ -210,9 +216,10 @@ function SingleStageProgress({ message }: { message: Message }) {
   const section: Partial<ReplyWork> = { ...work, tools: work?.tools ?? message.tools }
   const entries = normalizeEntries([section])
   const hasProcess = entries.length > 0
+  const retrying = Boolean(running && work?.retryAttempt && work.retryMax)
   const hasRunningTool = running && entries.some(entry => entry.tools?.some(tool => tool.status === 'running'))
   const hasAnyTools = Boolean(section.tools?.length)
-  const showNextRoundThinking = useDelayedTrue(running && !hasRunningTool && !hasText && hasAnyTools)
+  const showNextRoundThinking = useDelayedTrue(running && !retrying && !hasRunningTool && !hasText && hasAnyTools)
   const open = toggle?.running === running ? toggle.open : false
 
   useLayoutEffect(() => {
@@ -222,6 +229,12 @@ function SingleStageProgress({ message }: { message: Message }) {
   }, [open])
 
   if (running) {
+    if (retrying) {
+      return <>
+        {hasProcess && <ActivityRound sections={[section]} running={running} waiting={!hasText} activeRound={false} />}
+        <RetryIndicator attempt={work!.retryAttempt!} max={work!.retryMax!} />
+      </>
+    }
     if (!hasText && !hasProcess) return <ThinkingIndicator />
     if (!hasProcess) return null
     return <>
@@ -273,9 +286,10 @@ export function ReplyBody({ message, markdown, reveal }: {
   const hasMultiStage = Boolean(work && positions?.length)
   const finalOffset = hasMultiStage ? positions![positions!.length - 1].offset : 0
   const hasFinalText = Boolean(message.text.slice(finalOffset).trim())
+  const retrying = Boolean(running && work?.retryAttempt && work.retryMax)
   const hasRunningTool = Boolean(running && hasMultiStage && work!.tools?.some(tool => tool.status === 'running'))
   const hasAnyTools = Boolean(hasMultiStage && work!.tools?.length)
-  const showNextRoundThinking = useDelayedTrue(running && hasMultiStage && !hasRunningTool && !hasFinalText && hasAnyTools)
+  const showNextRoundThinking = useDelayedTrue(running && !retrying && hasMultiStage && !hasRunningTool && !hasFinalText && hasAnyTools)
   const open = toggle?.running === running ? toggle.open : !hasFinalText
 
   useLayoutEffect(() => {
@@ -320,7 +334,9 @@ export function ReplyBody({ message, markdown, reveal }: {
           <ActivityRound sections={group.sections} running={running} waiting={waiting} activeRound={isLast && !hasFinalText} />
         </div>
       })}
-      {showNextRoundThinking && <ThinkingIndicator />}
+      {retrying
+        ? <RetryIndicator attempt={work!.retryAttempt!} max={work!.retryMax!} />
+        : showNextRoundThinking && <ThinkingIndicator />}
       {finalBody}
     </div>
   }

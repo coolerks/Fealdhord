@@ -78,6 +78,7 @@ type UpdateEvent struct {
 	Delta          string `json:"delta"`
 	Done           bool   `json:"done"`
 	WorkChanged    bool   `json:"workChanged,omitempty"`
+	ResetText      bool   `json:"resetText,omitempty"`
 }
 
 type run struct {
@@ -375,6 +376,31 @@ func (s *Service) Cancel(_ context.Context, id string) error {
 	return nil
 }
 
+const (
+	defaultChatMaxRetries = 5
+	maxChatMaxRetries     = 10
+)
+
+func (s *Service) chatMaxRetries(ctx context.Context) int {
+	if s.store == nil {
+		return defaultChatMaxRetries
+	}
+	record, err := s.store.LoadPreferences(ctx)
+	if err != nil {
+		return defaultChatMaxRetries
+	}
+	var raw struct {
+		ChatMaxRetries *int `json:"chat_max_retries"`
+	}
+	if json.Unmarshal([]byte(record.JSON), &raw) != nil || raw.ChatMaxRetries == nil {
+		return defaultChatMaxRetries
+	}
+	if *raw.ChatMaxRetries < 0 || *raw.ChatMaxRetries > maxChatMaxRetries {
+		return defaultChatMaxRetries
+	}
+	return *raw.ChatMaxRetries
+}
+
 func (s *Service) execute(ctx context.Context, id string, current *run, adapter ai.Model, request ai.ModelRequest, tools []agentrun.ReadTool, modelName, effort string, compact *compaction) {
 	var usage replyUsage
 	defer s.workers.Done()
@@ -387,102 +413,140 @@ func (s *Service) execute(ctx context.Context, id string, current *run, adapter 
 		}
 	}()
 	status, code := "failed", "ProviderProtocolError"
-	var events <-chan ai.ModelEvent
-	var err error
 	var lastInput int64
 	s.compact(ctx, id, adapter, &request, compact)
-	if len(tools) == 0 {
-		err = ai.FitForModel(ctx, adapter, &request)
-		if err == nil {
-			events, err = adapter.Stream(ctx, &request)
+	events := agentrun.StreamWithOptions(ctx, adapter, request, tools, agentrun.StreamOptions{
+		MaxRetries: s.chatMaxRetries(ctx),
+	})
+	checkpointCtx, stopCheckpoint := context.WithCancel(ctx)
+	checkpointDone := make(chan struct{})
+	go func() {
+		defer close(checkpointDone)
+		s.checkpoint(checkpointCtx, current)
+	}()
+	updates := time.NewTicker(32 * time.Millisecond)
+	defer updates.Stop()
+	var pending strings.Builder
+	flush := func() {
+		if pending.Len() == 0 && !update.WorkChanged && !update.ResetText {
+			return
 		}
-	} else {
-		events = agentrun.Stream(ctx, adapter, request, tools)
+		update.Delta = pending.String()
+		s.publish(update)
+		update.Offset += utf16Length(update.Delta)
+		update.Delta = ""
+		update.WorkChanged = false
+		update.ResetText = false
+		pending.Reset()
 	}
-	if err != nil {
-		code = errorCode(err)
-	} else {
-		checkpointCtx, stopCheckpoint := context.WithCancel(ctx)
-		checkpointDone := make(chan struct{})
-		go func() {
-			defer close(checkpointDone)
-			s.checkpoint(checkpointCtx, current)
-		}()
-		updates := time.NewTicker(32 * time.Millisecond)
-		defer updates.Stop()
-		var pending strings.Builder
-		flush := func() {
-			if pending.Len() == 0 && !update.WorkChanged {
-				return
+	s.mu.Lock()
+	turnTextStart := current.text.String()
+	turnWorkCP := current.work.checkpoint()
+	s.mu.Unlock()
+	turnRoundsStart := len(usage.rounds)
+	inTurn := false
+stream:
+	for {
+		select {
+		case <-updates.C:
+			flush()
+		case event, ok := <-events:
+			if !ok {
+				break stream
 			}
-			update.Delta = pending.String()
-			s.publish(update)
-			update.Offset += utf16Length(update.Delta)
-			update.Delta = ""
-			update.WorkChanged = false
-			pending.Reset()
-		}
-	stream:
-		for {
-			select {
-			case <-updates.C:
-				flush()
-			case event, ok := <-events:
-				if !ok {
-					break stream
+			switch event.Type {
+			case "message_start":
+				if !inTurn {
+					s.mu.Lock()
+					turnTextStart = current.text.String()
+					turnWorkCP = current.work.checkpoint()
+					s.mu.Unlock()
+					turnRoundsStart = len(usage.rounds)
+					inTurn = true
 				}
-				switch event.Type {
-				case "message_start":
-					usage.startRound()
-					s.mu.Lock()
+				usage.startRound()
+				s.mu.Lock()
+				current.work.observe(event, time.Now())
+				s.mu.Unlock()
+			case "retry_scheduled":
+				s.mu.Lock()
+				current.text.Reset()
+				current.text.WriteString(turnTextStart)
+				current.work.restore(turnWorkCP)
+				current.work.setRetry(event.RetryAttempt, event.RetryMax)
+				s.mu.Unlock()
+				if len(usage.rounds) > turnRoundsStart {
+					usage.rounds = usage.rounds[:turnRoundsStart]
+				}
+				pending.Reset()
+				update.Offset = utf16Length(turnTextStart)
+				if s.publish != nil {
+					update.WorkChanged = true
+					update.ResetText = true
+					flush()
+				}
+			case "text_delta":
+				s.mu.Lock()
+				clearedRetry := current.work.clearRetry()
+				exceeded := current.text.Len()+len(event.Text) > maxReplyBytes
+				if !exceeded {
+					current.text.WriteString(event.Text)
 					current.work.observe(event, time.Now())
-					s.mu.Unlock()
-				case "text_delta":
-					s.mu.Lock()
-					exceeded := current.text.Len()+len(event.Text) > maxReplyBytes
-					if !exceeded {
-						current.text.WriteString(event.Text)
-						current.work.observe(event, time.Now())
-					}
-					s.mu.Unlock()
-					if exceeded {
-						code = "ResponseLimit"
-						current.cancel()
-					} else if s.publish != nil {
-						pending.WriteString(event.Text)
-					}
-				case "reasoning_text_delta", "reasoning_summary_delta", "tool_work_started", "tool_work_finished":
-					s.mu.Lock()
-					previousPositions := len(current.work.positions)
-					current.work.observe(event, time.Now())
-					if s.publish != nil && (len(current.work.positions) != previousPositions ||
-						event.Type == "tool_work_started" || event.Type == "tool_work_finished") {
+				}
+				s.mu.Unlock()
+				if exceeded {
+					code = "ResponseLimit"
+					current.cancel()
+				} else if s.publish != nil {
+					if clearedRetry {
 						update.WorkChanged = true
 					}
-					s.mu.Unlock()
-				case "usage":
-					usage.observe(event.Usage)
-					if event.Usage != nil && event.Usage.InputTokens != nil && *event.Usage.InputTokens > 0 {
-						lastInput = int64(*event.Usage.InputTokens)
+					pending.WriteString(event.Text)
+				}
+			case "reasoning_text_delta", "reasoning_summary_delta", "tool_work_started", "tool_work_finished":
+				s.mu.Lock()
+				clearedRetry := current.work.clearRetry()
+				previousPositions := len(current.work.positions)
+				current.work.observe(event, time.Now())
+				if event.Type == "tool_work_finished" {
+					turnTextStart = current.text.String()
+					turnWorkCP = current.work.checkpoint()
+					turnRoundsStart = len(usage.rounds)
+					inTurn = false
+				}
+				if s.publish != nil && (clearedRetry || len(current.work.positions) != previousPositions ||
+					event.Type == "tool_work_started" || event.Type == "tool_work_finished") {
+					update.WorkChanged = true
+				}
+				s.mu.Unlock()
+			case "usage":
+				usage.observe(event.Usage)
+				if event.Usage != nil && event.Usage.InputTokens != nil && *event.Usage.InputTokens > 0 {
+					lastInput = int64(*event.Usage.InputTokens)
+				}
+			case "message_end":
+				s.mu.Lock()
+				current.work.clearRetry()
+				s.mu.Unlock()
+				if code != "ResponseLimit" {
+					status, code = "complete", ""
+					if event.FinishReason == "length" || event.FinishReason == "content_filter" {
+						status, code = "failed", "IncompleteResponse"
 					}
-				case "message_end":
-					if code != "ResponseLimit" {
-						status, code = "complete", ""
-						if event.FinishReason == "length" || event.FinishReason == "content_filter" {
-							status, code = "failed", "IncompleteResponse"
-						}
-					}
-				case "error":
-					if code != "ResponseLimit" {
-						status, code = "failed", errorCode(event.Error)
-					}
+				}
+			case "error":
+				s.mu.Lock()
+				current.work.clearRetry()
+				s.mu.Unlock()
+				if code != "ResponseLimit" {
+					status, code = "failed", errorCode(event.Error)
 				}
 			}
 		}
-		flush()
-		stopCheckpoint()
-		<-checkpointDone
 	}
+	flush()
+	stopCheckpoint()
+	<-checkpointDone
 	if ctx.Err() != nil && status != "complete" && code != "ResponseLimit" {
 		status, code = "cancelled", "Cancelled"
 	}
@@ -491,7 +555,7 @@ func (s *Service) execute(ctx context.Context, id string, current *run, adapter 
 	defer cancel()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, err = s.store.ChatQueries().FinishChatMessage(finishCtx, sqlc.FinishChatMessageParams{
+	_, err := s.store.ChatQueries().FinishChatMessage(finishCtx, sqlc.FinishChatMessageParams{
 		ID: current.id, Content: current.text.String(), Status: status, ErrorCode: code,
 		ReplyDetails: usage.details(current.started, ended, effort, &current.work, status),
 	})

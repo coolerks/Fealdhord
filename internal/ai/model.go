@@ -4,6 +4,7 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -84,6 +85,8 @@ type ModelEvent struct {
 	Usage            *Usage
 	FinishReason     string
 	ReasoningContent *string
+	RetryAttempt     int
+	RetryMax         int
 	Error            error
 }
 
@@ -94,3 +97,30 @@ type ModelError struct {
 }
 
 func (e *ModelError) Error() string { return e.Code }
+
+// Retryable reports whether a transient network, stream, timeout, rate-limit, or 5xx server error can be retried.
+func (e *ModelError) Retryable() bool {
+	if e == nil {
+		return false
+	}
+	switch e.Code {
+	case "ProviderConnectionError", "ProviderProtocolError", "RateLimitError", "Timeout":
+		return true
+	case "ProviderHTTPError":
+		return e.httpStatus == 0 || e.httpStatus == 408 || e.httpStatus == 429 || e.httpStatus >= 500
+	default:
+		return false
+	}
+}
+
+// IsRetryableError reports whether err is a transient model failure and returns any server-provided Retry-After hint.
+func IsRetryableError(err error) (bool, time.Duration) {
+	if err == nil {
+		return false, 0
+	}
+	var typed *ModelError
+	if errors.As(err, &typed) {
+		return typed.Retryable(), typed.RetryAfter
+	}
+	return false, 0
+}

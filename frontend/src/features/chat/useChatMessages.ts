@@ -32,6 +32,11 @@ export function useChatMessages(id: string) {
         void cache.invalidateQueries({ queryKey: chatContextKey(id) })
         return
       }
+      if (event.resetText) {
+        setLive(undefined)
+        void cache.invalidateQueries({ queryKey: key, exact: true })
+        return
+      }
       if (event.workChanged) void cache.invalidateQueries({ queryKey: key, exact: true })
       if (!event.delta) return
       const saved = cache.getQueryData<Message[]>(key)?.find(message => message.id === event.messageId)

@@ -23,14 +23,28 @@ type ReadTool struct {
 	activityCall func(ai.ToolCall) ai.ToolCall
 }
 
+type StreamOptions struct {
+	MaxRetries int
+	BaseDelay  time.Duration
+}
+
 // Stream retains the one-turn event contract. Only the final model turn ends the message.
 func Stream(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []ReadTool) <-chan ai.ModelEvent {
+	return StreamWithOptions(ctx, model, request, tools, StreamOptions{})
+}
+
+// StreamWithOptions runs the bounded agent loop with optional per-turn retries on transient errors.
+func StreamWithOptions(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []ReadTool, opts StreamOptions) <-chan ai.ModelEvent {
 	events := make(chan ai.ModelEvent, 1)
 	go func() {
 		defer close(events)
-		runCtx, cancel := context.WithTimeout(ctx, 180*time.Second)
+		timeout := 180 * time.Second
+		if opts.MaxRetries > 0 {
+			timeout = 300 * time.Second
+		}
+		runCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
-		err := run(runCtx, model, request, tools, func(event ai.ModelEvent) bool {
+		err := run(runCtx, model, request, tools, opts, func(event ai.ModelEvent) bool {
 			return emit(runCtx, events, event)
 		})
 		if err != nil && ctx.Err() == nil {
@@ -57,7 +71,7 @@ type previousCall struct {
 	result string
 }
 
-func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []ReadTool, forward func(ai.ModelEvent) bool) error {
+func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []ReadTool, opts StreamOptions, forward func(ai.ModelEvent) bool) error {
 	allowed := make(map[string]ReadTool, len(tools))
 	request.Tools = nil
 	for _, tool := range tools {
@@ -75,7 +89,7 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 		if err := ai.FitForModel(ctx, model, &request); err != nil {
 			return err
 		}
-		reply, err := collect(ctx, model, &request, forward)
+		reply, err := collectWithRetry(ctx, model, &request, forward, opts)
 		if err != nil {
 			return err
 		}
@@ -196,6 +210,52 @@ type turnReply struct {
 	finish    string
 	calls     []ai.ToolCall
 	reasoning *string
+}
+
+func retryBackoff(attempt int, base, hint time.Duration) time.Duration {
+	if base <= 0 {
+		base = time.Second
+	}
+	delay := base << min(attempt, 4)
+	if base >= time.Second && delay > 10*time.Second {
+		delay = 10 * time.Second
+	}
+	if hint > delay {
+		delay = min(hint, 15*time.Second)
+	}
+	return delay
+}
+
+func collectWithRetry(ctx context.Context, model ai.Model, request *ai.ModelRequest, forward func(ai.ModelEvent) bool, opts StreamOptions) (turnReply, error) {
+	maxRetries := max(0, opts.MaxRetries)
+	for attempt := 0; ; attempt++ {
+		reply, err := collect(ctx, model, request, forward)
+		if err == nil {
+			return reply, nil
+		}
+		if ctx.Err() != nil || attempt >= maxRetries {
+			return reply, err
+		}
+		retryable, hint := ai.IsRetryableError(err)
+		if !retryable {
+			return reply, err
+		}
+		if !forward(ai.ModelEvent{
+			Type:         "retry_scheduled",
+			RetryAttempt: attempt + 1,
+			RetryMax:     maxRetries,
+			Error:        err,
+		}) {
+			return reply, ctx.Err()
+		}
+		timer := time.NewTimer(retryBackoff(attempt, opts.BaseDelay, hint))
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return reply, ctx.Err()
+		case <-timer.C:
+		}
+	}
 }
 
 func collect(ctx context.Context, model ai.Model, request *ai.ModelRequest, forward func(ai.ModelEvent) bool) (turnReply, error) {
