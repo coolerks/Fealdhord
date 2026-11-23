@@ -30,3 +30,11 @@ it('同一摘要的内置工具保持相同动画图标', () => {
   expect(getToolMeta('article.mark_read').icon).toBe(getToolMeta('article.mark_unread').icon)
   expect(getToolMeta('schedule.create').icon).toBe(getToolMeta('schedule.delete').icon)
 })
+
+it('内置与外部工具均提供进行中摘要', () => {
+  expect(getToolMeta('article.list').runningSummary).toBe('获取文章列表中')
+  expect(getToolMeta('article.search').runningSummary).toBe('搜索文章中')
+  expect(getToolMeta('article.get').runningSummary).toBe('读取文章正文中')
+  expect(getToolMeta('notification.send').runningSummary).toBe('发送通知中')
+  expect(getToolMeta('github.create_issue').runningSummary).toBe('调用 github.create_issue 工具中')
+})

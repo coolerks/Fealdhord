@@ -1,5 +1,5 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { clearSelectionWithin } from '@/app/TextSelection'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { Button } from '@/components/ui/button'
@@ -55,6 +55,12 @@ function normalizeEntries(sections: Partial<ReplyWork>[]) {
   })).filter(entry => entry.summary || entry.thinking || entry.reasoningObserved || entry.reasoningTruncated || entry.tools?.length)
 }
 
+function ThinkingIndicator() {
+  return <div className="py-0.5 text-sm text-muted-foreground">
+    <span className="chat-thinking-label" role="status">正在思考</span>
+  </div>
+}
+
 function ToolPayload({ label, text, truncated }: { label: string; text: string; truncated?: boolean }) {
   return <div>
     <div className="mb-1 text-xs text-muted-foreground">{label}{truncated && '（已截断）'}</div>
@@ -67,31 +73,34 @@ function ToolStep({ tool }: { tool: ReplyToolStep }) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const meta = getToolMeta(tool.name)
+  const isRunning = tool.status === 'running'
   const status = statusLabels[tool.status] ?? '状态未知'
   const tone = statusTone(tool.status)
   const hasData = tool.arguments != null || tool.result != null
-  const icon = tool.status === 'running'
-    ? <Loader2 className="chat-spin size-3.5 shrink-0 text-foreground" aria-hidden="true" />
-    : <AnimatedGlyph meaning={meta.icon} className="chat-activity-glyph shrink-0 text-muted-foreground" />
+  const icon = <AnimatedGlyph meaning={meta.icon} className="chat-activity-glyph shrink-0 text-muted-foreground" />
+  const content = isRunning
+    ? <span className="chat-thinking-label truncate">{meta.runningSummary}</span>
+    : <>
+        <span className="truncate text-foreground/90">{meta.label}</span>
+        <span className={cn('shrink-0', tone)}>{status}</span>
+      </>
 
   if (!hasData) {
     return <li className="flex min-h-7 items-center gap-1.5 text-xs">
       {icon}
-      <span className="truncate text-foreground/90">{meta.label}</span>
-      <span className={cn('shrink-0', tone)}>{status}</span>
+      {content}
     </li>
   }
 
   return <li>
     <Button type="button" variant="ghost" size="sm" className="-ml-2 h-7 max-w-full gap-1.5 border-0 px-2 text-xs font-normal aria-expanded:bg-transparent hover:aria-expanded:bg-muted dark:hover:aria-expanded:bg-muted/50"
-      aria-label={`${meta.label} ${status}`} aria-expanded={open} aria-controls={id}
+      aria-label={isRunning ? meta.runningSummary : `${meta.label} ${status}`} aria-expanded={open} aria-controls={id}
       onClick={() => {
         if (open) clearCollapsedSelection(panelRef.current)
         setOpen(!open)
       }}>
       {icon}
-      <span className="truncate text-foreground/90">{meta.label}</span>
-      <span className={cn('shrink-0', tone)}>{status}</span>
+      {content}
       {open ? <ChevronDown data-icon="inline-end" /> : <ChevronRight data-icon="inline-end" />}
     </Button>
     <div ref={panelRef} id={id} hidden={!open}>
@@ -127,18 +136,23 @@ function ProcessEntries({ entries, running, waiting }: {
   </div>
 }
 
-function ActivityRound({ sections, running, waiting }: {
-  sections: ReplyWork[]
+function ActivityRound({ sections, running, waiting, activeRound }: {
+  sections: Partial<ReplyWork>[]
   running: boolean
   waiting: boolean
+  activeRound: boolean
 }) {
   const panelId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const entries = normalizeEntries(sections)
-  const toolNames = entries.flatMap(entry => (entry.tools ?? []).map(tool => tool.name))
-  const hasRunningTool = running && entries.some(entry => entry.tools?.some(tool => tool.status === 'running'))
+  const allTools = entries.flatMap(entry => entry.tools ?? [])
+  const toolNames = allTools.map(tool => tool.name)
+  const runningTool = running ? [...allTools].reverse().find(tool => tool.status === 'running') : undefined
+  const hasRunningTool = Boolean(runningTool)
+  const activeReasoningOnly = running && activeRound && allTools.length === 0
+  const inProgress = hasRunningTool || activeReasoningOnly
   const [toggle, setToggle] = useState<{ running: boolean; open: boolean }>()
-  const open = toggle?.running === running ? toggle.open : hasRunningTool
+  const open = toggle?.running === running ? toggle.open : inProgress
 
   useLayoutEffect(() => {
     if (!open) return
@@ -148,7 +162,12 @@ function ActivityRound({ sections, running, waiting }: {
 
   if (entries.length === 0) return null
 
-  const activity = summarizeToolActivity(toolNames)
+  const runningMeta = runningTool ? getToolMeta(runningTool.name) : undefined
+  const activity = runningMeta
+    ? { text: runningMeta.runningSummary, icon: runningMeta.icon }
+    : activeReasoningOnly
+      ? { text: '正在思考', icon: 'sparkles' as const }
+      : summarizeToolActivity(toolNames)
 
   return <div className="text-sm text-muted-foreground">
     <Button type="button" variant="ghost" size="sm"
@@ -157,10 +176,8 @@ function ActivityRound({ sections, running, waiting }: {
         if (open) clearCollapsedSelection(panelRef.current)
         setToggle({ running, open: !open })
       }}>
-      {hasRunningTool
-        ? <Loader2 className="chat-spin size-3.5 shrink-0 text-foreground" aria-hidden="true" />
-        : <AnimatedGlyph meaning={activity.icon} className="chat-activity-glyph shrink-0" />}
-      <span className={cn('truncate', hasRunningTool && 'chat-thinking-label')}>{activity.text}</span>
+      <AnimatedGlyph meaning={activity.icon} className="chat-activity-glyph shrink-0" />
+      <span className={cn('truncate', inProgress && 'chat-thinking-label')} role={inProgress ? 'status' : undefined}>{activity.text}</span>
       {open ? <ChevronDown data-icon="inline-end" /> : <ChevronRight data-icon="inline-end" />}
     </Button>
     <div ref={panelRef} id={panelId} hidden={!open} className="mt-1 max-h-56 overflow-y-auto border-l border-border/80 pl-3">
@@ -174,13 +191,13 @@ function SingleStageProgress({ message }: { message: Message }) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [toggle, setToggle] = useState<{ running: boolean; open: boolean }>()
   const running = message.status === 'running'
-  const waiting = running && !message.text.trim()
+  const hasText = Boolean(message.text.trim())
   const work = message.details?.work
-  const entries = normalizeEntries([{ ...work, tools: work?.tools ?? message.tools }])
+  const section: Partial<ReplyWork> = { ...work, tools: work?.tools ?? message.tools }
+  const entries = normalizeEntries([section])
   const hasProcess = entries.length > 0
   const hasRunningTool = running && entries.some(entry => entry.tools?.some(tool => tool.status === 'running'))
-  const inProgress = waiting || hasRunningTool
-  const open = toggle?.running === running ? toggle.open : inProgress
+  const open = toggle?.running === running ? toggle.open : false
 
   useLayoutEffect(() => {
     if (!open) return
@@ -188,35 +205,33 @@ function SingleStageProgress({ message }: { message: Message }) {
     return () => { clearCollapsedSelection(panel) }
   }, [open])
 
-  if (!waiting && !hasProcess) return null
+  if (running) {
+    if (!hasText && !hasProcess) return <ThinkingIndicator />
+    if (!hasProcess) return null
+    const waitingForNextRound = !hasRunningTool && !hasText && Boolean(section.tools?.length)
+    return <>
+      <ActivityRound sections={[section]} running={running} waiting={!hasText} activeRound={!hasText} />
+      {waitingForNextRound && <ThinkingIndicator />}
+    </>
+  }
+
+  if (!hasProcess) return null
 
   const duration = work?.durationMs ?? message.details?.durationMs
-  const label = waiting
-    ? '正在思考'
-    : hasRunningTool
-      ? '正在调用工具'
-      : typeof duration === 'number'
-        ? `用时 ${elapsedLabel(duration)}`
-        : '查看记录'
-
-  const title = <span className={inProgress ? 'chat-thinking-label' : undefined} role={inProgress ? 'status' : undefined}>{label}</span>
+  const label = typeof duration === 'number' ? `用时 ${elapsedLabel(duration)}` : '查看记录'
 
   return <div className="text-sm text-muted-foreground">
-    {hasProcess
-      ? <>
-        <Button type="button" variant="ghost" size="sm" className="-ml-2 border-0 px-2 text-muted-foreground hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-muted-foreground hover:aria-expanded:bg-muted hover:aria-expanded:text-foreground dark:hover:aria-expanded:bg-muted/50"
-          aria-controls={panelId} aria-expanded={open} onClick={() => {
-            if (open) clearCollapsedSelection(panelRef.current)
-            setToggle({ running, open: !open })
-          }}>
-          {title}
-          {open ? <ChevronDown data-icon="inline-end" /> : <ChevronRight data-icon="inline-end" />}
-        </Button>
-        <div ref={panelRef} id={panelId} hidden={!open} className="mt-1 max-h-56 overflow-y-auto border-l border-border/80 pl-3">
-          {open && <ProcessEntries entries={entries} running={running} waiting={waiting} />}
-        </div>
-      </>
-      : <div className="py-1">{title}</div>}
+    <Button type="button" variant="ghost" size="sm" className="-ml-2 border-0 px-2 text-muted-foreground hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-muted-foreground hover:aria-expanded:bg-muted hover:aria-expanded:text-foreground dark:hover:aria-expanded:bg-muted/50"
+      aria-controls={panelId} aria-expanded={open} onClick={() => {
+        if (open) clearCollapsedSelection(panelRef.current)
+        setToggle({ running, open: !open })
+      }}>
+      <span>{label}</span>
+      {open ? <ChevronDown data-icon="inline-end" /> : <ChevronRight data-icon="inline-end" />}
+    </Button>
+    <div ref={panelRef} id={panelId} hidden={!open} className="mt-1 max-h-56 overflow-y-auto border-l border-border/80 pl-3">
+      {open && <ProcessEntries entries={entries} running={false} waiting={false} />}
+    </div>
   </div>
 }
 
@@ -243,13 +258,13 @@ export function ReplyBody({ message, markdown, reveal }: {
   const hasMultiStage = Boolean(work && positions?.length)
   const finalOffset = hasMultiStage ? positions![positions!.length - 1].offset : 0
   const hasFinalText = Boolean(message.text.slice(finalOffset).trim())
-  const open = toggle?.running === running ? toggle.open : (running || !hasFinalText)
+  const open = toggle?.running === running ? toggle.open : !hasFinalText
 
   useLayoutEffect(() => {
-    if (!hasMultiStage || !open) return
+    if (!hasMultiStage || running || !open) return
     const panel = panelRef.current
     return () => { clearCollapsedSelection(panel) }
-  }, [hasMultiStage, open])
+  }, [hasMultiStage, running, open])
 
   if (!hasMultiStage) {
     const body = textBetween(0, message.text.length)
@@ -275,18 +290,30 @@ export function ReplyBody({ message, markdown, reveal }: {
     })
   })
 
-  const totalDuration = message.details?.durationMs ?? work!.durationMs
-  const hasRunningTool = running && (work!.tools?.some(tool => tool.status === 'running') ?? false)
-  const inProgress = waiting || hasRunningTool
-  const label = waiting
-    ? '正在思考'
-    : hasRunningTool
-      ? '正在调用工具'
-      : typeof totalDuration === 'number'
-        ? `用时 ${elapsedLabel(totalDuration)}`
-        : '查看工作过程'
-  const title = <span className={inProgress ? 'chat-thinking-label' : undefined} role={inProgress ? 'status' : undefined}>{label}</span>
   const finalBody = textBetween(finalOffset, message.text.length)
+
+  if (running) {
+    const hasRunningTool = work!.tools?.some(tool => tool.status === 'running') ?? false
+    const lastSection = groups.at(-1)?.sections.at(-1)
+    const waitingForNextRound = !hasRunningTool && !hasFinalText && Boolean(lastSection?.tools?.length)
+    return <div className="flex flex-col gap-2">
+      {groups.map((group, i) => {
+        const before = textBetween(groups[i - 1]?.offset ?? 0, group.offset)
+        const isLast = i === groups.length - 1
+        return <div key={group.offset} className="contents">
+          {before}
+          <ActivityRound sections={group.sections} running={running} waiting={waiting} activeRound={isLast && !hasFinalText} />
+        </div>
+      })}
+      {waitingForNextRound && <ThinkingIndicator />}
+      {finalBody}
+    </div>
+  }
+
+  const totalDuration = message.details?.durationMs ?? work!.durationMs
+  const label = typeof totalDuration === 'number'
+    ? `用时 ${elapsedLabel(totalDuration)}`
+    : '查看工作过程'
 
   return <div className="flex flex-col gap-2">
     <div>
@@ -295,7 +322,7 @@ export function ReplyBody({ message, markdown, reveal }: {
           if (open) clearCollapsedSelection(panelRef.current)
           setToggle({ running, open: !open })
         }}>
-        {title}
+        <span>{label}</span>
         {open ? <ChevronDown data-icon="inline-end" /> : <ChevronRight data-icon="inline-end" />}
       </Button>
       <div ref={panelRef} id={panelId} hidden={!open} className="mt-2 flex flex-col gap-2">
@@ -303,7 +330,7 @@ export function ReplyBody({ message, markdown, reveal }: {
           const before = textBetween(groups[i - 1]?.offset ?? 0, group.offset)
           return <div key={group.offset} className="contents">
             {before}
-            <ActivityRound sections={group.sections} running={running} waiting={waiting} />
+            <ActivityRound sections={group.sections} running={false} waiting={false} activeRound={false} />
           </div>
         })}
       </div>
