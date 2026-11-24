@@ -1759,3 +1759,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 69: 修复文章翻译方式与自动翻译策略
+<!-- trellis-session: v=2 fp=a61bdbc1f64eb82d -->
+
+**Date**: 2026-11-24
+**Task**: 修复文章翻译方式与自动翻译策略
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+修复缺段续翻、全文来源、混合语种、单源覆盖和阅读器显示。Go 全量、竞态和 vet 通过，前端 205 项复跑全绿，修改记录已同步。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `961907b` | fix(reader): 修复文章翻译方式与自动翻译策略 |
+
+### Status
+
+[OK] **Completed**
