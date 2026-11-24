@@ -175,16 +175,25 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
     {publicationDate && <time dateTime={publicationDate}><CalendarDays aria-hidden="true"/>{publicationDate}</time>}
    </p><h1 ref={title} tabIndex={-1}>{headingTitle}</h1>
    {subTranslatedTitle && <p className="reader-translated-title">{subTranslatedTitle}</p>}
-   {(body.extracting||body.error)&&<div className="reader-operation" role="status">{body.extracting?<><span>正在提取网页正文…</span><Button variant="ghost" size="sm" onClick={body.cancel}>取消提取</Button></>:<p role="alert">{body.error}</p>}</div>}
+   {(body.extracting||body.error)&&<div className="reader-operation" data-tone={body.extracting ? 'info' : 'warning'} role="status">
+    {body.extracting ? <>
+     <span className="min-w-0 flex-1">正在提取网页正文…</span>
+     <Button variant="ghost" size="sm" onClick={body.cancel}>取消提取</Button>
+    </> : <>
+     <AnimatedGlyph meaning="badge-alert" className="reader-operation-icon" />
+     <p role="alert" className="min-w-0 flex-1 m-0">{body.error}</p>
+    </>}
+   </div>}
    {!body.extracting && (translation.translating || translation.error) && (
-    <div className="reader-operation" role="status">
+    <div className="reader-operation" data-tone={translation.translating ? 'info' : 'warning'} role="status">
      {translation.translating ? <>
-      <span>{translation.record?.totalBlocks ? `正在翻译正文（${translation.record.translatedBlocks}/${translation.record.totalBlocks} 段）…` : '正在翻译正文…'}</span>
+      <span className="min-w-0 flex-1">{translation.record?.totalBlocks ? `正在翻译正文（${translation.record.translatedBlocks}/${translation.record.totalBlocks} 段）…` : '正在翻译正文…'}</span>
       <Button variant="ghost" size="sm" onClick={translation.cancel}>取消翻译</Button>
      </> : <>
-      <p role="alert">{translation.error}</p>
-      <div className="flex items-center gap-1">
-       {translation.error.includes('用途分配') && <Button variant="ghost" size="sm" onClick={() => showSettings('ai')}>前往设置</Button>}
+      <AnimatedGlyph meaning="badge-alert" className="reader-operation-icon" />
+      <p role="alert" className="min-w-0 flex-1 m-0">{translation.error}</p>
+      <div className="flex shrink-0 items-center gap-1.5">
+       {translation.error.includes('用途分配') && <Button variant="outline" size="sm" onClick={() => showSettings('ai')}>前往设置</Button>}
        <Button variant="ghost" size="sm" onClick={() => { void translation.translate(false) }}>重试</Button>
       </div>
      </>}

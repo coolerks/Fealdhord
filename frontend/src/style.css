@@ -649,7 +649,40 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 .nav-item .nav-node-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .nav-section nav { margin-block:4px 12px; }
 
-.reader-operation { margin-block:12px; font-size:13px; }
+.reader-operation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-block: 14px 18px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--muted) 70%, transparent);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--foreground);
+}
+.reader-operation[data-tone=warning] {
+  border-color: color-mix(in srgb, #d97706 28%, var(--border));
+  background: color-mix(in srgb, #f59e0b 10%, var(--background));
+}
+.dark .reader-operation[data-tone=warning] {
+  border-color: color-mix(in srgb, #f59e0b 32%, var(--border));
+  background: color-mix(in srgb, #f59e0b 14%, var(--background));
+}
+.reader-operation-icon {
+  width: 16px;
+  height: 16px;
+  color: #b45309;
+}
+.reader-operation-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.dark .reader-operation-icon {
+  color: #fbbf24;
+}
 
 .reader-tabs { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .reader-view-actions { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 9px; }
