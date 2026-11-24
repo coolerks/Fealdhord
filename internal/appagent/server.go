@@ -24,6 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coolerks/Fealdhord/internal/agentrun"
 	"github.com/coolerks/Fealdhord/internal/aiconfig"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -386,20 +387,21 @@ func newMCPToken() (string, string) {
 	digest := sha256.Sum256([]byte(value))
 	return value, hex.EncodeToString(digest[:])
 }
-func (a *Platform) newMCPServer(config ServerConfig, tools []string, scope MCPScope, principal string) *mcp.Server {
+func (a *Platform) newMCPServer(config ServerConfig, tools []string, scope MCPScope, principal string, results *agentrun.ResultStore) *mcp.Server {
+	owner := rand.Text()
 	server := mcp.NewServer(&mcp.Implementation{Name: "Fealdhord", Version: "1"}, nil)
 	for _, original := range a.registry.tools {
 		if !slices.Contains(config.Tools, original.Name) || !slices.Contains(tools, original.Name) || !scopeSupports(scope, original.Name) {
 			continue
 		}
 		tool := a.registry.scopedTool(original, scope)
-		server.AddTool(&mcp.Tool{Name: strings.ReplaceAll(tool.Name, ".", "_"), Description: tool.Description, InputSchema: tool.schema},
+		server.AddTool(&mcp.Tool{Name: strings.ReplaceAll(tool.Name, ".", "_"), Description: tool.Description + "。返回 next_cursor 时，仅传 result_cursor 继续读取。", InputSchema: resultCursorSchema(tool.schema, "result_cursor")},
 			func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 				arguments := req.Params.Arguments
 				if len(arguments) == 0 {
 					arguments = json.RawMessage("{}")
 				}
-				result, err := a.registry.execute(ctx, principal, tool, arguments)
+				result, err := a.registry.executePaged(ctx, principal, "", owner, results, tool, arguments)
 				reply := &mcp.CallToolResult{}
 				if err != nil {
 					reply.IsError = true
@@ -410,11 +412,11 @@ func (a *Platform) newMCPServer(config ServerConfig, tools []string, scope MCPSc
 			})
 		switch tool.Name {
 		case "article.get_metadata":
-			a.addResourceTemplate(server, tool, "article", principal)
+			a.addResourceTemplate(server, tool, "article", principal, owner, results)
 		case "feed.get":
-			a.addResourceTemplate(server, tool, "feed", principal)
+			a.addResourceTemplate(server, tool, "feed", principal, owner, results)
 		case "category.get":
-			a.addResourceTemplate(server, tool, "category", principal)
+			a.addResourceTemplate(server, tool, "category", principal, owner, results)
 		}
 	}
 	return server
@@ -438,11 +440,12 @@ func (a *Platform) cancellableHandler(config serverSettings, host, scheme string
 
 func (a *Platform) handler(config serverSettings, host, scheme string) http.Handler {
 	servers := make(map[string]*mcp.Server, len(config.Clients)+1)
+	results := &agentrun.ResultStore{}
 	if config.TokenDigest != "" {
-		servers[config.TokenDigest] = a.newMCPServer(config.Config, config.Config.Tools, MCPScope{}, "MCP 默认客户端")
+		servers[config.TokenDigest] = a.newMCPServer(config.Config, config.Config.Tools, MCPScope{}, "MCP 默认客户端", results)
 	}
 	for name, grant := range config.Clients {
-		servers[grant.Digest] = a.newMCPServer(config.Config, grant.Tools, grant.Scope, "MCP "+name)
+		servers[grant.Digest] = a.newMCPServer(config.Config, grant.Tools, grant.Scope, "MCP "+name, results)
 	}
 	type authKey struct{}
 	handler := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {

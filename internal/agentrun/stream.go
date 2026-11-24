@@ -14,12 +14,13 @@ const (
 	maxTurns             = 16
 	maxCalls             = 64
 	maxContinuationBytes = 128 << 10
-	maxToolReplyBytes    = 12 << 10
+	maxToolReplyBytes    = ResultPageBytes
 )
 
 type ReadTool struct {
 	Definition   ai.ToolDefinition
 	Read         func(context.Context, ai.ToolCall) (string, error)
+	ArticleNext  func(context.Context, ai.ToolCall, string) (string, error)
 	activityCall func(ai.ToolCall) ai.ToolCall
 }
 
@@ -44,6 +45,7 @@ func StreamWithOptions(ctx context.Context, model ai.Model, request ai.ModelRequ
 		}
 		runCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
+		runCtx = context.WithValue(runCtx, resultStoreKey{}, &ResultStore{})
 		err := run(runCtx, model, request, tools, opts, func(event ai.ModelEvent) bool {
 			return emit(runCtx, events, event)
 		})
@@ -84,9 +86,12 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 	}
 	request.Messages = append([]ai.Message(nil), request.Messages...)
 	executed := make(map[string]previousCall)
-	var attempts, continuationBytes int
+	var attempts int
+	baseSystem := request.System
+	var toolSummary string
+	compaction := &runCompaction{model: model, opts: opts, forward: forward}
 	for turn := 0; turn < maxTurns; turn++ {
-		if err := ai.FitForModel(ctx, model, &request); err != nil {
+		if err := compaction.fitToolHistory(ctx, &request, baseSystem, &toolSummary); err != nil {
 			return err
 		}
 		reply, err := collectWithRetry(ctx, model, &request, forward, opts)
@@ -96,6 +101,9 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 		if reply.finish != "tool_calls" {
 			if len(reply.calls) != 0 {
 				return failure("ProviderProtocolError")
+			}
+			if len(compaction.incomplete) > 0 {
+				return failure("ArticleReadIncomplete")
 			}
 			forward(ai.ModelEvent{Type: "message_end", FinishReason: reply.finish})
 			return nil
@@ -108,16 +116,6 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 		}
 		if err := validateCalls(reply.calls, allowed, executed); err != nil {
 			return err
-		}
-		continuationBytes += len(reply.text)
-		if reply.reasoning != nil {
-			continuationBytes += len(*reply.reasoning)
-		}
-		for _, call := range reply.calls {
-			continuationBytes += len(call.ArgumentsJSON) + len(call.Name) + len(call.ID)
-		}
-		if continuationBytes > maxContinuationBytes {
-			return failure("AgentLimitExceeded")
 		}
 		attempts += len(reply.calls)
 		request.Messages = append(request.Messages, ai.Message{Role: "assistant", Content: textContent(reply.text), ToolCalls: reply.calls, ReasoningContent: reply.reasoning})
@@ -137,6 +135,13 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 					return ctx.Err()
 				}
 				result, err := tool.Read(ctx, call)
+				if err == nil {
+					if len(result) > maxToolReplyBytes {
+						result = `{"error":"ToolResultLimit"}`
+					} else {
+						result, err = compaction.completeArticle(ctx, request, call, tool, result)
+					}
+				}
 				event.Type = "tool_work_finished"
 				event.ToolStatus = toolWorkStatus(result, err)
 				event.ToolCall = nil
@@ -150,14 +155,7 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 					return err
 				}
 				record = previousCall{call: call, result: result}
-				if len(record.result) > maxToolReplyBytes {
-					return failure("AgentLimitExceeded")
-				}
 				executed[call.ID] = record
-			}
-			continuationBytes += len(record.result)
-			if continuationBytes > maxContinuationBytes {
-				return failure("AgentLimitExceeded")
 			}
 			request.Messages = append(request.Messages, ai.Message{Role: "tool", ToolCallID: call.ID, Content: textContent(record.result)})
 		}

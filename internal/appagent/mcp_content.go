@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/coolerks/Fealdhord/internal/agentrun"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -69,7 +70,7 @@ func (c *clientConnection) contentTools(connection string) []Tool {
 	return r.tools
 }
 
-func (a *Platform) addResourceTemplate(server *mcp.Server, tool Tool, kind, principal string) {
+func (a *Platform) addResourceTemplate(server *mcp.Server, tool Tool, kind, principal, owner string, results *agentrun.ResultStore) {
 	server.AddResourceTemplate(&mcp.ResourceTemplate{
 		Name: kind, URITemplate: "fealdhord://" + kind + "/{id}", MIMEType: "application/json",
 		Description: tool.Description,
@@ -84,7 +85,7 @@ func (a *Platform) addResourceTemplate(server *mcp.Server, tool Tool, kind, prin
 			return nil, mcp.ResourceNotFoundError(request.Params.URI)
 		}
 		input, _ := json.Marshal(id{ID: itemID})
-		result, err := a.registry.execute(ctx, principal, tool, input)
+		result, err := a.registry.executePaged(ctx, principal, "", owner, results, tool, input)
 		if err != nil {
 			return nil, errors.New("ResourceUnavailable")
 		}

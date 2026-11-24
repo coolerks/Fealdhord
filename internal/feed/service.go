@@ -38,16 +38,16 @@ type Feed struct {
 	CustomIconURL  string   `json:"custom_icon_url,omitempty"`
 	ReaderOpenMode string   `json:"reader_open_mode,omitempty"`
 	ID             string   `json:"id"`
-	Title         string   `json:"title"`
-	URL           string   `json:"url"`
-	SiteURL       string   `json:"site_url"`
-	IconData      string   `json:"icon_data,omitempty"`
-	Description   string   `json:"description"`
-	Revision      int64    `json:"revision"`
-	Archived      bool     `json:"archived"`
-	LastError     string   `json:"last_error"`
-	NextCheckAt   *string  `json:"next_check_at,omitempty"`
-	CategoryIDs   []string `json:"category_ids"`
+	Title          string   `json:"title"`
+	URL            string   `json:"url"`
+	SiteURL        string   `json:"site_url"`
+	IconData       string   `json:"icon_data,omitempty"`
+	Description    string   `json:"description"`
+	Revision       int64    `json:"revision"`
+	Archived       bool     `json:"archived"`
+	LastError      string   `json:"last_error"`
+	NextCheckAt    *string  `json:"next_check_at,omitempty"`
+	CategoryIDs    []string `json:"category_ids"`
 }
 type Page struct {
 	Items      []Feed                     `json:"items"`
@@ -200,12 +200,21 @@ func (s *Service) Get(ctx context.Context, request IDRequest) Result {
 	return out
 }
 func (s *Service) Discover(ctx context.Context, request URLRequest) DiscoverResult {
+	return s.discover(ctx, request, 32)
+}
+
+// DiscoverAll retains every eligible result from the bounded source for tool pagination.
+func DiscoverAll(ctx context.Context, s *Service, request URLRequest) DiscoverResult {
+	return s.discover(ctx, request, 0)
+}
+
+func (s *Service) discover(ctx context.Context, request URLRequest, limit int) DiscoverResult {
 	out := DiscoverResult{RequestID: rand.Text()}
 	if s.fetcher == nil {
 		out.Error = SafeError(netpolicy.ErrInvalidURL)
 		return out
 	}
-	candidates, err := Discover(ctx, s.fetcher, request.URL)
+	candidates, err := discover(ctx, s.fetcher, request.URL, limit)
 	if err != nil {
 		out.Error = SafeError(err)
 		return out

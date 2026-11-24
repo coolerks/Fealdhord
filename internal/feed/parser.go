@@ -282,6 +282,10 @@ func timestamp(value *time.Time) *int64 {
 }
 
 func Discover(ctx context.Context, fetcher netpolicy.Fetcher, raw string) ([]Candidate, error) {
+	return discover(ctx, fetcher, raw, 32)
+}
+
+func discover(ctx context.Context, fetcher netpolicy.Fetcher, raw string, limit int) ([]Candidate, error) {
 	response, err := fetcher.Fetch(ctx, raw, netpolicy.Request{Accept: "application/rss+xml, application/atom+xml, application/feed+json, text/html;q=0.8"})
 	if err != nil {
 		return nil, err
@@ -307,9 +311,9 @@ func Discover(ctx context.Context, fetcher netpolicy.Fetcher, raw string) ([]Can
 	}
 	candidates := []Candidate{}
 	seen := map[string]bool{}
-	doc.Find("link[rel][href]").Each(func(_ int, s *goquery.Selection) {
-		if len(candidates) >= 32 {
-			return
+	doc.Find("link[rel][href]").EachWithBreak(func(_ int, s *goquery.Selection) bool {
+		if ctx.Err() != nil || (limit > 0 && len(candidates) >= limit) {
+			return false
 		}
 		rel, _ := s.Attr("rel")
 		alternate := false
@@ -321,17 +325,21 @@ func Discover(ctx context.Context, fetcher netpolicy.Fetcher, raw string) ([]Can
 		kind, _ := s.Attr("type")
 		kind, _, _ = mime.ParseMediaType(kind)
 		if !alternate || (kind != "application/rss+xml" && kind != "application/atom+xml" && kind != "application/feed+json" && kind != "application/json") {
-			return
+			return true
 		}
 		href, _ := s.Attr("href")
 		target := ResolveURL(href, discoveryBase)
 		if target == "" || seen[target] {
-			return
+			return true
 		}
 		seen[target] = true
 		title, _ := s.Attr("title")
 		candidates = append(candidates, Candidate{target, bounded(Text(title), 4096), kind})
+		return true
 	})
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if len(candidates) == 0 {
 		return nil, ErrNoFeed
 	}

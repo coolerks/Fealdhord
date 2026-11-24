@@ -24,7 +24,7 @@ Permission 表示静态风险声明；动态目标和数量由 Executor 在执�
 
 `ToolPermission={effect:read|write|destructive,external:boolean,scope:string[]}`；策略 auto/ask/deny。外部读也需要服务连接授权；写默认询问、破坏性必须询问，用户 deny 不可被 Skill 覆盖。外部写默认 ask，未分类 MCP 工具按高风险处理。
 
-`ToolResult={content:[{type:text|json,text?,data?}],is_error:boolean,error?:{code,message,retryable},affected_ids?:string[]}`；结果限长且标记截断，保留本机审计引用。Execute 的基础设施 error 由 Executor 转为安全结果，禁止把 panic 或 secret 直接送模型。
+`ToolResult={content:[{type:text|json,text?,data?}],is_error:boolean,error?:{code,message,retryable},affected_ids?:string[]}`；大结果以分页形式返回，保留本机审计引用。Execute 的基础设施 error 由 Executor 转为安全结果，禁止把 panic 或 secret 直接送模型。
 
 `PendingAction={id,run_id,tool_call_id,tool_name,targets:[{id,title,revision}],args_hash,policy_revision,expires_at,status}`。确认使用 action_id，不重新接受前端自定参数；后端重读目标与 revision，单次 CAS 从 pending 到 executing。审批默认 5 分钟过期且不超过运行许可等待上限。取消／过期／重启后不执行。
 
@@ -56,3 +56,29 @@ Permission 表示静态风险声明；动态目标和数量由 Executor 在执�
 ## Chat 只读工具的活动记录
 
 迁移 00013 为 `read_article` 记录调用开始与终态。会话消息通过可选的 `tools` 返回 `id`、`name`、`status` 和 `errorCode`。状态有 running、completed、denied、failed、cancelled、interrupted。调用编号为模型原始编号的 SHA-256，数据库保留开始及结束时间。审计表仅保存活动元数据。本机聊天消息的 `details.work.tools` 另存经结构化凭据脱敏的参数和结果，各限 16 KiB，超限标记截断。同一模型调用编号复用先前结果时不会增加执行记录。应用重启将运行中的消息和工具在一个事务内标记为中断。
+
+
+## 大结果和长正文
+
+工具结果按实际 JSON 编码计算单页大小，每页最多 12 KiB。小结果沿用原形状。内置工具返回外层 `next_cursor` 时，用同一工具仅传 `result_cursor` 续读。列表查询的 `data.next_cursor`（分页明细中的 `summary.next_cursor`）则用于沿用原过滤条件查询下一批文章。MCP 客户端导入的远端工具可用声明的 `_fealdhord_result_cursor` 继续读取中转结果。
+
+- 通用分页返回 `paged`、`page`、`pages`、`next_cursor` 和 `fragments`。按顺序应用片段中的 JSON Pointer `path` 和 `value`。拆分的数组和对象先返回空容器，大字符串按 UTF-8 字节 `text_offset` 拼接。分页保留原始条目和字段。可用时 `summary` 单独提供状态、计数和原查询游标。
+- `article.get`、`article.extract`、`read_article` 的正文页返回 `id`、`source`、`version`、`text`、`offset`、`end`、`total_bytes`、`coverage` 和可选 `next_cursor`。偏移是 UTF-8 字节，区间为左闭右开。来源区分订阅正文、提取原文和只有摘要。聊天读全文时自动处理后续页，`page_only` 可显式只读取一页用于核对引文。可以重新授权后用同一文章 ID、版本和偏移恢复。版本已变化返回 `ArticleVersionChanged`。
+- 游标关联同一工具、聊天运行或 MCP 授权配置下的客户端。翻页读取已批准的快照，MCP 按范围复核指定目标。游标有效期 20 分钟，聊天运行结束也会释放该运行的快照。无效或过期返回 `ToolResultUnavailable`。一次结果最多 48 MiB，单次运行或 MCP 授权配置最多缓存 64 MiB 和 128 份结果，达到上限时返回 `ToolResultLimit`。写操作的分页只读已生成的结果。
+- 聊天用当前模型和上下文配置处理分片，接近预算时在本轮滚动摘要中保留证据、来源和覆盖区间。压缩请求不提供工具，并计入本轮调用次数和用量。明确未完成的自动读正文返回 `ArticleReadIncomplete`，保留范围和恢复位置。网页抓取、提取、安全解析和聊天运行仍有各自的保护上限。
+
+### 内置工具结果审计
+
+| 工具 | 大结果行为 |
+| --- | --- |
+| `read_article`、`article.get`、`article.extract` | 正文连续分页，聊天自动分批和压缩。 |
+| `article.list`、`article.search`、`article.get_metadata` | 保留查询游标、候选上限标记及摘要；结果页保留全部条目和字段。 |
+| `feed.list`、`feed.get`、`feed.discover` | 订阅、分类、发现结果和详情字段按结果页返回；工具发现保留受控网页的全部候选。 |
+| `feed.add`、`feed.update`、`feed.remove`、`feed.restore`、`category.add_feed`、`category.remove_feed` | 订阅写入一次；详情可分页。 |
+| `feed.refresh`、`feed.refresh_all`、`feed.refresh_status`、`feed.cancel_refresh`、`app.get_diagnostics` | 返回运行状态和计数；多条刷新明细分页。 |
+| `category.list`、`category.get`、`category.preview_remove`、`category.article_memberships` | 分类、成员与影响详情按结果页返回。 |
+| `article.mark_read`、`article.mark_unread`、`article_ai.preview`、`article_ai.evaluate` | 保留批量状态、评估及命中详情，读取后续页时复用已执行结果。 |
+| `opml.preview_import`、`opml.import`、`opml.export` | 预览条目和导入报告明细可续取。翻页不重复打开文件选择、不重做导入。导出结果为文件名和大小。 |
+| `notification.channel.list`、`notification.rule.list`、`schedule.list`、`schedule.get`、`schedule.create`、`schedule.update`、`schedule.pause`、`schedule.resume` | 列表及任务详情可分页，已保存任务的返回结果可直接续读。 |
+| `article.favorite`、`article.unfavorite`、`article.add_category`、`article.remove_category`、`category.create`、`category.update`、`category.remove`、`view.list`、`view.get_counts`、`app.get_settings`、`app.update_reading_settings`、`app.get_refresh_settings`、`app.update_refresh_settings`、`app.get_version`、`notification.send`、`schedule.delete`、`AskUserQuestion` | 通常返回固定字段、单条状态或少量答案。共用分页保护。 |
+| `find_app_tools`、`run_app_tool` | 搜索目录返回 `next_offset`，代理调用保持目标工具的权限和分页语义。 |

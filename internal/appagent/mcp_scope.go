@@ -37,9 +37,8 @@ func (r *Registry) scopedTool(tool Tool, scope MCPScope) Tool {
 		return tool
 	}
 	invoke := tool.invoke
-	tool.invoke = func(ctx context.Context, raw json.RawMessage) (any, error) {
-		switch tool.Name {
-		case "article.list", "article.search":
+	if tool.Name == "article.list" || tool.Name == "article.search" {
+		tool.invoke = func(ctx context.Context, raw json.RawMessage) (any, error) {
 			var input map[string]json.RawMessage
 			if json.Unmarshal(raw, &input) != nil {
 				return nil, errors.New("ValidationError")
@@ -47,10 +46,15 @@ func (r *Registry) scopedTool(tool Tool, scope MCPScope) Tool {
 			input["scope"], _ = json.Marshal(database.ArticleScope{Kind: scope.Kind, ID: scope.ID})
 			args, _ := json.Marshal(input)
 			return invoke(ctx, args)
+		}
+		return tool
+	}
+	verify := func(ctx context.Context, raw json.RawMessage) error {
+		switch tool.Name {
 		case "feed.get", "category.get":
 			var input id
 			if json.Unmarshal(raw, &input) != nil || input.ID != scope.ID {
-				return nil, errors.New("PermissionDenied")
+				return errors.New("PermissionDenied")
 			}
 		default:
 			var targets struct {
@@ -58,23 +62,30 @@ func (r *Registry) scopedTool(tool Tool, scope MCPScope) Tool {
 				IDs []string `json:"ids"`
 			}
 			if json.Unmarshal(raw, &targets) != nil {
-				return nil, errors.New("ValidationError")
+				return errors.New("ValidationError")
 			}
 			articles := slices.Clone(targets.IDs)
 			if targets.ID != "" {
 				articles = append(articles, targets.ID)
 			}
 			if len(articles) == 0 || len(articles) > 100 || r.scopeDB == nil {
-				return nil, errors.New("PermissionDenied")
+				return errors.New("PermissionDenied")
 			}
 			for _, articleID := range articles {
 				count, err := r.scopeDB.ArticleInToolScope(ctx, sqlc.ArticleInToolScopeParams{
 					ArticleID: articleID, ScopeKind: scope.Kind, ScopeID: scope.ID,
 				})
 				if err != nil || count != 1 {
-					return nil, errors.New("PermissionDenied")
+					return errors.New("PermissionDenied")
 				}
 			}
+		}
+		return ctx.Err()
+	}
+	tool.verifyScope = verify
+	tool.invoke = func(ctx context.Context, raw json.RawMessage) (any, error) {
+		if err := verify(ctx, raw); err != nil {
+			return nil, err
 		}
 		return invoke(ctx, raw)
 	}

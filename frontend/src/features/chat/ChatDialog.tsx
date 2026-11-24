@@ -85,6 +85,7 @@ const errorLabels: Record<string, string> = {
   Conflict: '当前对话还有一条回复正在进行。',
   StorageError: '无法保存对话。',
   Timeout: '模型回复超时。',
+  ArticleReadIncomplete: '正文尚未读完。可在工具记录中查看已读范围，或要求继续读取。',
   AgentLimitExceeded: '已达到本轮工具调用上限，已保留部分回复。',
   ToolNotAllowed: '模型请求了未授权的工具。',
   ToolPermissionsUnavailable: '无法读取自定义工具权限，请检查「设置 → 工具权限」。',

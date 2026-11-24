@@ -24,12 +24,15 @@ func CompactToolCatalog(request ai.ModelRequest, tools []ReadTool) []ReadTool {
 	}
 	discovery := ReadTool{
 		Definition: ai.ToolDefinition{
-			Name: "find_app_tools", Description: "查询已授权的应用或 MCP 工具。按名称可读取参数结构，使用 run_app_tool 调用。",
-			InputSchema: json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"},"name":{"type":"string"}},"additionalProperties":false}`),
+			Name: "find_app_tools", Description: "查询已授权的应用或 MCP 工具。按名称可读取参数结构；列表返回 next_offset 时可续查。使用 run_app_tool 调用。",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"},"name":{"type":"string"},"offset":{"type":"integer","minimum":0}},"additionalProperties":false}`),
 		},
 		Read: func(_ context.Context, call ai.ToolCall) (string, error) {
-			var input struct{ Query, Name string }
-			if json.Unmarshal([]byte(call.ArgumentsJSON), &input) != nil {
+			var input struct {
+				Query, Name string
+				Offset      int
+			}
+			if json.Unmarshal([]byte(call.ArgumentsJSON), &input) != nil || input.Offset < 0 {
 				return `{"error":"ValidationError"}`, nil
 			}
 			if input.Name != "" {
@@ -49,19 +52,24 @@ func CompactToolCatalog(request ai.ModelRequest, tools []ReadTool) []ReadTool {
 				Name        string `json:"name"`
 				Description string `json:"description"`
 			}
-			var matches []entry
+			matches := make([]entry, 0, 8)
+			total := 0
 			query := strings.ToLower(strings.TrimSpace(input.Query))
 			for _, tool := range tools {
 				definition := tool.Definition
 				if strings.Contains(strings.ToLower(definition.Name+" "+definition.Description), query) {
-					description := []rune(definition.Description)
-					matches = append(matches, entry{Name: definition.Name, Description: string(description[:min(len(description), 120)])})
-					if len(matches) == 8 {
-						break
+					if total >= input.Offset && len(matches) < 8 {
+						description := []rune(definition.Description)
+						matches = append(matches, entry{Name: definition.Name, Description: string(description[:min(len(description), 120)])})
 					}
+					total++
 				}
 			}
-			data, _ := json.Marshal(map[string]any{"tools": matches, "totalAvailable": len(tools)})
+			result := map[string]any{"tools": matches, "totalAvailable": len(tools), "total_matches": total}
+			if input.Offset < total-len(matches) {
+				result["next_offset"] = input.Offset + len(matches)
+			}
+			data, _ := json.Marshal(result)
 			return string(data), nil
 		},
 	}
@@ -91,6 +99,13 @@ func CompactToolCatalog(request ai.ModelRequest, tools []ReadTool) []ReadTool {
 				return `{"error":"` + code + `"}`, nil
 			}
 			return tool.Read(ctx, resolved)
+		},
+		ArticleNext: func(ctx context.Context, call ai.ToolCall, cursor string) (string, error) {
+			resolved, tool, code := resolveInvocation(call)
+			if code != "" || tool.ArticleNext == nil {
+				return "", ErrResultUnavailable
+			}
+			return tool.ArticleNext(ctx, resolved, cursor)
 		},
 		activityCall: func(call ai.ToolCall) ai.ToolCall {
 			resolved, _, _ := resolveInvocation(call)

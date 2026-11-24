@@ -6,6 +6,7 @@ import (
 	"runtime/debug"
 	"slices"
 
+	"github.com/coolerks/Fealdhord/internal/agentrun"
 	"github.com/coolerks/Fealdhord/internal/articleai"
 	"github.com/coolerks/Fealdhord/internal/database"
 	"github.com/coolerks/Fealdhord/internal/feed"
@@ -35,6 +36,22 @@ type empty struct{}
 type id struct {
 	ID string `json:"id" jsonschema:"required"`
 }
+type articleInput struct {
+	ID       string `json:"id" jsonschema:"required"`
+	Offset   int    `json:"offset,omitempty" jsonschema:"description=续读起点（UTF-8 字节），需与 version 一起使用"`
+	Version  string `json:"version,omitempty" jsonschema:"description=先前结果返回的正文版本"`
+	PageOnly bool   `json:"page_only,omitempty" jsonschema:"description=只读取一页原文以核对引文"`
+}
+
+func toolArticleResult(input articleInput, source, body string, legacy any) any {
+	article, err := agentrun.ResumeArticle(agentrun.NewArticleSource(input.ID, source, body), input.Offset, input.Version)
+	if err != nil {
+		return map[string]string{"error": err.Error()}
+	}
+	article.PageOnly = input.PageOnly
+	return articleResult{source: article, legacy: legacy}
+}
+
 type ids struct {
 	IDs []string `json:"ids" jsonschema:"required"`
 }
@@ -43,7 +60,7 @@ func Builtins(s Services) *Registry {
 	r := NewRegistry()
 	if s.Notifications != nil {
 		registerNotificationTools(r, s.Notifications)
-	registerAskUserQuestionTool(r)
+		registerAskUserQuestionTool(r)
 	}
 	if s.Store != nil {
 		r.scopeDB = s.Store.ChatQueries()
@@ -79,15 +96,45 @@ func Builtins(s Services) *Registry {
 	}
 	Register(r, "article.list", "按范围、状态或订阅列出文章摘要。scope.kind 可为 all/unread/favorites/featured/feed/category（feed/category 需提供 scope.id），read 可为 all/read/unread，sort 可为 published_desc/published_asc", false, query)
 	Register(r, "article.search", "按关键词搜索本地文章。查询使用 search 字段，返回稳定文章 ID 和摘要", false, query)
-	Register(r, "article.get", "读取指定文章的纯文本正文，需用户确认", true, func(ctx context.Context, input id) any {
-		return s.Library.Get(ctx, library.IDRequest{ArticleID: input.ID})
-	})
-	Register(r, "article.extract", "重新提取已保存文章的原文，需确认", true, func(ctx context.Context, input id) any {
-		result := s.Reader.Extract(ctx, reader.Request{ArticleID: input.ID, Mode: "reader"})
-		if result.Data != nil {
-			result.Data.HTML = ""
+	Register(r, "article.get", "读取指定文章的订阅正文，支持续读，需用户确认", true, func(ctx context.Context, input articleInput) any {
+		result := s.Library.Get(ctx, library.IDRequest{ArticleID: input.ID})
+		if result.Data == nil {
+			return result
 		}
-		return result
+		text, source := result.Data.ContentText, "feed"
+		if text == "" {
+			source = "summary_only"
+			if s.Store != nil {
+				if article, err := s.Store.ChatQueries().ChatArticleContext(ctx, input.ID); err == nil {
+					text = article.Summary
+				}
+			}
+			result.Data.ContentText = text
+		}
+		return toolArticleResult(input, source, text, struct {
+			library.DetailResult
+			Source string `json:"source"`
+		}{result, source})
+	})
+	Register(r, "article.extract", "提取已保存文章的原网页正文，支持续读，需用户确认", true, func(ctx context.Context, input articleInput) any {
+		if input.Offset < 0 || (input.Offset != 0 && input.Version == "") {
+			return map[string]string{"error": "ValidationError"}
+		}
+		request := reader.Request{ArticleID: input.ID, Mode: "reader"}
+		var result reader.Result
+		if input.Version == "" {
+			result = s.Reader.Extract(ctx, request)
+		} else {
+			result = s.Reader.Get(ctx, request)
+			if result.Error != nil && result.Error.Code == "NotFound" {
+				return map[string]string{"error": agentrun.ErrArticleVersion.Error()}
+			}
+		}
+		if result.Data == nil {
+			return result
+		}
+		result.Data.HTML = ""
+		return toolArticleResult(input, "original", result.Data.Text, result)
 	})
 	for _, pair := range []struct {
 		name, description string
@@ -140,7 +187,9 @@ func Builtins(s Services) *Registry {
 		}
 		return result
 	})
-	Register(r, "feed.discover", "从指定公共网页发现订阅", true, s.Feed.Discover)
+	Register(r, "feed.discover", "从指定公共网页发现订阅，可分页浏览所有发现结果", true, func(ctx context.Context, input feed.URLRequest) feed.DiscoverResult {
+		return feed.DiscoverAll(ctx, s.Feed, input)
+	})
 	Register(r, "feed.add", "添加订阅", true, s.Feed.Add)
 	Register(r, "feed.update", "按版本更新订阅", true, s.Feed.Update)
 	Register(r, "feed.remove", "归档订阅并保留历史文章", true, s.Feed.Remove)
