@@ -156,12 +156,13 @@ export function SettingsDialog({ sidebar, motionMode }: {
   if (!preferences) return null
   const set = <K extends keyof Preferences>(key: K, value: Preferences[K]) => patch({ [key]: value })
   const title = allSections.find(section => section.id === tab)?.title
-  const collapsed = Boolean(preferences.settings_sidebar_collapsed)
+  const dialogCollapsed = Boolean(preferences.settings_sidebar_collapsed)
+  const fullCollapsed = Boolean(preferences.sidebar_collapsed)
   const width = sidebarDraft ?? preferences.settings_sidebar_width ?? 220
-  const toggle = <SemanticButton id="settings-sidebar-toggle" icon={collapsed ? PanelLeftOpen : PanelLeftClose}
-    label={collapsed ? '展开设置侧栏' : '收起设置侧栏'} meaning={collapsed ? 'expand' : 'collapse'}
-    aria-expanded={!collapsed} aria-controls="settings-dialog-sidebar"
-    onClick={() => set('settings_sidebar_collapsed', !collapsed)} />
+  const toggle = <SemanticButton id="settings-sidebar-toggle" icon={dialogCollapsed ? PanelLeftOpen : PanelLeftClose}
+    label={dialogCollapsed ? '展开设置侧栏' : '收起设置侧栏'} meaning={dialogCollapsed ? 'expand' : 'collapse'}
+    aria-expanded={!dialogCollapsed} aria-controls="settings-dialog-sidebar"
+    onClick={() => set('settings_sidebar_collapsed', !dialogCollapsed)} />
   const navigation = (
     <nav aria-label="设置分区" className={fullscreen ? 'settings-workspace-nav' : 'settings-nav'} onKeyDown={moveSidebarFocus}>
       {sectionGroups.map(group => (
@@ -405,7 +406,7 @@ export function SettingsDialog({ sidebar, motionMode }: {
     {fullscreen ? <>
       {sidebar && createPortal(
         <aside ref={workspaceSidebar} id="workspace-sidebar" className="glass-sidebar settings-workspace-sidebar" aria-label="设置侧栏"
-          inert={collapsed} aria-hidden={collapsed || undefined}>
+          inert={fullCollapsed} aria-hidden={fullCollapsed || undefined}>
           <div className="sidebar-titlebar" />
           <div className="system-nav">
             <SidebarAction id="settings-back" label="返回" meaning="chevron-left" shortcut="Escape" onClick={close} />
@@ -415,8 +416,7 @@ export function SettingsDialog({ sidebar, motionMode }: {
         sidebar,
       )}
       <main ref={workspaceMain} className="reading-workspace settings-workspace" aria-label="设置">
-        <header className="workspace-toolbar settings-workspace-heading" data-settings-collapsed={collapsed}>
-          {collapsed && <SidebarAction label="返回" meaning="chevron-left" shortcut="Escape" onClick={close} />}
+        <header className="workspace-toolbar settings-workspace-heading">
           <h1 className="truncate text-sm font-semibold tracking-[-0.01em]">{title}</h1>
         </header>
         <RefreshStatus />
@@ -432,9 +432,9 @@ export function SettingsDialog({ sidebar, motionMode }: {
               onClick={() => useWorkspace.setState({ settingsPresentation: 'full' })} />
           </div>
           <RefreshStatus />
-          <div className="settings-layout" data-sidebar-collapsed={collapsed}
+          <div className="settings-layout" data-sidebar-collapsed={dialogCollapsed}
             style={{ '--settings-sidebar-width': `${width}px` } as CSSProperties}>
-            {!collapsed && <>
+            {!dialogCollapsed && <>
               <div id="settings-dialog-sidebar" className="settings-dialog-sidebar">{navigation}</div>
               <Splitter label="调整设置侧栏宽度" value={width} min={160} max={300} onResize={setSidebarDraft} onCommit={next => {
                 set('settings_sidebar_width', next)

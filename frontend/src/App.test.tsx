@@ -132,22 +132,41 @@ function setup(withArticles = false) {
 }
 
 describe('Phase 1 阅读 Shell', () => {
-  it.each(['dialog', 'full'] as const)('设置侧栏可在 %s 模式调宽和收起', async settingsMode => {
+  it('设置侧栏在弹窗模式可独立调宽和收起', async () => {
     const user = userEvent.setup()
-    api.get.mockResolvedValue({ preferences: preferencesFixture({ settings_open_mode: settingsMode }), revision: 0 })
+    api.get.mockResolvedValue({ preferences: preferencesFixture({ settings_open_mode: 'dialog' }), revision: 0 })
     setup()
     await user.click(await screen.findByRole('button', { name: '打开设置' }))
-    const splitter = await screen.findByRole('separator', { name: '调整设置侧栏宽度' })
-    splitter.focus()
+    const dialogSplitter = await screen.findByRole('separator', { name: '调整设置侧栏宽度' })
+    dialogSplitter.focus()
     await user.keyboard('{ArrowRight}')
-    expect(splitter).toHaveAttribute('aria-valuenow', '228')
+    expect(dialogSplitter).toHaveAttribute('aria-valuenow', '228')
     await user.click(screen.getByRole('button', { name: '收起设置侧栏' }))
     expect(screen.queryByRole('navigation', { name: '设置分区' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('separator', { name: '调整设置侧栏宽度' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '展开设置侧栏' }))
     expect(screen.getByRole('separator', { name: '调整设置侧栏宽度' })).toHaveAttribute('aria-valuenow', '228')
     await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(expect.objectContaining({
       settings_sidebar_width: 228, settings_sidebar_collapsed: false, sidebar_width: 248,
+    }), expect.any(Number)))
+  })
+
+  it('全屏设置侧栏复用文章和 AI 的宽度与收起状态，收起后顶栏不显示返回行', async () => {
+    const user = userEvent.setup()
+    api.get.mockResolvedValue({ preferences: preferencesFixture({ settings_open_mode: 'full', sidebar_width: 260 }), revision: 0 })
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    const fullSplitter = await screen.findByRole('separator', { name: '调整侧栏宽度' })
+    expect(fullSplitter).toHaveAttribute('aria-valuenow', '260')
+    fullSplitter.focus()
+    await user.keyboard('{ArrowRight}')
+    expect(fullSplitter).toHaveAttribute('aria-valuenow', '268')
+    await user.click(screen.getByRole('button', { name: '折叠侧栏' }))
+    expect(screen.queryByRole('navigation', { name: '设置分区' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /返回/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '展开侧栏' }))
+    expect(screen.getByRole('separator', { name: '调整侧栏宽度' })).toHaveAttribute('aria-valuenow', '268')
+    await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      sidebar_width: 268, sidebar_collapsed: false,
     }), expect.any(Number)))
   })
 
