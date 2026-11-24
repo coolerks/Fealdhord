@@ -1733,3 +1733,29 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 68: 修复正文和内置工具结果截断
+<!-- trellis-session: v=2 fp=c1a9d2e0f410058d -->
+
+**Date**: 2026-11-24
+**Task**: 修复正文和内置工具结果截断
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+完整正文按版本分批并压缩本轮证据。完成内置工具结果审计及 MCP 分页授权。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f4ca4f8` | fix: 续读长正文并分页返回工具结果 |
+
+### Testing
+
+- [OK] Go 全量、vet、相关竞态及前端 199 项测试、lint 和生产构建通过。三种模型协议通过本地模拟验证。
+
+### Status
+
+[OK] **Completed**
