@@ -201,9 +201,9 @@
 .sidebar-organize-wrap[data-scrolled=true]::before { opacity: 1; }
 .nav-section { margin-bottom: 20px; }
 .nav-section-heading { display: flex; align-items: center; justify-content: space-between; }
-.sidebar-footer { padding: 16px 12px; }
-.sidebar-bottom { display: flex; align-items: center; justify-content: space-between; }
-.sidebar-ai { justify-content: start; gap: 10px; font-size: 12px; }
+.sidebar-footer { padding: 6px 12px; }
+.sidebar-bottom { display: flex; align-items: center; justify-content: space-between; min-height: 32px; }
+.sidebar-ai { justify-content: start; gap: 10px; height: 32px; font-size: 13px; }
 .icon-hit-area { display: inline-flex; flex-shrink: 0; }
 .semantic-button { transition: background var(--duration-fast), color var(--duration-fast); }
 .semantic-button svg { transition: transform var(--duration-fast) var(--ease-standard), fill var(--duration-fast), opacity var(--duration-fast); }
