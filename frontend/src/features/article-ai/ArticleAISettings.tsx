@@ -170,42 +170,38 @@ export function ArticleAISettings() {
               onValueChange={translationTargetLang => setDraft({ ...value, translationTargetLang })}
             />
           </SettingRow>
-          {value.autoTranslate && (
-            <SettingRow>
-              <FieldLabel id="auto-translate-scope-label" className="font-normal">后台自动翻译范围</FieldLabel>
-              <SegmentedControl
-                size="sm"
-                aria-labelledby="auto-translate-scope-label"
-                disabled={busy}
-                value={value.autoTranslateScope === 'full' ? 'full' : 'summary'}
-                onValueChange={next => { if (next === 'summary' || next === 'full') setDraft({ ...value, autoTranslateScope: next }) }}
-              >
-                <ToggleGroupItem value="summary"><AnimatedGlyph meaning="book-text" />标题与摘要</ToggleGroupItem>
-                <ToggleGroupItem value="full"><AnimatedGlyph meaning="scan-text" />含全文</ToggleGroupItem>
-              </SegmentedControl>
-            </SettingRow>
-          )}
+          <SettingRow>
+            <FieldLabel id="auto-translate-scope-label" className="font-normal">后台自动翻译范围</FieldLabel>
+            <SegmentedControl
+              size="sm"
+              aria-labelledby="auto-translate-scope-label"
+              disabled={busy}
+              value={value.autoTranslateScope === 'full' ? 'full' : 'summary'}
+              onValueChange={next => { if (next === 'summary' || next === 'full') setDraft({ ...value, autoTranslateScope: next }) }}
+            >
+              <ToggleGroupItem value="summary"><AnimatedGlyph meaning="book-text" />标题与摘要</ToggleGroupItem>
+              <ToggleGroupItem value="full"><AnimatedGlyph meaning="scan-text" />含全文</ToggleGroupItem>
+            </SegmentedControl>
+          </SettingRow>
           <SettingRow>
             <FieldLabel htmlFor="translate-on-open" className="font-normal">打开文章时自动翻译正文</FieldLabel>
             <Switch id="translate-on-open" disabled={busy} checked={value.translateOnOpen}
               onCheckedChange={translateOnOpen => setDraft({ ...value, translateOnOpen })} />
           </SettingRow>
-          {(value.autoTranslate || value.translateOnOpen) && (
-            <div className="p-3.5">
-              <Field>
-                <FieldLabel htmlFor="translation-prompt">翻译提示词</FieldLabel>
-                <Textarea
-                  id="translation-prompt"
-                  rows={2}
-                  disabled={busy}
-                  placeholder="可选：术语表、语气或专有名词保留要求"
-                  value={value.translationPrompt ?? ''}
-                  maxLength={4096}
-                  onChange={event => setDraft({ ...value, translationPrompt: event.target.value })}
-                />
-              </Field>
-            </div>
-          )}
+          <div className="p-3.5">
+            <Field>
+              <FieldLabel htmlFor="translation-prompt">翻译提示词</FieldLabel>
+              <Textarea
+                id="translation-prompt"
+                rows={2}
+                disabled={busy}
+                placeholder="可选：术语表、语气或专有名词保留要求"
+                value={value.translationPrompt ?? ''}
+                maxLength={4096}
+                onChange={event => setDraft({ ...value, translationPrompt: event.target.value })}
+              />
+            </Field>
+          </div>
         </SettingCard>
       </SettingSection>
 

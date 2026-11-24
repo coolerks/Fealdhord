@@ -95,6 +95,45 @@ func TestArticleTranslationStoreAndUpgrade(t *testing.T) {
 		t.Fatalf("expected no next translation, got id=%q err=%v", nextID, err)
 	}
 
+	if _, err := store.db.ExecContext(ctx, "UPDATE article_ai_settings SET auto_translate_scope='full'"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx, "UPDATE article_translations SET status='skipped_same_lang' WHERE article_id=?", articleID); err != nil {
+		t.Fatal(err)
+	}
+	fullCandidate := func(wantID string) {
+		t.Helper()
+		id, scope, _, err := store.NextArticleForTranslation(ctx, time.Now().Add(-24*time.Hour))
+		if err != nil || id != wantID || (wantID != "" && scope != "full") {
+			t.Fatalf("full candidate = %q (%q), want %q, err=%v", id, scope, wantID, err)
+		}
+	}
+	body := sqlc.SaveArticleTranslationParams{
+		ArticleID: articleID, TargetLang: "zh-CN", SourceMode: "feed", ContentHash: articleInput.ContentHash,
+		Status: "completed", TranslatedBlocks: 1, TotalBlocks: 1, BlocksJson: "[]", UpdatedAt: now,
+	}
+	if err := store.SaveArticleTranslation(ctx, body); err != nil {
+		t.Fatal(err)
+	}
+	fullCandidate(articleID)
+	if err := store.DeferArticleAI(ctx, articleID, "translation_full", time.Now().Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	fullCandidate("")
+	if err := store.DeferArticleAI(ctx, articleID, "translation_full", time.Now().Add(-time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	body.SourceMode, body.TotalBlocks = "reader", 2
+	if err := store.SaveArticleTranslation(ctx, body); err != nil {
+		t.Fatal(err)
+	}
+	fullCandidate(articleID)
+	body.TranslatedBlocks = 2
+	if err := store.SaveArticleTranslation(ctx, body); err != nil {
+		t.Fatal(err)
+	}
+	fullCandidate("")
+
 	if err := store.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}

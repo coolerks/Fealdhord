@@ -15,6 +15,7 @@ export function useArticleTranslation({
   sourceMode,
   hasContent,
   extracting,
+  autoReady,
   defaultDisplay,
   feedAutoTranslateMode,
 }: {
@@ -23,6 +24,7 @@ export function useArticleTranslation({
   sourceMode: 'feed' | 'reader'
   hasContent: boolean
   extracting: boolean
+  autoReady: boolean
   defaultDisplay?: string
   feedAutoTranslateMode?: string
 }) {
@@ -32,16 +34,18 @@ export function useArticleTranslation({
   const translateOnOpen = aiSettings.data?.translateOnOpen ?? false
 
   const [overrideLang, setOverrideLang] = useState<string>()
-  const [displayMode, setDisplayMode] = useState<TranslationDisplayMode>(() => normalizeDisplayMode(defaultDisplay))
-  const [translating, setTranslating] = useState(false)
-  const [error, setError] = useState('')
-  const autoTriggered = useRef('')
+  const [displayOverride, setDisplayMode] = useState<TranslationDisplayMode>()
+  const [requests, setRequests] = useState<Record<string, { running: boolean; error: string }>>({})
+  const running = useRef(new Set<string>())
+  const autoTriggered = useRef(new Set<string>())
 
+  const displayMode = displayOverride ?? normalizeDisplayMode(defaultDisplay)
   const targetLang = overrideLang || defaultTargetLang
   const queryKey = useMemo(
     () => ['reader', 'translation', articleID, articleRevision ?? 0, targetLang, sourceMode] as const,
     [articleID, articleRevision, targetLang, sourceMode],
   )
+  const requestKey = JSON.stringify(queryKey)
 
   const query = useQuery({
     queryKey,
@@ -65,15 +69,6 @@ export function useArticleTranslation({
         const next = payload?.record
         if (!next || next.articleId !== articleID || next.targetLang !== targetLang || next.sourceMode !== sourceMode) return
         client.setQueryData(queryKey, next)
-        if (next.status === 'translating') {
-          setTranslating(true)
-          setError('')
-        } else {
-          setTranslating(false)
-          if (next.status === 'failed' && next.errorCode) {
-            setError(translationErrorMessage(next.errorCode))
-          }
-        }
       })
     } catch {
       // 浏览器预览或单测环境中 Wails Events 不可用时静默忽略。
@@ -84,56 +79,43 @@ export function useArticleTranslation({
     }
   }, [articleID, client, queryKey, sourceMode, targetLang])
 
-  const translate = useCallback(async (force = false, langOverride?: string) => {
-    if (!articleID) return
-    const activeLang = langOverride || targetLang
-    setTranslating(true)
-    setError('')
-    if (displayMode === 'original') {
-      setDisplayMode(normalizeDisplayMode(defaultDisplay) === 'original' ? 'bilingual' : normalizeDisplayMode(defaultDisplay))
-    }
+  const canTranslate = Boolean(articleID) && hasContent && !extracting && !query.isPending
+  const translate = useCallback(async (force = false) => {
+    if (!articleID || !canTranslate || running.current.has(requestKey)) return
+    running.current.add(requestKey)
+    setRequests(previous => ({ ...previous, [requestKey]: { running: true, error: '' } }))
+    let error = ''
     try {
       const result = await translationAPI.translate({
         articleId: articleID,
-        targetLang: activeLang,
+        targetLang,
         sourceMode,
         force,
       })
-      client.setQueryData(['reader', 'translation', articleID, articleRevision ?? 0, activeLang, sourceMode], result)
-      if (result.status === 'failed' && result.errorCode) {
-        setError(translationErrorMessage(result.errorCode))
-      }
+      client.setQueryData(queryKey, result)
     } catch (cause) {
-      setError(translationErrorMessage(cause))
+      error = translationErrorMessage(cause)
+      // Wails can reject the RPC even if the backend saved a partial result.
+      void client.invalidateQueries({ queryKey, exact: true })
     } finally {
-      setTranslating(false)
+      running.current.delete(requestKey)
+      setRequests(previous => ({ ...previous, [requestKey]: { running: false, error } }))
     }
-  }, [articleID, articleRevision, client, defaultDisplay, displayMode, sourceMode, targetLang])
+  }, [articleID, canTranslate, client, queryKey, requestKey, sourceMode, targetLang])
 
   const cancel = useCallback(() => {
     if (!articleID) return
     void translationAPI.cancel(articleID, targetLang, sourceMode)
-    setTranslating(false)
   }, [articleID, sourceMode, targetLang])
 
-  const changeTargetLang = useCallback((nextLang: string) => {
-    setOverrideLang(nextLang)
-    setError('')
-    if (articleID && hasContent && !extracting) {
-      void translate(false, nextLang)
-    }
-  }, [articleID, extracting, hasContent, translate])
-
-  // 打开文章时自动翻译正文（尊重 translateOnOpen 设置与单源 off 覆盖）。
+  // 订阅覆盖优先。手动选择临时目标语言只读取缓存。
+  const autoOnOpen = feedAutoTranslateMode === 'on' || (feedAutoTranslateMode !== 'off' && translateOnOpen)
   useEffect(() => {
-    if (!articleID || !hasContent || extracting || !translateOnOpen) return
-    if (feedAutoTranslateMode === 'off') return
-    if (!record || record.status !== 'none') return
-    const key = `${articleID}:${articleRevision ?? 0}:${targetLang}:${sourceMode}`
-    if (autoTriggered.current === key) return
-    autoTriggered.current = key
+    if (!aiSettings.data || !canTranslate || !autoReady || !autoOnOpen || overrideLang || query.isFetching || record?.status !== 'none') return
+    if (autoTriggered.current.has(requestKey)) return
+    autoTriggered.current.add(requestKey)
     void translate(false)
-  }, [articleID, articleRevision, extracting, feedAutoTranslateMode, hasContent, record, sourceMode, targetLang, translate, translateOnOpen])
+  }, [aiSettings.data, autoOnOpen, autoReady, canTranslate, overrideLang, query.isFetching, record, requestKey, translate])
 
   const blocksMap = useMemo(() => {
     const map: Record<string, string> = {}
@@ -147,6 +129,9 @@ export function useArticleTranslation({
 
   const hasTranslation = Boolean(record && (Object.keys(blocksMap).length > 0 || record.translatedTitle))
   const effectiveDisplayMode: TranslationDisplayMode = hasTranslation ? displayMode : 'original'
+  const request = requests[requestKey]
+  const translating = Boolean(request?.running || record?.status === 'translating')
+  const recordError = (record?.status === 'partial' || record?.status === 'failed') && record.errorCode
 
   return {
     record,
@@ -155,11 +140,13 @@ export function useArticleTranslation({
     effectiveDisplayMode,
     blocksMap,
     hasTranslation,
-    translating: translating || record?.status === 'translating',
-    error,
+    bodyStatus: record?.status,
+    canTranslate,
+    translating,
+    error: request?.error || (recordError ? translationErrorMessage(recordError) : ''),
     translate,
     cancel,
     setDisplayMode,
-    setTargetLang: changeTargetLang,
+    setTargetLang: setOverrideLang,
   }
 }

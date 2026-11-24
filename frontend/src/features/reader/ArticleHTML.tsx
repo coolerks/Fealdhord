@@ -34,6 +34,26 @@ function prepareCodeBlocks(container: HTMLDivElement): CodeBlock[] {
 
 const innerChildTags = new Set(['LI', 'TD', 'TH'])
 
+function hideOriginalText(source: HTMLElement, restore: Array<() => void>) {
+  for (const child of Array.from(source.childNodes)) {
+    if (child instanceof HTMLElement) {
+      if (child.tagName === 'IMG' || child.hidden) continue
+      if (child.querySelector('img')) {
+        hideOriginalText(child, restore)
+        continue
+      }
+      child.hidden = true
+      restore.push(() => { child.hidden = false })
+    } else if (child instanceof Text && child.data.trim()) {
+      const hidden = document.createElement('span')
+      hidden.hidden = true
+      child.replaceWith(hidden)
+      hidden.append(child)
+      restore.push(() => hidden.replaceWith(child))
+    }
+  }
+}
+
 export function ArticleHTML({
   html,
   imagesAllowed,
@@ -65,13 +85,8 @@ export function ArticleHTML({
   useLayoutEffect(() => {
     const root = container.current
     if (!root) return
-    // 清理旧译文节点与状态属性。
-    for (const existing of root.querySelectorAll('.reader-tr-block')) existing.remove()
-    for (const source of root.querySelectorAll<HTMLElement>('[data-tr-block]')) {
-      source.removeAttribute('data-tr-source')
-      source.removeAttribute('data-tr-hidden')
-    }
     if (translationMode === 'original' || !translationBlocks) return
+    const restore: Array<() => void> = []
 
     for (const source of root.querySelectorAll<HTMLElement>('[data-tr-block]')) {
       const id = source.dataset.trBlock
@@ -81,28 +96,28 @@ export function ArticleHTML({
 
       const tag = source.tagName
       const inside = innerChildTags.has(tag)
-      const hasImage = Boolean(source.querySelector('img'))
 
-      const translatedNode = document.createElement('div')
+      const translatedNode = document.createElement(translationMode === 'translated' ? 'span' : 'div')
       translatedNode.className = inside ? 'reader-tr-block reader-tr-inline-child' : 'reader-tr-block'
       translatedNode.dataset.trFor = id
       translatedNode.dataset.trTag = tag.toLowerCase()
       translatedNode.dataset.trMode = translationMode
       translatedNode.innerHTML = translatedHTML
 
-      if (translationMode === 'translated' && !hasImage && !inside) {
-        source.dataset.trHidden = 'true'
-      } else if (translationMode === 'bilingual') {
-        source.dataset.trSource = 'bilingual'
-      } else if (translationMode === 'translated' && inside && !hasImage) {
-        source.dataset.trSource = 'replaced-child'
-      }
-
-      if (inside) {
+      if (translationMode === 'translated') {
+        hideOriginalText(source, restore)
         source.append(translatedNode)
       } else {
-        source.after(translatedNode)
+        source.dataset.trSource = 'bilingual'
+        restore.push(() => source.removeAttribute('data-tr-source'))
+        if (inside) source.append(translatedNode)
+        else source.after(translatedNode)
       }
+      restore.push(() => translatedNode.remove())
+    }
+
+    return () => {
+      for (const undo of restore.reverse()) undo()
     }
   }, [html, translationBlocks, translationMode])
 

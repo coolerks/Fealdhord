@@ -2,6 +2,7 @@ package translation
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"path/filepath"
@@ -13,12 +14,119 @@ import (
 	"github.com/coolerks/Fealdhord/internal/ai"
 	"github.com/coolerks/Fealdhord/internal/aiconfig"
 	"github.com/coolerks/Fealdhord/internal/database"
+	"github.com/coolerks/Fealdhord/internal/database/sqlc"
 	"github.com/coolerks/Fealdhord/internal/reader"
 )
 
 type fakeModel struct {
 	calls atomic.Int32
 	fn    func(ctx context.Context, req *ai.ModelRequest, call int32) (*ai.ModelResponse, error)
+}
+
+func TestTranslationResumesMissingBlocksAndContinuesAfterSameLanguageBatch(t *testing.T) {
+	ctx := context.Background()
+	store, err := database.Open(ctx, filepath.Join(t.TempDir(), "translation.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	now := time.Now().UnixMilli()
+	html := strings.Repeat("<p>这段正文已经使用目标语言。</p>", 10) + "<p>The next paragraph needs translation.</p><p>The closing paragraph still needs translation.</p>"
+	_, err = store.AddSubscription(ctx, database.SubscriptionInput{
+		URL: "https://example.com/feed", Title: "订阅",
+	}, []database.ArticleInput{{
+		GUID: "mixed", URL: "https://example.com/article", Title: "这是一篇中英文混合文章",
+		Summary: "这段订阅摘要已经使用简体中文，后面的正文中仍包含其他语言。",
+		HTML:    html, Text: "文章正文", FetchedAt: now,
+	}}, database.FeedCheck{At: now, Next: now + 60000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	articles, err := store.ListArticles(ctx, 1)
+	if err != nil || len(articles) != 1 {
+		t.Fatalf("load articles: %v, %d", err, len(articles))
+	}
+	articleID := articles[0].ID
+	var attemptedIDs [][]string
+	model := &fakeModel{fn: func(_ context.Context, req *ai.ModelRequest, call int32) (*ai.ModelResponse, error) {
+		var payload struct {
+			Items []struct {
+				ID   string `json:"id"`
+				HTML string `json:"html"`
+			} `json:"items"`
+		}
+		if err := json.Unmarshal([]byte(req.Messages[0].Content[0].Text), &payload); err != nil {
+			t.Fatal(err)
+		}
+		var ids []string
+		items := make([]map[string]string, 0, len(payload.Items))
+		for _, item := range payload.Items {
+			ids = append(ids, item.ID)
+			if call == 2 && item.ID == "b11" {
+				continue
+			}
+			html := item.HTML
+			if item.ID == "b11" {
+				html = "最后一段的译文。"
+			}
+			items = append(items, map[string]string{"id": item.ID, "html": html})
+		}
+		attemptedIDs = append(attemptedIDs, ids)
+		raw, err := json.Marshal(map[string]any{
+			"detected_lang": "zh-CN", "already_target": call == 1, "title": "这是一篇中英文混合文章", "items": items,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &ai.ModelResponse{Message: ai.Message{Content: []ai.ContentBlock{{Type: "text", Text: string(raw)}}}}, nil
+	}}
+	svc := New(store, fakeResolver{model: model}, reader.NewService(store, nil, nil, nil), nil, nil)
+	summaryReq := TranslateRequest{ArticleID: articleID, TargetLang: "zh-CN", SourceMode: "summary"}
+	if summary, err := svc.Translate(ctx, summaryReq); err != nil || summary.Status != "skipped_same_lang" {
+		t.Fatalf("expected same-language summary: %+v, %v", summary, err)
+	}
+	req := TranslateRequest{ArticleID: articleID, TargetLang: "zh-CN", SourceMode: "feed"}
+	if before, err := svc.Get(ctx, articleID, req.TargetLang, req.SourceMode); err != nil || before.Status != "none" {
+		t.Fatalf("summary skip must not mark body skipped: %+v, %v", before, err)
+	}
+	readerReq := TranslateRequest{ArticleID: articleID, TargetLang: "zh-CN", SourceMode: "reader", Background: true}
+	if _, err := svc.Translate(ctx, readerReq); err == nil || model.calls.Load() != 0 {
+		t.Fatalf("failed extraction should return without translating the preview: %v, calls=%d", err, model.calls.Load())
+	}
+	rec, err := svc.Translate(ctx, req)
+	if modelErrorCode(err) != "InvalidModelOutput" || rec.Status != "partial" || rec.TranslatedBlocks != 11 || rec.TotalBlocks != 12 {
+		t.Fatalf("expected 11/12 partial translation: %+v, %v", rec, err)
+	}
+	stored, err := svc.Get(ctx, articleID, req.TargetLang, req.SourceMode)
+	if err != nil || stored.Status != "partial" || len(stored.Blocks) != 11 {
+		t.Fatalf("partial result was not persisted: %+v, %v", stored, err)
+	}
+	// 模拟旧版留下的缺段完成记录，验证新版本读取和重试时都能恢复。
+	stored.Status, stored.ErrorCode = "completed", ""
+	if err := svc.saveRecord(ctx, stored, sql.NullInt64{}, sql.NullInt64{}); err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := svc.Get(ctx, articleID, req.TargetLang, req.SourceMode)
+	if err != nil || legacy.Status != "partial" || legacy.ErrorCode != "InvalidModelOutput" {
+		t.Fatalf("incomplete legacy result should be recoverable: %+v, %v", legacy, err)
+	}
+	complete, err := svc.Translate(ctx, req)
+	if err != nil || complete.Status != "completed" || complete.TranslatedBlocks != 12 || complete.Blocks[11].TranslatedHTML != "最后一段的译文。" {
+		t.Fatalf("expected a complete resumed translation: %+v, %v", complete, err)
+	}
+	if len(attemptedIDs) != 3 || strings.Join(attemptedIDs[2], ",") != "b11" {
+		t.Fatalf("retry should send only the missing block: %v", attemptedIDs)
+	}
+	if err := store.SaveArticleTranslation(ctx, sqlc.SaveArticleTranslationParams{
+		ArticleID: articleID, TargetLang: req.TargetLang, SourceMode: "reader",
+		ContentHash: complete.ContentHash, Status: "skipped_same_lang", BlocksJson: "[]",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	legacySkip, err := svc.Get(ctx, articleID, req.TargetLang, "reader")
+	if err != nil || legacySkip.Status != "none" {
+		t.Fatalf("legacy same-language body should be eligible: %+v, %v", legacySkip, err)
+	}
 }
 
 func (f *fakeModel) Generate(ctx context.Context, req *ai.ModelRequest) (*ai.ModelResponse, error) {

@@ -3,11 +3,13 @@ import { Tabs } from 'radix-ui'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { SemanticButton } from '@/components/semantic-button'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
   DropdownMenuPortal, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator,
   DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { ArticleCategories } from '@/features/categories/ArticleCategories'
 import { defaultTranslationLanguages } from '@/lib/translation-api'
 import type { TranslationDisplayMode } from '@/lib/translation-api'
@@ -19,6 +21,8 @@ export type ReaderTranslationControls = {
   displayMode: TranslationDisplayMode
   targetLang: string
   hasTranslation: boolean
+  bodyStatus?: string
+  canTranslate: boolean
   translating: boolean
   onDisplayModeChange: (mode: TranslationDisplayMode) => void
   onTargetLangChange: (lang: string) => void
@@ -50,8 +54,17 @@ const translationDisplayOptions: ReadonlyArray<{ value: TranslationDisplayMode; 
   { value: 'translated', label: '仅看译文' },
   { value: 'original', label: '仅看原文' },
 ]
+const languageOptions = defaultTranslationLanguages.map(({ code, label, promptName }) => ({
+  value: code, label, keywords: [promptName],
+}))
 
-function TranslationMenuItems({ translation }: { translation: ReaderTranslationControls }) {
+function TranslationMenuItems({ translation, onChooseLanguage }: {
+  translation: ReaderTranslationControls
+  onChooseLanguage: () => void
+}) {
+  const completed = translation.bodyStatus === 'completed'
+  const hasPartial = translation.bodyStatus === 'partial'
+  const languageLabel = languageOptions.find(item => item.value === translation.targetLang)?.label ?? translation.targetLang
   return <>
     <DropdownMenuRadioGroup
       aria-label="译文显示方式"
@@ -59,9 +72,6 @@ function TranslationMenuItems({ translation }: { translation: ReaderTranslationC
       onValueChange={next => {
         if (next === 'bilingual' || next === 'translated' || next === 'original') {
           translation.onDisplayModeChange(next)
-          if (next !== 'original' && !translation.hasTranslation && !translation.translating) {
-            translation.onTranslate(false)
-          }
         }
       }}
     >
@@ -70,28 +80,17 @@ function TranslationMenuItems({ translation }: { translation: ReaderTranslationC
       ))}
     </DropdownMenuRadioGroup>
     <DropdownMenuSeparator />
-    <DropdownMenuSub>
-      <DropdownMenuSubTrigger>
-        <AnimatedGlyph meaning="languages" />目标语言（{defaultTranslationLanguages.find(item => item.code === translation.targetLang)?.label ?? translation.targetLang}）
-      </DropdownMenuSubTrigger>
-      <DropdownMenuPortal>
-        <DropdownMenuSubContent sideOffset={4}>
-          <DropdownMenuRadioGroup aria-label="目标语言" value={translation.targetLang} onValueChange={translation.onTargetLangChange}>
-            {defaultTranslationLanguages.map(lang => (
-              <DropdownMenuRadioItem key={lang.code} value={lang.code}>{lang.label}</DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuSubContent>
-      </DropdownMenuPortal>
-    </DropdownMenuSub>
+    <DropdownMenuItem onSelect={onChooseLanguage}>
+      <AnimatedGlyph meaning="languages" />目标语言（{languageLabel}）
+    </DropdownMenuItem>
     <DropdownMenuSeparator />
     {translation.translating ? (
       <DropdownMenuItem onSelect={translation.onCancel}>
         <AnimatedGlyph meaning="x" />取消翻译
       </DropdownMenuItem>
     ) : (
-      <DropdownMenuItem onSelect={() => translation.onTranslate(translation.hasTranslation)}>
-        <AnimatedGlyph meaning="refresh" />{translation.hasTranslation ? '重新翻译' : '翻译正文'}
+      <DropdownMenuItem disabled={!translation.canTranslate} onSelect={() => translation.onTranslate(completed)}>
+        <AnimatedGlyph meaning="refresh" />{completed ? '重新翻译' : hasPartial ? '继续翻译' : '翻译正文'}
       </DropdownMenuItem>
     )}
   </>
@@ -102,7 +101,9 @@ export function ReaderToolbarActions({
   onRefresh, onFavorite, onRead, onOriginal, onShare, readSelection, onAI,
 }: Props) {
   const [categoriesOpen, setCategoriesOpen] = useState(false)
+  const [languageOpen, setLanguageOpen] = useState(false)
   const categoryTrigger = useRef<HTMLButtonElement>(null)
+  const translateTrigger = useRef<HTMLButtonElement>(null)
   const moreTrigger = useRef<HTMLButtonElement>(null)
   const returnFocus = useRef<HTMLButtonElement | null>(null)
   const selection = useRef('')
@@ -115,6 +116,22 @@ export function ReaderToolbarActions({
   function openCategories(trigger: HTMLButtonElement | null) {
     returnFocus.current = trigger
     setCategoriesOpen(true)
+  }
+
+  function chooseLanguage(trigger: HTMLButtonElement | null) {
+    afterMenuClose.current = () => {
+      returnFocus.current = trigger
+      setLanguageOpen(true)
+    }
+  }
+
+  function runAfterMenuClose(event: Event, trigger: HTMLButtonElement | null) {
+    const run = afterMenuClose.current
+    afterMenuClose.current = null
+    if (!run) return
+    event.preventDefault()
+    trigger?.focus()
+    run()
   }
 
   function isDisabled(action: ReaderToolbarAction) {
@@ -155,10 +172,10 @@ export function ReaderToolbarActions({
           const active = translation.translating || (translation.hasTranslation && translation.displayMode !== 'original')
           return <DropdownMenu key={value}>
             <DropdownMenuTrigger asChild>
-              <SemanticButton icon={icon} meaning={meaning} label={label} active={active} aria-pressed={active} />
+              <SemanticButton ref={translateTrigger} icon={icon} meaning={meaning} label={label} active={active} aria-pressed={active} />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <TranslationMenuItems translation={translation} />
+            <DropdownMenuContent align="end" onCloseAutoFocus={event => runAfterMenuClose(event, translateTrigger.current)}>
+              <TranslationMenuItems translation={translation} onChooseLanguage={() => chooseLanguage(translateTrigger.current)} />
             </DropdownMenuContent>
           </DropdownMenu>
         }
@@ -177,15 +194,7 @@ export function ReaderToolbarActions({
           <AnimatedGlyph meaning="ellipsis" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" onCloseAutoFocus={event => {
-        const run = afterMenuClose.current
-        afterMenuClose.current = null
-        if (!run) return
-        event.preventDefault()
-        // 先归还焦点，再打开对话框，避免两个焦点陷阱同时生效。
-        moreTrigger.current?.focus()
-        run()
-      }}>
+      <DropdownMenuContent align="end" onCloseAutoFocus={event => runAfterMenuClose(event, moreTrigger.current)}>
         <DropdownMenuGroup>
           {overflowOptions.map(({ value, icon, meaning, label }) => {
             if (value === 'view') {
@@ -211,7 +220,7 @@ export function ReaderToolbarActions({
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuSubContent sideOffset={4}>
-                    <TranslationMenuItems translation={translation} />
+                    <TranslationMenuItems translation={translation} onChooseLanguage={() => chooseLanguage(moreTrigger.current)} />
                   </DropdownMenuSubContent>
                 </DropdownMenuPortal>
               </DropdownMenuSub>
@@ -244,5 +253,17 @@ export function ReaderToolbarActions({
         if (trigger?.isConnected) trigger.focus()
         else moreTrigger.current?.focus()
       }} />}
+    {translation && <Dialog open={languageOpen} onOpenChange={setLanguageOpen}>
+      <DialogContent aria-describedby={undefined} onCloseAutoFocus={event => {
+        event.preventDefault()
+        const trigger = returnFocus.current
+        if (trigger?.isConnected) trigger.focus()
+        else moreTrigger.current?.focus()
+      }}>
+        <DialogHeader><DialogTitle>目标语言</DialogTitle></DialogHeader>
+        <SearchableSelect label="目标语言" value={translation.targetLang} options={languageOptions}
+          announceSelection onValueChange={translation.onTargetLangChange} />
+      </DialogContent>
+    </Dialog>}
   </div>
 }

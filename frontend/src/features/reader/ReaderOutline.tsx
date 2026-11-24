@@ -5,6 +5,11 @@ import { Kbd } from '@/components/ui/kbd'
 
 const headingSelector = 'h1,h2,h3,h4,h5,h6'
 
+function headingLabel(heading: HTMLHeadingElement): string {
+  const translated = heading.querySelector(':scope > .reader-tr-block[data-tr-mode="translated"]')
+  return (translated?.textContent ?? heading.textContent ?? '').trim()
+}
+
 export function ReaderOutline({ mode, html, translationKey, prose, viewport, inert }: {
   mode: string
   html: string
@@ -23,19 +28,6 @@ export function ReaderOutline({ mode, html, translationKey, prose, viewport, ine
     scrollFrame.current = null
   }, [])
 
-  const resolveHeadingTarget = useCallback((heading: HTMLHeadingElement): HTMLElement => {
-    if (heading.dataset.trHidden === 'true' && heading.dataset.trBlock) {
-      const translated = prose.current?.querySelector<HTMLElement>(`.reader-tr-block[data-tr-for="${heading.dataset.trBlock}"]`)
-      if (translated) return translated
-    }
-    return heading
-  }, [prose])
-
-  const resolveHeadingLabel = useCallback((heading: HTMLHeadingElement): string => {
-    const target = resolveHeadingTarget(heading)
-    return (target.textContent ?? heading.textContent ?? '').trim()
-  }, [resolveHeadingTarget])
-
   useEffect(() => {
     const scroll = viewport.current
     if (!scroll || mode === 'hidden') return
@@ -51,7 +43,7 @@ export function ReaderOutline({ mode, html, translationKey, prose, viewport, ine
         const cutoff = scroll.getBoundingClientRect().top + 48
         let activeHeading = nodes[0]
         for (const node of nodes) {
-          if (resolveHeadingTarget(node).getBoundingClientRect().top > cutoff) break
+          if (node.getBoundingClientRect().top > cutoff) break
           activeHeading = node
         }
         setCurrent(activeHeading)
@@ -76,7 +68,7 @@ export function ReaderOutline({ mode, html, translationKey, prose, viewport, ine
       for (const type of interrupts) scroll.removeEventListener(type, cancelScroll)
       observer.disconnect()
     }
-  }, [cancelScroll, html, mode, prose, resolveHeadingTarget, translationKey, viewport])
+  }, [cancelScroll, html, mode, prose, translationKey, viewport])
 
   useEffect(() => {
     if (inert) cancelScroll()
@@ -87,14 +79,13 @@ export function ReaderOutline({ mode, html, translationKey, prose, viewport, ine
 
   function jump(heading: HTMLHeadingElement) {
     const scroll = viewport.current
-    const targetEl = resolveHeadingTarget(heading)
-    if (!scroll || !targetEl.isConnected) return
+    if (!scroll || !heading.isConnected) return
     cancelScroll()
     const start = scroll.scrollTop
-    const offset = targetEl.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 20
+    const offset = heading.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 20
     const target = Math.min(Math.max(0, scroll.scrollHeight - scroll.clientHeight), Math.max(0, start + offset))
-    targetEl.tabIndex = -1
-    targetEl.focus({ preventScroll: true })
+    heading.tabIndex = -1
+    heading.focus({ preventScroll: true })
     setCurrent(heading)
     setOpen(false)
 
@@ -145,7 +136,7 @@ export function ReaderOutline({ mode, html, translationKey, prose, viewport, ine
         {headings.map((heading, index) => <li key={index}>
           <Button type="button" variant="ghost" aria-current={heading === current ? 'location' : undefined}
             onClick={() => jump(heading)}>
-            <span className="reader-outline-label">{resolveHeadingLabel(heading)}</span>
+            <span className="reader-outline-label">{headingLabel(heading)}</span>
             <Kbd>{heading.tagName}</Kbd>
           </Button>
         </li>)}

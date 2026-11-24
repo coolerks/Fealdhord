@@ -45,3 +45,10 @@ reader.Service.Get{article_id,mode:feed|reader}、Extract{article_id,mode} → D
 复制接口接收登记图片 ID，由 Go 复用 `loadInline` 获取字节。前端提交的 URL、路径和图片字节都没有复制入口。
 
 代码块工具栏使用清理后的正文 `pre` 内容。复制保留高亮前的文本和换行，语法高亮沿用有界检测与字符预算。设置的 `reader_code_theme` 只保存已验证格式的样式标识。主题 CSS 从已安装的 highlight.js 样式按需加载，选择器限定为当前阅读正文。
+
+## 文章正文翻译
+
+- `translation.API.Get(ctx, articleID, targetLang, sourceMode)`、`Translate(ctx, TranslateRequest)` 与进度事件共用 `Record`。翻译记录的来源为 `summary`、`feed` 或 `reader`。后台全文只在当前版本 `reader` 记录完整时完成。网页提取失败沿用全文调度退避，现有订阅译文仍可显示。
+- 标题摘要可独立判定同语种。正文请求为当前批次的所有段落 ID 返回可用译文，已使用目标语言的部分原样保留。首批结果仅决定该批的译文。
+- 模型缺段或清洗后为空时，以 `InvalidModelOutput` 结束并保存 `partial` 或 `failed`。旧缺段完成记录按 `partial` 读取，旧正文同语种跳过记录可重新处理。续翻只发送尚未按 `source_hash` 命中的段落。全部请求段落处理完后才写入 `completed`。
+- 回归使用真实临时 SQLite 和模拟模型，验证前批同语种、末批漏译、旧缓存续翻、提取失败和订阅译文与阅读模式译文的调度区分。

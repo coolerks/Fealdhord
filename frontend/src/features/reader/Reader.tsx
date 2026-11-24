@@ -58,10 +58,11 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
   sourceMode: body.mode,
   hasContent,
   extracting: body.extracting,
+  autoReady: view === body.mode || Boolean(body.error),
   defaultDisplay: preferences.reader_translation_display,
   feedAutoTranslateMode,
  })
- const translatedTitle = translation.record?.translatedTitle || article?.translatedTitle || ''
+ const translatedTitle = translation.record?.translatedTitle || ''
  const headingTitle = translation.effectiveDisplayMode === 'translated' && translatedTitle ? translatedTitle : (article?.title ?? '')
  const subTranslatedTitle = translation.effectiveDisplayMode === 'bilingual' && translatedTitle && translatedTitle !== article?.title ? translatedTitle : ''
  const viewing = imagesAllowed && gallery?.html === body.html ? gallery : undefined
@@ -151,6 +152,8 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
       displayMode: translation.displayMode,
       targetLang: translation.targetLang,
       hasTranslation: translation.hasTranslation,
+      bodyStatus: translation.bodyStatus,
+      canTranslate: translation.canTranslate,
       translating: translation.translating,
       onDisplayModeChange: translation.setDisplayMode,
       onTargetLangChange: translation.setTargetLang,
@@ -165,7 +168,7 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
   {article?<Tabs.Content value={view} asChild {...(!preferences.reader_toolbar_pinned.includes('view') && {
    'aria-labelledby': undefined, 'aria-label': readerViews.find(mode => mode.value === view)?.label,
   })}><div className="reader-stage" inert={Boolean(viewing)} aria-hidden={viewing ? true : undefined}>
-   {!loading && <ReaderOutline mode={preferences.reader_outline} html={body.html} translationKey={`${translation.effectiveDisplayMode}:${translation.record?.translatedBlocks ?? 0}`} prose={prose} viewport={content} inert={Boolean(viewing)} />}
+   {!loading && <ReaderOutline mode={preferences.reader_outline} html={body.html} translationKey={`${translation.effectiveDisplayMode}:${translation.targetLang}:${translation.record?.updatedAt ?? 0}`} prose={prose} viewport={content} inert={Boolean(viewing)} />}
    <div ref={content} className="reader-content" onScroll={event=>{
    if(!articleID||!hasContent||loading)return
    const offset=event.currentTarget.scrollTop;pending.current=offset;if(timer.current)clearTimeout(timer.current)

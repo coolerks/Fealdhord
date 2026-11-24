@@ -118,7 +118,7 @@ export function Shell() {
   const feedIcons = preferences.remote_images === 'never' ? undefined : feedMeta?.icons
   const selectedFeedIcon = selected?.feedID ? feedIcons?.get(selected.feedID) : undefined
   const selectedFeedReaderOpenMode = selected?.feedID ? feedMeta?.readerOpenModes.get(selected.feedID) : undefined
-  const selectedFeedAutoTranslateMode = selected?.feedID ? feedMeta?.autoTranslateModes.get(selected.feedID) : undefined
+  const selectedFeedAutoTranslateMode = selected?.feedID ? (feedMeta ? feedMeta.autoTranslateModes.get(selected.feedID) : 'off') : undefined
   const systemDark = useMediaQuery('(prefers-color-scheme: dark)')
   const systemReduced = useMediaQuery('(prefers-reduced-motion: reduce)')
   const mode = effectiveMotion(preferences, systemReduced)
