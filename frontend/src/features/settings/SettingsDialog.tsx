@@ -223,6 +223,11 @@ export function SettingsDialog({ sidebar, motionMode }: {
             <ChoiceRow name="ratio" label="瀑布流图片" value={preferences.masonry_image_mode}
               choices={[['original_ratio', '原始比例', 'maximize'], ['cropped', '统一裁剪', 'scan-text']]}
               onChange={value => set('masonry_image_mode', value)} />
+            <SettingRow>
+              <FieldLabel htmlFor="list-show-translated" className="font-normal">列表显示译文标题与摘要</FieldLabel>
+              <Switch id="list-show-translated" checked={preferences.list_show_translated}
+                onCheckedChange={value => set('list_show_translated', value)} />
+            </SettingRow>
           </SettingCard>
         </SettingSection>
       </>}
@@ -232,6 +237,9 @@ export function SettingsDialog({ sidebar, motionMode }: {
             <ChoiceRow name="reader-open-mode" label="点击文章时" value={preferences.reader_open_mode}
               choices={[['feed', '订阅预览', 'book-text'], ['full', '阅读模式', 'scan-text']]}
               onChange={value => set('reader_open_mode', value)} />
+            <ChoiceRow name="reader-translation-display" label="译文显示方式" value={preferences.reader_translation_display || 'bilingual'}
+              choices={[['bilingual', '双语对照', 'languages'], ['translated', '仅译文', 'book-text'], ['original', '仅原文', 'book']]}
+              onChange={value => set('reader_translation_display', value)} />
             <ChoiceRow name="reader-layout" label="瀑布流阅读布局" value={preferences.reader_layout === 'fill' ? 'fill' : 'drawer'}
               choices={[['fill', '铺满', 'maximize'], ['drawer', '抽屉', 'panel-right-open']]}
               onChange={value => set('reader_layout', value)} />

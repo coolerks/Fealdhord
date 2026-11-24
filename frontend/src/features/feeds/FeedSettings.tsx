@@ -21,9 +21,36 @@ import type { CategorySummary } from '../../../bindings/github.com/coolerks/Feal
 import { FeedIcon, FeedIconField } from './FeedIcon'
 
 type FeedReaderOpenMode = 'global' | 'full' | 'feed'
+type FeedAutoTranslateMode = 'global' | 'on' | 'off'
 
 function normalizeFeedReaderOpenMode(value?: string): FeedReaderOpenMode {
   return value === 'full' || value === 'feed' ? value : 'global'
+}
+
+function normalizeFeedAutoTranslateMode(value?: string): FeedAutoTranslateMode {
+  return value === 'on' || value === 'off' ? value : 'global'
+}
+
+function FeedAutoTranslateModeField({ value, onChange, disabled }: {
+  value: FeedAutoTranslateMode; onChange: (mode: FeedAutoTranslateMode) => void; disabled: boolean
+}) {
+  const labelID = useId()
+  return (
+    <Field>
+      <FieldLabel id={labelID}>自动翻译</FieldLabel>
+      <SegmentedControl
+        size="sm"
+        aria-labelledby={labelID}
+        disabled={disabled}
+        value={value}
+        onValueChange={next => { if (next === 'global' || next === 'on' || next === 'off') onChange(next) }}
+      >
+        <ToggleGroupItem value="global"><AnimatedGlyph meaning="settings" />跟随全局设置</ToggleGroupItem>
+        <ToggleGroupItem value="on"><AnimatedGlyph meaning="languages" />开启</ToggleGroupItem>
+        <ToggleGroupItem value="off"><AnimatedGlyph meaning="x" />关闭</ToggleGroupItem>
+      </SegmentedControl>
+    </Field>
+  )
 }
 
 function FeedReaderOpenModeField({ value, onChange, disabled }: {
@@ -86,6 +113,7 @@ export function FeedSettings() {
   const [useDefaultIcon, setUseDefaultIcon] = useState(false)
   const [customIconURL, setCustomIconURL] = useState<string>()
   const [readerOpenMode, setReaderOpenMode] = useState<FeedReaderOpenMode>('global')
+  const [autoTranslateMode, setAutoTranslateMode] = useState<FeedAutoTranslateMode>('global')
   const [editing, setEditing] = useState<UpdateRequest | null>(null)
   const prefs = useWorkspace(state => state.preferences)!
   const originalFeed = query.data?.items?.find(feed => feed.id === editing?.id)
@@ -181,6 +209,7 @@ export function FeedSettings() {
                   title,
                   category_ids: ids,
                   reader_open_mode: readerOpenMode,
+                  ...(autoTranslateMode !== 'global' ? { auto_translate_mode: autoTranslateMode } : {}),
                   ...(allowIcons && customIconURL ? { custom_icon_url: customIconURL } : useDefaultIcon ? { use_default_icon: true } : {}),
                 })
                 setURL('')
@@ -189,6 +218,7 @@ export function FeedSettings() {
                 setTitle('')
                 setIDs([])
                 setReaderOpenMode('global')
+                setAutoTranslateMode('global')
               })
             }}
           >
@@ -233,6 +263,7 @@ export function FeedSettings() {
               />
             )}
             <FeedReaderOpenModeField value={readerOpenMode} onChange={setReaderOpenMode} disabled={busy} />
+            <FeedAutoTranslateModeField value={autoTranslateMode} onChange={setAutoTranslateMode} disabled={busy} />
             <Categories items={categories} value={ids} onChange={setIDs} disabled={busy} />
             {action.error && !editing && !removing && <FieldError>{action.error.message}</FieldError>}
             <div className="flex justify-end gap-2">
@@ -338,6 +369,7 @@ export function FeedSettings() {
                             title: feed.title,
                             custom_icon_url: feed.custom_icon_url,
                             reader_open_mode: normalizeFeedReaderOpenMode(feed.reader_open_mode),
+                            auto_translate_mode: normalizeFeedAutoTranslateMode(feed.auto_translate_mode),
                             category_ids: feed.category_ids ?? [],
                           })
                         }}>编辑</Button>
@@ -407,6 +439,11 @@ export function FeedSettings() {
               <FeedReaderOpenModeField
                 value={normalizeFeedReaderOpenMode(editing.reader_open_mode)}
                 onChange={next => setEditing({ ...editing, reader_open_mode: next })}
+                disabled={busy}
+              />
+              <FeedAutoTranslateModeField
+                value={normalizeFeedAutoTranslateMode(editing.auto_translate_mode)}
+                onChange={next => setEditing({ ...editing, auto_translate_mode: next })}
                 disabled={busy}
               />
               <Categories items={categories} value={editing.category_ids ?? []} disabled={busy}

@@ -5,9 +5,11 @@ export type Article = {
   titleMatches?: {start:number;end:number}[]
   id: string
   title: string
+  translatedTitle?: string
   feedTitle: string
   publishedAt: string
   summary: string
+  translatedSummary?: string
   contentText: string
   isRead: boolean
   isFavorite: boolean

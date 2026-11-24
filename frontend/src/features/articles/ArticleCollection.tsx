@@ -194,7 +194,7 @@ export function ArticleCollection({ feedIcons, articles, preferences, queryKey, 
       {virtualizer.getVirtualItems().map(item => {
         const article = articles[item.index]
         return <li key={article.id} data-card-id={article.id} data-index={item.index} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: mode === 'list' ? '100%' : columnWidth, height: mode === 'list' ? rowHeight : undefined, transform: `translate(${item.lane * (columnWidth + gap)}px, ${item.start}px)` }}>
-          <ArticleItem imagesAllowed={imagesAllowed} feedIcon={imagesAllowed && article.feedID ? feedIcons?.get(article.feedID) : undefined} article={article} mode={mode} selected={article.id === selectedID} width={columnWidth} imageMode={preferences.masonry_image_mode} onOpen={onOpen} onFavorite={onFavorite} onRead={onRead} onShare={onShare} />
+          <ArticleItem imagesAllowed={imagesAllowed} showTranslated={preferences.list_show_translated} feedIcon={imagesAllowed && article.feedID ? feedIcons?.get(article.feedID) : undefined} article={article} mode={mode} selected={article.id === selectedID} width={columnWidth} imageMode={preferences.masonry_image_mode} onOpen={onOpen} onFavorite={onFavorite} onRead={onRead} onShare={onShare} />
         </li>
       })}
     </ol>

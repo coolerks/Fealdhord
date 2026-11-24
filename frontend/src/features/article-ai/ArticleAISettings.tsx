@@ -6,12 +6,15 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { SegmentedControl } from '@/components/ui/segmented-control'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { ToggleGroupItem } from '@/components/ui/toggle-group'
 import { SettingCard, SettingEmpty, SettingRow, SettingSection, StatusBadge } from '@/features/settings/settings-primitives'
 import { libraryAPI } from '@/lib/library-api'
 import { invalidateRSS } from '@/lib/refresh'
+import { defaultTranslationLanguages } from '@/lib/translation-api'
 import { Evaluate, Save } from '../../../bindings/github.com/coolerks/Fealdhord/internal/articleai/api'
 import type { Result, Settings } from '../../../bindings/github.com/coolerks/Fealdhord/internal/articleai/models'
 import { articleAISettingsKey, useArticleAISettings } from './settings-query'
@@ -116,7 +119,12 @@ export function ArticleAISettings() {
 
   const busy = save.isPending || testing
   const enabled = task === 'classification' ? settings.data?.classification : settings.data?.featured
-  const showRules = value.classification || value.featured || Boolean(draft)
+  const showRules = value.classification || value.featured || value.autoTranslate || value.translateOnOpen || Boolean(draft)
+  const targetLangOptions = defaultTranslationLanguages.map(item => ({
+    value: item.code,
+    label: item.label,
+    keywords: [item.code, item.promptName],
+  }))
 
   return <div className="space-y-6">
     <form className="space-y-6" onSubmit={event => { event.preventDefault(); if (!busy && draft) save.mutate(draft) }}>
@@ -140,6 +148,64 @@ export function ArticleAISettings() {
             <Switch id="automatic-featured" disabled={busy} checked={value.featured}
               onCheckedChange={featured => setDraft({ ...value, featured })} />
           </SettingRow>
+        </SettingCard>
+      </SettingSection>
+
+      <SettingSection title="文章翻译">
+        <SettingCard>
+          <SettingRow>
+            <FieldLabel htmlFor="automatic-translate" className="font-normal">新文章自动翻译</FieldLabel>
+            <Switch id="automatic-translate" disabled={busy} checked={value.autoTranslate}
+              onCheckedChange={autoTranslate => setDraft({ ...value, autoTranslate })} />
+          </SettingRow>
+          <SettingRow>
+            <FieldLabel htmlFor="translation-target-lang" className="font-normal">目标语言</FieldLabel>
+            <SearchableSelect
+              id="translation-target-lang"
+              label="目标语言"
+              className="min-w-44"
+              disabled={busy}
+              value={value.translationTargetLang || 'zh-CN'}
+              options={targetLangOptions}
+              onValueChange={translationTargetLang => setDraft({ ...value, translationTargetLang })}
+            />
+          </SettingRow>
+          {value.autoTranslate && (
+            <SettingRow>
+              <FieldLabel id="auto-translate-scope-label" className="font-normal">后台自动翻译范围</FieldLabel>
+              <SegmentedControl
+                size="sm"
+                aria-labelledby="auto-translate-scope-label"
+                disabled={busy}
+                value={value.autoTranslateScope === 'full' ? 'full' : 'summary'}
+                onValueChange={next => { if (next === 'summary' || next === 'full') setDraft({ ...value, autoTranslateScope: next }) }}
+              >
+                <ToggleGroupItem value="summary"><AnimatedGlyph meaning="book-text" />标题与摘要</ToggleGroupItem>
+                <ToggleGroupItem value="full"><AnimatedGlyph meaning="scan-text" />含全文</ToggleGroupItem>
+              </SegmentedControl>
+            </SettingRow>
+          )}
+          <SettingRow>
+            <FieldLabel htmlFor="translate-on-open" className="font-normal">打开文章时自动翻译正文</FieldLabel>
+            <Switch id="translate-on-open" disabled={busy} checked={value.translateOnOpen}
+              onCheckedChange={translateOnOpen => setDraft({ ...value, translateOnOpen })} />
+          </SettingRow>
+          {(value.autoTranslate || value.translateOnOpen) && (
+            <div className="p-3.5">
+              <Field>
+                <FieldLabel htmlFor="translation-prompt">翻译提示词</FieldLabel>
+                <Textarea
+                  id="translation-prompt"
+                  rows={2}
+                  disabled={busy}
+                  placeholder="可选：术语表、语气或专有名词保留要求"
+                  value={value.translationPrompt ?? ''}
+                  maxLength={4096}
+                  onChange={event => setDraft({ ...value, translationPrompt: event.target.value })}
+                />
+              </Field>
+            </div>
+          )}
         </SettingCard>
       </SettingSection>
 
