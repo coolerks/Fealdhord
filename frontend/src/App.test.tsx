@@ -65,6 +65,7 @@ const notificationAPI = vi.hoisted(() => ({
 }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/notification/api', () => notificationAPI)
 const listSkills = vi.hoisted(() => vi.fn())
+const saveSkillPackage = vi.hoisted(() => vi.fn())
 const pendingActions = vi.hoisted(() => vi.fn())
 const decideAction = vi.hoisted(() => vi.fn())
 const toolPermissions = vi.hoisted(() => ({ ToolPermissions: vi.fn(), SaveToolPermission: vi.fn() }))
@@ -81,6 +82,7 @@ vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/appagent/api', () =>
   ...mcpGrants,
   ...toolPermissions,
   ...mcpConnections,
+  SaveSkillPackage: saveSkillPackage,
 }))
 const copyImage = vi.hoisted(() => vi.fn())
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/media/api', () => ({ CopyInlineImage: copyImage }))
@@ -103,6 +105,7 @@ beforeEach(() => {
   mcpGrants.MCPServer.mockResolvedValue({ url: '', config: { port: 8769, tools: [] } })
   useChatTarget.setState({ target: null })
   listSkills.mockResolvedValue([])
+  saveSkillPackage.mockReset().mockResolvedValue(undefined)
   chat.ContextStatus.mockResolvedValue({
     budget: { context: 32768, inputLimit: 24064, outputReserve: 8192, estimated: true },
     history: 0, used: 0, contextAfter: 0, summary: '', pins: [], lastInput: 0, autoCompact: false, lastModel: '',
@@ -388,6 +391,30 @@ describe('Phase 1 阅读 Shell', () => {
     await user.keyboard('{Enter}')
     expect(await screen.findByRole('region', { name: '定时任务' })).toBeInTheDocument()
     expect(chat.Send).not.toHaveBeenCalled()
+  })
+
+  it('新建 Skill 提供可保存的正文，并提示空正文错误', async () => {
+    const user = userEvent.setup()
+    setup()
+    listSkills.mockResolvedValue([{ name: 'my-skill', description: '已有技能', enabled: true }])
+    saveSkillPackage.mockRejectedValueOnce(new Error('SkillBodyRequired'))
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    await user.click(await screen.findByRole('button', { name: 'Skills' }))
+    const add = await screen.findByRole('button', { name: '添加 Skill' })
+    await waitFor(() => expect(add).toBeEnabled())
+    await user.click(add)
+    const editor = await screen.findByRole('dialog', { name: '编辑 Skill' })
+    const field = within(editor).getByRole<HTMLTextAreaElement>('textbox', { name: 'SKILL.md' })
+    const template = field.value
+    expect(template).toContain('name: my-skill-2')
+    expect(template.split('\n---\n')[1].trim()).toContain('用简洁的中文列出主要观点')
+    fireEvent.change(field, { target: { value: template.split('\n---\n')[0] + '\n---\n' } })
+    await user.click(within(editor).getByRole('button', { name: '保存 Skill' }))
+    expect(await within(editor).findByText('请在第二条 --- 下方填写 Skill 的正文。')).toBeInTheDocument()
+    fireEvent.change(field, { target: { value: template } })
+    await user.click(within(editor).getByRole('button', { name: '保存 Skill' }))
+    await waitFor(() => expect(editor).not.toBeInTheDocument())
+    expect(saveSkillPackage).toHaveBeenLastCalledWith(expect.objectContaining({ markdown: template, enabled: true }))
   })
 
   it('用斜杠选择技能和模型，不将命令或路径误当成对方', async () => {

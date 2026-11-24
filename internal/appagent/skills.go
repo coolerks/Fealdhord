@@ -38,10 +38,13 @@ func parseSkill(markdown string, enabled bool) (Skill, error) {
 	markdown = strings.ReplaceAll(markdown, "\r\n", "\n")
 	input, ok := strings.CutPrefix(markdown, "---\n")
 	front, body, found := strings.Cut(input, "\n---\n")
-	if !ok || !found || len(markdown) > maxSkillText || !utf8.ValidString(markdown) || strings.TrimSpace(body) == "" ||
+	if !ok || !found || len(markdown) > maxSkillText || !utf8.ValidString(markdown) ||
 		yaml.Unmarshal([]byte(front), &manifest) != nil || !skillName.MatchString(manifest.Name) || strings.TrimSpace(manifest.Description) == "" ||
 		len([]rune(manifest.Description)) > 1024 {
 		return Skill{}, errors.New("InvalidSkill")
+	}
+	if strings.TrimSpace(body) == "" {
+		return Skill{}, errors.New("SkillBodyRequired")
 	}
 	return Skill{Name: manifest.Name, Description: manifest.Description, Markdown: markdown, Enabled: enabled,
 		Tools: append(manifest.Tools, strings.Fields(manifest.AllowedTools)...)}, nil

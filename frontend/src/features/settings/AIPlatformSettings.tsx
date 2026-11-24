@@ -89,9 +89,14 @@ const auditStatuses: Record<string, { label: string; tone: 'active' | 'muted' | 
 }
 
 const newClient: ClientConfig = { name: '', endpoint: '', command: '', args: [] }
-const newSkill: Pick<Skill, 'markdown' | 'enabled' | 'resources'> = {
-  markdown: '---\nname: my-skill\ndescription: 描述何时使用\n---\n',
-  enabled: true,
+function newSkillDraft(skills: Skill[]): Pick<Skill, 'markdown' | 'enabled' | 'resources'> {
+  const names = new Set(skills.map(skill => skill.name))
+  let name = 'my-skill'
+  for (let suffix = 2; names.has(name); suffix++) name = `my-skill-${suffix}`
+  return {
+    markdown: `---\nname: ${name}\ndescription: 从用户提供的材料中提炼要点\n---\n\n用简洁的中文列出主要观点。材料不足时，指出缺少的信息。\n`,
+    enabled: true,
+  }
 }
 
 const formatAuditTime = (value: string) => {
@@ -698,8 +703,11 @@ export function SkillsSettings() {
   })
 
   const busy = mutation.isPending
+  const skillError = mutation.error instanceof Error ? mutation.error.message : ''
   const mutationError = mutation.isError
-    ? `Skill 操作失败（${mutation.error instanceof Error ? mutation.error.message : '请检查内容'}）`
+    ? skillError === 'SkillBodyRequired'
+      ? '请在第二条 --- 下方填写 Skill 的正文。'
+      : `Skill 操作失败（${skillError || '请检查内容'}）`
     : undefined
 
   return <div className="space-y-6">
@@ -710,7 +718,8 @@ export function SkillsSettings() {
           <Button size="sm" variant="outline" disabled={busy} onClick={() => mutation.mutate(async () => { setSkill(await api.ImportSkill()) })}>
             <AnimatedGlyph meaning="upload" />导入 Skill
           </Button>
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => { mutation.reset(); setSkill(newSkill) }}>
+          <Button size="sm" variant="outline" disabled={busy || skills.isPending}
+            onClick={() => { mutation.reset(); setSkill(newSkillDraft(skills.data ?? [])) }}>
             <AnimatedGlyph meaning="plus" />添加 Skill
           </Button>
         </>

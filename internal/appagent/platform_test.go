@@ -574,6 +574,22 @@ func TestMCPClientSettingsRejectUnreadableAndOversizedChanges(t *testing.T) {
 	}
 }
 
+func TestSkillPackageRequiresInstructionsAndUsesSavedBody(t *testing.T) {
+	p := NewPlatform(NewRegistry(), t.TempDir())
+	const header = "---\nname: my-skill\ndescription: 从用户提供的材料中提炼要点\n---\n"
+	if _, err := NewAPI(p, nil).SaveSkillPackage(Skill{Markdown: header, Enabled: true}); err == nil || err.Error() != "SkillBodyRequired" {
+		t.Fatalf("empty body validation: %v", err)
+	}
+	const body = "用简洁的中文列出主要观点。材料不足时，指出缺少的信息。"
+	if _, err := NewAPI(p, nil).SaveSkillPackage(Skill{Markdown: header + "\n" + body + "\n", Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	_, instructions, err := p.RunTools("chat", []string{"my-skill"}, false)
+	if err != nil || !strings.Contains(instructions, body) {
+		t.Fatalf("saved Skill unavailable in chat: %q %v", instructions, err)
+	}
+}
+
 func TestLargePreviouslySavedSkillCanBeListedAndToggled(t *testing.T) {
 	p := NewPlatform(NewRegistry(), t.TempDir())
 	markdown := "---\nname: big-skill\ndescription: test\n---\n" + strings.Repeat("<tag>", 40000)
