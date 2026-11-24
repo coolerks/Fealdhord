@@ -37,6 +37,7 @@ type ReplyWork struct {
 	Positions          []ReplyWorkPosition `json:"positions,omitempty"`
 	RetryAttempt       int                 `json:"retryAttempt,omitempty"`
 	RetryMax           int                 `json:"retryMax,omitempty"`
+	RetryCount         int                 `json:"retryCount,omitempty"`
 }
 
 // All string offsets use UTF-16 code units to match the frontend's source text.
@@ -71,6 +72,7 @@ type replyWork struct {
 	activity          string
 	retryAttempt      int
 	retryMax          int
+	retryCount        int
 }
 
 type replyWorkCheckpoint struct {
@@ -245,7 +247,7 @@ func (w *replyWork) observe(event ai.ModelEvent, now time.Time) {
 }
 
 func (w *replyWork) snapshot(started, ended time.Time, terminalStatus string) *ReplyWork {
-	if w.lastActivity.IsZero() && (terminalStatus != "running" || w.retryAttempt == 0) {
+	if w.lastActivity.IsZero() && w.retryCount == 0 && (terminalStatus != "running" || w.retryAttempt == 0) {
 		return nil
 	}
 	until := ended
@@ -290,6 +292,7 @@ func (w *replyWork) snapshot(started, ended time.Time, terminalStatus string) *R
 		Positions:          positions,
 		RetryAttempt:       retryAttempt,
 		RetryMax:           retryMax,
+		RetryCount:         w.retryCount,
 	}
 }
 

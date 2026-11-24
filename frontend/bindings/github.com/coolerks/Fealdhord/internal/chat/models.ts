@@ -76,6 +76,7 @@ export interface ReplyWork {
     "positions"?: ReplyWorkPosition[] | null;
     "retryAttempt"?: number;
     "retryMax"?: number;
+    "retryCount"?: number;
 }
 
 /**

@@ -65,7 +65,7 @@ Permission 表示静态风险声明；动态目标和数量由 Executor 在执�
 - 通用分页返回 `paged`、`page`、`pages`、`next_cursor` 和 `fragments`。按顺序应用片段中的 JSON Pointer `path` 和 `value`。拆分的数组和对象先返回空容器，大字符串按 UTF-8 字节 `text_offset` 拼接。分页保留原始条目和字段。可用时 `summary` 单独提供状态、计数和原查询游标。
 - `article.get`、`article.extract`、`read_article` 的正文页返回 `id`、`source`、`version`、`text`、`offset`、`end`、`total_bytes`、`coverage` 和可选 `next_cursor`。偏移是 UTF-8 字节，区间为左闭右开。来源区分订阅正文、提取原文和只有摘要。聊天读全文时自动处理后续页，`page_only` 可显式只读取一页用于核对引文。可以重新授权后用同一文章 ID、版本和偏移恢复。版本已变化返回 `ArticleVersionChanged`。
 - 游标关联同一工具、聊天运行或 MCP 授权配置下的客户端。翻页读取已批准的快照，MCP 按范围复核指定目标。游标有效期 20 分钟，聊天运行结束也会释放该运行的快照。无效或过期返回 `ToolResultUnavailable`。一次结果最多 48 MiB，单次运行或 MCP 授权配置最多缓存 64 MiB 和 128 份结果，达到上限时返回 `ToolResultLimit`。写操作的分页只读已生成的结果。
-- 聊天用当前模型和上下文配置处理分片，接近预算时在本轮滚动摘要中保留证据、来源和覆盖区间。压缩请求不提供工具，并计入本轮调用次数和用量。明确未完成的自动读正文返回 `ArticleReadIncomplete`，保留范围和恢复位置。网页抓取、提取、安全解析和聊天运行仍有各自的保护上限。
+- 聊天用当前模型和上下文配置处理分片，接近预算时在本轮滚动摘要中保留证据、来源和覆盖区间。压缩请求不提供工具，并计入本轮调用次数和用量。明确未完成的自动读正文返回 `ArticleReadIncomplete`，保留范围和恢复位置。压缩失败的结果还可包含 `stage: "compaction"`、安全原因码及 `text` 和 `text_offset`，说明已返回的原文片段。用同一个工具、版本和位置传 `page_only: true` 续读。网页抓取、提取、安全解析和聊天运行仍有各自的保护上限。
 
 ### 内置工具结果审计
 

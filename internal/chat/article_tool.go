@@ -159,7 +159,7 @@ func articleResumeContext(rows []sqlc.Message) string {
 			continue
 		}
 		marker, _ := json.Marshal(map[string]any{"tool": step.Name, "id": data.Article.ID,
-			"source": data.Article.Source, "version": data.Article.Version, "offset": data.End})
+			"source": data.Article.Source, "version": data.Article.Version, "offset": data.End, "page_only": true})
 		result.WriteByte('\n')
 		result.Write(marker)
 		count++

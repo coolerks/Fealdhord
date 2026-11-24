@@ -34,7 +34,7 @@ const reader=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
 vi.mock('@/lib/reader-api',()=>({readerAPI:reader}))
 const chat = vi.hoisted(() => ({
   List: vi.fn(), Create: vi.fn(), Branch: vi.fn(), Messages: vi.fn(), Send: vi.fn(), Cancel: vi.fn(), Model: vi.fn(),
-  ContextStatus: vi.fn(), Rename: vi.fn(), SetPinned: vi.fn(), SetArchived: vi.fn(), Archived: vi.fn(), Delete: vi.fn(),
+  ContextStatus: vi.fn(), GenerateContextSummary: vi.fn(), SaveContext: vi.fn(), Rename: vi.fn(), SetPinned: vi.fn(), SetArchived: vi.fn(), Archived: vi.fn(), Delete: vi.fn(),
 }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/chat/api', () => chat)
 const listAIConfiguration = vi.hoisted(() => vi.fn())
@@ -607,6 +607,35 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(ring)
     expect(await screen.findByRole('dialog', { name: '会话上下文' })).toBeInTheDocument()
     expect(screen.queryByText('750 / 1,500')).not.toBeInTheDocument()
+    const dialog = screen.getByRole('dialog', { name: '会话上下文' })
+    const draft = within(dialog).getByLabelText('保留给模型的摘要（可选）')
+    const generate = within(dialog).getByRole('button', { name: '用当前模型生成摘要' })
+    await user.type(draft, '自己整理的摘要')
+    chat.GenerateContextSummary.mockRejectedValueOnce(new Error('ContextSummaryInvalid'))
+    await user.click(generate)
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('模型返回的内容无法用作摘要')
+    expect(draft).toHaveValue('自己整理的摘要')
+    expect(chat.SaveContext).not.toHaveBeenCalled()
+    chat.GenerateContextSummary.mockResolvedValueOnce('已整理的摘要')
+    await user.click(generate)
+    await waitFor(() => expect(draft).toHaveValue('已整理的摘要'))
+  })
+
+  it('失败后保留正文处理期间的自动重试次数', async () => {
+    const user = userEvent.setup()
+    setup()
+    chat.List.mockResolvedValue([{ id: 'retry-history', title: '重试记录' }])
+    chat.Messages.mockResolvedValue([{
+      id: 'failed-reply', role: 'assistant', text: '已查找文章。', modelName: '模型',
+      status: 'failed', errorCode: 'ProviderProtocolError',
+      details: {
+        durationMs: 1200, rounds: 2, reasoningEffort: '',
+        work: { durationMs: 1100, reasoningObserved: false, retryCount: 2 },
+      },
+    }])
+    await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    expect(await screen.findByText(/回复失败.*已自动重试 2 次/)).toBeInTheDocument()
+    expect(screen.queryByText(/正在重试/)).not.toBeInTheDocument()
   })
 
   it('全局 AI 工作区切换会话和本轮模型，停止后返回原阅读位置', async () => {

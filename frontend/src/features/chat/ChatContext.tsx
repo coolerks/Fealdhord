@@ -1,5 +1,5 @@
 import { Switch } from '@/components/ui/switch'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -16,15 +16,18 @@ export function ChatContext({ id, modelId, modelRevision, disabled, attachments,
   const cache = useQueryClient()
   const [preview, setPreview] = useState(false)
   const [summary, setSummary] = useState<string>()
+  const summaryRequest = useRef(0)
   const key = [...chatContextKey(id), modelId, modelRevision]
   const state = useQuery({ queryKey: key, queryFn: () => ContextStatus(id, modelId), retry: false })
   const save = useMutation({
     mutationFn: (restore: boolean) => Promise.resolve(SaveContext(id, summary ?? state.data?.summary ?? '', restore)),
     onSuccess: async () => { await cache.invalidateQueries({ queryKey: key }); setSummary(undefined) },
   })
-  const summarize = useMutation({
+  const summarize = useMutation<string, Error, number>({
     mutationFn: () => Promise.resolve(GenerateContextSummary(id, modelId)),
-    onSuccess: setSummary,
+    onSuccess: (value, request) => {
+      if (request === summaryRequest.current) setSummary(value)
+    },
   })
   const pin = useMutation({
     mutationFn: ({ article, pinned }: { article: string; pinned: boolean }) => Promise.resolve(PinContextArticle(id, article, pinned)),
@@ -43,6 +46,8 @@ export function ChatContext({ id, modelId, modelRevision, disabled, attachments,
       onOpenChange(next)
       setPreview(false)
       setSummary(undefined)
+      summaryRequest.current++
+      summarize.reset()
     }}>
       <HoverCard open={preview && !open} onOpenChange={setPreview} openDelay={250}>
         <HoverCardTrigger asChild>
@@ -100,19 +105,28 @@ export function ChatContext({ id, modelId, modelRevision, disabled, attachments,
                 onClick={() => pin.mutate({ article: article.id, pinned: true })}>固定摘要</Button>
             </div>)}
             <label htmlFor="chat-context-summary" className="text-sm">保留给模型的摘要（可选）</label>
-            <Textarea id="chat-context-summary" rows={4} value={summary ?? state.data.summary} onChange={event => setSummary(event.target.value)} />
+            <Textarea id="chat-context-summary" rows={4} className="field-sizing-fixed max-h-[28dvh] overflow-y-auto"
+              disabled={summarize.isPending || save.isPending} value={summary ?? state.data.summary} onChange={event => setSummary(event.target.value)} />
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="outline" disabled={disabled || save.isPending || summarize.isPending || !state.data.history}
-                title="将会话历史发给当前模型，可能产生费用" onClick={() => summarize.mutate()}>
+                title="将会话历史发给当前模型，可能产生费用" onClick={() => summarize.mutate(++summaryRequest.current)}>
                 {summarize.isPending ? '正在整理…' : '用当前模型生成摘要'}
               </Button>
               {state.data.contextAfter > 0 && <Button variant="outline" disabled={disabled || save.isPending} onClick={() => save.mutate(true)}>恢复历史上下文</Button>}
-              <Button variant="destructive" disabled={disabled || save.isPending} onClick={() => save.mutate(false)}>从这里重置上下文</Button>
+              <Button variant="destructive" disabled={disabled || save.isPending || summarize.isPending} onClick={() => save.mutate(false)}>从这里重置上下文</Button>
             </div></>}
           {automatic.isError && <p role="alert" className="text-sm text-destructive">无法保存自动整理设置。</p>}
           {pin.isError && <p role="alert" className="text-sm text-destructive">无法更新固定文章。请确认文章仍可用。</p>}
-          {summarize.isError && <p role="alert" className="text-sm text-destructive">无法生成摘要，可以手动编辑。</p>}
-          {save.isError && <p role="alert" className="text-sm text-destructive">保存失败。请停止当前回复，并检查摘要长度。</p>}
+          {summarize.isError && <p role="alert" className="text-sm text-destructive">
+            {summarize.error?.message.includes('ContextSummaryInvalid')
+              ? '模型返回的内容无法用作摘要，原编辑内容已保留。'
+              : summarize.error?.message.includes('ContextWindowExceeded')
+                ? '会话历史超过当前模型的输入预算，可以手动填写摘要。'
+                : '无法生成摘要，可以手动编辑。'}
+          </p>}
+          {save.isError && <p role="alert" className="text-sm text-destructive">
+            {save.error?.message.includes('ContextSummaryInvalid') ? '请移除角色标签和推理标记后再保存。' : '保存失败。请停止当前回复，并检查摘要长度。'}
+          </p>}
         </>}
       </DialogContent>
     </Dialog>

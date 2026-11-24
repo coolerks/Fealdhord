@@ -530,6 +530,18 @@ stream:
 					update.ResetText = true
 					flush()
 				}
+			case "compaction_retry_scheduled":
+				s.mu.Lock()
+				current.work.setRetry(event.RetryAttempt, event.RetryMax)
+				s.mu.Unlock()
+				if s.publish != nil {
+					update.WorkChanged = true
+					flush()
+				}
+			case "retry_started":
+				s.mu.Lock()
+				current.work.retryCount++
+				s.mu.Unlock()
 			case "text_delta":
 				s.mu.Lock()
 				clearedRetry := current.work.clearRetry()
@@ -566,6 +578,12 @@ stream:
 				s.mu.Unlock()
 			case "compaction_round":
 				usage.startRound()
+				s.mu.Lock()
+				clearedRetry := current.work.clearRetry()
+				s.mu.Unlock()
+				if clearedRetry && s.publish != nil {
+					update.WorkChanged = true
+				}
 			case "compaction_usage":
 				usage.observe(event.Usage)
 			case "usage":

@@ -552,6 +552,7 @@ function ChatSession({ target, close, workspace }: {
             : <p className="whitespace-pre-wrap break-words">{message.text}</p>)}
         {statusLabels[message.status] && <p className={cn('mt-1 text-sm', message.status === 'failed' ? 'text-destructive' : 'text-muted-foreground')}>
           {statusLabels[message.status]}{errorLabels[message.errorCode] && ` · ${errorLabels[message.errorCode]}`}
+          {message.status === 'failed' && Boolean(message.details?.work?.retryCount) && ` · 已自动重试 ${message.details?.work?.retryCount} 次`}
         </p>}
         {message.role === 'assistant' && message.status !== 'running' && <ReplyActions message={message} branchDisabled={branch.isPending || send.isPending}
           onBranch={() => branch.mutate({ id: conversationId, messageId: message.id })} />}

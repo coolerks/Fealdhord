@@ -8,9 +8,12 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/coolerks/Fealdhord/internal/agentrun"
+	"github.com/coolerks/Fealdhord/internal/ai"
 	"github.com/coolerks/Fealdhord/internal/aiconfig"
 	"github.com/coolerks/Fealdhord/internal/appagent"
 	"github.com/coolerks/Fealdhord/internal/database"
@@ -297,5 +300,120 @@ data: [DONE]
 	if !strings.Contains(initial, `"thinking":{"type":"enabled"}`) || !strings.Contains(continued, `"tool_call_id":"call-1"`) ||
 		!strings.Contains(continued, "测试文章") || strings.Contains(continued, `"reasoning_content"`) || len(requests) != 0 {
 		t.Fatalf("gateway requests changed or repeated: initial=%s continued=%s outstanding=%d", initial, continued, len(requests))
+	}
+}
+
+func TestChatShowsArticleCompactionRetryAndPersistsRetryCount(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 8*time.Second)
+	defer cancel()
+	var compression, final atomic.Int32
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		switch {
+		case strings.Contains(string(body), `"role":"tool"`):
+			final.Add(1)
+			// The closing stream marker is deliberately absent after the article tool.
+			fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"未完成的后续回复\"}}]}\n\n")
+		case strings.Contains(string(body), "本批原文"):
+			if compression.Add(1) > 1 {
+				fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"已核对该段原文\"}}]}\n\n")
+			}
+			fmt.Fprint(w, "data: {\"choices\":[{\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+		default:
+			fmt.Fprint(w, `data: {"choices":[{"delta":{"content":"先查正文。","tool_calls":[{"index":0,"id":"read-1","type":"function","function":{"name":"article_get","arguments":"{}"}}]}}]}
+
+data: {"choices":[{"finish_reason":"tool_calls"}]}
+
+data: [DONE]
+
+`)
+		}
+	}))
+	defer gateway.Close()
+	db, err := database.Open(ctx, filepath.Join(t.TempDir(), "chat.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if updated, err := db.SavePreferences(ctx, `{"chat_max_retries":1}`, 0, time.Now().UnixMilli()); err != nil || !updated {
+		t.Fatalf("retry preference: %v %v", updated, err)
+	}
+	config := aiconfig.New(db.AIProviderQueries(), nil)
+	provider, err := config.SaveProvider(ctx, aiconfig.ProviderInput{Provider: aiconfig.Provider{
+		Name: "Gateway", Protocol: "chat_completions", BaseURL: gateway.URL, Enabled: true,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model, err := config.SaveModel(ctx, aiconfig.Model{
+		ProviderID: provider.ID, Name: "fixture", Enabled: true, Metadata: ai.Metadata{Context: 8192},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updates := make(chan UpdateEvent, 40)
+	service, err := New(ctx, db, config, func(event UpdateEvent) { updates <- event })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	var reads atomic.Int32
+	article := agentrun.NewArticleSource("one", "feed", strings.Repeat("中文正文内容。", 600))
+	service.SetToolSource(func(id string, _ []string, _ bool) ([]agentrun.ReadTool, string, error) {
+		return []agentrun.ReadTool{{
+			Definition: ai.ToolDefinition{Name: "article_get", InputSchema: json.RawMessage(`{"type":"object"}`)},
+			Read: func(ctx context.Context, call ai.ToolCall) (string, error) {
+				reads.Add(1)
+				return agentrun.ResultStoreFrom(ctx).PublishArticle(id, call.Name, call.ArgumentsJSON, article)
+			},
+			ArticleNext: func(ctx context.Context, call ai.ToolCall, cursor string) (string, error) {
+				return agentrun.ResultStoreFrom(ctx).Continue(id, call.Name, cursor, nil)
+			},
+		}}, "", nil
+	})
+	conversation, err := service.Create(ctx, Scope{Kind: "global"}, "重试回归")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Send(ctx, SendInput{ConversationID: conversation.ID, ModelID: model.ID, Text: "阅读全文"}); err != nil {
+		t.Fatal(err)
+	}
+
+	var sawCompactionRetry bool
+	for {
+		select {
+		case <-ctx.Done():
+			t.Fatal("waiting for chat completion")
+		case event := <-updates:
+			if !event.WorkChanged && !event.Done {
+				continue
+			}
+			rows, err := service.Messages(ctx, conversation.ID)
+			if err != nil || len(rows) != 2 {
+				t.Fatalf("messages: %+v, %v", rows, err)
+			}
+			reply := rows[1]
+			if reply.Details == nil || reply.Details.Work == nil {
+				continue
+			}
+			work := reply.Details.Work
+			if work.RetryAttempt == 1 && work.RetryMax == 1 && len(work.Tools) == 1 && work.Tools[0].Status == "running" {
+				sawCompactionRetry = reply.Text == "先查正文。" && !event.ResetText
+			}
+			if event.Done {
+				if !sawCompactionRetry || reply.Status != "failed" || reply.ErrorCode != "ProviderProtocolError" ||
+					work.RetryCount != 2 || work.RetryAttempt != 0 || reads.Load() != 1 || final.Load() != 2 ||
+					len(work.Tools) != 1 || work.Tools[0].Status != "completed" {
+					t.Fatalf("retry not preserved: saw=%t reads=%d final=%d reply=%+v work=%+v",
+						sawCompactionRetry, reads.Load(), final.Load(), reply, work)
+				}
+				return
+			}
+		}
 	}
 }

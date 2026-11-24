@@ -1,8 +1,8 @@
 # Wails 应用边界契约
 
-`Chat.Branch(id, messageID)` 原子复制原会话到指定的已结束助手消息，返回新会话。目标消息须属于源会话，否则返回 `ChatBranchUnavailable`。`Chat.Messages` 的助手消息可包含 `details`，包括毫秒耗时、模型调用轮次、思考档位、服务用量，以及可选的 `firstTokenMs`、`outputTokensPerSecond` 和 `work`。生成期间仅 `work` 有实际数据，通过现有消息快照刷新。结束后这些字段保存在迁移 00023 的详情 JSON 中。旧记录和未采集指标可缺省。
+`Chat.Branch(id, messageID)` 原子复制原会话到指定的已结束助手消息，返回新会话。目标消息须属于源会话，否则返回 `ChatBranchUnavailable`。`Chat.Messages` 的助手消息可包含 `details`，包括毫秒耗时、模型调用轮次、思考档位、服务用量，以及可选的 `firstTokenMs`、`outputTokensPerSecond` 和 `work`。生成期间仅 `work` 有实际数据，通过现有消息快照刷新。结束后这些字段保存在迁移 00023 的详情 JSON 中。旧记录和未采集指标可缺省。 `GenerateContextSummary` 返回校验后的摘要文本。模型返回转录、推理或角色标记时，返回 `ContextSummaryInvalid`。
 
-`work` 可包含 `reasoningText`、`reasoningSummary`、`reasoningTruncated` 和工具步骤。每项 `work.tools` 可包含经过结构化凭据脱敏的 `arguments` 与 `result`（文本），以及各自的截断标记。字段缺失表示未记录或执行未返回，空字符串表示工具返回了空文本。
+`work` 可包含 `reasoningText`、`reasoningSummary`、`reasoningTruncated` 和工具步骤。每项 `work.tools` 可包含经过结构化凭据脱敏的 `arguments` 与 `result`（文本），以及各自的截断标记。字段缺失表示未记录或执行未返回，空字符串表示工具返回了空文本。运行中的 `retryAttempt` 和 `retryMax` 表示当前重试进度。可选的 `retryCount` 表示本条回复实际启动的自动重试次数，涵盖生成和压缩，终态仍保留。
 
 `work.positions` 记录正文 UTF-16 偏移、推理文本与摘要的累计 UTF-16 边界、累计工具数及过程耗时。同偏移的记录按数组顺序呈现。聊天更新事件的 `workChanged` 触发工作记录快照刷新。
 

@@ -94,22 +94,16 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 		if err := compaction.fitToolHistory(ctx, &request, baseSystem, &toolSummary); err != nil {
 			return err
 		}
-		reply, err := collectWithRetry(ctx, model, &request, forward, opts)
+		reply, err := collectWithRetry(ctx, model, &request, forward, opts, nil)
 		if err != nil {
 			return err
 		}
 		if reply.finish != "tool_calls" {
-			if len(reply.calls) != 0 {
-				return failure("ProviderProtocolError")
-			}
 			if len(compaction.incomplete) > 0 {
 				return failure("ArticleReadIncomplete")
 			}
 			forward(ai.ModelEvent{Type: "message_end", FinishReason: reply.finish})
 			return nil
-		}
-		if len(reply.calls) == 0 {
-			return failure("ProviderProtocolError")
 		}
 		if turn+1 == maxTurns || len(reply.calls) > maxCalls-attempts {
 			return failure("AgentLimitExceeded")
@@ -224,12 +218,17 @@ func retryBackoff(attempt int, base, hint time.Duration) time.Duration {
 	return delay
 }
 
-func collectWithRetry(ctx context.Context, model ai.Model, request *ai.ModelRequest, forward func(ai.ModelEvent) bool, opts StreamOptions) (turnReply, error) {
+func collectWithRetry(ctx context.Context, model ai.Model, request *ai.ModelRequest, forward func(ai.ModelEvent) bool, opts StreamOptions, validate func(turnReply) error) (turnReply, error) {
 	maxRetries := max(0, opts.MaxRetries)
 	for attempt := 0; ; attempt++ {
 		reply, err := collect(ctx, model, request, forward)
 		if err == nil {
-			return reply, nil
+			if validate == nil {
+				return reply, nil
+			}
+			if err = validate(reply); err == nil {
+				return reply, nil
+			}
 		}
 		if ctx.Err() != nil || attempt >= maxRetries {
 			return reply, err
@@ -253,6 +252,9 @@ func collectWithRetry(ctx context.Context, model ai.Model, request *ai.ModelRequ
 			return reply, ctx.Err()
 		case <-timer.C:
 		}
+		if !forward(ai.ModelEvent{Type: "retry_started"}) {
+			return reply, ctx.Err()
+		}
 	}
 }
 
@@ -274,7 +276,7 @@ func collect(ctx context.Context, model ai.Model, request *ai.ModelRequest, forw
 			return reply, ctx.Err()
 		case event, ok := <-events:
 			if !ok {
-				if reply.finish == "" {
+				if reply.finish == "" || (reply.finish == "tool_calls") != (len(reply.calls) > 0) {
 					return reply, failure("ProviderProtocolError")
 				}
 				reply.text = text.String()

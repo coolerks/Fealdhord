@@ -52,7 +52,7 @@ usage 区分 input_tokens/output_tokens/total_tokens 与可选 cached／reasonin
 | EOF 无协议终态 | ProviderProtocolError，不能展示为成功 |
 | 多个工具 id 冲突 | ProviderProtocolError，不合并不同调用 |
 
-SSE 事件与工具参数有独立大小上限，UTF-8 和跨分包边界正确累积；不使用默认 Scanner 小 token 上限误截断。仅对无副作用且尚未输出内容的可重试请求有限重试；已执行工具后不能重放整个 run。
+SSE 事件与工具参数有独立大小上限，UTF-8 和跨分包边界正确累积；不使用默认 Scanner 小 token 上限误截断。对于可重试的模型故障，按设置重发失败的子请求，回滚该次尝试的部分输出，已执行的工具结果继续复用。正文和工具上下文压缩以可用的完整摘要作为成功条件，空摘要和长度截断按同一规则重试。
 
 ## 5. 案例
 

@@ -29,10 +29,12 @@ func (c *runCompaction) compress(ctx context.Context, base ai.ModelRequest, inst
 		return "", failure("AgentLimitExceeded")
 	}
 	output := 1024
+	outputLimit := 4096
 	if base.Budget.InputLimit > 0 {
 		output = min(output, max(1, base.Budget.InputLimit/5))
 	}
 	if base.Budget.OutputReserve > 0 {
+		outputLimit = base.Budget.OutputReserve
 		output = min(output, base.Budget.OutputReserve)
 	}
 	req := ai.ModelRequest{Model: base.Model, Budget: base.Budget, MaxOutputTokens: &output,
@@ -52,17 +54,33 @@ func (c *runCompaction) compress(ctx context.Context, base ai.ModelRequest, inst
 			return c.forward(ai.ModelEvent{Type: "compaction_usage", Usage: event.Usage})
 		case "retry_scheduled":
 			c.calls++
-			return ctx.Err() == nil
+			event.Type = "compaction_retry_scheduled"
+			return c.forward(event)
+		case "retry_started":
+			return c.forward(event)
 		default:
 			return ctx.Err() == nil
 		}
-	}, opts)
+	}, opts, func(reply turnReply) error {
+		switch {
+		case reply.finish == "content_filter" || reply.finish == "refusal":
+			return failure("IncompleteResponse")
+		case reply.finish == "length":
+			// A reasoning model can spend the first output allowance before producing a summary.
+			next := min(outputLimit, *req.MaxOutputTokens*2)
+			req.MaxOutputTokens = &next
+			return failure("ProviderProtocolError")
+		case len(reply.text) > 16<<10:
+			return failure("ResponseLimit")
+		case reply.finish != "stop" || len(reply.calls) != 0 || strings.TrimSpace(reply.text) == "":
+			return failure("ProviderProtocolError")
+		default:
+			return nil
+		}
+	})
 	c.calls++
 	if err != nil {
 		return "", err
-	}
-	if reply.finish != "stop" || len(reply.calls) != 0 || strings.TrimSpace(reply.text) == "" || len(reply.text) > 16<<10 {
-		return "", failure("ProviderProtocolError")
 	}
 	return strings.TrimSpace(reply.text), nil
 }
@@ -102,21 +120,27 @@ func (c *runCompaction) completeArticle(ctx context.Context, request ai.ModelReq
 		return first, nil
 	}
 	var page ArticlePage
-	if json.Unmarshal([]byte(first), &page) != nil || page.PageOnly || len(page.Version) != 64 {
+	if json.Unmarshal([]byte(first), &page) != nil || len(page.Version) != 64 {
 		return first, nil
 	}
 	if page.Source != "feed" && page.Source != "original" && page.Source != "summary_only" {
 		return first, nil
 	}
-	source := page.ArticleSource
+	source := ArticleSource{ID: page.ID, Source: page.Source, Version: page.Version}
 	start, total := page.Offset, page.Total
+	if page.PageOnly {
+		if previous, ok := c.incomplete[source]; ok && start <= previous && page.End > previous {
+			c.recordArticleCoverage(source, page.End, total)
+		}
+		return first, nil
+	}
 	if start == total && page.NextCursor == "" {
 		return first, nil
 	}
 	if start < 0 || start >= total || total > maxResultBytes {
 		return "", ErrResultUnavailable
 	}
-	if total-start > maxArticleWorkBytes-c.articleBytes || c.calls >= maxCompressionCalls {
+	if total-start > maxArticleWorkBytes-c.articleBytes {
 		return c.incompleteArticle(source, start, start, total, ""), nil
 	}
 	// Finish batch processing before the turn deadline so the model can still
@@ -141,6 +165,11 @@ func (c *runCompaction) completeArticle(ctx context.Context, request ai.ModelReq
 	summary := ""
 	processed, pendingStart, end := start, start, start
 	rawLimit := min(maxArticleRawBytes, max(0, maxContinuationBytes-resultWireSize(request)-(8<<10)))
+	// An identical automatic read after a failed compression can make progress
+	// through raw pages without resubmitting the same compression request.
+	if previous, exists := c.incomplete[source]; exists && start <= previous {
+		return c.articleCompressionFallback(source, start, start, total, "", page.Text, retainTokens, nil), nil
+	}
 	compressed := total-start > rawLimit || (total-start+2)/3 > retainTokens
 	question := latestQuestion(request)
 	question = question[:fittingText(question, func(s string) bool { return ai.EstimateTokens(s) <= budget/8 })]
@@ -173,7 +202,7 @@ func (c *runCompaction) completeArticle(ctx context.Context, request ai.ModelReq
 			for len(chunks) > 0 && (ai.EstimateTokens(chunks) >= streamLimit || end == total) {
 				length := fittingText(chunks, func(s string) bool { return ai.EstimateTokens(s) <= streamLimit })
 				if length == 0 {
-					return c.incompleteArticle(source, start, processed, total, summary), nil
+					return c.articleCompressionFallback(source, start, processed, total, summary, chunks, retainTokens, failure("ContextWindowExceeded")), nil
 				}
 				material := fmt.Sprintf("用户问题：%s\n文章 %s，来源 %s，本批字节 [%d,%d)。\n此前证据：%s\n本批原文：\n%s",
 					question, source.ID, source.Source, pendingStart, pendingStart+length, summary, chunks[:length])
@@ -183,7 +212,7 @@ func (c *runCompaction) completeArticle(ctx context.Context, request ai.ModelReq
 					if ctx.Err() != nil {
 						return "", ctx.Err()
 					}
-					return c.incompleteArticle(source, start, processed, total, summary), nil
+					return c.articleCompressionFallback(source, start, processed, total, summary, chunks, retainTokens, err), nil
 				}
 				summary = value
 				pendingStart += length
@@ -195,7 +224,7 @@ func (c *runCompaction) completeArticle(ctx context.Context, request ai.ModelReq
 		}
 		if end == total {
 			if last, exists := c.incomplete[source]; exists && start <= last {
-				delete(c.incomplete, source)
+				c.recordArticleCoverage(source, end, total)
 			}
 			if compressed {
 				return marshalResult(map[string]any{"article": source, "coverage": articleCoverage(source, start), "offset": start, "end": end, "total_bytes": total, "summary": summary}), nil
@@ -232,17 +261,67 @@ func marshalResult(value any) string {
 }
 
 func (c *runCompaction) incompleteArticle(source ArticleSource, start, end, total int, summary string) string {
-	if c.incomplete == nil {
-		c.incomplete = make(map[ArticleSource]int)
-	}
-	if last, exists := c.incomplete[source]; !exists || start <= last {
-		c.incomplete[source] = end
-	}
+	c.noteIncompleteArticle(source, start, end)
 	return marshalResult(map[string]any{
 		"error": "ArticleReadIncomplete", "article": source, "coverage": "partial",
 		"offset": start, "end": end, "total_bytes": total, "summary": summary,
-		"instruction": "仅可据已处理范围回答，说明未读完。使用文章 ID、version 及 end 作为 offset 继续。",
+		"instruction": "仅可据已处理范围回答。使用同一个工具、文章 ID 和 version，以 end 作为 offset，并设置 page_only=true 继续读取原文。",
 	})
+}
+
+func (c *runCompaction) noteIncompleteArticle(source ArticleSource, start, end int) {
+	if c.incomplete == nil {
+		c.incomplete = make(map[ArticleSource]int)
+	}
+	if last, exists := c.incomplete[source]; !exists || (start <= last && end > last) {
+		c.incomplete[source] = end
+	}
+}
+
+func (c *runCompaction) recordArticleCoverage(source ArticleSource, end, total int) {
+	if end == total {
+		delete(c.incomplete, source)
+	} else {
+		c.incomplete[source] = end
+	}
+}
+
+func (c *runCompaction) articleCompressionFallback(source ArticleSource, start, end, total int, summary, pending string, retainTokens int, cause error) string {
+	result := map[string]any{
+		"error": "ArticleReadIncomplete", "article": source, "coverage": "partial",
+		"offset": start, "end": end, "total_bytes": total, "summary": summary,
+		"stage":       "compaction",
+		"instruction": "自动压缩未完成。使用同一个工具、文章 ID 和 version，以 end 作为 offset，并设置 page_only=true 继续读取原文。",
+	}
+	if modelErr, ok := cause.(*ai.ModelError); ok {
+		result["cause"] = modelErr.Code
+	}
+	textLength := fittingText(pending, func(chunk string) bool {
+		result["text"] = chunk
+		result["text_offset"] = end
+		result["end"] = end + len(chunk)
+		wire := marshalResult(result)
+		return len(wire) <= ResultPageBytes && ai.EstimateTokens(wire) <= retainTokens
+	})
+	if textLength > 0 {
+		result["text"], result["end"] = pending[:textLength], end+textLength
+	} else {
+		delete(result, "text")
+		delete(result, "text_offset")
+		result["end"] = end
+	}
+	covered := end + textLength
+	if covered == total {
+		if last, exists := c.incomplete[source]; exists && start <= last {
+			delete(c.incomplete, source)
+		}
+		result["coverage"] = articleCoverage(source, start)
+		delete(result, "error")
+		delete(result, "instruction")
+	} else {
+		c.noteIncompleteArticle(source, start, covered)
+	}
+	return marshalResult(result)
 }
 
 func (c *runCompaction) fitToolHistory(ctx context.Context, req *ai.ModelRequest, baseSystem string, previous *string) error {
@@ -272,6 +351,10 @@ func (c *runCompaction) fitToolHistory(ctx context.Context, req *ai.ModelRequest
 		material := marshalResult(req.Messages[start:end])
 		summary, err := c.compressHistoryGroup(ctx, *req, *previous, material)
 		if err != nil {
+			// Compaction is optional while all the original tool history still fits.
+			if ctx.Err() == nil && resultWireSize(*req) <= maxContinuationBytes {
+				return ai.FitForModel(ctx, c.model, req)
+			}
 			return err
 		}
 		*previous = summary
