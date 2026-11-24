@@ -68,6 +68,7 @@ const listSkills = vi.hoisted(() => vi.fn())
 const pendingActions = vi.hoisted(() => vi.fn())
 const decideAction = vi.hoisted(() => vi.fn())
 const toolPermissions = vi.hoisted(() => ({ ToolPermissions: vi.fn(), SaveToolPermission: vi.fn() }))
+const mcpConnections = vi.hoisted(() => ({ MCPClients: vi.fn(), ConnectMCP: vi.fn(), MCPClientLogs: vi.fn() }))
 const mcpGrants = vi.hoisted(() => ({
   Grants: vi.fn().mockResolvedValue([]),
   MCPServer: vi.fn().mockResolvedValue({ url: '', config: { port: 8769, tools: [] } }),
@@ -76,9 +77,10 @@ const mcpGrants = vi.hoisted(() => ({
   RotateGrantToken: vi.fn(),
 }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/appagent/api', () => ({
-  PendingActions: pendingActions, DecideAction: decideAction, PendingQuestions: async () => [], AnswerQuestion: async () => true, ToolList: async () => [], Skills: listSkills, MCPClients: async () => [],
+  PendingActions: pendingActions, DecideAction: decideAction, PendingQuestions: async () => [], AnswerQuestion: async () => true, ToolList: async () => [], Skills: listSkills,
   ...mcpGrants,
   ...toolPermissions,
+  ...mcpConnections,
 }))
 const copyImage = vi.hoisted(() => vi.fn())
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/media/api', () => ({ CopyInlineImage: copyImage }))
@@ -91,6 +93,9 @@ beforeEach(() => {
   decideAction.mockResolvedValue(true)
   toolPermissions.ToolPermissions.mockResolvedValue([])
   toolPermissions.SaveToolPermission.mockResolvedValue(undefined)
+  mcpConnections.MCPClients.mockReset().mockResolvedValue([])
+  mcpConnections.ConnectMCP.mockReset().mockResolvedValue(undefined)
+  mcpConnections.MCPClientLogs.mockReset().mockResolvedValue([])
   notificationAPI.ListChannels.mockResolvedValue([])
   notificationAPI.ListTasks.mockResolvedValue([])
   notificationAPI.ListRuns.mockResolvedValue([])
@@ -282,6 +287,49 @@ describe('Phase 1 阅读 Shell', () => {
     await waitFor(() => expect(section.getByRole('button', { name: '调用权限' })).toHaveTextContent('拒绝'))
     expect(toolPermissions.SaveToolPermission).toHaveBeenLastCalledWith('mcp:two', 'deny')
     expect(stored[1].mode).toBe('')
+  })
+
+  it('编辑 MCP 请求头、高级连接选项及 STDIO 启动日志', async () => {
+    const user = userEvent.setup()
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    await user.click(await screen.findByRole('button', { name: 'MCP 与权限' }))
+    await user.click(await screen.findByRole('button', { name: '添加连接' }))
+    const dialog = within(await screen.findByRole('dialog', { name: '添加 MCP 连接' }))
+    expect(dialog.queryByRole('spinbutton', { name: '连接超时（秒）' })).not.toBeInTheDocument()
+    fireEvent.change(dialog.getByRole('textbox', { name: '连接名称' }), { target: { value: '投资经理' } })
+    fireEvent.change(dialog.getByRole('textbox', { name: 'URL' }), { target: { value: 'http://localhost:8080/mcp' } })
+    await user.click(dialog.getByRole('button', { name: '高级设置' }))
+    expect(dialog.queryByRole('switch', { name: 'TLS 证书验证' })).not.toBeInTheDocument()
+    fireEvent.change(dialog.getByRole('textbox', { name: 'URL' }), { target: { value: '${MCP_URL}' } })
+    expect(dialog.getByRole('switch', { name: 'TLS 证书验证' })).toBeChecked()
+    await user.click(dialog.getByRole('button', { name: '添加请求头' }))
+    fireEvent.change(dialog.getByLabelText('请求头名称 1'), { target: { value: 'Authorization' } })
+    fireEvent.change(dialog.getByLabelText('请求头值 1'), { target: { value: 'Bearer ${MCP_KEY}' } })
+    fireEvent.change(dialog.getByRole('spinbutton', { name: '连接重试次数' }), { target: { value: '0' } })
+    await user.click(dialog.getByRole('button', { name: '连接' }))
+    await waitFor(() => expect(mcpConnections.ConnectMCP).toHaveBeenCalledWith(expect.objectContaining({
+      name: '投资经理', endpoint: '${MCP_URL}', connectionRetries: 0, newConnection: true,
+      headers: [{ name: 'Authorization', value: 'Bearer ${MCP_KEY}', stored: false }],
+    })))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '添加 MCP 连接' })).not.toBeInTheDocument())
+
+    mcpConnections.ConnectMCP.mockRejectedValueOnce(new Error('MCPConnectionFailed'))
+    mcpConnections.MCPClientLogs.mockResolvedValue([{ time: '2026-11-24T12:00:00Z', source: 'stderr', message: '测试进程退出' }])
+    await user.click(screen.getByRole('button', { name: '添加连接' }))
+    const stdio = within(await screen.findByRole('dialog', { name: '添加 MCP 连接' }))
+    await user.click(stdio.getByRole('button', { name: '传输方式' }))
+    await user.click(screen.getByRole('option', { name: 'STDIO' }))
+    fireEvent.change(stdio.getByRole('textbox', { name: '连接名称' }), { target: { value: '启动测试' } })
+    fireEvent.change(stdio.getByRole('textbox', { name: '命令' }), { target: { value: 'test-command' } })
+    fireEvent.change(stdio.getByRole('textbox', { name: '工作目录' }), { target: { value: '${MCP_DIR}' } })
+    await user.click(stdio.getByRole('button', { name: '连接' }))
+    await stdio.findByText('无法连接 MCP 服务，请检查连接配置。')
+    await user.click(stdio.getByRole('button', { name: '查看启动日志' }))
+    expect(await stdio.findByText(/测试进程退出/u)).toBeInTheDocument()
+    const attempt = mcpConnections.ConnectMCP.mock.lastCall?.[0].attemptId
+    expect(attempt).toMatch(/^[a-f0-9]{32}$/u)
+    expect(mcpConnections.MCPClientLogs).toHaveBeenCalledWith(attempt, true)
   })
 
   it('从 AI 侧栏管理定时任务，返回后保留聊天草稿', async () => {

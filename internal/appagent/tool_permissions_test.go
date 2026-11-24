@@ -116,6 +116,11 @@ func TestExternalToolPermissionsAreScopedToConnectionAndTarget(t *testing.T) {
 		t.Fatalf("same-name tool identities: %+v %v", catalog, err)
 	}
 	alphaID, betaID := catalog[1].ID, catalog[2].ID
+	clients, err := platform.MCPClients()
+	if err != nil || len(clients) != 2 {
+		t.Fatalf("clients: %+v %v", clients, err)
+	}
+	betaWire := clientToolName(clients[1].ID, "lookup", "tool")
 	if err := platform.SaveToolPermission(alphaID, "bypass"); err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +138,7 @@ func TestExternalToolPermissionsAreScopedToConnectionAndTarget(t *testing.T) {
 	ctx := customToolContext(t, platform)
 	for _, tool := range platform.ChatTools("chat") {
 		result, err := tool.Read(ctx, ai.ToolCall{ArgumentsJSON: "{}"})
-		if err != nil || strings.Contains(result, "PermissionDenied") != strings.HasPrefix(tool.Definition.Name, "mcp_beta_") {
+		if err != nil || strings.Contains(result, "PermissionDenied") != (tool.Definition.Name == betaWire) {
 			t.Fatalf("wrong decision for %s: %s %v", tool.Definition.Name, result, err)
 		}
 	}

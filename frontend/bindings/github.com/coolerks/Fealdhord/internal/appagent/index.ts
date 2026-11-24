@@ -10,6 +10,8 @@ export type {
     AuditEntry,
     ClientConfig,
     ClientStatus,
+    ClientValue,
+    MCPClientLog,
     MCPGrant,
     MCPScope,
     PendingAction,

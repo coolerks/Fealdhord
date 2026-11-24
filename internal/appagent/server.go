@@ -100,6 +100,9 @@ type Platform struct {
 	credentials    aiconfig.CredentialStore
 	clientEdit     sync.Mutex
 	permissionEdit sync.Mutex
+	clientLogs     map[string]*clientLogBuffer
+	clientAttempts map[string]*clientLogBuffer
+	attemptOrder   []string
 }
 
 func NewPlatform(registry *Registry, dir string) *Platform {

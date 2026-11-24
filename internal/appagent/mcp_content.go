@@ -17,11 +17,13 @@ func (c *clientConnection) contentTools(connection string) []Tool {
 		type resourceArgs struct {
 			URI string `json:"uri" jsonschema:"required,description=已发现的资源 URI"`
 		}
-		Register(r, clientToolName(connection, "read_resource", "resource"), "读取 MCP "+connection+" 提供的文本资源", true,
+		Register(r, clientToolName(c.status.ID, "read_resource", "resource"), "读取 MCP "+connection+" 提供的文本资源", true,
 			func(ctx context.Context, input resourceArgs) any {
 				if !slices.Contains(c.status.Resources, input.URI) {
 					return map[string]string{"error": "ResourceNotFound"}
 				}
+				ctx, cancel := toolDeadline(ctx, c.target.ToolTimeout)
+				defer cancel()
 				output, err := c.session.ReadResource(ctx, &mcp.ReadResourceParams{URI: input.URI})
 				if err != nil || output.NeedsInput() {
 					return map[string]string{"error": "MCPResourceUnavailable"}
@@ -34,7 +36,7 @@ func (c *clientConnection) contentTools(connection string) []Tool {
 				}
 				return map[string]any{"source": input.URI, "text": texts}
 			})
-		r.tools[len(r.tools)-1].permissionID = externalToolPermissionID(c.status.Config, "resource", "read_resource")
+		r.tools[len(r.tools)-1].permissionID = externalToolPermissionID(c.target, "resource", "read_resource")
 		r.tools[len(r.tools)-1].externalName = "读取资源"
 	}
 	if len(c.status.Prompts) > 0 {
@@ -42,11 +44,13 @@ func (c *clientConnection) contentTools(connection string) []Tool {
 			Name      string            `json:"name" jsonschema:"required"`
 			Arguments map[string]string `json:"arguments,omitempty"`
 		}
-		Register(r, clientToolName(connection, "get_prompt", "prompt"), "获取 MCP "+connection+" 的提示词模板文本", true,
+		Register(r, clientToolName(c.status.ID, "get_prompt", "prompt"), "获取 MCP "+connection+" 的提示词模板文本", true,
 			func(ctx context.Context, input promptArgs) any {
 				if !slices.Contains(c.status.Prompts, input.Name) || len(input.Arguments) > 16 {
 					return map[string]string{"error": "PromptNotFound"}
 				}
+				ctx, cancel := toolDeadline(ctx, c.target.ToolTimeout)
+				defer cancel()
 				output, err := c.session.GetPrompt(ctx, &mcp.GetPromptParams{Name: input.Name, Arguments: input.Arguments})
 				if err != nil || output.NeedsInput() {
 					return map[string]string{"error": "MCPPromptUnavailable"}
@@ -59,7 +63,7 @@ func (c *clientConnection) contentTools(connection string) []Tool {
 				}
 				return map[string]any{"source": input.Name, "text": texts}
 			})
-		r.tools[len(r.tools)-1].permissionID = externalToolPermissionID(c.status.Config, "prompt", "get_prompt")
+		r.tools[len(r.tools)-1].permissionID = externalToolPermissionID(c.target, "prompt", "get_prompt")
 		r.tools[len(r.tools)-1].externalName = "获取提示词"
 	}
 	return r.tools

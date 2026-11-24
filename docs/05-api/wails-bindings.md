@@ -10,6 +10,10 @@
 
 `API.ToolPermissions()` 返回工具规则目录，字段为 `id`、`name`、`connection?`、`available`、`requiresApproval` 和 `mode`。`API.SaveToolPermission(id, mode)` 以目录返回的 ID 保存 `ask`、`deny`、`bypass`。传空字符串恢复工具默认行为，也可清除暂时不可用的工具记录。未知工具写入显式规则返回 `UnknownTool`。
 
+`API.ConnectMCP(config)` 验证并连接 STDIO 或 Streamable HTTP。编辑须提交 `MCPClients()` 返回的稳定 `id`，添加表单使用 `newConnection=true`。保存成功后返回 `ClientStatus` 和工具、资源及提示词目录；状态不会回传字面凭据。请求头和环境变量条目包含 `name`、`value?`、`stored?`，已保存条目在 `stored=true` 且 `value` 为空时保留原值，移除条目可清除。代理密码通过 `proxyPasswordSet` 区分保留与清除。`API.DisconnectMCP(id)` 和 `API.ForgetMCP(id)` 使用连接标识。
+
+`API.MCPClientLogs(id, attempt)` 返回 STDIO 的近期日志，条目含 `time`、`source`、`level?` 和 `message`。查询失败启动时使用实际提交过的临时 `attemptId` 且令 `attempt=true`，其他情况使用稳定连接 ID。日志保留在内存中。
+
 ## 1. 范围与触发条件
 
 React → Go 服务的所有交互。以下为折栈逻辑 API，实际 Wails 生成语法和文件路径在 Phase 0 最小实验确认；不能把本节示意当成现成绑定。

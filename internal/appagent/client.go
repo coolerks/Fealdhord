@@ -2,38 +2,26 @@ package appagent
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
-	"net/netip"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/coolerks/Fealdhord/internal/agentrun"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/zalando/go-keyring"
 )
 
 const maxMCPClientSettings = 512 << 10
 
-var clientName = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,32}$`)
-
-type ClientConfig struct {
-	Name     string   `json:"name"`
-	Endpoint string   `json:"endpoint"`
-	Command  string   `json:"command"`
-	Args     []string `json:"args"`
-	Bearer   string   `json:"bearer,omitempty"`
-}
 type ClientStatus struct {
+	ID        string       `json:"id"`
 	Name      string       `json:"name"`
 	Tools     []string     `json:"tools"`
 	Resources []string     `json:"resources"`
@@ -55,6 +43,7 @@ type clientConnection struct {
 	session *mcp.ClientSession
 	tools   []*mcp.Tool
 	status  ClientStatus
+	target  ClientConfig
 }
 
 func (a *Platform) ConnectMCP(ctx context.Context, config ClientConfig) (ClientStatus, error) {
@@ -64,101 +53,95 @@ func (a *Platform) ConnectMCP(ctx context.Context, config ClientConfig) (ClientS
 }
 
 func (a *Platform) connectMCP(ctx context.Context, config ClientConfig) (ClientStatus, error) {
-	if !clientName.MatchString(config.Name) || len(config.Bearer) > 4096 || strings.ContainsAny(config.Bearer, "\r\n") ||
-		(config.Command == "") == (config.Endpoint == "") {
-		return ClientStatus{}, errors.New("InvalidClientSettings")
+	if err := config.validate(); err != nil {
+		return ClientStatus{}, err
 	}
 	values, err := a.savedClients()
 	if err != nil {
 		return ClientStatus{}, err
 	}
-	previous, exists := values[config.Name]
+	// Older desktop callers reconnect by name; newer callers send the stable ID.
+	requestedID := config.ID
+	if config.ID == "" {
+		for id, saved := range values {
+			if !config.NewConnection && saved.Name == config.Name {
+				config.ID = id
+				break
+			}
+		}
+		if config.ID == "" {
+			if len(values) >= 32 {
+				return ClientStatus{}, errors.New("TooManyClients")
+			}
+			config.ID = "mcp-" + rand.Text()
+		}
+	}
+	previous, exists := values[config.ID]
+	if requestedID != "" && !exists {
+		return ClientStatus{}, errors.New("MCPClientNotFound")
+	}
 	if !exists && len(values) >= 32 {
 		return ClientStatus{}, errors.New("TooManyClients")
 	}
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-	var transport mcp.Transport
-	bearer := config.Bearer
-	if bearer == "" && config.Endpoint != "" {
-		if exists && previous.Endpoint == config.Endpoint {
-			bearer, _ = a.credentials.Get(clientCredentialRef(config))
+	for id, saved := range values {
+		if id != config.ID && strings.EqualFold(saved.Name, config.Name) {
+			return ClientStatus{}, errors.New("MCPClientNameExists")
 		}
 	}
-	if config.Command != "" {
-		transport = &mcp.CommandTransport{Command: exec.Command(config.Command, config.Args...)}
-	} else {
-		endpoint, err := safeEndpoint(config.Endpoint)
-		if err != nil {
-			return ClientStatus{}, err
-		}
-		if endpoint.Scheme == "http" && bearer != "" && endpoint.Hostname() != "localhost" {
-			ip, err := netip.ParseAddr(endpoint.Hostname())
-			if err != nil || (!ip.IsPrivate() && !ip.IsLoopback()) {
-				return ClientStatus{}, errors.New("HTTPSRequiredForCredential")
-			}
-		}
-		transport = &mcp.StreamableClientTransport{Endpoint: endpoint.String(), HTTPClient: &http.Client{
-			Transport:     bearerTransport{token: bearer},
-			CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
-		}, MaxRetries: -1}
-	}
-	client := mcp.NewClient(&mcp.Implementation{Name: "Fealdhord", Version: "1"}, nil)
-	session, err := client.Connect(ctx, transport, nil)
+	secrets, err := a.resolveClientSecrets(config, previous)
 	if err != nil {
-		return ClientStatus{}, errors.New("MCPConnectionFailed")
-	}
-	status := ClientStatus{Name: config.Name, Connected: true, Tools: []string{}, Resources: []string{}, Prompts: []string{}}
-	conn := &clientConnection{session: session, status: status}
-	if capabilities := session.InitializeResult().Capabilities; capabilities != nil {
-		if capabilities.Tools != nil {
-			for tool, err := range session.Tools(ctx, nil) {
-				if err != nil {
-					_ = session.Close()
-					return ClientStatus{}, errors.New("MCPDiscoveryFailed")
-				}
-				if len(conn.tools) >= 32 {
-					break
-				}
-				conn.tools = append(conn.tools, tool)
-				conn.status.Tools = append(conn.status.Tools, tool.Name)
-			}
-		}
-		if capabilities.Resources != nil {
-			for item, err := range session.Resources(ctx, nil) {
-				if err != nil || len(conn.status.Resources) >= 64 {
-					break
-				}
-				conn.status.Resources = append(conn.status.Resources, item.URI)
-			}
-		}
-		if capabilities.Prompts != nil {
-			for item, err := range session.Prompts(ctx, nil) {
-				if err != nil || len(conn.status.Prompts) >= 32 {
-					break
-				}
-				conn.status.Prompts = append(conn.status.Prompts, item.Name)
-			}
-		}
-	}
-	if err := a.persistClient(config, values); err != nil {
-		_ = session.Close()
 		return ClientStatus{}, err
 	}
-	config.Bearer = ""
-	conn.status.Config = config
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if previous := a.clients[config.Name]; previous != nil {
-		_ = previous.session.Close()
+	effective, expanded, err := expandClientConfig(config, secrets)
+	if err != nil {
+		return ClientStatus{}, err
 	}
-	a.clients[config.Name] = conn
+	var log *clientLogBuffer
+	if config.Command != "" {
+		log = newClientLogBuffer(expanded, effective.logSecrets...)
+		a.registerClientAttempt(config.AttemptID, log)
+	}
+	conn, err := openMCPClient(ctx, effective, expanded, log)
+	if err != nil {
+		if log != nil {
+			log.finish()
+			log.add("client", "error", err.Error())
+		}
+		return ClientStatus{}, err
+	}
+	if err := a.persistClientSecrets(config, values, secrets); err != nil {
+		_ = conn.session.Close()
+		if log != nil {
+			log.finish()
+			log.add("client", "error", err.Error())
+		}
+		return ClientStatus{}, err
+	}
+	conn.status.Config = values[config.ID].public()
+	a.mu.Lock()
+	online := a.clients[config.ID]
+	a.clients[config.ID] = conn
+	if log != nil {
+		if a.clientLogs == nil {
+			a.clientLogs = make(map[string]*clientLogBuffer)
+		}
+		a.clientLogs[config.ID] = log
+	} else {
+		delete(a.clientLogs, config.ID)
+	}
+	a.mu.Unlock()
+	if online != nil {
+		_ = online.session.Close()
+	}
 	go func() {
-		_ = session.Wait()
+		_ = conn.session.Wait()
+		if log != nil {
+			log.finish()
+		}
 		a.mu.Lock()
 		defer a.mu.Unlock()
-		if a.clients[config.Name] == conn {
-			delete(a.clients, config.Name)
+		if a.clients[config.ID] == conn {
+			delete(a.clients, config.ID)
 		}
 	}()
 	return conn.status, nil
@@ -172,9 +155,9 @@ func (a *Platform) MCPClients() ([]ClientStatus, error) {
 		return nil, err
 	}
 	values := make([]ClientStatus, 0, len(a.clients)+len(settings))
-	for name, config := range settings {
-		if a.clients[name] == nil {
-			values = append(values, ClientStatus{Name: name, Config: config})
+	for id, config := range settings {
+		if a.clients[id] == nil {
+			values = append(values, ClientStatus{ID: id, Name: config.Name, Config: config.public()})
 		}
 	}
 	for _, conn := range a.clients {
@@ -207,55 +190,126 @@ func (a *Platform) savedClients() (map[string]ClientConfig, error) {
 	if err != nil || len(data) > maxMCPClientSettings || json.Unmarshal(data, &values) != nil || values == nil {
 		return nil, failure
 	}
+	for id, config := range values {
+		if config.ID != "" && config.ID != id || !clientIDPattern.MatchString(id) || !validClientName(config.Name) {
+			return nil, failure
+		}
+		config.legacy = config.ID == ""
+		config.ID = id
+		config.defaults()
+		values[id] = config
+	}
 	return values, nil
 }
 
-func (a *Platform) persistClient(config ClientConfig, values map[string]ClientConfig) error {
-	previous, exists := values[config.Name]
-	ref := clientCredentialRef(config)
-	bearer := config.Bearer
-	config.Bearer = ""
-	values[config.Name] = config
+func (a *Platform) resolveClientSecrets(config, previous ClientConfig) (clientSecrets, error) {
+	var secrets clientSecrets
+	var saved clientSecrets
+	if config.Endpoint != "" && config.Endpoint == previous.Endpoint || config.Command != "" && config.Command == previous.Command {
+		var err error
+		saved, err = a.loadClientSecrets(previous)
+		if err != nil {
+			return secrets, err
+		}
+	}
+	var err error
+	secrets.Environment, err = clientValues(config.Environment, saved.Environment, false)
+	if err != nil {
+		return secrets, err
+	}
+	secrets.Headers, err = clientValues(config.Headers, saved.Headers, true)
+	if err != nil {
+		return secrets, err
+	}
+	secrets.Bearer = config.Bearer
+	if secrets.Bearer == "" {
+		secrets.Bearer = saved.Bearer
+	}
+	if secrets.Bearer != "" {
+		if _, explicit := secrets.Headers["Authorization"]; !explicit {
+			secrets.Headers["Authorization"] = "Bearer " + secrets.Bearer
+		}
+		secrets.Bearer = ""
+	}
+	secrets.ProxyPassword = config.ProxyPassword
+	if secrets.ProxyPassword == "" && config.ProxyPasswordSet {
+		if config.ProxyHost != previous.ProxyHost || config.ProxyPort != previous.ProxyPort || saved.ProxyPassword == "" {
+			return secrets, errors.New("ClientCredentialUnavailable")
+		}
+		secrets.ProxyPassword = saved.ProxyPassword
+	}
+	return secrets, nil
+}
+
+func (a *Platform) persistClientSecrets(config ClientConfig, values map[string]ClientConfig, secrets clientSecrets) error {
+	id := config.identity()
+	previous := values[id]
+	config = config.public()
+	config.Environment = storedClientValues(secrets.Environment)
+	config.Headers = storedClientValues(secrets.Headers)
+	config.ProxyPasswordSet = secrets.ProxyPassword != ""
+	var parts []string
+	if len(secrets.Environment)+len(secrets.Headers) > 0 || secrets.ProxyPassword != "" || secrets.Bearer != "" {
+		var err error
+		parts, err = encodeClientSecrets(secrets)
+		if err != nil {
+			return err
+		}
+		config.SecretRef = "mcp-client-config:" + id + ":" + rand.Text()
+		config.SecretParts = len(parts)
+	}
+	values[id] = config
 	data, err := json.Marshal(values)
 	if err != nil || len(data) > maxMCPClientSettings {
 		return errors.New("ClientSettingsTooLarge")
 	}
-	var previousBearer string
-	if bearer != "" {
-		if exists && previous.Endpoint == config.Endpoint {
-			previousBearer, err = a.credentials.Get(ref)
-			if err != nil && !errors.Is(err, keyring.ErrNotFound) {
-				return errors.New("CredentialError")
-			}
-		}
-		if err := a.credentials.Set(ref, bearer); err != nil {
+	for index, part := range parts {
+		if a.credentials.Set(clientSecretPart(config.SecretRef, index), part) != nil {
+			a.deleteClientSecrets(config)
 			return errors.New("CredentialError")
 		}
 	}
 	if err := atomicFile(a.dir, "mcp-clients.json", data); err != nil {
-		if bearer != "" {
-			if previousBearer == "" {
-				_ = a.credentials.Delete(ref)
-			} else if a.credentials.Set(ref, previousBearer) != nil {
-				return errors.New("CredentialRestoreError")
-			}
+		if config.SecretRef != "" {
+			a.deleteClientSecrets(config)
 		}
 		return errors.New("StorageError")
 	}
-	if exists && previous.Endpoint != config.Endpoint {
-		_ = a.credentials.Delete(clientCredentialRef(previous))
-	}
+	a.deleteClientSecrets(previous)
 	return nil
+}
+
+func storedClientValues(values map[string]string) []ClientValue {
+	var fields []ClientValue
+	for name, value := range values {
+		field := ClientValue{Name: name, Stored: true}
+		if value != "" && envReference.FindString(value) == value {
+			field.Value = value
+		}
+		fields = append(fields, field)
+	}
+	slices.SortFunc(fields, func(a, b ClientValue) int { return strings.Compare(a.Name, b.Name) })
+	return fields
+}
+
+func (a *Platform) deleteClientSecrets(config ClientConfig) {
+	if config.SecretRef != "" {
+		for index := range min(config.SecretParts, maxClientSecretParts) {
+			_ = a.credentials.Delete(clientSecretPart(config.SecretRef, index))
+		}
+	} else if config.Endpoint != "" {
+		_ = a.credentials.Delete(clientCredentialRef(config))
+	}
 }
 
 func clientCredentialRef(config ClientConfig) string {
 	digest := sha256.Sum256([]byte(config.Endpoint))
-	return "mcp-client:" + config.Name + ":" + hex.EncodeToString(digest[:])
+	return "mcp-client:" + config.identity() + ":" + hex.EncodeToString(digest[:])
 }
 
-func (a *Platform) ForgetMCP(name string) error {
-	if !clientName.MatchString(name) {
-		return errors.New("InvalidClientSettings")
+func (a *Platform) ForgetMCP(id string) error {
+	if !clientIDPattern.MatchString(id) && !validClientName(id) {
+		return errClientConfig
 	}
 	a.clientEdit.Lock()
 	defer a.clientEdit.Unlock()
@@ -263,23 +317,47 @@ func (a *Platform) ForgetMCP(name string) error {
 	if err != nil {
 		return err
 	}
-	previous, exists := values[name]
-	delete(values, name)
+	if _, ok := values[id]; !ok {
+		for key, config := range values {
+			if config.Name == id {
+				id = key
+				break
+			}
+		}
+	}
+	previous := values[id]
+	delete(values, id)
 	if err := atomicJSON(a.dir, "mcp-clients.json", values); err != nil {
 		return errors.New("StorageError")
 	}
-	a.DisconnectMCP(name)
-	if exists {
-		_ = a.credentials.Delete(clientCredentialRef(previous))
-	}
+	a.disconnectMCP(id)
+	a.mu.Lock()
+	delete(a.clientLogs, id)
+	a.mu.Unlock()
+	a.deleteClientSecrets(previous)
 	return nil
 }
 
-func (a *Platform) DisconnectMCP(name string) {
+func (a *Platform) DisconnectMCP(id string) {
+	a.clientEdit.Lock()
+	defer a.clientEdit.Unlock()
+	a.disconnectMCP(id)
+}
+
+func (a *Platform) disconnectMCP(id string) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	if conn := a.clients[name]; conn != nil {
-		delete(a.clients, name)
+	conn := a.clients[id]
+	if conn == nil {
+		for key, candidate := range a.clients {
+			if candidate.status.Name == id {
+				id, conn = key, candidate
+				break
+			}
+		}
+	}
+	delete(a.clients, id)
+	a.mu.Unlock()
+	if conn != nil {
 		_ = conn.session.Close()
 	}
 }
@@ -297,7 +375,7 @@ func (a *Platform) ChatTools(id string) []agentrun.ReadTool {
 }
 
 func (c *clientConnection) chatTools() []Tool {
-	name := c.status.Name
+	id := c.status.ID
 	tools := make([]Tool, 0, len(c.tools)+2)
 	for _, external := range c.tools {
 		schema, err := json.Marshal(external.InputSchema)
@@ -305,10 +383,12 @@ func (c *clientConnection) chatTools() []Tool {
 			continue
 		}
 		tools = append(tools, Tool{
-			Name: clientToolName(name, external.Name, "tool"), Description: external.Description,
-			permissionID: externalToolPermissionID(c.status.Config, "tool", external.Name),
+			Name: clientToolName(id, external.Name, "tool"), Description: external.Description,
+			permissionID: externalToolPermissionID(c.target, "tool", external.Name),
 			externalName: external.Name, RequiresApproval: true, schema: schema,
 			invoke: func(ctx context.Context, args json.RawMessage) (any, error) {
+				ctx, cancel := toolDeadline(ctx, c.target.ToolTimeout)
+				defer cancel()
 				result, err := c.session.CallTool(ctx, &mcp.CallToolParams{Name: external.Name, Arguments: args})
 				if err != nil {
 					return nil, errors.New("MCPResultUnknown")
@@ -320,7 +400,7 @@ func (c *clientConnection) chatTools() []Tool {
 			},
 		})
 	}
-	return append(tools, c.contentTools(name)...)
+	return append(tools, c.contentTools(c.status.Name)...)
 }
 
 func clientToolName(connection, name, kind string) string {

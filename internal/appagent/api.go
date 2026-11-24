@@ -69,3 +69,7 @@ func (a *API) RecentAudit() []AuditEntry { return a.platform.registry.RecentAudi
 func (a *API) SaveSkillPackage(input Skill) (Skill, error) {
 	return a.platform.saveSkillResources(input.Markdown, input.Enabled, input.Resources)
 }
+
+func (a *API) MCPClientLogs(id string, attempt bool) []MCPClientLog {
+	return a.platform.MCPClientLogs(id, attempt)
+}

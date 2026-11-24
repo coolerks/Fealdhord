@@ -46,6 +46,10 @@ export function ImportSkill(): $CancellablePromise<$models.Skill> {
     return $Call.ByID(3099533909);
 }
 
+export function MCPClientLogs(id: string, attempt: boolean): $CancellablePromise<$models.MCPClientLog[] | null> {
+    return $Call.ByID(3198391091, id, attempt);
+}
+
 export function MCPClients(): $CancellablePromise<$models.ClientStatus[] | null> {
     return $Call.ByID(2685091385);
 }

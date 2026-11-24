@@ -551,7 +551,7 @@ func TestMCPClientSettingsRejectUnreadableAndOversizedChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	large := ClientConfig{Name: "large", Command: "test", Args: []string{strings.Repeat("x", maxMCPClientSettings)}}
-	if err := p.persistClient(large, values); err == nil || err.Error() != "ClientSettingsTooLarge" {
+	if err := p.persistClientSecrets(large, values, clientSecrets{}); err == nil || err.Error() != "ClientSettingsTooLarge" {
 		t.Fatalf("oversized settings write: %v", err)
 	}
 	clients, err := p.MCPClients()
@@ -569,7 +569,7 @@ func TestMCPClientSettingsRejectUnreadableAndOversizedChanges(t *testing.T) {
 	}
 	prior.Bearer = "new-key"
 	delete(values, "large")
-	if err := p.persistClient(prior, values); err == nil || credentials[ref] != "old-key" {
+	if err := p.persistClientSecrets(prior, values, clientSecrets{Bearer: prior.Bearer}); err == nil || credentials[ref] != "old-key" {
 		t.Fatalf("failed save should preserve old credential: %v", err)
 	}
 }

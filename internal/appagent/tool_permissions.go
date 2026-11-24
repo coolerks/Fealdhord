@@ -40,7 +40,9 @@ func externalToolPermissionID(config ClientConfig, kind, name string) string {
 	identity, _ := json.Marshal(struct {
 		Connection, Endpoint, Command, Kind, Name string
 		Args                                      []string `json:",omitempty"`
-	}{config.Name, config.Endpoint, config.Command, kind, name, config.Args})
+
+		WorkingDirectory string `json:",omitempty"`
+	}{config.identity(), config.Endpoint, config.Command, kind, name, config.Args, config.WorkingDirectory})
 	sum := sha256.Sum256(identity)
 	return "mcp:" + hex.EncodeToString(sum[:])
 }
@@ -103,9 +105,9 @@ func (a *Platform) availableToolPermissions() map[string]ToolPermission {
 	add(agentrun.AuthorizedArticleTool, "", Tool{Name: agentrun.AuthorizedArticleTool})
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	for name, conn := range a.clients {
+	for _, conn := range a.clients {
 		for _, tool := range conn.chatTools() {
-			add(tool.externalName, name, tool)
+			add(tool.externalName, conn.status.Name, tool)
 		}
 	}
 	return tools

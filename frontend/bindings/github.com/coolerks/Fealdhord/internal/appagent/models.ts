@@ -10,20 +10,53 @@ export interface AuditEntry {
 }
 
 export interface ClientConfig {
+    "id"?: string;
     "name": string;
     "endpoint": string;
     "command": string;
     "args": string[] | null;
+    "environment"?: ClientValue[] | null;
+    "workingDirectory"?: string;
+    "headers"?: ClientValue[] | null;
+    "startupTimeout"?: number;
+    "connectionTimeout"?: number;
+    "toolTimeout"?: number;
+    "logLevel"?: string;
+    "proxyHost"?: string;
+    "proxyPort"?: string;
+    "proxyUsername"?: string;
+    "proxyPassword"?: string;
+    "proxyPasswordSet"?: boolean;
+    "skipTLSVerify"?: boolean;
+    "connectionRetries"?: number | null;
     "bearer"?: string;
+    "attemptId"?: string;
+    "newConnection"?: boolean;
+    "secretRef"?: string;
+    "secretParts"?: number;
 }
 
 export interface ClientStatus {
+    "id": string;
     "name": string;
     "tools": string[] | null;
     "resources": string[] | null;
     "prompts": string[] | null;
     "connected": boolean;
     "config": ClientConfig;
+}
+
+export interface ClientValue {
+    "name": string;
+    "value"?: string;
+    "stored"?: boolean;
+}
+
+export interface MCPClientLog {
+    "time": string;
+    "source": string;
+    "level"?: string;
+    "message": string;
 }
 
 export interface MCPGrant {

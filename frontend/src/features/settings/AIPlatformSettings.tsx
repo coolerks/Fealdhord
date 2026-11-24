@@ -13,6 +13,8 @@ import { navigationAPI, navigationQueryKey } from '@/lib/navigation-api'
 import { notify } from '@/lib/notifications'
 import { ConfirmDialog, SettingCard, SettingEmpty, SettingRow, SettingSection, StatusBadge } from './settings-primitives'
 import { getToolMeta } from '@/features/chat/tool-meta'
+import { MCPClientEditor, MCPClientLogDialog, MCPToolList, newClientLogAttempt } from './MCPClientEditor'
+import type { ClientLogTarget } from './MCPClientEditor'
 import { approvalModes } from '@/features/chat/approval-options'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/api'
 import type { ClientConfig, MCPGrant, ServerConfig, Skill, Tool } from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/models'
@@ -135,7 +137,30 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 }
 
 type GrantDraft = { name: string; tools: string[]; scope: string; editing: boolean }
-type ClientDraft = { config: ClientConfig; kind: 'http' | 'stdio'; args: string; editing: boolean }
+type ClientDraft = { config: ClientConfig; editing: boolean }
+
+const connectionErrors: Record<string, string> = {
+  InvalidClientSettings: '连接配置有误，请检查名称和各字段。',
+  InvalidEndpoint: '请输入有效的 HTTP 或 HTTPS 地址。',
+  InvalidMCPProxy: '请检查代理地址、端口和登录信息。',
+  HTTPSRequiredForCredential: '此地址需要使用 HTTPS 才能发送凭据。',
+  MCPClientNameExists: '已有同名连接，请更换名称。',
+  MCPClientNotFound: '此连接已移除，请重新添加。',
+  MCPConnectionFailed: '无法连接 MCP 服务，请检查连接配置。',
+  MCPConnectionTimeout: 'MCP 连接超时。',
+  MCPDiscoveryFailed: '无法读取 MCP 工具目录。',
+  MCPInvalidToolCatalog: 'MCP 服务返回了无效的工具分页。',
+  MCPToolCatalogLimit: '工具目录超出容量，连接未更新。',
+  ClientCredentialUnavailable: '已保存的凭据不可用，请重新输入。',
+  CredentialError: '无法访问系统凭据库。',
+}
+
+function clientConnectionError(error: unknown) {
+  const code = error instanceof Error ? error.message : ''
+  const missing = /^MissingEnvironmentVariable: ([A-Za-z_][A-Za-z0-9_]*)$/u.exec(code)
+  return missing ? `系统环境变量 ${missing[1]} 未设置。`
+    : connectionErrors[code] ?? '无法保存 MCP 连接，请检查配置后重试。'
+}
 
 export function MCPSettings() {
   const cache = useQueryClient()
@@ -153,7 +178,10 @@ export function MCPSettings() {
   const [revokingGrant, setRevokingGrant] = useState<MCPGrant | null>(null)
   const [rotatingGrant, setRotatingGrant] = useState<MCPGrant | null>(null)
   const [clientEditor, setClientEditor] = useState<ClientDraft | null>(null)
-  const [forgettingClient, setForgettingClient] = useState<string | null>(null)
+  const [connecting, setConnecting] = useState(false)
+  const [connectError, setConnectError] = useState<string>()
+  const [forgettingClient, setForgettingClient] = useState<{ id: string; name: string } | null>(null)
+  const [clientLog, setClientLog] = useState<ClientLogTarget | null>(null)
   const [expandedClients, setExpandedClients] = useState<Set<string>>(() => new Set())
 
   const scopeOptions = [
@@ -168,7 +196,7 @@ export function MCPSettings() {
   })
 
   const config = draft ?? server.data?.config
-  const busy = mutation.isPending
+  const busy = mutation.isPending || connecting
   const errorCode = mutation.error?.message
   const mutationError = errorCode === 'ClientGrantExists' ? '该名称已有客户端授权，请更换名称或编辑现有授权。'
     : errorCode === 'ClientGrantNotFound' ? '该客户端授权已不存在。'
@@ -194,6 +222,25 @@ export function MCPSettings() {
       else next.add(name)
       return next
     })
+  }
+
+  function closeClientEditor() {
+    setClientEditor(null)
+    setConnectError(undefined)
+  }
+
+  async function connectClient(next: ClientConfig) {
+    setConnecting(true)
+    setConnectError(undefined)
+    try {
+      await api.ConnectMCP(next)
+      closeClientEditor()
+      await cache.invalidateQueries({ queryKey: platformKey })
+    } catch (error) {
+      setConnectError(clientConnectionError(error))
+    } finally {
+      setConnecting(false)
+    }
   }
 
   return <div className="space-y-6">
@@ -366,7 +413,7 @@ export function MCPSettings() {
       actions={
         <Button size="sm" variant="outline" disabled={busy} onClick={() => {
           mutation.reset()
-          setClientEditor({ config: newClient, kind: 'http', args: '', editing: false })
+          setClientEditor({ config: newClient, editing: false })
         }}>
           <AnimatedGlyph meaning="plus" />添加连接
         </Button>
@@ -380,14 +427,14 @@ export function MCPSettings() {
           const resourceCount = item.resources?.length ?? 0
           const promptCount = item.prompts?.length ?? 0
           const hasDetails = toolCount > 0 || resourceCount > 0 || promptCount > 0
-          const expanded = expandedClients.has(item.name)
+          const expanded = expandedClients.has(item.id)
           const summaryParts = [
             toolCount > 0 ? `${toolCount} 项工具` : '',
             resourceCount > 0 ? `${resourceCount} 项资源` : '',
             promptCount > 0 ? `${promptCount} 项提示词` : '',
           ].filter(Boolean)
           return (
-            <div key={item.name} className="space-y-2 px-3.5 py-2.5">
+            <div key={item.id} className="space-y-2 px-3.5 py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                 <div className="min-w-0 flex-1 space-y-0.5">
                   <div className="flex flex-wrap items-center gap-2">
@@ -401,7 +448,7 @@ export function MCPSettings() {
                         size="xs"
                         variant="ghost"
                         aria-expanded={expanded}
-                        onClick={() => toggleClientDetails(item.name)}
+                        onClick={() => toggleClientDetails(item.id)}
                       >
                         <span className="inline-flex" style={{ rotate: expanded ? '90deg' : undefined }}>
                           <AnimatedGlyph meaning="chevron-right" />
@@ -414,20 +461,28 @@ export function MCPSettings() {
                     {item.config.command || item.config.endpoint}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex flex-wrap items-center gap-1">
+                  {item.config.command && <Button size="sm" variant="ghost"
+                    onClick={() => setClientLog({ id: item.id, name: item.name })}>查看日志</Button>}
                   {item.connected
-                    ? <Button size="sm" variant="ghost" disabled={busy} onClick={() => mutation.mutate(() => api.DisconnectMCP(item.name))}>断开</Button>
-                    : <Button size="sm" variant="ghost" disabled={busy} onClick={() => mutation.mutate(() => api.ConnectMCP(item.config))}>重连</Button>}
+                    ? <Button size="sm" variant="ghost" disabled={busy} onClick={() => mutation.mutate(() => api.DisconnectMCP(item.id))}>断开</Button>
+                    : <Button size="sm" variant="ghost" disabled={busy} onClick={() => mutation.mutate(async () => {
+                      const attemptId = item.config.command ? newClientLogAttempt() : ''
+                      try {
+                        await api.ConnectMCP({ ...item.config, attemptId })
+                      } catch (error) {
+                        if (attemptId) setClientLog({ id: attemptId, name: item.name, attempt: true })
+                        throw error
+                      }
+                    })}>重连</Button>}
                   <Button size="sm" variant="ghost" disabled={busy} onClick={() => {
                     mutation.reset()
                     setClientEditor({
                       config: item.config,
-                      kind: item.config.command ? 'stdio' : 'http',
-                      args: item.config.args?.join('\n') ?? '',
                       editing: true,
                     })
                   }}>编辑</Button>
-                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => { mutation.reset(); setForgettingClient(item.name) }}>移除</Button>
+                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => { mutation.reset(); setForgettingClient({ id: item.id, name: item.name }) }}>移除</Button>
                 </div>
               </div>
               {expanded && hasDetails && (
@@ -435,7 +490,7 @@ export function MCPSettings() {
                   {toolCount > 0 && (
                     <div className="flex flex-wrap items-center gap-1">
                       <span className="mr-1 text-muted-foreground">工具</span>
-                      {item.tools!.map(name => <code key={name} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">{name}</code>)}
+                      <MCPToolList tools={item.tools ?? []} />
                     </div>
                   )}
                   {resourceCount > 0 && (
@@ -566,103 +621,15 @@ export function MCPSettings() {
       )}
     </Dialog>
 
-    <Dialog open={Boolean(clientEditor)} onOpenChange={open => { if (!open && !busy) { setClientEditor(null); mutation.reset() } }}>
-      {clientEditor && (
-        <DialogContent aria-describedby={undefined} className="max-h-[85dvh] overflow-y-auto sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{clientEditor.editing ? '编辑 MCP 连接' : '添加 MCP 连接'}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={event => {
-            event.preventDefault()
-            mutation.mutate(async () => {
-              await api.ConnectMCP({
-                ...clientEditor.config,
-                command: clientEditor.kind === 'stdio' ? clientEditor.config.command : '',
-                endpoint: clientEditor.kind === 'http' ? clientEditor.config.endpoint : '',
-                bearer: clientEditor.kind === 'http' ? clientEditor.config.bearer : undefined,
-                args: clientEditor.args.split('\n').filter(Boolean),
-              })
-              setClientEditor(null)
-            })
-          }}>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="mcp-client-name">连接名称</FieldLabel>
-                <Input
-                  id="mcp-client-name"
-                  required
-                  disabled={busy}
-                  value={clientEditor.config.name}
-                  onChange={event => setClientEditor({ ...clientEditor, config: { ...clientEditor.config, name: event.target.value } })}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="mcp-client-transport">传输方式</FieldLabel>
-                <SearchableSelect
-                  id="mcp-client-transport"
-                  label="传输方式"
-                  className="w-full"
-                  value={clientEditor.kind}
-                  onValueChange={value => { if (value === 'http' || value === 'stdio') setClientEditor({ ...clientEditor, kind: value }) }}
-                  options={[{ value: 'http', label: 'Streamable HTTP' }, { value: 'stdio', label: 'stdio' }]}
-                />
-              </Field>
-              {clientEditor.kind === 'http' ? (
-                <>
-                  <Field>
-                    <FieldLabel htmlFor="mcp-endpoint">MCP 地址</FieldLabel>
-                    <Input
-                      id="mcp-endpoint"
-                      type="url"
-                      required
-                      value={clientEditor.config.endpoint}
-                      onChange={event => setClientEditor({ ...clientEditor, config: { ...clientEditor.config, endpoint: event.target.value } })}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="mcp-client-token">Bearer 令牌（可选）</FieldLabel>
-                    <Input
-                      id="mcp-client-token"
-                      type="password"
-                      autoComplete="off"
-                      value={clientEditor.config.bearer ?? ''}
-                      onChange={event => setClientEditor({ ...clientEditor, config: { ...clientEditor.config, bearer: event.target.value } })}
-                    />
-                  </Field>
-                </>
-              ) : (
-                <>
-                  <Field>
-                    <FieldLabel htmlFor="mcp-command">本地可执行文件</FieldLabel>
-                    <Input
-                      id="mcp-command"
-                      required
-                      value={clientEditor.config.command}
-                      onChange={event => setClientEditor({ ...clientEditor, config: { ...clientEditor.config, command: event.target.value } })}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="mcp-args">启动参数（每行一项）</FieldLabel>
-                    <Textarea
-                      id="mcp-args"
-                      className="font-mono text-xs"
-                      rows={3}
-                      value={clientEditor.args}
-                      onChange={event => setClientEditor({ ...clientEditor, args: event.target.value })}
-                    />
-                  </Field>
-                </>
-              )}
-              {mutationError && <FieldError>{mutationError}</FieldError>}
-              <DialogFooter>
-                <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => { setClientEditor(null); mutation.reset() }}>取消</Button>
-                <Button type="submit" size="sm" disabled={busy}>连接</Button>
-              </DialogFooter>
-            </FieldGroup>
-          </form>
-        </DialogContent>
-      )}
+    <Dialog open={Boolean(clientEditor)} onOpenChange={open => {
+      if (!open && !busy) closeClientEditor()
+    }}>
+      {clientEditor && <MCPClientEditor initial={clientEditor.config} editing={clientEditor.editing}
+        busy={busy} error={connectError} onClose={closeClientEditor}
+        onConnect={config => { void connectClient(config) }} />}
     </Dialog>
+
+    <MCPClientLogDialog target={clientLog} onClose={() => setClientLog(null)} />
 
     <ConfirmDialog
       open={Boolean(revokingGrant)}
@@ -702,7 +669,7 @@ export function MCPSettings() {
 
     <ConfirmDialog
       open={Boolean(forgettingClient)}
-      title={forgettingClient ? `移除连接“${forgettingClient}”？` : ''}
+      title={forgettingClient ? `移除连接“${forgettingClient.name}”？` : ''}
       description="将断开并删除此 MCP 连接配置。"
       confirmLabel="确认移除"
       busy={busy}
@@ -711,7 +678,7 @@ export function MCPSettings() {
       onConfirm={() => {
         if (!forgettingClient) return
         mutation.mutate(async () => {
-          await api.ForgetMCP(forgettingClient)
+          await api.ForgetMCP(forgettingClient.id)
           setForgettingClient(null)
         })
       }}
