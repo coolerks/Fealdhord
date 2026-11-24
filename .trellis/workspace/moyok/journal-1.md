@@ -1681,3 +1681,29 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 66: 完善外部 MCP 连接
+<!-- trellis-session: v=2 fp=6eaa1367501407ee -->
+
+**Date**: 2026-11-24
+**Task**: 完善外部 MCP 连接
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+支持中文连接名、工具分页、STDIO 日志及两种传输的高级配置。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9737318` | feat(mcp): 完善外部连接配置、工具发现和 STDIO 日志 |
+
+### Testing
+
+- [OK] Go 全量测试、vet、相关包竞态、前端 191 项测试及生产构建通过。
+
+### Status
+
+[OK] **Completed**
