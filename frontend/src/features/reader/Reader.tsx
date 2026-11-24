@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Tabs } from 'radix-ui'
 import { FeedIcon } from '@/features/feeds/FeedIcon'
-import { useEffect,useEffectEvent,useLayoutEffect,useRef,useState } from 'react'
+import { useCallback,useEffect,useEffectEvent,useLayoutEffect,useRef,useState } from 'react'
 import type { RefObject } from 'react'
 import type { Article } from '@/lib/library'
 import type { Preferences } from '@/lib/preferences'
@@ -23,6 +23,7 @@ import { ReaderImageViewer } from './ReaderImageViewer'
 import type { ReaderImage } from './ReaderImageViewer'
 import { ReaderOutline } from './ReaderOutline'
 import { ArticleHTML } from './ArticleHTML'
+import { readingBlock } from './reading-block'
 import './reader-prose.css'
 
 type ReaderProps={feedIcon?:string;feedReaderOpenMode?:string;feedAutoTranslateMode?:string;article?:Article;preferences:Preferences;overlay:boolean;onClose:()=>void;onFavorite:(id:string)=>void;onRead:(id:string)=>void;onShare?:(article:Article,trigger:HTMLButtonElement)=>void;onAnchor:(key:string,anchor:{article_id:string;offset:number})=>void}
@@ -47,6 +48,7 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
  const publicationDate=article?.publishedAt.slice(0,10)
  const body=useReaderContent(article,preferences)
  const prose = useRef<HTMLDivElement>(null)
+ const readStartBlock = useCallback(() => readingBlock(prose.current, content.current)?.dataset.trBlock, [])
  const imagesAllowed = preferences.remote_images !== 'never'
  const [showToolbarTitle,setShowToolbarTitle]=useState(false)
  const [view,setView]=useState<ArticleView>(effectiveOpenMode==='full'?'reader':'feed')
@@ -56,6 +58,8 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
   articleID,
   articleRevision: article?.revision,
   sourceMode: body.mode,
+  sourceVersion: body.query.data?.source_version,
+  readStartBlock,
   hasContent,
   extracting: body.extracting,
   autoReady: view === body.mode || Boolean(body.error),
@@ -190,14 +194,14 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
    {!body.extracting && (translation.translating || translation.error) && (
     <div className="reader-operation" data-tone={translation.translating ? 'info' : 'warning'} role="status">
      {translation.translating ? <>
-      <span className="min-w-0 flex-1">{translation.record?.totalBlocks ? `正在翻译正文（${translation.record.translatedBlocks}/${translation.record.totalBlocks} 段）…` : '正在翻译正文…'}</span>
+      <span className="min-w-0 flex-1">{translation.record?.translatedBlocks ? `已翻译 ${translation.record.translatedBlocks}/${translation.record.totalBlocks} 段` : '正在生成首批译文…'}</span>
       <Button variant="ghost" size="sm" onClick={translation.cancel}>取消翻译</Button>
      </> : <>
       <AnimatedGlyph meaning="badge-alert" className="reader-operation-icon" />
       <p role="alert" className="min-w-0 flex-1 m-0">{translation.error}</p>
       <div className="flex shrink-0 items-center gap-1.5">
        {translation.error.includes('用途分配') && <Button variant="outline" size="sm" onClick={() => showSettings('ai')}>前往设置</Button>}
-       <Button variant="ghost" size="sm" onClick={() => { void translation.translate(false) }}>重试</Button>
+       <Button variant="ghost" size="sm" onClick={() => { void translation.translate(false) }}>{translation.bodyStatus === 'partial' ? '继续翻译' : '重试'}</Button>
       </div>
      </>}
     </div>
@@ -226,7 +230,7 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
        <Skeleton className="h-[0.8em] w-2/3" />
       </div>
      </div>
-    ) : body.query.isError&&!hasContent?<div role="alert">正文读取失败。<Button variant="ghost" onClick={()=>{void body.query.refetch()}}>重试</Button></div>:body.html?<ArticleHTML html={body.html} imagesAllowed={imagesAllowed} theme={preferences.reader_code_theme} translationBlocks={translation.blocksMap} translationMode={translation.effectiveDisplayMode} />:body.text.split(/\n\n+/).map((paragraph,index)=><p key={index}>{paragraph}</p>)}
+    ) : body.query.isError&&!hasContent?<div role="alert">正文读取失败。<Button variant="ghost" onClick={()=>{void body.query.refetch()}}>重试</Button></div>:body.html?<ArticleHTML viewport={content} html={body.html} imagesAllowed={imagesAllowed} theme={preferences.reader_code_theme} translationBlocks={translation.blocksMap} translationMode={translation.effectiveDisplayMode} />:body.text.split(/\n\n+/).map((paragraph,index)=><p key={index}>{paragraph}</p>)}
    </div></article></div>
    </div></Tabs.Content>:<ReaderEmpty />}
   {viewing && <ReaderImageViewer images={viewing.images} initialIndex={viewing.index} origin={viewing.origin} readingViewport={content}

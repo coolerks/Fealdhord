@@ -9,10 +9,18 @@ function normalizeDisplayMode(value?: string): TranslationDisplayMode {
   return value === 'translated' || value === 'original' ? value : 'bilingual'
 }
 
+function latestTranslation(current: TranslationRecord | undefined, next: TranslationRecord) {
+  return current && (current.updatedAt > next.updatedAt ||
+    (current.updatedAt === next.updatedAt && current.status !== 'translating' && next.status === 'translating'))
+    ? current : next
+}
+
 export function useArticleTranslation({
   articleID,
   articleRevision,
   sourceMode,
+  sourceVersion,
+  readStartBlock,
   hasContent,
   extracting,
   autoReady,
@@ -22,6 +30,8 @@ export function useArticleTranslation({
   articleID?: string
   articleRevision?: number
   sourceMode: 'feed' | 'reader'
+  sourceVersion?: string
+  readStartBlock: () => string | undefined
   hasContent: boolean
   extracting: boolean
   autoReady: boolean
@@ -42,20 +52,27 @@ export function useArticleTranslation({
   const displayMode = displayOverride ?? normalizeDisplayMode(defaultDisplay)
   const targetLang = overrideLang || defaultTargetLang
   const queryKey = useMemo(
-    () => ['reader', 'translation', articleID, articleRevision ?? 0, targetLang, sourceMode] as const,
-    [articleID, articleRevision, targetLang, sourceMode],
+    () => ['reader', 'translation', articleID, articleRevision ?? 0, targetLang, sourceMode, sourceVersion ?? ''] as const,
+    [articleID, articleRevision, targetLang, sourceMode, sourceVersion],
   )
   const requestKey = JSON.stringify(queryKey)
 
   const query = useQuery({
     queryKey,
-    queryFn: () => translationAPI.get(articleID!, targetLang, sourceMode),
+    queryFn: async () => {
+      const next = await translationAPI.get(articleID!, targetLang, sourceMode)
+      if (sourceVersion && next.sourceVersion !== sourceVersion) return null
+      return latestTranslation(client.getQueryData<TranslationRecord | null>(queryKey) ?? undefined, next)
+    },
     enabled: Boolean(articleID) && hasContent && !extracting,
     staleTime: 60000,
     retry: false,
   })
 
   const record = query.data
+  useEffect(() => {
+    if (record === null) void client.invalidateQueries({ queryKey: ['reader', 'content', articleID] })
+  }, [articleID, client, record])
 
   // 订阅后端按批次推送的翻译进度事件，实时渲染已翻译段落。
   useEffect(() => {
@@ -68,7 +85,8 @@ export function useArticleTranslation({
         const payload = Array.isArray(event?.data) ? event.data[0] : event?.data
         const next = payload?.record
         if (!next || next.articleId !== articleID || next.targetLang !== targetLang || next.sourceMode !== sourceMode) return
-        client.setQueryData(queryKey, next)
+        if (sourceVersion && next.sourceVersion !== sourceVersion) return
+        client.setQueryData<TranslationRecord | null>(queryKey, current => latestTranslation(current ?? undefined, next))
       })
     } catch {
       // 浏览器预览或单测环境中 Wails Events 不可用时静默忽略。
@@ -77,22 +95,27 @@ export function useArticleTranslation({
       disposed = true
       try { unsubscribe?.() } catch { /* ignore */ }
     }
-  }, [articleID, client, queryKey, sourceMode, targetLang])
+  }, [articleID, client, queryKey, sourceMode, sourceVersion, targetLang])
 
-  const canTranslate = Boolean(articleID) && hasContent && !extracting && !query.isPending
+  const canTranslate = Boolean(articleID) && hasContent && !extracting && !query.isPending && record !== null
   const translate = useCallback(async (force = false) => {
     if (!articleID || !canTranslate || running.current.has(requestKey)) return
     running.current.add(requestKey)
     setRequests(previous => ({ ...previous, [requestKey]: { running: true, error: '' } }))
     let error = ''
     try {
+      const startBlockId = readStartBlock()
       const result = await translationAPI.translate({
         articleId: articleID,
         targetLang,
         sourceMode,
         force,
+        ...(sourceVersion ? { sourceVersion } : {}),
+        ...(startBlockId ? { startBlockId } : {}),
       })
-      client.setQueryData(queryKey, result)
+      if (!sourceVersion || result.sourceVersion === sourceVersion) {
+        client.setQueryData<TranslationRecord | null>(queryKey, current => latestTranslation(current ?? undefined, result))
+      }
     } catch (cause) {
       error = translationErrorMessage(cause)
       // Wails can reject the RPC even if the backend saved a partial result.
@@ -101,7 +124,7 @@ export function useArticleTranslation({
       running.current.delete(requestKey)
       setRequests(previous => ({ ...previous, [requestKey]: { running: false, error } }))
     }
-  }, [articleID, canTranslate, client, queryKey, requestKey, sourceMode, targetLang])
+  }, [articleID, canTranslate, client, queryKey, readStartBlock, requestKey, sourceMode, sourceVersion, targetLang])
 
   const cancel = useCallback(() => {
     if (!articleID) return

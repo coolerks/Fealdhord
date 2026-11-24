@@ -24,6 +24,7 @@ export interface Record {
     "targetLang": string;
     "sourceMode": string;
     "contentHash": string;
+    "sourceVersion"?: string;
     "detectedLang": string;
     "status": string;
     "translatedTitle": string;
@@ -45,4 +46,6 @@ export interface TranslateRequest {
      */
     "sourceMode": string;
     "force": boolean;
+    "sourceVersion"?: string;
+    "startBlockId"?: string;
 }

@@ -10,10 +10,22 @@ import { installGeometry } from '@/test/geometry'
 import { useWorkspace } from '@/stores/workspace'
 import { native } from '@/lib/native'
 import type { Detail } from '@/lib/reader-api'
+import type { TranslationRecord } from '@/lib/translation-api'
 const api=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
 const translationMock = vi.hoisted(() => ({ get: vi.fn(), translate: vi.fn(), cancel: vi.fn(), clear: vi.fn(), languages: vi.fn() }))
 const translationPreferences = vi.hoisted(() => ({ translateOnOpen: false }))
 const copyImage = vi.hoisted(() => vi.fn())
+const translationEvents = vi.hoisted(() => new Set<(event: { data: { record: TranslationRecord } }) => void>())
+vi.mock('@wailsio/runtime', async importOriginal => {
+ const actual = await importOriginal<typeof import('@wailsio/runtime')>()
+ return { ...actual, Events: {
+  ...actual.Events,
+  On(name: string, callback: (event: { data: { record: TranslationRecord } }) => void) {
+   if (name === 'translation:progress') translationEvents.add(callback)
+   return () => { translationEvents.delete(callback) }
+  },
+ } }
+})
 vi.mock('../../../bindings/github.com/coolerks/Fealdhord/internal/media/api', () => ({ CopyInlineImage: copyImage }))
 vi.mock('../../../bindings/github.com/coolerks/Fealdhord/internal/articleai/api', () => ({
   Settings: vi.fn(async () => ({ classification: false, featured: false, prompt: '', revision: 1, requestsPerHour: 100, tokensPerHour: 200000, minimumImportance: 0.7, minimumRelevance: 0.6, autoTranslate: false, autoTranslateScope: 'summary', translateOnOpen: translationPreferences.translateOnOpen, translationTargetLang: 'zh-CN', translationPrompt: '' })),
@@ -338,6 +350,51 @@ it('订阅关闭覆盖全局打开时翻译', async () => {
  } finally {
   translationPreferences.translateOnOpen = false
  }
+})
+
+it('长文优先发送阅读位置，旧版和乱序进度不会覆盖，已读位置随布局变化保持', async () => {
+ const user = userEvent.setup()
+ api.get.mockResolvedValue({ ...feed, source_version: 'current-source',
+  html: '<p data-tr-block="b0">第一段原文</p><p data-tr-block="b1">当前阅读段落</p>' })
+ const initial: TranslationRecord = { articleId: 'a-0', targetLang: 'zh-CN', sourceMode: 'feed',
+  contentHash: 'article', sourceVersion: 'current-source', detectedLang: '', status: 'none',
+  translatedTitle: '', translatedSummary: '', blocks: [], translatedBlocks: 0, totalBlocks: 66,
+  modelId: '', errorCode: '', updatedAt: 0 }
+ translationMock.get.mockResolvedValue(initial)
+ let finish: (value: TranslationRecord) => void = () => undefined
+ translationMock.translate.mockImplementation(() => new Promise<TranslationRecord>(resolve => { finish = resolve }))
+ const { container } = setup()
+ const current = await screen.findByText('当前阅读段落')
+ const first = screen.getByText('第一段原文')
+ const viewport = container.querySelector<HTMLElement>('.reader-content')!
+ viewport.scrollTop = 100
+ vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 480, 200))
+ vi.spyOn(first, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, -80, 480, 40))
+ vi.spyOn(current, 'getBoundingClientRect').mockImplementation(() =>
+  new DOMRect(0, 20 + (document.querySelector('.reader-tr-block') ? 40 : 0) - (viewport.scrollTop - 100), 480, 20))
+ await user.click(screen.getByRole('button', { name: '翻译' }))
+ await user.click(await screen.findByRole('menuitem', { name: '翻译正文' }))
+ expect(translationMock.translate).toHaveBeenCalledExactlyOnceWith({
+  articleId: 'a-0', targetLang: 'zh-CN', sourceMode: 'feed', sourceVersion: 'current-source', startBlockId: 'b1', force: false,
+ })
+ expect(screen.getByText('正在生成首批译文…')).toBeVisible()
+ const publish = async (record: TranslationRecord) => {
+  await act(async () => translationEvents.forEach(callback => callback({ data: { record } })))
+ }
+ const progress: TranslationRecord = { ...initial, status: 'translating', translatedBlocks: 1, updatedAt: 5,
+  blocks: [{ id: 'b0', sourceHash: 'current-block', translatedHtml: '第一段译文' }] }
+ await publish({ ...progress, sourceVersion: 'old-source', updatedAt: 10 })
+ expect(screen.queryByText('第一段译文')).toBeNull()
+ await publish(progress)
+ expect(await screen.findByText('已翻译 1/66 段')).toBeVisible()
+ const existingTranslation = screen.getByText('第一段译文')
+ expect(viewport.scrollTop).toBe(140)
+ await publish({ ...initial, status: 'translating', updatedAt: 4 })
+ expect(screen.getByText('第一段译文')).toBe(existingTranslation)
+ await act(async () => finish({ ...progress, status: 'partial', errorCode: 'InvalidModelOutput', updatedAt: 6 }))
+ expect(screen.getByText('第一段译文')).toBe(existingTranslation)
+ expect(screen.getByRole('alert')).toHaveTextContent('翻译格式无效')
+ expect(screen.getByRole('button', { name: '继续翻译' })).toBeVisible()
 })
 
 it('已读操作显示执行后的状态，点击沿用同一篇文章的切换操作', async () => {

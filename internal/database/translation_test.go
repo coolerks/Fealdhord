@@ -124,6 +124,15 @@ func TestArticleTranslationStoreAndUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	body.SourceMode, body.TotalBlocks = "reader", 2
+	doc := ReaderDocument{HTML: "<p>Full source.</p>", Hash: articleInput.ContentHash, Version: "test"}
+	if err := store.SaveReaderDocument(ctx, articleID, doc); err != nil {
+		t.Fatal(err)
+	}
+	current, err := store.ReaderDocument(ctx, articleID)
+	if err != nil || current.SourceVersion == "" {
+		t.Fatalf("current reader source: %+v, err=%v", current, err)
+	}
+	body.SourceVersion = current.SourceVersion
 	if err := store.SaveArticleTranslation(ctx, body); err != nil {
 		t.Fatal(err)
 	}
@@ -133,6 +142,14 @@ func TestArticleTranslationStoreAndUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	fullCandidate("")
+	doc.HTML = "<p>Full source has changed.</p>"
+	if err := store.SaveReaderDocument(ctx, articleID, doc); err != nil {
+		t.Fatal(err)
+	}
+	fullCandidate(articleID)
+	if err := store.SaveCurrentArticleTranslation(ctx, body); err != ErrConflict {
+		t.Fatalf("an old source write should conflict, got %v", err)
+	}
 
 	if err := store.Close(); err != nil {
 		t.Fatalf("close: %v", err)
@@ -145,13 +162,14 @@ func TestArticleTranslationStoreAndUpgrade(t *testing.T) {
 	}
 	stmts := []string{
 		`DROP TABLE article_translations`,
+		`ALTER TABLE reader_contents DROP COLUMN source_version`,
 		`ALTER TABLE feeds DROP COLUMN auto_translate_mode`,
 		`ALTER TABLE article_ai_settings DROP COLUMN auto_translate`,
 		`ALTER TABLE article_ai_settings DROP COLUMN auto_translate_scope`,
 		`ALTER TABLE article_ai_settings DROP COLUMN translate_on_open`,
 		`ALTER TABLE article_ai_settings DROP COLUMN translation_target_lang`,
 		`ALTER TABLE article_ai_settings DROP COLUMN translation_prompt`,
-		`DELETE FROM goose_db_version WHERE version_id=26`,
+		`DELETE FROM goose_db_version WHERE version_id IN (26,27)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := rawDB.ExecContext(ctx, stmt); err != nil {
@@ -177,5 +195,74 @@ func TestArticleTranslationStoreAndUpgrade(t *testing.T) {
 	upgradedSub, err := upgraded.GetSubscription(ctx, feedID)
 	if err != nil || upgradedSub.AutoTranslateMode != "global" {
 		t.Fatalf("expected default auto_translate_mode=global after upgrade, got %+v err=%v", upgradedSub, err)
+	}
+}
+
+func TestTranslationCheckpointMigrationPreservesV26Cache(t *testing.T) {
+	ctx := context.Background()
+	file := filepath.Join(t.TempDir(), "v26.db")
+	store, err := Open(ctx, file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UnixMilli()
+	_, err = store.AddSubscription(ctx, SubscriptionInput{URL: "https://example.test/feed", Title: "旧库"}, []ArticleInput{
+		{GUID: "original", Title: "Old title", HTML: "<p>Original text.</p>", FetchedAt: now},
+	}, FeedCheck{At: now, Next: now + 60000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	articles, err := store.ListArticles(ctx, 1)
+	if err != nil || len(articles) != 1 {
+		t.Fatalf("load article: %+v %v", articles, err)
+	}
+	id := articles[0].ID
+	article, err := store.GetArticleForTranslation(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveReaderDocument(ctx, id, ReaderDocument{HTML: "<p>Original text.</p>", Hash: article.ContentHash, Version: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	blocks := `[{"id":"b0","sourceHash":"previous","translatedHtml":"已有译文"}]`
+	if err := store.SaveArticleTranslation(ctx, sqlc.SaveArticleTranslationParams{
+		ArticleID: id, TargetLang: "zh-CN", SourceMode: "reader", ContentHash: article.ContentHash,
+		Status: "completed", BlocksJson: blocks, TranslatedBlocks: 1, TotalBlocks: 1, UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, statement := range []string{
+		"ALTER TABLE article_translations DROP COLUMN source_version",
+		"ALTER TABLE article_translations DROP COLUMN checkpoint_json",
+		"ALTER TABLE reader_contents DROP COLUMN source_version",
+		"DELETE FROM goose_db_version WHERE version_id=27",
+	} {
+		if _, err := store.db.ExecContext(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	upgraded, err := Open(ctx, file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer upgraded.Close()
+	snapshots, err := filepath.Glob(file + ".backups/before-v26-*.db")
+	if err != nil || len(snapshots) != 1 {
+		t.Fatalf("missing pre-upgrade snapshot: %v %v", snapshots, err)
+	}
+	row, err := upgraded.GetArticleTranslation(ctx, id, "zh-CN", "reader")
+	if err != nil || row.BlocksJson != blocks || row.CheckpointJson != "{}" || row.SourceVersion != "" {
+		t.Fatalf("legacy result changed: %+v %v", row, err)
+	}
+	doc, err := upgraded.ReaderDocument(ctx, id)
+	if err != nil || doc.SourceVersion == "" || doc.HTML != "<p>Original text.</p>" {
+		t.Fatalf("legacy reader source: %+v %v", doc, err)
+	}
+	source, err := upgraded.CurrentTranslationSource(ctx, id)
+	if err != nil || source.ReaderSourceVersion != doc.SourceVersion {
+		t.Fatalf("source version not filled durably: %+v %v", source, err)
 	}
 }

@@ -1187,8 +1187,8 @@ func (q *Queries) SaveFeedSuccess(ctx context.Context, arg SaveFeedSuccessParams
 }
 
 const saveReaderDocument = `-- name: SaveReaderDocument :exec
-INSERT INTO reader_contents(article_id,sanitized_html,content_text,source_url,fetched_at,extractor_version,content_hash) VALUES(?,?,?,?,?,?,?)
-ON CONFLICT(article_id) DO UPDATE SET sanitized_html=excluded.sanitized_html,content_text=excluded.content_text,source_url=excluded.source_url,fetched_at=excluded.fetched_at,extractor_version=excluded.extractor_version,content_hash=excluded.content_hash
+INSERT INTO reader_contents(article_id,sanitized_html,content_text,source_url,fetched_at,extractor_version,content_hash,source_version) VALUES(?,?,?,?,?,?,?,?)
+ON CONFLICT(article_id) DO UPDATE SET sanitized_html=excluded.sanitized_html,content_text=excluded.content_text,source_url=excluded.source_url,fetched_at=excluded.fetched_at,extractor_version=excluded.extractor_version,content_hash=excluded.content_hash,source_version=excluded.source_version
 `
 
 type SaveReaderDocumentParams struct {
@@ -1199,6 +1199,7 @@ type SaveReaderDocumentParams struct {
 	FetchedAt        int64  `json:"fetched_at"`
 	ExtractorVersion string `json:"extractor_version"`
 	ContentHash      string `json:"content_hash"`
+	SourceVersion    string `json:"source_version"`
 }
 
 func (q *Queries) SaveReaderDocument(ctx context.Context, arg SaveReaderDocumentParams) error {
@@ -1210,6 +1211,7 @@ func (q *Queries) SaveReaderDocument(ctx context.Context, arg SaveReaderDocument
 		arg.FetchedAt,
 		arg.ExtractorVersion,
 		arg.ContentHash,
+		arg.SourceVersion,
 	)
 	return err
 }

@@ -176,6 +176,8 @@ type ArticleTranslation struct {
 	OutputTokens      sql.NullInt64 `json:"output_tokens"`
 	ErrorCode         string        `json:"error_code"`
 	UpdatedAt         int64         `json:"updated_at"`
+	SourceVersion     string        `json:"source_version"`
+	CheckpointJson    string        `json:"checkpoint_json"`
 }
 
 type Category struct {
@@ -366,6 +368,7 @@ type ReaderContent struct {
 	FetchedAt        int64  `json:"fetched_at"`
 	ExtractorVersion string `json:"extractor_version"`
 	ContentHash      string `json:"content_hash"`
+	SourceVersion    string `json:"source_version"`
 }
 
 type ReaderResource struct {

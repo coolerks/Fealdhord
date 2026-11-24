@@ -68,36 +68,6 @@ func ExtractBlocks(preparedHTML string) ([]SourceBlock, error) {
 	return blocks, nil
 }
 
-// BatchBlocks 将待翻译段落按字符上限与条数上限分批，兼顾首屏出字速度与翻译上下文连贯性。
-func BatchBlocks(blocks []SourceBlock, maxChars int, maxItems int) [][]SourceBlock {
-	if len(blocks) == 0 {
-		return nil
-	}
-	if maxChars <= 0 {
-		maxChars = 1800
-	}
-	if maxItems <= 0 {
-		maxItems = 10
-	}
-	var batches [][]SourceBlock
-	var current []SourceBlock
-	currentChars := 0
-	for _, block := range blocks {
-		size := len([]rune(block.InnerHTML))
-		if len(current) > 0 && (currentChars+size > maxChars || len(current) >= maxItems) {
-			batches = append(batches, current)
-			current = nil
-			currentChars = 0
-		}
-		current = append(current, block)
-		currentChars += size
-	}
-	if len(current) > 0 {
-		batches = append(batches, current)
-	}
-	return batches
-}
-
 // SanitizeTranslatedHTML 对模型返回的段落译文进行严格的行内安全清洗。
 func SanitizeTranslatedHTML(raw string) string {
 	return strings.TrimSpace(reader.SanitizeInlineTranslationHTML(raw))

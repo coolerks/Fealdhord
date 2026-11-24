@@ -48,6 +48,7 @@ func TestTranslationResumesMissingBlocksAndContinuesAfterSameLanguageBatch(t *te
 	}
 	articleID := articles[0].ID
 	var attemptedIDs [][]string
+	blockLast := true
 	model := &fakeModel{fn: func(_ context.Context, req *ai.ModelRequest, call int32) (*ai.ModelResponse, error) {
 		var payload struct {
 			Items []struct {
@@ -62,7 +63,7 @@ func TestTranslationResumesMissingBlocksAndContinuesAfterSameLanguageBatch(t *te
 		items := make([]map[string]string, 0, len(payload.Items))
 		for _, item := range payload.Items {
 			ids = append(ids, item.ID)
-			if call == 2 && item.ID == "b11" {
+			if blockLast && item.ID == "b11" {
 				continue
 			}
 			html := item.HTML
@@ -110,11 +111,12 @@ func TestTranslationResumesMissingBlocksAndContinuesAfterSameLanguageBatch(t *te
 	if err != nil || legacy.Status != "partial" || legacy.ErrorCode != "InvalidModelOutput" {
 		t.Fatalf("incomplete legacy result should be recoverable: %+v, %v", legacy, err)
 	}
+	blockLast = false
 	complete, err := svc.Translate(ctx, req)
 	if err != nil || complete.Status != "completed" || complete.TranslatedBlocks != 12 || complete.Blocks[11].TranslatedHTML != "最后一段的译文。" {
 		t.Fatalf("expected a complete resumed translation: %+v, %v", complete, err)
 	}
-	if len(attemptedIDs) != 3 || strings.Join(attemptedIDs[2], ",") != "b11" {
+	if len(attemptedIDs) != 4 || strings.Join(attemptedIDs[2], ",") != "b11" || strings.Join(attemptedIDs[3], ",") != "b11" {
 		t.Fatalf("retry should send only the missing block: %v", attemptedIDs)
 	}
 	if err := store.SaveArticleTranslation(ctx, sqlc.SaveArticleTranslationParams{

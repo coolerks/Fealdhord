@@ -72,7 +72,7 @@ func (q *Queries) GetArticleForTranslation(ctx context.Context, id string) (GetA
 }
 
 const getArticleTranslation = `-- name: GetArticleTranslation :one
-SELECT article_id, target_lang, source_mode, content_hash, detected_lang, status, translated_title, translated_summary, blocks_json, translated_blocks, total_blocks, model_id, input_tokens, output_tokens, error_code, updated_at FROM article_translations WHERE article_id=? AND target_lang=? AND source_mode=?
+SELECT article_id, target_lang, source_mode, content_hash, detected_lang, status, translated_title, translated_summary, blocks_json, translated_blocks, total_blocks, model_id, input_tokens, output_tokens, error_code, updated_at, source_version, checkpoint_json FROM article_translations WHERE article_id=? AND target_lang=? AND source_mode=?
 `
 
 type GetArticleTranslationParams struct {
@@ -101,7 +101,28 @@ func (q *Queries) GetArticleTranslation(ctx context.Context, arg GetArticleTrans
 		&i.OutputTokens,
 		&i.ErrorCode,
 		&i.UpdatedAt,
+		&i.SourceVersion,
+		&i.CheckpointJson,
 	)
+	return i, err
+}
+
+const getCurrentTranslationSource = `-- name: GetCurrentTranslationSource :one
+SELECT a.content_hash, COALESCE(r.source_version,'') AS reader_source_version
+FROM articles a JOIN feeds f ON f.id=a.feed_id
+LEFT JOIN reader_contents r ON r.article_id=a.id AND r.content_hash=a.content_hash
+WHERE a.id=? AND f.archived_at IS NULL
+`
+
+type GetCurrentTranslationSourceRow struct {
+	ContentHash         string `json:"content_hash"`
+	ReaderSourceVersion string `json:"reader_source_version"`
+}
+
+func (q *Queries) GetCurrentTranslationSource(ctx context.Context, id string) (GetCurrentTranslationSourceRow, error) {
+	row := q.db.QueryRowContext(ctx, getCurrentTranslationSource, id)
+	var i GetCurrentTranslationSourceRow
+	err := row.Scan(&i.ContentHash, &i.ReaderSourceVersion)
 	return i, err
 }
 
@@ -109,8 +130,8 @@ const saveArticleTranslation = `-- name: SaveArticleTranslation :exec
 INSERT INTO article_translations(
  article_id,target_lang,source_mode,content_hash,detected_lang,status,
  translated_title,translated_summary,blocks_json,translated_blocks,total_blocks,
- model_id,input_tokens,output_tokens,error_code,updated_at
-) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+ model_id,input_tokens,output_tokens,error_code,updated_at,source_version,checkpoint_json
+) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(article_id,target_lang,source_mode) DO UPDATE SET
  content_hash=excluded.content_hash,
  detected_lang=excluded.detected_lang,
@@ -124,7 +145,9 @@ ON CONFLICT(article_id,target_lang,source_mode) DO UPDATE SET
  input_tokens=excluded.input_tokens,
  output_tokens=excluded.output_tokens,
  error_code=excluded.error_code,
- updated_at=excluded.updated_at
+ updated_at=excluded.updated_at,
+ source_version=excluded.source_version,
+ checkpoint_json=excluded.checkpoint_json
 `
 
 type SaveArticleTranslationParams struct {
@@ -144,6 +167,8 @@ type SaveArticleTranslationParams struct {
 	OutputTokens      sql.NullInt64 `json:"output_tokens"`
 	ErrorCode         string        `json:"error_code"`
 	UpdatedAt         int64         `json:"updated_at"`
+	SourceVersion     string        `json:"source_version"`
+	CheckpointJson    string        `json:"checkpoint_json"`
 }
 
 func (q *Queries) SaveArticleTranslation(ctx context.Context, arg SaveArticleTranslationParams) error {
@@ -164,6 +189,8 @@ func (q *Queries) SaveArticleTranslation(ctx context.Context, arg SaveArticleTra
 		arg.OutputTokens,
 		arg.ErrorCode,
 		arg.UpdatedAt,
+		arg.SourceVersion,
+		arg.CheckpointJson,
 	)
 	return err
 }

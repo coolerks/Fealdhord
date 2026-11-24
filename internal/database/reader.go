@@ -2,7 +2,9 @@ package database
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -14,8 +16,8 @@ type ReaderArticle struct {
 	Archived                                    bool
 }
 type ReaderDocument struct {
-	HTML, Text, URL, Hash, Version string
-	FetchedAt                      int64
+	HTML, Text, URL, Hash, Version, SourceVersion string
+	FetchedAt                                     int64
 }
 type ReaderResource struct {
 	ID, ArticleID, ArticleHash, Mode, Kind, URL string
@@ -32,12 +34,24 @@ func (s *Store) ReaderArticle(ctx context.Context, id string) (ReaderArticle, er
 }
 func (s *Store) ReaderDocument(ctx context.Context, id string) (ReaderDocument, error) {
 	var out ReaderDocument
-	err := s.db.QueryRowContext(ctx, `SELECT r.sanitized_html,r.content_text,r.source_url,r.content_hash,r.extractor_version,r.fetched_at FROM reader_contents r JOIN articles a ON a.id=r.article_id AND a.content_hash=r.content_hash WHERE r.article_id=?`, id).Scan(&out.HTML, &out.Text, &out.URL, &out.Hash, &out.Version, &out.FetchedAt)
+	err := s.db.QueryRowContext(ctx, `SELECT r.sanitized_html,r.content_text,r.source_url,r.content_hash,r.extractor_version,r.fetched_at,r.source_version FROM reader_contents r JOIN articles a ON a.id=r.article_id AND a.content_hash=r.content_hash WHERE r.article_id=?`, id).Scan(&out.HTML, &out.Text, &out.URL, &out.Hash, &out.Version, &out.FetchedAt, &out.SourceVersion)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = ErrNotFound
 	}
+	if err == nil && out.SourceVersion == "" {
+		out.SourceVersion = readerSourceVersion(out)
+		_, err = s.db.ExecContext(ctx, `UPDATE reader_contents SET source_version=?
+WHERE article_id=? AND source_version='' AND content_hash=? AND sanitized_html=? AND content_text=? AND source_url=? AND extractor_version=?`,
+			out.SourceVersion, id, out.Hash, out.HTML, out.Text, out.URL, out.Version)
+	}
 	return out, err
 }
+
+func readerSourceVersion(document ReaderDocument) string {
+	hash := sha256.Sum256([]byte(document.Version + "\x00" + document.URL + "\x00" + document.HTML + "\x00" + document.Text))
+	return hex.EncodeToString(hash[:])
+}
+
 func (s *Store) SaveReaderDocument(ctx context.Context, id string, document ReaderDocument) error {
 	if len(document.HTML)+len(document.Text) > 4<<20 {
 		return ErrInvalidInput
@@ -51,7 +65,7 @@ func (s *Store) SaveReaderDocument(ctx context.Context, id string, document Read
 			return ErrConflict
 		}
 		// 同一事务沿用 q 的连接，避免单连接 Store 的事务内再取连接。
-		return q.SaveReaderDocument(ctx, sqlc.SaveReaderDocumentParams{ArticleID: id, SanitizedHtml: document.HTML, ContentText: document.Text, SourceUrl: document.URL, ContentHash: document.Hash, ExtractorVersion: document.Version, FetchedAt: time.Now().UTC().UnixMilli()})
+		return q.SaveReaderDocument(ctx, sqlc.SaveReaderDocumentParams{ArticleID: id, SanitizedHtml: document.HTML, ContentText: document.Text, SourceUrl: document.URL, ContentHash: document.Hash, ExtractorVersion: document.Version, FetchedAt: time.Now().UTC().UnixMilli(), SourceVersion: readerSourceVersion(document)})
 	})
 }
 func (s *Store) RegisterReaderResources(ctx context.Context, id, hash, mode string, resources []ReaderResource) error {

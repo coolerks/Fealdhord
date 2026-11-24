@@ -25,6 +25,7 @@ sql:
       - migrations/00024_feed_reader_open_mode.sql
       - migrations/00025_chat_conversation_management.sql
       - migrations/00026_article_translation.sql
+      - migrations/00027_translation_checkpoints.sql
     queries: internal/database/queries
     gen:
       go:

@@ -119,8 +119,8 @@ SELECT article_id FROM article_media WHERE status IN ('pending','blocked','none'
 -- name: SaveCategory :execrows
 UPDATE categories SET name=?,normalized_name=?,parent_id=?,icon=?,color=?,description=?,sort_position=?,updated_at=?,revision=revision+1 WHERE id=? AND revision=?;
 -- name: SaveReaderDocument :exec
-INSERT INTO reader_contents(article_id,sanitized_html,content_text,source_url,fetched_at,extractor_version,content_hash) VALUES(?,?,?,?,?,?,?)
-ON CONFLICT(article_id) DO UPDATE SET sanitized_html=excluded.sanitized_html,content_text=excluded.content_text,source_url=excluded.source_url,fetched_at=excluded.fetched_at,extractor_version=excluded.extractor_version,content_hash=excluded.content_hash;
+INSERT INTO reader_contents(article_id,sanitized_html,content_text,source_url,fetched_at,extractor_version,content_hash,source_version) VALUES(?,?,?,?,?,?,?,?)
+ON CONFLICT(article_id) DO UPDATE SET sanitized_html=excluded.sanitized_html,content_text=excluded.content_text,source_url=excluded.source_url,fetched_at=excluded.fetched_at,extractor_version=excluded.extractor_version,content_hash=excluded.content_hash,source_version=excluded.source_version;
 -- name: RemoveReaderResources :exec
 DELETE FROM reader_resources WHERE article_id=? AND mode=?;
 -- name: AddReaderResource :exec

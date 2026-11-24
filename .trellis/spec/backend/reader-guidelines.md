@@ -48,7 +48,30 @@ reader.Service.Get{article_id,mode:feed|reader}、Extract{article_id,mode} → D
 
 ## 文章正文翻译
 
-- `translation.API.Get(ctx, articleID, targetLang, sourceMode)`、`Translate(ctx, TranslateRequest)` 与进度事件共用 `Record`。翻译记录的来源为 `summary`、`feed` 或 `reader`。后台全文只在当前版本 `reader` 记录完整时完成。网页提取失败沿用全文调度退避，现有订阅译文仍可显示。
-- 标题摘要可独立判定同语种。正文请求为当前批次的所有段落 ID 返回可用译文，已使用目标语言的部分原样保留。首批结果仅决定该批的译文。
-- 模型缺段或清洗后为空时，以 `InvalidModelOutput` 结束并保存 `partial` 或 `failed`。旧缺段完成记录按 `partial` 读取，旧正文同语种跳过记录可重新处理。续翻只发送尚未按 `source_hash` 命中的段落。全部请求段落处理完后才写入 `completed`。
-- 回归使用真实临时 SQLite 和模拟模型，验证前批同语种、末批漏译、旧缓存续翻、提取失败和订阅译文与阅读模式译文的调度区分。
+### 1. 范围
+
+适用于正文分批、译文落库、模型重试、阅读器进度以及后台全文完成判定。
+
+### 2. 接口与存储
+
+`reader.Detail.source_version` 对订阅正文使用文章内容哈希，对阅读模式使用清洗原网页正文和提取版本计算的摘要。翻译请求可带 `sourceVersion`、`startBlockId`。快照和 `translation:progress` 的 `Record` 返回 `sourceVersion` 与 `updatedAt`。迁移 00027 增加 `reader_contents.source_version`、`article_translations.source_version` 和 `checkpoint_json`，完整译文继续存于 `blocks_json`。
+
+### 3. 执行契约
+
+模型预算按实际 JSON、提示、标题和上下文估算，输出独立预留。同文章、语言、来源一次串行执行。短文单批，交互长文首批优先可见块。片段检查点按原块、拆分和模型提示快照匹配。父块全部片段校验后，在同一写入中合成完整译文并清理片段。进度按完整原块计数。
+
+### 4. 错误与重试
+
+缺段、空译文、重复标识、标记不符或输出截断，保留有效项并对缺失项安排一轮较小批次。临时网络错误允许短退避重试。连续两个批次没有有效结果、限流或预算错误时暂停。版本变化返回 `Conflict`，取消保留最后提交的记录，迟到响应不能落库。
+
+### 5. 兼容
+
+旧译文按当前正文的段落哈希和内联结构重新核对。重新提取相同正文保留版本，改动后只复用仍匹配的块。后台全文完成只接受当前原网页正文版本。
+
+### 6. 验证
+
+使用真实临时 SQLite 与模拟模型验证 66 段首批、单段拆分合成、漏段后继续、取消、片段跨重启、版本冲突和 v26 升级备份。
+
+### 7. 更新顺序
+
+先检查来源版本，在短事务写入完整段和片段状态。提交后推送进度。前端在当前来源与版本内只合并不早于已知 `updatedAt` 的结果。

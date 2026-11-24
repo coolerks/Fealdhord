@@ -46,6 +46,7 @@ func TestAIRepairRestoresChatAndArticleEvaluationOnVersion21Database(t *testing.
 	_, err = old.ExecContext(ctx, `
 		DELETE FROM goose_db_version WHERE version_id>21;
 		DROP TABLE article_translations;
+		ALTER TABLE reader_contents DROP COLUMN source_version;
 		ALTER TABLE feeds DROP COLUMN auto_translate_mode;
 		ALTER TABLE article_ai_settings DROP COLUMN auto_translate;
 		ALTER TABLE article_ai_settings DROP COLUMN auto_translate_scope;

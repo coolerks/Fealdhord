@@ -48,12 +48,13 @@ type LinkRequest struct {
 	ResourceID string `json:"resource_id"`
 }
 type Detail struct {
-	ArticleID   string `json:"article_id"`
-	HTML        string `json:"html"`
-	Text        string `json:"text"`
-	Mode        string `json:"mode"`
-	HasCached   bool   `json:"has_cached"`
-	HasOriginal bool   `json:"has_original"`
+	ArticleID     string `json:"article_id"`
+	HTML          string `json:"html"`
+	Text          string `json:"text"`
+	Mode          string `json:"mode"`
+	HasCached     bool   `json:"has_cached"`
+	HasOriginal   bool   `json:"has_original"`
+	SourceVersion string `json:"source_version,omitempty"`
 }
 type Result struct {
 	OK        bool          `json:"ok"`
@@ -116,11 +117,13 @@ func (s *Service) Get(ctx context.Context, request Request) Result {
 		return failed(cacheErr)
 	}
 	hasCached := cacheErr == nil && cached.Version == extractorVersion
+	sourceVersion := article.Hash
 	if request.Mode == "reader" {
 		if !hasCached {
 			return failed(database.ErrNotFound)
 		}
 		body, text, base = cached.HTML, cached.Text, cached.URL
+		sourceVersion = cached.SourceVersion
 	}
 	if body == "" {
 		if text == "" {
@@ -137,7 +140,7 @@ func (s *Service) Get(ctx context.Context, request Request) Result {
 		return failed(err)
 	}
 	originalURL, _ := netpolicy.NormalizeURL(article.URL)
-	return Result{OK: true, RequestID: rand.Text(), Data: &Detail{ArticleID: article.ID, HTML: display, Text: text, Mode: request.Mode, HasCached: hasCached, HasOriginal: originalURL != ""}}
+	return Result{OK: true, RequestID: rand.Text(), Data: &Detail{ArticleID: article.ID, HTML: display, Text: text, Mode: request.Mode, HasCached: hasCached, HasOriginal: originalURL != "", SourceVersion: sourceVersion}}
 }
 func (s *Service) Extract(ctx context.Context, request Request) (out Result) {
 	// 解析器只操作有界字节；局部恢复第三方异常，不允许把堆栈返回界面。

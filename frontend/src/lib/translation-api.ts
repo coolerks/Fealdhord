@@ -27,6 +27,8 @@ const errorMessages: Record<string, string> = {
   NotFound: '文章不存在或所属订阅已归档。',
   RateLimitError: '模型服务限流，请稍后重试。',
   ReaderError: '无法读取或提取文章正文。',
+  ContextWindowExceeded: '翻译内容超出所选模型的上下文预算。',
+  Conflict: '正文已更新，请重新打开正文后继续翻译。',
   Timeout: '翻译请求超时，已翻段落已保存，可重试续翻。',
   Cancelled: '翻译已取消，已翻段落已保留。',
 }

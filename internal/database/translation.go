@@ -71,6 +71,28 @@ func (s *Store) SaveArticleTranslation(ctx context.Context, params sqlc.SaveArti
 	return s.queries.SaveArticleTranslation(ctx, params)
 }
 
+func (s *Store) CurrentTranslationSource(ctx context.Context, articleID string) (sqlc.GetCurrentTranslationSourceRow, error) {
+	return s.queries.GetCurrentTranslationSource(ctx, articleID)
+}
+
+// SaveCurrentArticleTranslation prevents an in-flight result from replacing a newer source.
+func (s *Store) SaveCurrentArticleTranslation(ctx context.Context, params sqlc.SaveArticleTranslationParams) error {
+	return s.transaction(ctx, func(q *sqlc.Queries) error {
+		source, err := q.GetCurrentTranslationSource(ctx, params.ArticleID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrConflict
+		}
+		if err != nil {
+			return err
+		}
+		if source.ContentHash != params.ContentHash ||
+			(params.SourceMode == "reader" && (params.SourceVersion == "" || source.ReaderSourceVersion != params.SourceVersion)) {
+			return ErrConflict
+		}
+		return q.SaveArticleTranslation(ctx, params)
+	})
+}
+
 func (s *Store) DeleteArticleTranslations(ctx context.Context, articleID, targetLang string) error {
 	if targetLang == "" {
 		return s.queries.DeleteAllArticleTranslations(ctx, articleID)
@@ -125,7 +147,8 @@ ORDER BY a.sort_at DESC, a.id DESC LIMIT 1`
 	queryFull := `SELECT a.id FROM articles a
 JOIN feeds f ON f.id=a.feed_id
 JOIN article_translations ts ON ts.article_id=a.id AND ts.target_lang=? AND ts.source_mode='summary' AND ts.content_hash=a.content_hash AND ts.status IN ('completed','skipped_same_lang')
-LEFT JOIN article_translations tf ON tf.article_id=a.id AND tf.target_lang=? AND tf.source_mode='reader' AND tf.content_hash=a.content_hash AND tf.status='completed' AND tf.translated_blocks=tf.total_blocks
+LEFT JOIN reader_contents r ON r.article_id=a.id AND r.content_hash=a.content_hash AND r.source_version<>''
+LEFT JOIN article_translations tf ON tf.article_id=a.id AND tf.target_lang=? AND tf.source_mode='reader' AND tf.content_hash=a.content_hash AND tf.source_version=r.source_version AND tf.status='completed' AND tf.translated_blocks=tf.total_blocks
 LEFT JOIN article_ai_deferrals d ON d.article_id=a.id AND d.task='translation_full' AND d.until_at>?
 WHERE f.archived_at IS NULL
  AND a.sort_at>=?

@@ -1,10 +1,12 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { CodeToolbar } from '@/components/code-toolbar'
 import { readerImageID } from '@/lib/reader-image'
 import type { TranslationDisplayMode } from '@/lib/translation-api'
 import type { CodeBlock } from './highlight-code'
 import { useReaderCodeTheme } from './code-themes'
+import { readingBlock } from './reading-block'
 
 function prepareCodeBlocks(container: HTMLDivElement): CodeBlock[] {
   const blocks: CodeBlock[] = []
@@ -60,14 +62,17 @@ export function ArticleHTML({
   theme,
   translationBlocks,
   translationMode = 'original',
+  viewport,
 }: {
   html: string
   imagesAllowed: boolean
   theme: string
   translationBlocks?: Record<string, string>
   translationMode?: TranslationDisplayMode
+  viewport: RefObject<HTMLDivElement | null>
 }) {
   const container = useRef<HTMLDivElement>(null)
+  const renderedTranslations = useRef(new Map<string, { html: string; restore: () => void }>())
   const safeHTML = useMemo(() => ({ __html: html }), [html])
   const [snapshot, setSnapshot] = useState<{ html: string; blocks: CodeBlock[] }>()
   const blocks = snapshot?.html === html ? snapshot.blocks : undefined
@@ -83,16 +88,34 @@ export function ArticleHTML({
   }, [html, imagesAllowed])
 
   useLayoutEffect(() => {
+    const rendered = renderedTranslations.current
+    return () => {
+      for (const item of rendered.values()) item.restore()
+      rendered.clear()
+    }
+  }, [html, translationMode])
+
+  useLayoutEffect(() => {
     const root = container.current
     if (!root) return
     if (translationMode === 'original' || !translationBlocks) return
-    const restore: Array<() => void> = []
+    const rendered = renderedTranslations.current
+    const scroll = viewport.current
+    const anchor = scroll?.scrollTop ? readingBlock(root, scroll) : undefined
+    const anchorTop = anchor?.getBoundingClientRect().top
 
     for (const source of root.querySelectorAll<HTMLElement>('[data-tr-block]')) {
       const id = source.dataset.trBlock
       if (!id) continue
       const translatedHTML = translationBlocks[id]
+      const existing = rendered.get(id)
+      if (existing?.html === translatedHTML) continue
+      if (existing) {
+        existing.restore()
+        rendered.delete(id)
+      }
       if (!translatedHTML) continue
+      const restore: Array<() => void> = []
 
       const tag = source.tagName
       const inside = innerChildTags.has(tag)
@@ -114,12 +137,15 @@ export function ArticleHTML({
         else source.after(translatedNode)
       }
       restore.push(() => translatedNode.remove())
+      rendered.set(id, { html: translatedHTML, restore: () => {
+        for (const undo of restore.reverse()) undo()
+      } })
     }
-
-    return () => {
-      for (const undo of restore.reverse()) undo()
+    if (scroll && anchor && anchorTop !== undefined) {
+      const difference = anchor.getBoundingClientRect().top - anchorTop
+      if (Math.abs(difference) > .5) scroll.scrollTop += difference
     }
-  }, [html, translationBlocks, translationMode])
+  }, [html, translationBlocks, translationMode, viewport])
 
   useLayoutEffect(() => {
     let active = true
