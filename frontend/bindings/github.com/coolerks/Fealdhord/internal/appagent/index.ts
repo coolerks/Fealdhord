@@ -22,6 +22,7 @@ export type {
     SkillResource,
     Tool,
     ToolPermission,
+    ToolPermissionChange,
     UserQuestionAnswer,
     UserQuestionItem,
     UserQuestionOption

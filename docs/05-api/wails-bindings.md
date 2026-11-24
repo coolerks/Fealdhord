@@ -8,7 +8,7 @@
 
 `Chat.Send.approvalMode` 接受 `ask`、`bypass`、`deny` 以及全局聊天的 `custom`。省略时使用 `ask`，非法值返回 `ValidationError`。自定义模式在发送时读取规则，存储不可用时返回 `ToolPermissionsUnavailable`。聊天审批返回 `PendingAction.conversationId`，供界面匹配所属输入框。
 
-`API.ToolPermissions()` 返回工具规则目录，字段为 `id`、`name`、`connection?`、`available`、`requiresApproval` 和 `mode`。`API.SaveToolPermission(id, mode)` 以目录返回的 ID 保存 `ask`、`deny`、`bypass`。传空字符串恢复工具默认行为，也可清除暂时不可用的工具记录。未知工具写入显式规则返回 `UnknownTool`。
+`API.ToolPermissions()` 返回工具规则目录，字段为 `id`、`name`、`description?`（运行时展示，不落盘）、`connection?`、`available`、`requiresApproval` 和 `mode`。`API.SaveToolPermission(id, mode)` 与原子批量接口 `API.SaveToolPermissions(changes)` 以目录返回的 ID 保存 `ask`、`deny`、`bypass`。传空字符串恢复工具默认行为，也可清除暂时不可用的工具记录。未知工具写入显式规则返回 `UnknownTool` 且批量变更整体不落盘。
 
 `API.ConnectMCP(config)` 验证并连接 STDIO 或 Streamable HTTP。编辑须提交 `MCPClients()` 返回的稳定 `id`，添加表单使用 `newConnection=true`。保存成功后返回 `ClientStatus` 和工具、资源及提示词目录；状态不会回传字面凭据。请求头和环境变量条目包含 `name`、`value?`、`stored?`，已保存条目在 `stored=true` 且 `value` 为空时保留原值，移除条目可清除。代理密码通过 `proxyPasswordSet` 区分保留与清除。`API.DisconnectMCP(id)` 和 `API.ForgetMCP(id)` 使用连接标识。
 

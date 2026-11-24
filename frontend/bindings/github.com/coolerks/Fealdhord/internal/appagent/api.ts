@@ -98,6 +98,10 @@ export function SaveToolPermission(id: string, mode: string): $CancellablePromis
     return $Call.ByID(1927512529, id, mode);
 }
 
+export function SaveToolPermissions(changes: $models.ToolPermissionChange[] | null): $CancellablePromise<void> {
+    return $Call.ByID(2116358662, changes);
+}
+
 export function Skills(): $CancellablePromise<$models.Skill[] | null> {
     return $Call.ByID(4029147643);
 }

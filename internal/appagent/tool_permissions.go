@@ -23,10 +23,16 @@ var errToolPermissionsUnavailable = errors.New("ToolPermissionsUnavailable")
 type ToolPermission struct {
 	ID               string `json:"id"`
 	Name             string `json:"name"`
+	Description      string `json:"description,omitempty"`
 	Connection       string `json:"connection,omitempty"`
 	Available        bool   `json:"available"`
 	RequiresApproval bool   `json:"requiresApproval"`
 	Mode             string `json:"mode"`
+}
+
+type ToolPermissionChange struct {
+	ID   string `json:"id"`
+	Mode string `json:"mode"`
 }
 
 func toolPermissionID(tool Tool) string {
@@ -97,7 +103,14 @@ func (a *Platform) availableToolPermissions() map[string]ToolPermission {
 	tools := make(map[string]ToolPermission)
 	add := func(name, connection string, tool Tool) {
 		id := toolPermissionID(tool)
-		tools[id] = ToolPermission{ID: id, Name: name, Connection: connection, Available: true, RequiresApproval: tool.RequiresApproval}
+		tools[id] = ToolPermission{
+			ID:               id,
+			Name:             name,
+			Description:      tool.Description,
+			Connection:       connection,
+			Available:        true,
+			RequiresApproval: tool.RequiresApproval,
+		}
 	}
 	for _, tool := range a.registry.tools {
 		add(tool.Name, "", tool)
@@ -152,8 +165,22 @@ func (a *Platform) ToolPermissions() ([]ToolPermission, error) {
 
 // An empty mode restores the tool's default even when it is disconnected.
 func (a *Platform) SaveToolPermission(id, mode string) error {
-	if id == "" || len(id) > 128 || (mode != "" && !agentrun.ValidToolPermission(mode)) {
-		return errors.New("ValidationError")
+	return a.SaveToolPermissions([]ToolPermissionChange{{ID: id, Mode: mode}})
+}
+
+// SaveToolPermissions validates all changes and persists them in one atomic write.
+func (a *Platform) SaveToolPermissions(changes []ToolPermissionChange) error {
+	if len(changes) == 0 {
+		return nil
+	}
+	needsAvailable := false
+	for _, change := range changes {
+		if change.ID == "" || len(change.ID) > 128 || (change.Mode != "" && !agentrun.ValidToolPermission(change.Mode)) {
+			return errors.New("ValidationError")
+		}
+		if change.Mode != "" {
+			needsAvailable = true
+		}
 	}
 	a.permissionEdit.Lock()
 	defer a.permissionEdit.Unlock()
@@ -161,18 +188,36 @@ func (a *Platform) SaveToolPermission(id, mode string) error {
 	if err != nil {
 		return err
 	}
-	if mode == "" {
-		if _, exists := rules[id]; !exists {
-			return nil
+	var available map[string]ToolPermission
+	if needsAvailable {
+		available = a.availableToolPermissions()
+		for _, change := range changes {
+			if change.Mode != "" {
+				if _, exists := available[change.ID]; !exists {
+					return errors.New("UnknownTool")
+				}
+			}
 		}
-		delete(rules, id)
-	} else {
-		tool, exists := a.availableToolPermissions()[id]
-		if !exists {
-			return errors.New("UnknownTool")
+	}
+	changed := false
+	for _, change := range changes {
+		if change.Mode == "" {
+			if _, exists := rules[change.ID]; exists {
+				delete(rules, change.ID)
+				changed = true
+			}
+			continue
 		}
-		tool.Mode = mode
-		rules[id] = tool
+		tool := available[change.ID]
+		tool.Description = ""
+		tool.Mode = change.Mode
+		if prev, exists := rules[change.ID]; !exists || prev != tool {
+			rules[change.ID] = tool
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
 	}
 	data, err := json.Marshal(rules)
 	if err != nil || len(data) > maxToolPermissionsBytes || atomicFile(a.dir, toolPermissionsFile, data) != nil {

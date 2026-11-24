@@ -1,10 +1,22 @@
 import type { AnimatedIconName } from '@/components/icon-catalog'
 
+export type BuiltinToolCategory = 'articles' | 'feeds' | 'categories' | 'schedules' | 'notifications' | 'app'
+
+export const builtinToolCategories: readonly { id: BuiltinToolCategory; label: string; icon: AnimatedIconName }[] = [
+  { id: 'articles', label: '文章', icon: 'book-text' },
+  { id: 'feeds', label: '订阅', icon: 'radio-tower' },
+  { id: 'categories', label: '分类', icon: 'folder-tree' },
+  { id: 'schedules', label: '定时任务', icon: 'clock' },
+  { id: 'notifications', label: '通知', icon: 'bell' },
+  { id: 'app', label: '应用与视图', icon: 'sliders-horizontal' },
+]
+
 export type BuiltinToolGroup = {
   summary: string
   runningSummary: string
   icon: AnimatedIconName
   priority: number
+  category: BuiltinToolCategory
 }
 
 export type ToolMeta = {
@@ -14,34 +26,35 @@ export type ToolMeta = {
   icon: AnimatedIconName
   priority: number
   builtin: boolean
+  category?: BuiltinToolCategory
 }
 
 const groups = {
-  askUser: { summary: '向用户确认了需求', runningSummary: '向用户确认需求中', icon: 'circle-help', priority: 5 },
-  searchArticles: { summary: '搜索了文章', runningSummary: '搜索文章中', icon: 'search', priority: 10 },
-  listArticles: { summary: '查看了文章列表', runningSummary: '获取文章列表中', icon: 'layers', priority: 15 },
-  readArticles: { summary: '读取了文章', runningSummary: '读取文章中', icon: 'book-text', priority: 20 },
-  extractArticles: { summary: '提取了文章正文', runningSummary: '提取文章正文中', icon: 'scan-text', priority: 25 },
-  updateReadState: { summary: '更新了阅读状态', runningSummary: '更新阅读状态中', icon: 'check-check', priority: 30 },
-  updateFavorites: { summary: '更新了文章收藏', runningSummary: '更新文章收藏中', icon: 'bookmark', priority: 32 },
-  updateArticleCategories: { summary: '调整了文章分类', runningSummary: '调整文章分类中', icon: 'folder-tree', priority: 35 },
-  evaluateArticles: { summary: '评估了文章', runningSummary: '评估文章中', icon: 'sparkles', priority: 40 },
-  viewFeeds: { summary: '查看了订阅', runningSummary: '查看订阅中', icon: 'radio-tower', priority: 45 },
-  manageFeeds: { summary: '更新了订阅', runningSummary: '更新订阅中', icon: 'radio-tower', priority: 48 },
-  refreshFeeds: { summary: '刷新了订阅', runningSummary: '刷新订阅中', icon: 'refresh-cw', priority: 50 },
-  viewCategories: { summary: '查看了分类', runningSummary: '查看分类中', icon: 'folder-tree', priority: 55 },
-  manageCategories: { summary: '更新了分类', runningSummary: '更新分类中', icon: 'folder-tree', priority: 58 },
-  viewStats: { summary: '查看了视图统计', runningSummary: '查看视图统计中', icon: 'layout-grid', priority: 60 },
-  handleOPML: { summary: '处理了 OPML 数据', runningSummary: '处理 OPML 数据中', icon: 'database-backup', priority: 65 },
-  viewSettings: { summary: '查看了应用设置', runningSummary: '查看应用设置中', icon: 'sliders-horizontal', priority: 70 },
-  updateSettings: { summary: '更新了应用设置', runningSummary: '更新应用设置中', icon: 'sliders-horizontal', priority: 72 },
-  viewDiagnostics: { summary: '查看了诊断状态', runningSummary: '查看诊断状态中', icon: 'activity', priority: 75 },
-  viewSchedules: { summary: '查看了定时任务', runningSummary: '查看定时任务中', icon: 'clock', priority: 80 },
-  manageSchedules: { summary: '管理了定时任务', runningSummary: '管理定时任务中', icon: 'clock', priority: 82 },
-  findTools: { summary: '查找了可用工具', runningSummary: '查找可用工具中', icon: 'blocks', priority: 85 },
-  runBuiltinTool: { summary: '调用了内置工具', runningSummary: '调用内置工具中', icon: 'blocks', priority: 86 },
-  viewNotifications: { summary: '查看了通知配置', runningSummary: '查看通知配置中', icon: 'bell', priority: 95 },
-  sendNotification: { summary: '发送了通知', runningSummary: '发送通知中', icon: 'send', priority: 100 },
+  askUser: { summary: '向用户确认了需求', runningSummary: '向用户确认需求中', icon: 'circle-help', priority: 5, category: 'app' },
+  searchArticles: { summary: '搜索了文章', runningSummary: '搜索文章中', icon: 'search', priority: 10, category: 'articles' },
+  listArticles: { summary: '查看了文章列表', runningSummary: '获取文章列表中', icon: 'layers', priority: 15, category: 'articles' },
+  readArticles: { summary: '读取了文章', runningSummary: '读取文章中', icon: 'book-text', priority: 20, category: 'articles' },
+  extractArticles: { summary: '提取了文章正文', runningSummary: '提取文章正文中', icon: 'scan-text', priority: 25, category: 'articles' },
+  updateReadState: { summary: '更新了阅读状态', runningSummary: '更新阅读状态中', icon: 'check-check', priority: 30, category: 'articles' },
+  updateFavorites: { summary: '更新了文章收藏', runningSummary: '更新文章收藏中', icon: 'bookmark', priority: 32, category: 'articles' },
+  updateArticleCategories: { summary: '调整了文章分类', runningSummary: '调整文章分类中', icon: 'folder-tree', priority: 35, category: 'articles' },
+  evaluateArticles: { summary: '评估了文章', runningSummary: '评估文章中', icon: 'sparkles', priority: 40, category: 'articles' },
+  viewFeeds: { summary: '查看了订阅', runningSummary: '查看订阅中', icon: 'radio-tower', priority: 45, category: 'feeds' },
+  manageFeeds: { summary: '更新了订阅', runningSummary: '更新订阅中', icon: 'radio-tower', priority: 48, category: 'feeds' },
+  refreshFeeds: { summary: '刷新了订阅', runningSummary: '刷新订阅中', icon: 'refresh-cw', priority: 50, category: 'feeds' },
+  viewCategories: { summary: '查看了分类', runningSummary: '查看分类中', icon: 'folder-tree', priority: 55, category: 'categories' },
+  manageCategories: { summary: '更新了分类', runningSummary: '更新分类中', icon: 'folder-tree', priority: 58, category: 'categories' },
+  viewStats: { summary: '查看了视图统计', runningSummary: '查看视图统计中', icon: 'layout-grid', priority: 60, category: 'app' },
+  handleOPML: { summary: '处理了 OPML 数据', runningSummary: '处理 OPML 数据中', icon: 'database-backup', priority: 65, category: 'app' },
+  viewSettings: { summary: '查看了应用设置', runningSummary: '查看应用设置中', icon: 'sliders-horizontal', priority: 70, category: 'app' },
+  updateSettings: { summary: '更新了应用设置', runningSummary: '更新应用设置中', icon: 'sliders-horizontal', priority: 72, category: 'app' },
+  viewDiagnostics: { summary: '查看了诊断状态', runningSummary: '查看诊断状态中', icon: 'activity', priority: 75, category: 'app' },
+  viewSchedules: { summary: '查看了定时任务', runningSummary: '查看定时任务中', icon: 'clock', priority: 80, category: 'schedules' },
+  manageSchedules: { summary: '管理了定时任务', runningSummary: '管理定时任务中', icon: 'clock', priority: 82, category: 'schedules' },
+  findTools: { summary: '查找了可用工具', runningSummary: '查找可用工具中', icon: 'blocks', priority: 85, category: 'app' },
+  runBuiltinTool: { summary: '调用了内置工具', runningSummary: '调用内置工具中', icon: 'blocks', priority: 86, category: 'app' },
+  viewNotifications: { summary: '查看了通知配置', runningSummary: '查看通知配置中', icon: 'bell', priority: 95, category: 'notifications' },
+  sendNotification: { summary: '发送了通知', runningSummary: '发送通知中', icon: 'send', priority: 100, category: 'notifications' },
 } satisfies Record<string, BuiltinToolGroup>
 
 type BuiltinToolEntry = { label: string; group: BuiltinToolGroup }
@@ -143,6 +156,7 @@ export function getToolMeta(name: string): ToolMeta {
       icon: entry.group.icon,
       priority: entry.group.priority,
       builtin: true,
+      category: entry.group.category,
     }
   }
   return {

@@ -158,3 +158,67 @@ func TestExternalToolPermissionsAreScopedToConnectionAndTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSaveToolPermissionsAtomicBatchAndDescriptionRuntimeOnly(t *testing.T) {
+	registry := NewRegistry()
+	Register(registry, "item.read", "读取指定条目", false, func(context.Context, struct{}) string { return "ok" })
+	Register(registry, "item.write", "写入指定条目", true, func(context.Context, struct{}) string { return "ok" })
+	dir := t.TempDir()
+	platform := NewPlatform(registry, dir)
+
+	// 批量保存成功
+	if err := platform.SaveToolPermissions([]ToolPermissionChange{
+		{ID: "builtin:item.read", Mode: "ask"},
+		{ID: "builtin:item.write", Mode: "bypass"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	catalog, err := platform.ToolPermissions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := make(map[string]ToolPermission, len(catalog))
+	for _, item := range catalog {
+		byID[item.ID] = item
+	}
+	if byID["builtin:item.read"].Mode != "ask" || byID["builtin:item.read"].Description != "读取指定条目" {
+		t.Fatalf("unexpected item.read permission: %+v", byID["builtin:item.read"])
+	}
+	if byID["builtin:item.write"].Mode != "bypass" || byID["builtin:item.write"].Description != "写入指定条目" {
+		t.Fatalf("unexpected item.write permission: %+v", byID["builtin:item.write"])
+	}
+
+	// 落盘文件不包含 description
+	raw, err := os.ReadFile(filepath.Join(dir, toolPermissionsFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "description") || strings.Contains(string(raw), "读取指定条目") {
+		t.Fatalf("persisted rules should omit description: %s", string(raw))
+	}
+
+	// 批量中包含非法工具时整体回滚，不影响已有规则
+	if err := platform.SaveToolPermissions([]ToolPermissionChange{
+		{ID: "builtin:item.read", Mode: "deny"},
+		{ID: "builtin:missing", Mode: "bypass"},
+	}); err == nil || err.Error() != "UnknownTool" {
+		t.Fatalf("expected UnknownTool, got %v", err)
+	}
+	rules, err := platform.LoadToolPermissions()
+	if err != nil || rules["builtin:item.read"] != "ask" || rules["builtin:item.write"] != "bypass" {
+		t.Fatalf("failed batch mutated saved rules: %+v %v", rules, err)
+	}
+
+	// 批量恢复默认
+	if err := platform.SaveToolPermissions([]ToolPermissionChange{
+		{ID: "builtin:item.read", Mode: ""},
+		{ID: "builtin:item.write", Mode: ""},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rules, err = platform.LoadToolPermissions()
+	if err != nil || len(rules) != 0 {
+		t.Fatalf("expected empty rules after reset, got %+v %v", rules, err)
+	}
+}

@@ -123,9 +123,15 @@ export interface Tool {
 export interface ToolPermission {
     "id": string;
     "name": string;
+    "description"?: string;
     "connection"?: string;
     "available": boolean;
     "requiresApproval": boolean;
+    "mode": string;
+}
+
+export interface ToolPermissionChange {
+    "id": string;
     "mode": string;
 }
 

@@ -87,7 +87,7 @@ const errorLabels: Record<string, string> = {
   Timeout: '模型回复超时。',
   AgentLimitExceeded: '已达到本轮工具调用上限，已保留部分回复。',
   ToolNotAllowed: '模型请求了未授权的工具。',
-  ToolPermissionsUnavailable: '无法读取自定义工具权限，请检查「设置 → MCP 与权限」。',
+  ToolPermissionsUnavailable: '无法读取自定义工具权限，请检查「设置 → 工具权限」。',
   ToolCallConflict: '模型重复使用了工具调用编号。',
   ResponseLimit: '回复超过长度限制，已保留部分内容。',
   IncompleteResponse: '服务提前结束，已保留部分内容。',

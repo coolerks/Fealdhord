@@ -34,6 +34,7 @@ import { AISettings } from './AISettings'
 import { ArchivedConversations } from './ArchivedConversations'
 import { approvalModes, approvalPresentations } from '@/features/chat/approval-options'
 import { MCPSettings, SkillsSettings } from './AIPlatformSettings'
+import { ToolPermissionsSettings } from './ToolPermissionsSettings'
 import { ArticleAISettings } from '@/features/article-ai/ArticleAISettings'
 import { useWorkspace } from '@/stores/workspace'
 import type { SettingsTab } from '@/stores/workspace'
@@ -102,7 +103,8 @@ const sectionGroups: SectionGroup[] = [
       { id: 'ai', title: '服务与模型', icon: Sparkles, meaning: 'ai' },
       { id: 'archived-chat', title: '已归档会话', icon: Archive, meaning: 'box' },
       { id: 'article-ai', title: '文章 AI', icon: Bot, meaning: 'bot' },
-      { id: 'mcp', title: 'MCP 与权限', icon: Plug, meaning: 'webhook' },
+      { id: 'tool-permissions', title: '工具权限', icon: SlidersHorizontal, meaning: 'sliders-horizontal' },
+      { id: 'mcp', title: 'MCP', icon: Plug, meaning: 'webhook' },
       { id: 'skills', title: 'Skills', icon: Blocks, meaning: 'blocks' },
     ],
   },
@@ -347,10 +349,24 @@ export function SettingsDialog({ sidebar, motionMode }: {
                 options={approvalModes} value={preferences.chat_approval_mode}
                 onValueChange={value => set('chat_approval_mode', value)} />
             </SettingRow>
+            {preferences.chat_approval_mode === 'custom' && (
+              <SettingRow>
+                <span className="text-[13px]">自定义规则</span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => useWorkspace.setState({ settingsTab: 'tool-permissions' })}
+                >
+                  管理权限
+                </Button>
+              </SettingRow>
+            )}
           </SettingCard>
         </SettingSection>
       </>}
       {tab === 'article-ai' && <ArticleAISettings />}
+      {tab === 'tool-permissions' && <ToolPermissionsSettings />}
       {tab === 'mcp' && <MCPSettings />}
       {tab === 'archived-chat' && <ArchivedConversations />}
       {tab === 'skills' && <SkillsSettings />}
