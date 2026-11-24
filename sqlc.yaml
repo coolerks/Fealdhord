@@ -23,6 +23,7 @@ sql:
       - migrations/00020_notification_recipients.sql
       - migrations/00023_chat_reply_details.sql
       - migrations/00024_feed_reader_open_mode.sql
+      - migrations/00025_chat_conversation_management.sql
     queries: internal/database/queries
     gen:
       go:

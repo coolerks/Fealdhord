@@ -32,7 +32,10 @@ vi.mock('@/lib/rss-api',()=>({feedsQueryKey:['rss','feeds'],rssAPI:{list:vi.fn(a
 vi.mock('@/lib/navigation-api',()=>({navigationQueryKey:['navigation'],navigationAPI:{list:vi.fn(async()=>({categories:[],feeds:[],totals:{total:0,unread:0,favorites:0}}))}}))
 const reader=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
 vi.mock('@/lib/reader-api',()=>({readerAPI:reader}))
-const chat = vi.hoisted(() => ({ List: vi.fn(), Create: vi.fn(), Branch: vi.fn(), Messages: vi.fn(), Send: vi.fn(), Cancel: vi.fn(), Model: vi.fn(), ContextStatus: vi.fn() }))
+const chat = vi.hoisted(() => ({
+  List: vi.fn(), Create: vi.fn(), Branch: vi.fn(), Messages: vi.fn(), Send: vi.fn(), Cancel: vi.fn(), Model: vi.fn(),
+  ContextStatus: vi.fn(), Rename: vi.fn(), SetPinned: vi.fn(), SetArchived: vi.fn(), Archived: vi.fn(), Delete: vi.fn(),
+}))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/chat/api', () => chat)
 const listAIConfiguration = vi.hoisted(() => vi.fn())
 const saveAIModel = vi.hoisted(() => vi.fn())
@@ -128,6 +131,109 @@ function setup(withArticles = false) {
 }
 
 describe('Phase 1 阅读 Shell', () => {
+  it.each(['dialog', 'full'] as const)('设置侧栏可在 %s 模式调宽和收起', async settingsMode => {
+    const user = userEvent.setup()
+    api.get.mockResolvedValue({ preferences: preferencesFixture({ settings_open_mode: settingsMode }), revision: 0 })
+    setup()
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    const splitter = await screen.findByRole('separator', { name: '调整设置侧栏宽度' })
+    splitter.focus()
+    await user.keyboard('{ArrowRight}')
+    expect(splitter).toHaveAttribute('aria-valuenow', '228')
+    await user.click(screen.getByRole('button', { name: '收起设置侧栏' }))
+    expect(screen.queryByRole('navigation', { name: '设置分区' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('separator', { name: '调整设置侧栏宽度' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '展开设置侧栏' }))
+    expect(screen.getByRole('separator', { name: '调整设置侧栏宽度' })).toHaveAttribute('aria-valuenow', '228')
+    await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      settings_sidebar_width: 228, settings_sidebar_collapsed: false, sidebar_width: 248,
+    }), expect.any(Number)))
+  })
+
+  it('通过会话菜单重命名、置顶和分支', async () => {
+    const user = userEvent.setup()
+    let entry = { id: 'menu-chat', title: '会话原名', pinned: false }
+    let branch: { id: string; title: string; pinned: boolean } | undefined
+    chat.List.mockImplementation(async () => branch ? [entry, branch] : [entry])
+    chat.Messages.mockResolvedValue([])
+    chat.Rename.mockImplementation(async (_id: string, title: string) => {
+      entry = { ...entry, title }
+      return entry
+    })
+    chat.SetPinned.mockImplementation(async (_id: string, pinned: boolean) => {
+      entry = { ...entry, pinned }
+      return entry
+    })
+    chat.Branch.mockImplementation(async () => {
+      branch = { id: 'menu-branch', title: '分支聊天', pinned: false }
+      return branch
+    })
+    setup()
+    await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    const source = await screen.findByRole('button', { name: '会话原名' })
+    source.focus()
+    await user.keyboard('{Shift>}{F10}{/Shift}')
+    await user.click(await screen.findByRole('menuitem', { name: '重命名' }))
+    const rename = within(await screen.findByRole('dialog', { name: '重命名会话' }))
+    fireEvent.change(rename.getByRole('textbox', { name: '会话名称' }), { target: { value: '新的会话名' } })
+    await user.click(rename.getByRole('button', { name: '保存' }))
+    expect(chat.Rename).toHaveBeenCalledWith(entry.id, '新的会话名')
+    const renamed = await screen.findByRole('button', { name: '新的会话名' })
+    fireEvent.contextMenu(renamed)
+    await user.click(await screen.findByRole('menuitem', { name: '置顶' }))
+    await waitFor(() => expect(renamed).toHaveAccessibleDescription('已置顶'))
+    fireEvent.contextMenu(renamed)
+    expect(await screen.findByRole('menuitem', { name: '取消置顶' })).toBeInTheDocument()
+    await user.click(screen.getByRole('menuitem', { name: '分支到新聊天' }))
+    expect(chat.Branch).toHaveBeenCalledWith(entry.id, '')
+    expect(await screen.findByRole('heading', { name: '分支聊天' })).toBeInTheDocument()
+  }, 12000)
+
+  it('从会话右键归档，并在设置恢复或确认删除', async () => {
+    const user = userEvent.setup()
+    const entry = { id: 'archive-target', title: '周末阅读' }
+    let archived = false
+    let deleted = false
+    chat.List.mockImplementation(async () => archived || deleted ? [] : [entry])
+    chat.Messages.mockResolvedValue([])
+    chat.Archived.mockImplementation(async () => ({ items: archived && !deleted ? [entry] : [], hasMore: false }))
+    chat.SetArchived.mockImplementation(async (_id: string, value: boolean) => { archived = value })
+    chat.Delete.mockImplementation(async () => { deleted = true })
+    setup()
+    await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    const archiveFromMenu = async () => {
+      fireEvent.contextMenu(await screen.findByRole('button', { name: '周末阅读' }))
+      await user.click(await screen.findByRole('menuitem', { name: '归档' }))
+      return within(await screen.findByRole('dialog', { name: '归档“周末阅读”？' }))
+    }
+    const first = await archiveFromMenu()
+    await user.click(first.getByRole('button', { name: '取消' }))
+    expect(chat.SetArchived).not.toHaveBeenCalled()
+    const second = await archiveFromMenu()
+    await user.click(second.getByRole('button', { name: '确认归档' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: '周末阅读' })).not.toBeInTheDocument())
+    expect(chat.SetArchived).toHaveBeenCalledWith(entry.id, true)
+    const openArchived = async () => {
+      await user.click(screen.getByRole('button', { name: 'AI 设置' }))
+      await user.click(await screen.findByRole('button', { name: '已归档会话' }))
+    }
+    await openArchived()
+    await user.click(await screen.findByRole('button', { name: '恢复 周末阅读' }))
+    expect(await screen.findByText('暂无已归档会话')).toBeInTheDocument()
+    expect(chat.SetArchived).toHaveBeenCalledWith(entry.id, false)
+    await user.keyboard('{Escape}')
+    const again = await archiveFromMenu()
+    await user.click(again.getByRole('button', { name: '确认归档' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: '周末阅读' })).not.toBeInTheDocument())
+    await openArchived()
+    await user.click(await screen.findByRole('button', { name: '删除 周末阅读' }))
+    const removal = within(await screen.findByRole('dialog', { name: '删除“周末阅读”？' }))
+    expect(chat.Delete).not.toHaveBeenCalled()
+    await user.click(removal.getByRole('button', { name: '确认删除' }))
+    expect(await screen.findByText('暂无已归档会话')).toBeInTheDocument()
+    expect(chat.Delete).toHaveBeenCalledWith(entry.id, true)
+  }, 12000)
+
   it('全屏设置替换两栏并返回阅读，保存对话框为下次打开方式', async () => {
     const animate = vi.spyOn(workspaceMotion, 'animateWorkspaceEntry')
     const user = userEvent.setup()

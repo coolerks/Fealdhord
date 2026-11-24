@@ -47,8 +47,10 @@ type SendInput struct {
 }
 
 type Conversation struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	Pinned     bool   `json:"pinned,omitempty"`
+	ArchivedAt int64  `json:"archivedAt,omitempty"`
 }
 
 type ToolActivity struct {
@@ -138,7 +140,7 @@ func (s *Service) List(ctx context.Context, scope Scope) ([]Conversation, error)
 	}
 	items := make([]Conversation, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, Conversation{ID: row.ID, Title: row.Title})
+		items = append(items, conversationDTO(row))
 	}
 	return items, nil
 }
@@ -155,13 +157,21 @@ func (s *Service) Create(ctx context.Context, scope Scope, title string) (Conver
 	if err != nil {
 		return Conversation{}, modelError("StorageError")
 	}
-	return Conversation{ID: row.ID, Title: row.Title}, nil
+	return conversationDTO(row), nil
 }
 
 func (s *Service) Messages(ctx context.Context, id string) ([]Message, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rows, err := s.store.ChatQueries().ListConversationMessages(ctx, id)
+	q := s.store.ChatQueries()
+	conversation, err := q.GetConversation(ctx, id)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, modelError("StorageError")
+	}
+	if conversation.ArchivedAt.Valid {
+		return nil, modelError("ChatConversationUnavailable")
+	}
+	rows, err := q.ListConversationMessages(ctx, id)
 	if err != nil {
 		return nil, modelError("StorageError")
 	}
@@ -223,6 +233,9 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 	conversation, err := q.GetConversation(ctx, input.ConversationID)
 	if err != nil {
 		return modelError("StorageError")
+	}
+	if conversation.ArchivedAt.Valid {
+		return modelError("ChatConversationUnavailable")
 	}
 	if (input.Selection != "" && conversation.ScopeType != "article") || (input.IncludeContext && conversation.ScopeType == "global") ||
 		((len(input.ArticleIDs) > 0 || input.ModelID != "" || input.ReasoningEffort != "") && conversation.ScopeType != "global") {

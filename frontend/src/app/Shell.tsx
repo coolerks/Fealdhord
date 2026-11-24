@@ -124,14 +124,18 @@ export function Shell() {
   const fillReader = overlay && preferences.reader_layout === 'fill'
   const readerVisible = preferences.reader_open && Boolean(selected)
   const [sidebarDraft, setSidebarDraft] = useState<number | null>(null)
+  const [settingsSidebarDraft, setSettingsSidebarDraft] = useState<number | null>(null)
   const [listDraft, setListDraft] = useState<number | null>(null)
   const [listLimit, setListLimit] = useState(listMaxWidth)
   const shell = useRef<HTMLDivElement>(null)
   const workspace = useRef<HTMLElement>(null)
   const wasSettingsWorkspace = useRef(false)
   const articleTransitionHost = useRef<HTMLDivElement>(null)
-  const sidebarCollapsed = preferences.sidebar_collapsed && !settingsWorkspace
-  const sidebarWidth = sidebarDraft ?? preferences.sidebar_width
+  const sidebarCollapsed = settingsWorkspace ? Boolean(preferences.settings_sidebar_collapsed) : preferences.sidebar_collapsed
+  const savedSidebarWidth = settingsWorkspace ? (preferences.settings_sidebar_width ?? 220) : preferences.sidebar_width
+  const visibleSidebarDraft = settingsWorkspace ? settingsSidebarDraft : sidebarDraft
+  const resizeSidebar = settingsWorkspace ? setSettingsSidebarDraft : setSidebarDraft
+  const sidebarWidth = visibleSidebarDraft ?? savedSidebarWidth
   const listWidth = listDraft ?? preferences.list_width
   const queryKey = libraryAnchorKey(library.key)
 
@@ -268,18 +272,22 @@ export function Shell() {
   return <MotionConfig reducedMotion={mode === 'full' ? 'never' : 'always'} transition={{ duration: mode === 'off' ? 0 : mode === 'subtle' ? .1 : .22, ease: [.22, 1, .36, 1] }}>
     <div className="desktop-shell" data-platform={platform}>
       {platform !== 'mac' && <ApplicationMenu windows={platform === 'windows'} windowsSidebarToggle={platform === 'windows' && !settingsWorkspace ? sidebarToggle : undefined} />}
-      <div ref={shell} className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px`, '--list-width-cap': `${listMaxShare * 100}%` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={sidebarCollapsed} data-sidebar-resizing={sidebarDraft !== null}>
+      <div ref={shell} className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px`, '--list-width-cap': `${listMaxShare * 100}%` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={sidebarCollapsed} data-sidebar-resizing={visibleSidebarDraft !== null}>
       {platform !== 'windows' && !settingsWorkspace && <div className="sidebar-toggle">{sidebarToggle}</div>}
       <div className="sidebar-track">
         <Sidebar motionMode={mode} inChat={chatVisible || settingsWorkspace} suspended={settingsWorkspace} />
         <div ref={setChatSidebar} className="chat-sidebar-host" inert={settingsWorkspace} hidden={settingsWorkspace} />
         <div ref={setSettingsSidebar} className="settings-sidebar-host" hidden={!settingsWorkspace} />
       </div>
-      {!sidebarCollapsed && !settingsWorkspace && <Splitter label="调整侧栏宽度" value={sidebarDraft ?? preferences.sidebar_width} min={220} max={360} onResize={setSidebarDraft}
+      {!sidebarCollapsed && <Splitter label={settingsWorkspace ? '调整设置侧栏宽度' : '调整侧栏宽度'}
+        value={sidebarWidth} min={settingsWorkspace ? 160 : 220} max={settingsWorkspace ? 300 : 360} onResize={resizeSidebar}
         onCollapse={() => {
-          patch({ sidebar_collapsed: true })
-          document.getElementById('sidebar-toggle')?.focus()
-        }} onCommit={value => { patch({ sidebar_width: value }); setSidebarDraft(null) }} />}
+          patch(settingsWorkspace ? { settings_sidebar_collapsed: true } : { sidebar_collapsed: true })
+          document.getElementById(settingsWorkspace ? 'settings-sidebar-toggle' : 'sidebar-toggle')?.focus()
+        }} onCommit={value => {
+          patch(settingsWorkspace ? { settings_sidebar_width: value } : { sidebar_width: value })
+          resizeSidebar(null)
+        }} />}
       <main ref={workspace} className={cn('reading-workspace workspace-mode-reading', !overlay && 'reader-columns', chatVisible && 'chat-obscured', settingsWorkspace && 'settings-obscured')}
         hidden={settingsWorkspace} inert={chatVisible || settingsWorkspace} aria-hidden={chatVisible || settingsWorkspace || undefined}>
         <section className="article-pane" aria-label="文章浏览" inert={fillReader && readerVisible} aria-hidden={fillReader && readerVisible || undefined}>

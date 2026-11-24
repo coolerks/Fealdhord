@@ -33,7 +33,7 @@ export function GlobalContextMenu({children}:{children:ReactNode}) {
   if (!next) setTarget(current => current.range ? { ...current, range: undefined } : current)
  }}><ContextMenuTrigger asChild><div className="application-root" onContextMenuCapture={event=>{
   const element=event.target instanceof Element?event.target:null
-  if (element?.closest('[data-reader-image-viewer]')) return
+  if (element?.closest('[data-reader-image-viewer], [data-conversation-menu]')) return
   const imageID = element instanceof HTMLImageElement && !element.hidden && element.closest('.reader-prose[data-images=allowed]')
     ? readerImageID(element) : undefined
   const text = captureTextTarget(event.target)

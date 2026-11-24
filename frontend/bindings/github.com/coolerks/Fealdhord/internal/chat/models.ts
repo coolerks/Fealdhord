@@ -5,6 +5,11 @@
 // @ts-ignore: Unused imports
 import * as ai$0 from "../ai/models.js";
 
+export interface ArchivedPage {
+    "items": Conversation[] | null;
+    "hasMore": boolean;
+}
+
 export interface ContextPin {
     "id": string;
     "title": string;
@@ -25,6 +30,8 @@ export interface ContextStatus {
 export interface Conversation {
     "id": string;
     "title": string;
+    "pinned"?: boolean;
+    "archivedAt"?: number;
 }
 
 export interface Message {

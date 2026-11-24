@@ -294,6 +294,21 @@ func (w *replyWork) snapshot(started, ended time.Time, terminalStatus string) *R
 }
 
 func (s *Service) Branch(ctx context.Context, id, messageID string) (Conversation, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if messageID == "" {
+		if s.active[id] != nil {
+			return Conversation{}, modelError("Conflict")
+		}
+		var err error
+		messageID, err = s.store.ChatQueries().LatestGlobalBranchPoint(ctx, id)
+		if errors.Is(err, sql.ErrNoRows) {
+			return Conversation{}, modelError("ChatBranchUnavailable")
+		}
+		if err != nil {
+			return Conversation{}, modelError("StorageError")
+		}
+	}
 	row, err := s.store.BranchChat(ctx, sqlc.CreateChatBranchParams{
 		NewID: rand.Text(), Now: time.Now().UnixMilli(), SourceID: id, MessageID: messageID,
 	})
@@ -303,7 +318,7 @@ func (s *Service) Branch(ctx context.Context, id, messageID string) (Conversatio
 	if err != nil {
 		return Conversation{}, modelError("StorageError")
 	}
-	return Conversation{ID: row.ID, Title: row.Title}, nil
+	return conversationDTO(row), nil
 }
 
 func effortLabel(model aiconfig.Model, effort string) string {

@@ -15,58 +15,60 @@ type ScrollAnchor struct {
 }
 
 type Preferences struct {
-	DeveloperMode            bool                    `json:"developer_mode"`
-	QuitOnWindowClose        bool                    `json:"quit_on_window_close"`
+	DeveloperMode               bool                    `json:"developer_mode"`
+	QuitOnWindowClose           bool                    `json:"quit_on_window_close"`
 	RefreshIntervalMinutes      int                     `json:"refresh_interval_minutes"`
 	NotificationMode            string                  `json:"notification_mode"`
 	RefreshNotificationsEnabled bool                    `json:"refresh_notifications_enabled"`
 	RefreshToastAutoDismiss     bool                    `json:"refresh_toast_auto_dismiss"`
-	ArticleShareCount        int                     `json:"article_share_count"`
-	ArticleShareSummaryLimit int                     `json:"article_share_summary_limit"`
-	WebImageFallback         bool                    `json:"web_image_fallback"`
-	RemoteImages             string                  `json:"remote_images"`
-	MediaCacheEnabled        bool                    `json:"media_cache_enabled"`
-	Theme                    string                  `json:"theme"`
-	ArticleViewMode          string                  `json:"article_view_mode"`
-	ListDensity              string                  `json:"list_density"`
-	ListThumbnail            string                  `json:"list_thumbnail"`
-	MasonryImageMode         string                  `json:"masonry_image_mode"`
-	Animation                string                  `json:"animation"`
-	FollowSystemReduceMotion bool                    `json:"follow_system_reduce_motion"`
-	SidebarCollapsed         bool                    `json:"sidebar_collapsed"`
-	SidebarWidth             int                     `json:"sidebar_width"`
-	ListWidth                int                     `json:"list_width"`
-	ReaderLayout             string                  `json:"reader_layout"`
-	ReaderPinned             bool                    `json:"reader_pinned"`
-	ReaderOpen               bool                    `json:"reader_open"`
-	SelectedScopeID          string                  `json:"selected_scope_id"`
-	SelectedScope            string                  `json:"selected_scope"`
-	SelectedArticleID        string                  `json:"selected_article_id"`
-	ScrollAnchors            map[string]ScrollAnchor `json:"scroll_anchors"`
-	ReaderToolbarPinned      []string                `json:"reader_toolbar_pinned"`
-	SettingsOpenMode         string                  `json:"settings_open_mode"`
-	ReaderOpenMode           string                  `json:"reader_open_mode"`
-	ReaderAutoRead           bool                    `json:"reader_auto_read"`
-	ReaderFontFamily         string                  `json:"reader_font_family"`
-	ReaderFontSize           int                     `json:"reader_font_size"`
-	ReaderLineHeight         float64                 `json:"reader_line_height"`
-	ReaderWidth              int                     `json:"reader_width"`
-	ReaderImageWheel         string                  `json:"reader_image_wheel"`
-	ReaderImageBackdropClose bool                    `json:"reader_image_backdrop_close"`
-	ReaderCodeTheme          string                  `json:"reader_code_theme"`
-	ChatCodeTheme            string                  `json:"chat_code_theme"`
-	ChatModelID              string                  `json:"chat_model_id"`
-	ChatApprovalMode         string                  `json:"chat_approval_mode"`
-	ChatApprovalPresentation string                  `json:"chat_approval_presentation"`
-	ChatMaxRetries           int                     `json:"chat_max_retries"`
-	ReaderOutline            string                  `json:"reader_outline"`
+	ArticleShareCount           int                     `json:"article_share_count"`
+	ArticleShareSummaryLimit    int                     `json:"article_share_summary_limit"`
+	WebImageFallback            bool                    `json:"web_image_fallback"`
+	RemoteImages                string                  `json:"remote_images"`
+	MediaCacheEnabled           bool                    `json:"media_cache_enabled"`
+	Theme                       string                  `json:"theme"`
+	ArticleViewMode             string                  `json:"article_view_mode"`
+	ListDensity                 string                  `json:"list_density"`
+	ListThumbnail               string                  `json:"list_thumbnail"`
+	MasonryImageMode            string                  `json:"masonry_image_mode"`
+	Animation                   string                  `json:"animation"`
+	FollowSystemReduceMotion    bool                    `json:"follow_system_reduce_motion"`
+	SidebarCollapsed            bool                    `json:"sidebar_collapsed"`
+	SettingsSidebarCollapsed    bool                    `json:"settings_sidebar_collapsed,omitempty"`
+	SettingsSidebarWidth        int                     `json:"settings_sidebar_width,omitempty"`
+	SidebarWidth                int                     `json:"sidebar_width"`
+	ListWidth                   int                     `json:"list_width"`
+	ReaderLayout                string                  `json:"reader_layout"`
+	ReaderPinned                bool                    `json:"reader_pinned"`
+	ReaderOpen                  bool                    `json:"reader_open"`
+	SelectedScopeID             string                  `json:"selected_scope_id"`
+	SelectedScope               string                  `json:"selected_scope"`
+	SelectedArticleID           string                  `json:"selected_article_id"`
+	ScrollAnchors               map[string]ScrollAnchor `json:"scroll_anchors"`
+	ReaderToolbarPinned         []string                `json:"reader_toolbar_pinned"`
+	SettingsOpenMode            string                  `json:"settings_open_mode"`
+	ReaderOpenMode              string                  `json:"reader_open_mode"`
+	ReaderAutoRead              bool                    `json:"reader_auto_read"`
+	ReaderFontFamily            string                  `json:"reader_font_family"`
+	ReaderFontSize              int                     `json:"reader_font_size"`
+	ReaderLineHeight            float64                 `json:"reader_line_height"`
+	ReaderWidth                 int                     `json:"reader_width"`
+	ReaderImageWheel            string                  `json:"reader_image_wheel"`
+	ReaderImageBackdropClose    bool                    `json:"reader_image_backdrop_close"`
+	ReaderCodeTheme             string                  `json:"reader_code_theme"`
+	ChatCodeTheme               string                  `json:"chat_code_theme"`
+	ChatModelID                 string                  `json:"chat_model_id"`
+	ChatApprovalMode            string                  `json:"chat_approval_mode"`
+	ChatApprovalPresentation    string                  `json:"chat_approval_presentation"`
+	ChatMaxRetries              int                     `json:"chat_max_retries"`
+	ReaderOutline               string                  `json:"reader_outline"`
 }
 
 func Defaults() Preferences {
 	return Preferences{RefreshIntervalMinutes: 30, NotificationMode: "toast", RefreshNotificationsEnabled: false, ArticleShareCount: 10, ArticleShareSummaryLimit: DefaultArticleShareSummaryLimit, ReaderLayout: "fill", ReaderOpenMode: "full", ReaderAutoRead: true, ReaderFontFamily: "sans", RemoteImages: "subscriptions", MediaCacheEnabled: true,
 		Theme: "system", SettingsOpenMode: "full", ArticleViewMode: "masonry", ListDensity: "compact", ListThumbnail: "none",
 		MasonryImageMode: "original_ratio", Animation: "full", FollowSystemReduceMotion: true,
-		SidebarWidth: 248, ListWidth: 360, ReaderOpen: false, SelectedScope: "all",
+		SidebarWidth: 248, SettingsSidebarWidth: 220, ListWidth: 360, ReaderOpen: false, SelectedScope: "all",
 		ReaderToolbarPinned: []string{"refresh", "favorite", "translate", "ai"},
 		ScrollAnchors:       map[string]ScrollAnchor{}, ReaderFontSize: 17, ReaderLineHeight: 1.7, ReaderWidth: 720,
 		ReaderImageWheel: "zoom", ReaderImageBackdropClose: true, ReaderOutline: "ticks", ReaderCodeTheme: "app", ChatCodeTheme: "app",
@@ -155,7 +157,7 @@ func (p Preferences) Validate() error {
 		!oneOf(p.MasonryImageMode, "original_ratio", "cropped") || !oneOf(p.Animation, "full", "subtle", "off") {
 		return errors.New("外观设置选项无效。")
 	}
-	if p.SidebarWidth < 220 || p.SidebarWidth > 360 || p.ListWidth < 300 || p.ListWidth > maxListWidth ||
+	if p.SettingsSidebarWidth < 160 || p.SettingsSidebarWidth > 300 || p.SidebarWidth < 220 || p.SidebarWidth > 360 || p.ListWidth < 300 || p.ListWidth > maxListWidth ||
 		p.ReaderFontSize < 14 || p.ReaderFontSize > 24 || p.ReaderWidth < 680 || p.ReaderWidth > 760 ||
 		math.IsNaN(p.ReaderLineHeight) || p.ReaderLineHeight < 1.4 || p.ReaderLineHeight > 2 {
 		return errors.New("布局或阅读尺寸超出允许范围。")
@@ -248,6 +250,9 @@ func (p *Preferences) normalize() {
 	}
 	if !oneOf(p.Animation, "full", "subtle", "off") {
 		p.Animation = d.Animation
+	}
+	if p.SettingsSidebarWidth < 160 || p.SettingsSidebarWidth > 300 {
+		p.SettingsSidebarWidth = d.SettingsSidebarWidth
 	}
 	if p.SidebarWidth < 220 || p.SidebarWidth > 360 {
 		p.SidebarWidth = d.SidebarWidth

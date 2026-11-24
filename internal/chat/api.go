@@ -58,3 +58,38 @@ func (a *API) Cancel(ctx context.Context, id string) error {
 	}
 	return a.service.Cancel(ctx, id)
 }
+
+func (a *API) Archived(ctx context.Context, offset int64) (ArchivedPage, error) {
+	if a.service == nil {
+		return ArchivedPage{}, modelError("StorageError")
+	}
+	return a.service.Archived(ctx, offset)
+}
+
+func (a *API) Rename(ctx context.Context, id, title string) (Conversation, error) {
+	if a.service == nil {
+		return Conversation{}, modelError("StorageError")
+	}
+	return a.service.Rename(ctx, id, title)
+}
+
+func (a *API) SetPinned(ctx context.Context, id string, pinned bool) (Conversation, error) {
+	if a.service == nil {
+		return Conversation{}, modelError("StorageError")
+	}
+	return a.service.SetPinned(ctx, id, pinned)
+}
+
+func (a *API) SetArchived(ctx context.Context, id string, archived bool) error {
+	if a.service == nil {
+		return modelError("StorageError")
+	}
+	return a.service.SetArchived(ctx, id, archived)
+}
+
+func (a *API) Delete(ctx context.Context, id string, archived bool) error {
+	if a.service == nil {
+		return modelError("StorageError")
+	}
+	return a.service.Delete(ctx, id, archived)
+}

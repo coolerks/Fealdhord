@@ -48,7 +48,7 @@ func (a *API) ContextStatus(ctx context.Context, id, modelID string) (ContextSta
 	}
 	q := s.store.ChatQueries()
 	conversation, err := q.GetConversation(ctx, id)
-	if err != nil || conversation.ScopeType != "global" {
+	if err != nil || conversation.ScopeType != "global" || conversation.ArchivedAt.Valid {
 		return ContextStatus{}, modelError("StorageError")
 	}
 	rows, err := q.ListContextMessages(ctx, sqlc.ListContextMessagesParams{ConversationID: id, ContextAfter: conversation.ContextAfter})
@@ -104,7 +104,7 @@ func (a *API) GenerateContextSummary(ctx context.Context, id, modelID string) (s
 	s := a.service
 	q := s.store.ChatQueries()
 	conversation, err := q.GetConversation(ctx, id)
-	if err != nil || conversation.ScopeType != "global" {
+	if err != nil || conversation.ScopeType != "global" || conversation.ArchivedAt.Valid {
 		return "", modelError("StorageError")
 	}
 	rows, err := q.ListContextMessages(ctx, sqlc.ListContextMessagesParams{ConversationID: id, ContextAfter: conversation.ContextAfter})
@@ -161,7 +161,7 @@ func (a *API) PinContextArticle(ctx context.Context, conversationID, articleID s
 	}
 	q := s.store.ChatQueries()
 	conversation, err := q.GetConversation(ctx, conversationID)
-	if err != nil || conversation.ScopeType != "global" {
+	if err != nil || conversation.ScopeType != "global" || conversation.ArchivedAt.Valid {
 		return modelError("StorageError")
 	}
 	current := contextPins(conversation)

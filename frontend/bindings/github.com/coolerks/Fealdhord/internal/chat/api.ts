@@ -13,6 +13,10 @@ import * as aiconfig$0 from "../aiconfig/models.js";
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
+export function Archived(offset: number): $CancellablePromise<$models.ArchivedPage> {
+    return $Call.ByID(88282241, offset);
+}
+
 export function Branch(id: string, messageID: string): $CancellablePromise<$models.Conversation> {
     return $Call.ByID(1911365695, id, messageID);
 }
@@ -27,6 +31,10 @@ export function ContextStatus(id: string, modelID: string): $CancellablePromise<
 
 export function Create(scope: $models.Scope, title: string): $CancellablePromise<$models.Conversation> {
     return $Call.ByID(2751688823, scope, title);
+}
+
+export function Delete(id: string, archived: boolean): $CancellablePromise<void> {
+    return $Call.ByID(1405195532, id, archived);
 }
 
 export function GenerateContextSummary(id: string, modelID: string): $CancellablePromise<string> {
@@ -49,6 +57,10 @@ export function PinContextArticle(conversationID: string, articleID: string, pin
     return $Call.ByID(421779093, conversationID, articleID, pinned);
 }
 
+export function Rename(id: string, title: string): $CancellablePromise<$models.Conversation> {
+    return $Call.ByID(2629741349, id, title);
+}
+
 export function SaveContext(id: string, summary: string, restore: boolean): $CancellablePromise<void> {
     return $Call.ByID(700997893, id, summary, restore);
 }
@@ -57,6 +69,14 @@ export function Send(input: $models.SendInput): $CancellablePromise<void> {
     return $Call.ByID(1532627401, input);
 }
 
+export function SetArchived(id: string, archived: boolean): $CancellablePromise<void> {
+    return $Call.ByID(4292385059, id, archived);
+}
+
 export function SetAutomaticCompaction(id: string, enabled: boolean): $CancellablePromise<void> {
     return $Call.ByID(3747636393, id, enabled);
+}
+
+export function SetPinned(id: string, pinned: boolean): $CancellablePromise<$models.Conversation> {
+    return $Call.ByID(1819977119, id, pinned);
 }

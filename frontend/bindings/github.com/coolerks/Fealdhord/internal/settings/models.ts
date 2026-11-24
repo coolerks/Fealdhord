@@ -25,6 +25,8 @@ export interface Preferences {
     "animation": string;
     "follow_system_reduce_motion": boolean;
     "sidebar_collapsed": boolean;
+    "settings_sidebar_collapsed"?: boolean;
+    "settings_sidebar_width"?: number;
     "sidebar_width": number;
     "list_width": number;
     "reader_layout": string;

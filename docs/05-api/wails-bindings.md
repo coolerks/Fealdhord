@@ -135,6 +135,8 @@ transfer.API 的 Choose 返回 token／name／cancelled；Preview 返回 preview
 
 `chat.API` 提供 `List`、`Create`、`Messages`、`Model`、`Send` 与 `Cancel`。`Send` 在本地事务提交后启动后台流，`Messages` 返回当前文本及运行状态。会话固定在全局、分类或文章范围，附加上下文只用于当前发送。详见 [Chat 与上下文规格](../04-specs/chat.md)。
 
+全局会话还支持 `Rename(id, title)`、`SetPinned(id, pinned)`、`SetArchived(id, archived)`、`Archived(offset)` 和 `Delete(id, archived)`。`Archived` 以归档时间倒序返回最多 50 条及 `hasMore`，`Delete` 核对调用方所见的归档状态。`Branch(id, messageId)` 省略分支点时须传空字符串，适用于全局会话，使用最近一条已结束的助手回复。
+
 `Chat.Send` 可选字段 `modelId` 为 AI 配置中已保存的模型记录 ID，仅接受全局会话使用。服务重新核验模型与服务是否启用，选项不可用时返回 `ChatModelUnavailable`。省略字段使用默认聊天模型，凭据及协议解析继续由服务端负责。
 
 `fealdhord:chat-update` 发送 `{conversationId,messageId,offset,delta,done}`。正文增量按约 32 毫秒合并，`offset` 使用 UTF-16 代码单元。结束事件在最终保存尝试后发布，前端按会话和消息匹配增量，并使用 `Messages` 对齐快照与终态。

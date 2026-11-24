@@ -8,12 +8,14 @@ import type { IconMeaning } from '@/components/animated-glyph'
 import { lazy, Suspense, useCallback, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { SemanticButton } from '@/components/semantic-button'
+import { Splitter } from '@/components/splitter'
+import type { CSSProperties } from 'react'
 import { SidebarAction } from '@/components/sidebar-action'
 import { moveSidebarFocus } from '@/lib/sidebar-navigation'
 import type { effectiveMotion } from '@/lib/environment'
 import { animateWorkspaceEntry } from '@/lib/workspace-motion'
 import {
-  Bell, Blocks, Bot, Database, FolderTree, Info, Maximize, Palette, Plug, Rss, SlidersHorizontal, Sparkles,
+  Archive, Bell, Blocks, Bot, Database, FolderTree, Info, Maximize, Palette, PanelLeftClose, PanelLeftOpen, Plug, Rss, SlidersHorizontal, Sparkles,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -29,6 +31,7 @@ import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { AISettings } from './AISettings'
+import { ArchivedConversations } from './ArchivedConversations'
 import { approvalModes, approvalPresentations } from '@/features/chat/approval-options'
 import { MCPSettings, SkillsSettings } from './AIPlatformSettings'
 import { ArticleAISettings } from '@/features/article-ai/ArticleAISettings'
@@ -97,6 +100,7 @@ const sectionGroups: SectionGroup[] = [
     label: 'AI 与扩展',
     items: [
       { id: 'ai', title: '服务与模型', icon: Sparkles, meaning: 'ai' },
+      { id: 'archived-chat', title: '已归档会话', icon: Archive, meaning: 'box' },
       { id: 'article-ai', title: '文章 AI', icon: Bot, meaning: 'bot' },
       { id: 'mcp', title: 'MCP 与权限', icon: Plug, meaning: 'webhook' },
       { id: 'skills', title: 'Skills', icon: Blocks, meaning: 'blocks' },
@@ -130,6 +134,7 @@ export function SettingsDialog({ sidebar, motionMode }: {
   const retrySave = useWorkspace(state => state.retrySave)
   const initialize = useWorkspace(state => state.initialize)
   const [reloadError, setReloadError] = useState('')
+  const [sidebarDraft, setSidebarDraft] = useState<number | null>(null)
   const workspaceSidebar = useRef<HTMLElement>(null)
   const workspaceMain = useRef<HTMLElement>(null)
   const [contentHost] = useState(() => document.createElement('div'))
@@ -137,16 +142,24 @@ export function SettingsDialog({ sidebar, motionMode }: {
     section?.append(contentHost)
   }, [contentHost])
   const animateEntry = useEffectEvent(() =>
-    animateWorkspaceEntry([workspaceSidebar.current, workspaceMain.current], motionMode, 6),
+    animateWorkspaceEntry([workspaceSidebar.current?.hasAttribute('inert') ? null : workspaceSidebar.current, workspaceMain.current], motionMode, 6),
   )
   useLayoutEffect(() => {
     if (!fullscreen || !sidebar) return
-    sidebar.querySelector<HTMLElement>('#settings-back')?.focus({ preventScroll: true })
+    const back = sidebar.querySelector<HTMLElement>('#settings-back')
+    const target = back?.closest('[inert]') ? document.getElementById('settings-sidebar-toggle') : back
+    target?.focus({ preventScroll: true })
     return animateEntry()
   }, [fullscreen, sidebar])
   if (!preferences) return null
   const set = <K extends keyof Preferences>(key: K, value: Preferences[K]) => patch({ [key]: value })
   const title = allSections.find(section => section.id === tab)?.title
+  const collapsed = Boolean(preferences.settings_sidebar_collapsed)
+  const width = sidebarDraft ?? preferences.settings_sidebar_width ?? 220
+  const toggle = <SemanticButton id="settings-sidebar-toggle" icon={collapsed ? PanelLeftOpen : PanelLeftClose}
+    label={collapsed ? '展开设置侧栏' : '收起设置侧栏'} meaning={collapsed ? 'expand' : 'collapse'}
+    aria-expanded={!collapsed} aria-controls={fullscreen ? 'workspace-sidebar' : 'settings-dialog-sidebar'}
+    onClick={() => set('settings_sidebar_collapsed', !collapsed)} />
   const navigation = (
     <nav aria-label="设置分区" className={fullscreen ? 'settings-workspace-nav' : 'settings-nav'} onKeyDown={moveSidebarFocus}>
       {sectionGroups.map(group => (
@@ -339,6 +352,7 @@ export function SettingsDialog({ sidebar, motionMode }: {
       </>}
       {tab === 'article-ai' && <ArticleAISettings />}
       {tab === 'mcp' && <MCPSettings />}
+      {tab === 'archived-chat' && <ArchivedConversations />}
       {tab === 'skills' && <SkillsSettings />}
       {tab === 'about' && <AboutPanel developerMode={preferences.developer_mode}
         onDeveloperModeChange={enabled => set('developer_mode', enabled)} />}
@@ -366,7 +380,8 @@ export function SettingsDialog({ sidebar, motionMode }: {
     {content}
     {fullscreen ? <>
       {sidebar && createPortal(
-        <aside ref={workspaceSidebar} id="workspace-sidebar" className="glass-sidebar settings-workspace-sidebar" aria-label="设置侧栏">
+        <aside ref={workspaceSidebar} id="workspace-sidebar" className="glass-sidebar settings-workspace-sidebar" aria-label="设置侧栏"
+          inert={collapsed} aria-hidden={collapsed || undefined}>
           <div className="sidebar-titlebar" />
           <div className="system-nav">
             <SidebarAction id="settings-back" label="返回" meaning="chevron-left" shortcut="Escape" onClick={close} />
@@ -376,7 +391,9 @@ export function SettingsDialog({ sidebar, motionMode }: {
         sidebar,
       )}
       <main ref={workspaceMain} className="reading-workspace settings-workspace" aria-label="设置">
-        <header className="workspace-toolbar settings-workspace-heading">
+        <header className="workspace-toolbar settings-workspace-heading" data-settings-collapsed={collapsed}>
+          {toggle}
+          {collapsed && <SidebarAction label="返回" meaning="chevron-left" shortcut="Escape" onClick={close} />}
           <h1 className="truncate text-sm font-semibold tracking-[-0.01em]">{title}</h1>
         </header>
         <RefreshStatus />
@@ -386,13 +403,26 @@ export function SettingsDialog({ sidebar, motionMode }: {
     </> : (
       <Dialog open onOpenChange={value => { if (!value) close() }}>
         <DialogContent aria-describedby={undefined} className="settings-dialog" onCloseAutoFocus={event => event.preventDefault()}>
-          <DialogHeader><DialogTitle>设置</DialogTitle></DialogHeader>
+          <DialogHeader><div className="flex items-center gap-2">{toggle}<DialogTitle>设置</DialogTitle></div></DialogHeader>
           <div className="settings-expand">
             <SemanticButton icon={Maximize} meaning="maximize" label="全屏设置"
               onClick={() => useWorkspace.setState({ settingsPresentation: 'full' })} />
           </div>
           <RefreshStatus />
-          <div className="settings-layout">{navigation}{body}</div>
+          <div className="settings-layout" data-sidebar-collapsed={collapsed}
+            style={{ '--settings-sidebar-width': `${width}px` } as CSSProperties}>
+            {!collapsed && <>
+              <div id="settings-dialog-sidebar" className="settings-dialog-sidebar">{navigation}</div>
+              <Splitter label="调整设置侧栏宽度" value={width} min={160} max={300} onResize={setSidebarDraft} onCommit={next => {
+                set('settings_sidebar_width', next)
+                setSidebarDraft(null)
+              }} onCollapse={() => {
+                set('settings_sidebar_collapsed', true)
+                document.getElementById('settings-sidebar-toggle')?.focus()
+              }} />
+            </>}
+            {body}
+          </div>
           {status}
         </DialogContent>
       </Dialog>

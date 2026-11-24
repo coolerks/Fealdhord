@@ -18,7 +18,7 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 're
 import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, useIsPresent } from 'motion/react'
-import { ArrowDown, ArrowUp, BookOpen, Box, Brain, CalendarClock, Check, Copy, FileText, Gauge, Paperclip, Plus, Settings, Sparkles, Square, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, Box, Brain, CalendarClock, Check, Copy, FileText, Gauge, Paperclip, Pin, Plus, Settings, Sparkles, Square, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { SemanticButton } from '@/components/semantic-button'
@@ -40,8 +40,11 @@ import { ReplyBody } from './ReplyProgress'
 import { ToolApproval, useInlineApproval } from './AIApprovals'
 import { UserQuestionPrompt, useInlineQuestion } from './UserQuestionPrompt'
 import { approvalModes } from './approval-options'
+import { ConversationConfirmation, ConversationMenu, RenameConversationDialog, archivedConversationsKey, conversationActionError } from './ConversationMenu'
+import type { ConversationAction } from './ConversationMenu'
 import { notify } from '@/lib/notifications'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/api'
+import type { Conversation } from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
 import { List as listAIConfiguration } from '../../../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/api'
 import './chat-workspace.css'
 
@@ -163,6 +166,8 @@ function ChatSession({ target, close, workspace }: {
   const [effortChoices, setEffortChoices] = useState<Record<string, string>>({})
   const [following, setFollowing] = useState(true)
   const [conversationsScrolled, setConversationsScrolled] = useState(false)
+  const [conversationDialog, setConversationDialog] = useState<{ action: 'rename' | 'archive' | 'delete'; item: Conversation } | null>(null)
+  const [conversationTitle, setConversationTitle] = useState('')
   const chatContent = useRef<HTMLDivElement>(null)
   const composer = useRef<HTMLTextAreaElement>(null)
   const timeline = useRef<HTMLDivElement>(null)
@@ -262,6 +267,44 @@ function ChatSession({ target, close, workspace }: {
     },
     onError: () => { void notify('无法创建聊天分支', undefined, true) },
   })
+  const manageConversation = useMutation({
+    mutationFn: async ({ action, item }: { action: ConversationAction; item: Conversation }) => {
+      switch (action) {
+        case 'rename': return api.Rename(item.id, conversationTitle.trim())
+        case 'pin': return api.SetPinned(item.id, !item.pinned)
+        case 'branch': return api.Branch(item.id, '')
+        case 'archive': await api.SetArchived(item.id, true); break
+        case 'delete': await api.Delete(item.id, false); break
+      }
+    },
+    onSuccess: (result, { action, item }) => {
+      setConversationDialog(null)
+      if (action === 'branch' && result) choose(result.id)
+      if (action === 'archive' || action === 'delete') {
+        if (conversationId === item.id) choose('')
+        cache.setQueryData<Conversation[]>(listKey, current => current?.filter(entry => entry.id !== item.id))
+        cache.removeQueries({ queryKey: chatMessagesKey(item.id) })
+        void cache.invalidateQueries({ queryKey: archivedConversationsKey })
+      }
+      void cache.invalidateQueries({ queryKey: listKey })
+    },
+    onError: (error, { action }) => {
+      if (action === 'pin' || action === 'branch') void notify(conversationActionError(error), undefined, true)
+    },
+  })
+  function openConversationAction(action: ConversationAction, item: Conversation) {
+    manageConversation.reset()
+    if (action === 'pin' || action === 'branch') {
+      manageConversation.mutate({ action, item })
+      return
+    }
+    setConversationTitle(item.title)
+    setConversationDialog({ action, item })
+  }
+  function closeConversationAction() {
+    setConversationDialog(null)
+    manageConversation.reset()
+  }
   function selectModel(id: string) {
     if (id !== rememberedModelID) patchPreferences({ chat_model_id: id })
     send.reset()
@@ -412,11 +455,15 @@ function ChatSession({ target, close, workspace }: {
           <ul className="feed-nav">{history.data?.map(item => {
             const current = !tasksOpen && item.id === conversationId
             return <li key={item.id}>
+              <ConversationMenu item={item} active={item.id === conversationId && active} busy={send.isPending || manageConversation.isPending}
+                onAction={openConversationAction}>
               <Button data-navigation={item.id} variant={current ? 'secondary' : 'ghost'} className={cn('nav-item', current && 'is-current')}
-                title={item.title} aria-current={current ? 'page' : undefined} disabled={send.isPending} onClick={() => choose(item.id)}>
+                title={item.title} aria-description={item.pinned ? '已置顶' : undefined} aria-current={current ? 'page' : undefined} disabled={send.isPending} onClick={() => choose(item.id)}>
                 {current && <span className="nav-selected-surface" />}
                 <AnimatedGlyph meaning="message-square" /><span className="nav-node-label">{item.title}</span>
+                {item.pinned && <Pin className="ml-auto" aria-hidden="true" />}
               </Button>
+              </ConversationMenu>
             </li>
           })}</ul>
         </nav>
@@ -426,6 +473,13 @@ function ChatSession({ target, close, workspace }: {
           <SemanticButton id="open-ai-settings" icon={Settings} meaning="settings" label="AI 设置" onClick={() => showSettings('ai')} />
         </div></footer>
       </motion.aside>, workspace.sidebar)}
+    {workspace && conversationDialog && (conversationDialog.action === 'rename'
+      ? <RenameConversationDialog item={conversationDialog.item} title={conversationTitle} onChange={setConversationTitle}
+        busy={manageConversation.isPending} error={manageConversation.isError ? conversationActionError(manageConversation.error) : undefined}
+        onClose={closeConversationAction} onConfirm={() => manageConversation.mutate(conversationDialog)} />
+      : <ConversationConfirmation item={conversationDialog.item} action={conversationDialog.action}
+        busy={manageConversation.isPending} error={manageConversation.isError ? conversationActionError(manageConversation.error) : undefined}
+        onClose={closeConversationAction} onConfirm={() => manageConversation.mutate(conversationDialog)} />)}
     {workspace && tasksOpen && <ScheduledTasks collapsed={workspace.collapsed} onBack={() => setTasksOpen(false)} />}
     <div ref={chatContent} hidden={tasksOpen} className={tasksOpen ? undefined : 'contents'}>
     {workspace ? <header className="workspace-toolbar chat-header" data-sidebar-collapsed={workspace.collapsed}>

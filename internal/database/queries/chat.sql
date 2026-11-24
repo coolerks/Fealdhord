@@ -3,7 +3,33 @@ INSERT INTO conversations (id,scope_type,scope_id,title,created_at,updated_at)
 VALUES (?,?,?,?,?,?) RETURNING *;
 
 -- name: ListConversations :many
-SELECT * FROM conversations WHERE scope_type=? AND scope_id=? ORDER BY updated_at DESC,id LIMIT 100;
+SELECT * FROM conversations WHERE scope_type=? AND scope_id=? AND archived_at IS NULL ORDER BY pinned_at DESC,updated_at DESC,id LIMIT 100;
+
+-- name: ListArchivedConversations :many
+SELECT * FROM conversations WHERE scope_type='global' AND archived_at IS NOT NULL
+ORDER BY archived_at DESC,id LIMIT 51 OFFSET sqlc.arg(page_offset);
+
+-- name: RenameGlobalConversation :one
+UPDATE conversations SET title=sqlc.arg(title)
+WHERE id=sqlc.arg(id) AND scope_type='global' AND archived_at IS NULL RETURNING *;
+
+-- name: SetGlobalConversationPin :one
+UPDATE conversations SET pinned_at=sqlc.narg(pinned_at)
+WHERE id=sqlc.arg(id) AND scope_type='global' AND archived_at IS NULL RETURNING *;
+
+-- name: ArchiveGlobalConversation :execrows
+UPDATE conversations SET archived_at=sqlc.arg(now)
+WHERE id=sqlc.arg(id) AND scope_type='global' AND archived_at IS NULL;
+
+-- name: RestoreGlobalConversation :execrows
+UPDATE conversations SET archived_at=NULL, updated_at=sqlc.arg(now)
+WHERE id=sqlc.arg(id) AND scope_type='global' AND archived_at IS NOT NULL;
+
+-- name: DeleteGlobalConversation :execrows
+DELETE FROM conversations WHERE id=? AND scope_type='global' AND archived_at IS NULL;
+
+-- name: DeleteArchivedGlobalConversation :execrows
+DELETE FROM conversations WHERE id=? AND scope_type='global' AND archived_at IS NOT NULL;
 
 -- name: GetConversation :one
 SELECT * FROM conversations WHERE id=?;
@@ -63,13 +89,13 @@ SELECT * FROM (
 
 -- name: SaveConversationContext :execrows
 UPDATE conversations SET context_after = (SELECT COALESCE(MAX(position),0) FROM messages WHERE conversation_id=sqlc.arg(id)),
- context_summary = sqlc.arg(summary) WHERE id=sqlc.arg(id) AND scope_type='global';
+ context_summary = sqlc.arg(summary) WHERE id=sqlc.arg(id) AND scope_type='global' AND archived_at IS NULL;
 
 -- name: RestoreConversationContext :execrows
-UPDATE conversations SET context_after=0, context_summary='' WHERE id=? AND scope_type='global';
+UPDATE conversations SET context_after=0, context_summary='' WHERE id=? AND scope_type='global' AND archived_at IS NULL;
 
 -- name: SaveContextPins :execrows
-UPDATE conversations SET context_pins=? WHERE id=? AND scope_type='global';
+UPDATE conversations SET context_pins=? WHERE id=? AND scope_type='global' AND archived_at IS NULL;
 
 -- name: RecordContextUsage :exec
 UPDATE conversations SET last_input_tokens=?, last_usage_model=? WHERE id=?;
@@ -83,7 +109,7 @@ AND ((sqlc.arg(scope_kind)='feed' AND a.feed_id=sqlc.arg(scope_id))
  SELECT 1 FROM effective_article_categories c WHERE c.article_id=a.id AND c.category_id=sqlc.arg(scope_id))));
 
 -- name: SetAutomaticCompaction :execrows
-UPDATE conversations SET auto_compact=? WHERE id=? AND scope_type='global';
+UPDATE conversations SET auto_compact=? WHERE id=? AND scope_type='global' AND archived_at IS NULL;
 
 -- name: AdvanceContextSummary :execrows
 UPDATE conversations SET context_after=sqlc.arg(new_after), context_summary=sqlc.arg(summary)
@@ -94,7 +120,7 @@ INSERT INTO conversations (id, scope_type, scope_id, title, created_at, updated_
 SELECT sqlc.arg(new_id), c.scope_type, c.scope_id, c.title, sqlc.arg(now), sqlc.arg(now),
  min(c.context_after, m.position), CASE WHEN c.context_after <= m.position THEN c.context_summary ELSE '' END, c.auto_compact
 FROM conversations c JOIN messages m ON m.conversation_id=c.id
-WHERE c.id=sqlc.arg(source_id) AND m.id=sqlc.arg(message_id) AND m.role='assistant' AND m.status<>'running'
+WHERE c.id=sqlc.arg(source_id) AND c.archived_at IS NULL AND m.id=sqlc.arg(message_id) AND m.role='assistant' AND m.status<>'running'
 RETURNING *;
 
 -- name: CopyChatBranchMessages :exec
@@ -104,3 +130,8 @@ FROM messages source
 WHERE source.conversation_id=sqlc.arg(source_id) AND source.position <= (
  SELECT branch_point.position FROM messages branch_point WHERE branch_point.id=sqlc.arg(message_id)
 );
+
+-- name: LatestGlobalBranchPoint :one
+SELECT m.id FROM messages m JOIN conversations c ON c.id=m.conversation_id
+WHERE c.id=? AND c.scope_type='global' AND c.archived_at IS NULL AND m.role='assistant' AND m.status<>'running'
+ORDER BY m.position DESC LIMIT 1;
