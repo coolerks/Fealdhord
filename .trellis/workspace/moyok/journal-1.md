@@ -1781,3 +1781,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 70: 长文翻译一期优化
+<!-- trellis-session: v=2 fp=819d9e9303f8c3c3 -->
+
+**Date**: 2026-11-24
+**Task**: 长文翻译一期优化
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+实现首批优先、预算分批、超长段持久续翻和正文版本校验。Go 全量、相关竞态和 vet 通过，前端 206 项及构建通过，66 段模拟对照已记录。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ef1b702` | feat(reader): 优化长文翻译首批和局部续翻 |
+
+### Status
+
+[OK] **Completed**
