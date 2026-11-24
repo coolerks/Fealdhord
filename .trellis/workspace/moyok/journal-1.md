@@ -1707,3 +1707,29 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 67: 完善设置侧栏和 AI 会话管理
+<!-- trellis-session: v=2 fp=9160c0e655586002 -->
+
+**Date**: 2026-11-24
+**Task**: 完善设置侧栏和 AI 会话管理
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+全屏与弹窗设置均支持调整和收起侧栏。全局 AI 会话支持右键管理及设置内恢复和永久删除。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fed95a3` | feat: 完善设置侧栏和 AI 会话管理 |
+
+### Testing
+
+- [OK] Go 全量、vet、相关竞态及前端 196 项测试、lint 和生产构建通过。
+
+### Status
+
+[OK] **Completed**

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 66
+- **Total Sessions**: 67
 - **Last Active**: 2026-11-24
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1709 | Active |
+| `journal-1.md` | ~1735 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 67 | 2026-11-24 | 完善设置侧栏和 AI 会话管理 | `fed95a3` | `codex/interface-clarity` |
 | 66 | 2026-11-24 | 完善外部 MCP 连接 | `9737318` | `codex/interface-clarity` |
 | 65 | 2026-11-24 | 实现自定义工具权限 | `a912d98` | `codex/interface-clarity` |
 | 64 | 2026-11-23 | Windows 任务栏与托盘图标放大 | `3caa14f` | `codex/interface-clarity` |
