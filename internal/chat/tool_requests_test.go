@@ -139,6 +139,18 @@ func TestGlobalChatSendsAuthorizedToolsToRoutedDeepSeek(t *testing.T) {
 		requests <- string(body)
 		w.Header().Set("Content-Type", "text/event-stream")
 		if strings.Contains(string(body), `"tools":[`) && !strings.Contains(string(body), `"role":"tool"`) {
+			if !strings.Contains(string(body), `"reasoning_effort":`) {
+				fmt.Fprint(w, `data: {"choices":[{"index":0,"delta":{"content":"先查🙂"}}]}
+
+data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call-1","type":"function","function":{"name":"library_search","arguments":"{}"}}]}}]}
+
+data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":20,"completion_tokens":3}}
+
+data: [DONE]
+
+`)
+				return
+			}
 			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"provider reasoning\",\"content\":\"先查🙂\",\"tool_calls\":[{\"index\":0,\"id\":\"call-1\",\"type\":\"function\",\"function\":{\"name\":\"library_search\",\"arguments\":\"{}\"}}]}}]}\n\n")
 			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"finish_reason\":\"tool_calls\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":20,\"prompt_cache_hit_tokens\":5,\"completion_tokens\":3}}\n\ndata: [DONE]\n\n")
 			return
@@ -270,4 +282,20 @@ func TestGlobalChatSendsAuthorizedToolsToRoutedDeepSeek(t *testing.T) {
 		t.Fatalf("persisted visible history was not passed as context: %s", resumed)
 	}
 	<-requests
+	// Some gateways omit reasoning entirely even when thinking was requested.
+	input.Text, input.ReasoningEffort = "再次搜索本地文章", ""
+	if err := service.Send(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+	withoutReasoning := waitMessage(t, service, branch.ID, 6, "complete")
+	if withoutReasoning.Text != "先查🙂完成" || withoutReasoning.Details == nil || withoutReasoning.Details.Rounds != 2 ||
+		withoutReasoning.Details.Work == nil || len(withoutReasoning.Details.Work.Tools) != 1 ||
+		withoutReasoning.Details.Work.Tools[0].Status != "completed" {
+		t.Fatalf("valid tool turn did not complete normally: %+v", withoutReasoning)
+	}
+	initial, continued := <-requests, <-requests
+	if !strings.Contains(initial, `"thinking":{"type":"enabled"}`) || !strings.Contains(continued, `"tool_call_id":"call-1"`) ||
+		!strings.Contains(continued, "测试文章") || strings.Contains(continued, `"reasoning_content"`) || len(requests) != 0 {
+		t.Fatalf("gateway requests changed or repeated: initial=%s continued=%s outstanding=%d", initial, continued, len(requests))
+	}
 }

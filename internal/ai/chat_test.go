@@ -301,21 +301,43 @@ func TestChatToolStreamInterleaving(t *testing.T) {
 	}
 }
 
-func TestThinkingToolRequiresContinuationContent(t *testing.T) {
-	const stream = `data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"one","type":"function","function":{"name":"lookup","arguments":"{}"}}]}}]}
+func TestThinkingToolAllowsOmittedReasoning(t *testing.T) {
+	for _, test := range []struct {
+		name, field string
+		want        *string
+	}{
+		{name: "omitted"},
+		{name: "null", field: `,"reasoning_content":null`},
+		{name: "empty", field: `,"reasoning_content":""`, want: new(string)},
+		{name: "present", field: `,"reasoning_content":"provider reasoning"`, want: new("provider reasoning")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			stream := `data: {"choices":[{"index":0,"delta":{"content":"Reading tools first"` + test.field + `}}]}
 
-data: {"choices":[{"index":0,"finish_reason":"tool_calls"}]}
+data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"one","type":"function","function":{"name":"lookup","arguments":"{}"}}]}}]}
+
+data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}
 
 data: [DONE]
 
 `
-	err := readChatStream(strings.NewReader(stream), map[string]bool{"lookup": true}, true, func(event ModelEvent) bool {
-		if event.Type == "message_end" || event.Type == "tool_call_end" {
-			t.Errorf("emitted %s without DeepSeek reasoning continuation", event.Type)
-		}
-		return true
-	})
-	if err == nil || err.Error() != "ProviderProtocolError" {
-		t.Fatalf("expected missing continuation to fail, got %v", err)
+			var call *ToolCall
+			var end ModelEvent
+			err := readChatStream(strings.NewReader(stream), map[string]bool{"lookup": true}, true, func(event ModelEvent) bool {
+				switch event.Type {
+				case "tool_call_end":
+					call = event.ToolCall
+				case "message_end":
+					end = event
+				}
+				return true
+			})
+			if err != nil || call == nil || call.ID != "one" || call.ArgumentsJSON != "{}" || end.FinishReason != "tool_calls" {
+				t.Fatalf("valid tool batch rejected: %v, %v, %+v", err, call, end)
+			}
+			if (end.ReasoningContent == nil) != (test.want == nil) || (test.want != nil && *end.ReasoningContent != *test.want) {
+				t.Fatalf("unexpected continuation reasoning: %v", end.ReasoningContent)
+			}
+		})
 	}
 }

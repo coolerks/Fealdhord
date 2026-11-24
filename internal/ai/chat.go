@@ -427,10 +427,9 @@ func readChatStream(body io.Reader, offered map[string]bool, preserveReasoning b
 				return false, err
 			}
 			var continuation *string
-			if preserveReasoning && len(calls) > 0 {
-				if !hasReasoning {
-					return false, protocolError()
-				}
+			// Routed DeepSeek can complete a tool turn without exposing reasoning.
+			// Preserve exactly what was supplied while leaving an absent field absent.
+			if hasReasoning && len(calls) > 0 {
 				text := reasoning.String()
 				continuation = &text
 			}
