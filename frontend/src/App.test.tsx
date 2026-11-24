@@ -67,6 +67,7 @@ vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/notification/api', (
 const listSkills = vi.hoisted(() => vi.fn())
 const pendingActions = vi.hoisted(() => vi.fn())
 const decideAction = vi.hoisted(() => vi.fn())
+const toolPermissions = vi.hoisted(() => ({ ToolPermissions: vi.fn(), SaveToolPermission: vi.fn() }))
 const mcpGrants = vi.hoisted(() => ({
   Grants: vi.fn().mockResolvedValue([]),
   MCPServer: vi.fn().mockResolvedValue({ url: '', config: { port: 8769, tools: [] } }),
@@ -77,6 +78,7 @@ const mcpGrants = vi.hoisted(() => ({
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/appagent/api', () => ({
   PendingActions: pendingActions, DecideAction: decideAction, PendingQuestions: async () => [], AnswerQuestion: async () => true, ToolList: async () => [], Skills: listSkills, MCPClients: async () => [],
   ...mcpGrants,
+  ...toolPermissions,
 }))
 const copyImage = vi.hoisted(() => vi.fn())
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/media/api', () => ({ CopyInlineImage: copyImage }))
@@ -87,6 +89,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   pendingActions.mockResolvedValue([])
   decideAction.mockResolvedValue(true)
+  toolPermissions.ToolPermissions.mockResolvedValue([])
+  toolPermissions.SaveToolPermission.mockResolvedValue(undefined)
   notificationAPI.ListChannels.mockResolvedValue([])
   notificationAPI.ListTasks.mockResolvedValue([])
   notificationAPI.ListRuns.mockResolvedValue([])
@@ -237,6 +241,47 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(within(confirm).getByRole('button', { name: '确认更换' }))
     expect(await screen.findByRole('textbox', { name: 'Reader的客户端令牌' })).toHaveValue('test-replacement')
     expect(mcpGrants.RotateGrantToken).toHaveBeenCalledWith('Reader')
+  })
+
+  it('在设置保存新会话默认模式并分别修改内置与外部工具权限', async () => {
+    const user = userEvent.setup()
+    setup()
+    const stored = [
+      { id: 'builtin:article.search', name: 'article.search', available: true, requiresApproval: false, mode: '' },
+      { id: 'mcp:one', name: 'lookup', connection: 'Alpha', available: true, requiresApproval: true, mode: '' },
+      { id: 'mcp:two', name: 'lookup', connection: 'Beta', available: true, requiresApproval: true, mode: '' },
+    ]
+    toolPermissions.ToolPermissions.mockImplementation(async () => stored.map(tool => ({ ...tool })))
+    toolPermissions.SaveToolPermission.mockImplementation(async (id: string, mode: string) => {
+      const tool = stored.find(entry => entry.id === id)
+      if (tool) tool.mode = mode
+    })
+
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    await user.click(await screen.findByRole('button', { name: '服务与模型' }))
+    await user.click(await screen.findByRole('button', { name: '默认审批方式' }))
+    await user.click(screen.getByRole('option', { name: '自定义权限' }))
+    await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ chat_approval_mode: 'custom' }), expect.any(Number)))
+
+    await user.click(screen.getByRole('button', { name: 'MCP 与权限' }))
+    const section = within(await screen.findByRole('region', { name: '工具权限' }))
+    const chooseTool = section.getByRole('button', { name: '工具' })
+    await waitFor(() => expect(chooseTool).toBeEnabled())
+    await user.click(chooseTool)
+    await user.click(screen.getByRole('option', { name: '搜索文章' }))
+    await user.click(section.getByRole('button', { name: '调用权限' }))
+    await user.click(screen.getByRole('option', { name: '需要审批' }))
+    await waitFor(() => expect(section.getByRole('button', { name: '调用权限' })).toHaveTextContent('需要审批'))
+    expect(toolPermissions.SaveToolPermission).toHaveBeenCalledWith('builtin:article.search', 'ask')
+
+    await user.click(chooseTool)
+    await user.keyboard('beta')
+    await user.click(screen.getByRole('option', { name: 'Beta · lookup' }))
+    await user.click(section.getByRole('button', { name: '调用权限' }))
+    await user.click(screen.getByRole('option', { name: '拒绝' }))
+    await waitFor(() => expect(section.getByRole('button', { name: '调用权限' })).toHaveTextContent('拒绝'))
+    expect(toolPermissions.SaveToolPermission).toHaveBeenLastCalledWith('mcp:two', 'deny')
+    expect(stored[1].mode).toBe('')
   })
 
   it('从 AI 侧栏管理定时任务，返回后保留聊天草稿', async () => {
@@ -390,6 +435,7 @@ describe('Phase 1 阅读 Shell', () => {
 
   it('全局 AI 工作区切换会话和本轮模型，停止后返回原阅读位置', async () => {
     const user = userEvent.setup()
+    api.get.mockResolvedValue({ preferences: preferencesFixture({ chat_approval_mode: 'custom' }), revision: 0 })
     const { client, container } = setup(true)
     await user.click(await screen.findByRole('button', { name: '打开文章：测试文章 0' }))
     const prose = container.querySelector<HTMLElement>('.reader-content')!
@@ -454,11 +500,11 @@ describe('Phase 1 阅读 Shell', () => {
     await user.type(input, '第一条')
     const send = screen.getByRole('button', { name: '发送' })
     const approval = screen.getByRole('button', { name: '审批方式' })
-    expect(approval.firstElementChild).toHaveTextContent('需要审批')
+    expect(approval.firstElementChild).toHaveTextContent('自定义权限')
     expect(screen.queryByRole('button', { name: '可调用工具' })).not.toBeInTheDocument()
     await user.click(approval)
     expect(screen.getByRole('combobox', { name: '搜索审批方式' })).toHaveFocus()
-    for (const [label, meaning] of [['需要审批', 'clipboard-check'], ['绕过审批', 'key'], ['拒绝审批', 'x']]) {
+    for (const [label, meaning] of [['需要审批', 'clipboard-check'], ['绕过审批', 'key'], ['拒绝审批', 'x'], ['自定义权限', 'sliders-horizontal']]) {
       expect(screen.getByRole('option', { name: label }).firstElementChild).toHaveAttribute('data-meaning', meaning)
     }
     await user.click(screen.getByRole('option', { name: '绕过审批' }))

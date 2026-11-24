@@ -6,7 +6,9 @@
 
 `work.positions` 记录正文 UTF-16 偏移、推理文本与摘要的累计 UTF-16 边界、累计工具数及过程耗时。同偏移的记录按数组顺序呈现。聊天更新事件的 `workChanged` 触发工作记录快照刷新。
 
-`Chat.Send.approvalMode` 接受 `ask`、`bypass`、`deny`，省略时使用 `ask`，非法值返回 `ValidationError`。聊天审批返回 `PendingAction.conversationId`，供界面匹配所属输入框。
+`Chat.Send.approvalMode` 接受 `ask`、`bypass`、`deny` 以及全局聊天的 `custom`。省略时使用 `ask`，非法值返回 `ValidationError`。自定义模式在发送时读取规则，存储不可用时返回 `ToolPermissionsUnavailable`。聊天审批返回 `PendingAction.conversationId`，供界面匹配所属输入框。
+
+`API.ToolPermissions()` 返回工具规则目录，字段为 `id`、`name`、`connection?`、`available`、`requiresApproval` 和 `mode`。`API.SaveToolPermission(id, mode)` 以目录返回的 ID 保存 `ask`、`deny`、`bypass`。传空字符串恢复工具默认行为，也可清除暂时不可用的工具记录。未知工具写入显式规则返回 `UnknownTool`。
 
 ## 1. 范围与触发条件
 

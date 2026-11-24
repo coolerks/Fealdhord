@@ -81,15 +81,20 @@ func TestGlobalChatContinuesRoutedDeepSeekResponsesWithReasoning(t *testing.T) {
 	}
 	defer service.Close()
 	registry := appagent.NewRegistry()
-	appagent.Register(registry, "library.search", "查找本地文章", true,
+	appagent.Register(registry, "library.search", "查找本地文章", false,
 		func(context.Context, struct{}) []string { return []string{"测试文章"} })
-	service.SetToolSource(appagent.NewPlatform(registry, t.TempDir()).RunTools)
+	platform := appagent.NewPlatform(registry, t.TempDir())
+	if err := platform.SaveToolPermission("builtin:library.search", "ask"); err != nil {
+		t.Fatal(err)
+	}
+	service.SetToolSource(platform.RunTools)
+	service.SetToolPermissions(platform)
 	conversation, err := service.Create(ctx, Scope{Kind: "global"}, "Responses 工具回归")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := service.Send(ctx, SendInput{ConversationID: conversation.ID, ModelID: model.ID,
-		ReasoningEffort: "medium", ApprovalMode: "ask", Text: "看一下最近的 AI 文章"}); err != nil {
+		ReasoningEffort: "medium", ApprovalMode: "custom", Text: "看一下最近的 AI 文章"}); err != nil {
 		t.Fatal(err)
 	}
 	deadline := time.Now().Add(3 * time.Second)

@@ -88,17 +88,18 @@ func (l *mcpListener) Accept() (net.Conn, error) {
 }
 
 type Platform struct {
-	registry     *Registry
-	dir          string
-	mu           sync.Mutex
-	state        serverSettings
-	server       *http.Server
-	listener     *mcpListener
-	stopRequests context.CancelFunc
-	endpoint     string
-	clients      map[string]*clientConnection
-	credentials  aiconfig.CredentialStore
-	clientEdit   sync.Mutex
+	registry       *Registry
+	dir            string
+	mu             sync.Mutex
+	state          serverSettings
+	server         *http.Server
+	listener       *mcpListener
+	stopRequests   context.CancelFunc
+	endpoint       string
+	clients        map[string]*clientConnection
+	credentials    aiconfig.CredentialStore
+	clientEdit     sync.Mutex
+	permissionEdit sync.Mutex
 }
 
 func NewPlatform(registry *Registry, dir string) *Platform {

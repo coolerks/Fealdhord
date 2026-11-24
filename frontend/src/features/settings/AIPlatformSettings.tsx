@@ -13,11 +13,64 @@ import { navigationAPI, navigationQueryKey } from '@/lib/navigation-api'
 import { notify } from '@/lib/notifications'
 import { ConfirmDialog, SettingCard, SettingEmpty, SettingRow, SettingSection, StatusBadge } from './settings-primitives'
 import { getToolMeta } from '@/features/chat/tool-meta'
+import { approvalModes } from '@/features/chat/approval-options'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/api'
 import type { ClientConfig, MCPGrant, ServerConfig, Skill, Tool } from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/models'
 
 const platformKey = ['ai-platform']
 export const skillsKey = [...platformKey, 'skills']
+const toolPermissionsKey = [...platformKey, 'tool-permissions']
+const explicitToolPermissions = approvalModes.filter(option => option.value !== 'custom').map(option => ({
+  ...option,
+  label: { ask: '需要审批', bypass: '放行', deny: '拒绝' }[option.value] ?? option.label,
+}))
+
+function ToolPermissionSettings() {
+  const cache = useQueryClient()
+  const permissions = useQuery({ queryKey: toolPermissionsKey, queryFn: api.ToolPermissions, retry: false })
+  const [toolID, setToolID] = useState('')
+  const save = useMutation({
+    mutationFn: ({ id, mode }: { id: string; mode: string }) => api.SaveToolPermission(id, mode === 'default' ? '' : mode),
+    onSuccess: () => cache.invalidateQueries({ queryKey: toolPermissionsKey }),
+  })
+  const selected = permissions.data?.find(tool => tool.id === toolID)
+  const options = (permissions.data ?? []).map(tool => {
+    const meta = getToolMeta(tool.name)
+    const label = tool.connection ? `${tool.connection} · ${tool.name}` : meta.label
+    return {
+      value: tool.id,
+      label: tool.available ? label : `${label}（不可用）`,
+      keywords: [tool.name, tool.connection ?? '内置'],
+      graphic: <AnimatedGlyph meaning={tool.connection ? 'wrench' : meta.icon} />,
+    }
+  })
+  const busy = save.isPending || permissions.isFetching
+
+  return <SettingSection title="工具权限"
+    actions={permissions.isError && <Button size="sm" variant="outline" onClick={() => void permissions.refetch()}>重试</Button>}>
+    <SettingCard>
+      {permissions.isError ? <SettingRow><FieldError>无法读取工具权限。</FieldError></SettingRow> : <>
+        <SettingRow>
+          <FieldLabel htmlFor="chat-permission-tool" className="font-normal">工具</FieldLabel>
+          <SearchableSelect id="chat-permission-tool" label="工具" className="min-w-44 max-w-64"
+            value={selected?.id ?? ''} options={options} placeholder={permissions.isPending ? '加载中…' : '选择工具'}
+            disabled={busy || options.length === 0} onValueChange={id => { save.reset(); setToolID(id) }} />
+        </SettingRow>
+        {selected && <SettingRow>
+          <FieldLabel htmlFor="chat-tool-permission" className="font-normal">调用权限</FieldLabel>
+          <SearchableSelect id="chat-tool-permission" label="调用权限" className="min-w-44" announceSelection
+            value={selected.mode || 'default'} disabled={busy}
+            options={[
+              { value: 'default', label: selected.requiresApproval ? '默认（需要审批）' : '默认（放行）' },
+              ...explicitToolPermissions.map(option => ({ ...option, disabled: !selected.available })),
+            ]}
+            onValueChange={mode => save.mutate({ id: selected.id, mode })} />
+        </SettingRow>}
+        {save.isError && <SettingRow><FieldError>保存工具权限失败，请重试。</FieldError></SettingRow>}
+      </>}
+    </SettingCard>
+  </SettingSection>
+}
 
 const scopedArticleTools = new Set([
   'article.list', 'article.search', 'article.get', 'article.get_metadata', 'article.extract',
@@ -144,6 +197,7 @@ export function MCPSettings() {
   }
 
   return <div className="space-y-6">
+    <ToolPermissionSettings />
     <SettingSection
       title="MCP 服务端"
       actions={server.isError && <Button size="sm" variant="outline" onClick={() => void server.refetch()}>重试读取服务端</Button>}

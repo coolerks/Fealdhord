@@ -87,6 +87,15 @@ export interface Tool {
     "requiresApproval": boolean;
 }
 
+export interface ToolPermission {
+    "id": string;
+    "name": string;
+    "connection"?: string;
+    "available": boolean;
+    "requiresApproval": boolean;
+    "mode": string;
+}
+
 export interface UserQuestionAnswer {
     "question": string;
     "selected"?: string[] | null;

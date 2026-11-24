@@ -90,12 +90,20 @@ export function SaveSkillPackage(input: $models.Skill): $CancellablePromise<$mod
     return $Call.ByID(2692555815, input);
 }
 
+export function SaveToolPermission(id: string, mode: string): $CancellablePromise<void> {
+    return $Call.ByID(1927512529, id, mode);
+}
+
 export function Skills(): $CancellablePromise<$models.Skill[] | null> {
     return $Call.ByID(4029147643);
 }
 
 export function ToolList(): $CancellablePromise<$models.Tool[] | null> {
     return $Call.ByID(3802819707);
+}
+
+export function ToolPermissions(): $CancellablePromise<$models.ToolPermission[] | null> {
+    return $Call.ByID(3733276133);
 }
 
 export function UpdateGrant(grant: $models.MCPGrant): $CancellablePromise<void> {

@@ -26,6 +26,8 @@ type Tool struct {
 	Name             string `json:"name"`
 	Description      string `json:"description"`
 	RequiresApproval bool   `json:"requiresApproval"`
+	permissionID     string
+	externalName     string
 	schema           json.RawMessage
 	invoke           func(context.Context, json.RawMessage) (any, error)
 }
@@ -153,20 +155,8 @@ func (r *Registry) executeTool(ctx context.Context, principal, conversationID st
 	if !json.Valid(args) || len(args) > 64<<10 || !strings.HasPrefix(strings.TrimSpace(string(args)), "{") {
 		return "", errors.New("ValidationError")
 	}
-	if tool.RequiresApproval {
-		mode := agentrun.ApprovalAsk
-		if conversationID != "" {
-			mode = agentrun.ApprovalMode(ctx)
-		}
-		switch mode {
-		case agentrun.ApprovalDeny:
-			return "", errors.New("PermissionDenied")
-		case agentrun.ApprovalBypass:
-		default:
-			if err := r.requestApproval(ctx, principal, conversationID, tool.Name, args); err != nil {
-				return "", err
-			}
-		}
+	if err := r.authorizeTool(ctx, principal, conversationID, tool, args); err != nil {
+		return "", err
 	}
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -192,6 +182,31 @@ func (r *Registry) executeTool(ctx context.Context, principal, conversationID st
 	return string(data), nil
 }
 
+func (r *Registry) authorizeTool(ctx context.Context, principal, conversationID string, tool Tool, args json.RawMessage) error {
+	var mode string
+	if conversationID != "" {
+		mode = agentrun.ApprovalMode(ctx)
+	}
+	if mode == agentrun.ApprovalCustom {
+		mode = agentrun.ToolPermission(ctx, toolPermissionID(tool))
+	} else if !tool.RequiresApproval {
+		return nil
+	}
+	switch mode {
+	case agentrun.ApprovalDeny:
+		return errors.New("PermissionDenied")
+	case agentrun.ApprovalAsk:
+		return r.requestApproval(ctx, principal, conversationID, tool.Name, args)
+	case agentrun.ApprovalBypass:
+		return nil
+	default:
+		if tool.RequiresApproval {
+			return r.requestApproval(ctx, principal, conversationID, tool.Name, args)
+		}
+		return nil
+	}
+}
+
 func (r *Registry) ChatTools(conversationID string) []agentrun.ReadTool {
 	tools := make([]agentrun.ReadTool, 0, len(r.tools))
 	for _, tool := range r.tools {
@@ -206,15 +221,19 @@ func (r *Registry) chatTool(conversationID, wire string, tool Tool) agentrun.Rea
 		Read: func(ctx context.Context, call ai.ToolCall) (string, error) {
 			result, err := r.executeTool(ctx, "会话 "+conversationID, conversationID, tool, json.RawMessage(call.ArgumentsJSON))
 			if err != nil {
-				if ctx.Err() != nil {
-					return "", ctx.Err()
-				}
-				data, _ := json.Marshal(map[string]string{"error": err.Error()})
-				return string(data), nil
+				return chatToolError(ctx, err)
 			}
 			return result, nil
 		},
 	}
+}
+
+func chatToolError(ctx context.Context, err error) (string, error) {
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	data, _ := json.Marshal(map[string]string{"error": err.Error()})
+	return string(data), nil
 }
 
 func toolAuditStatus(output string, err error) string {

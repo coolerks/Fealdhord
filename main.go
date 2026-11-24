@@ -235,6 +235,7 @@ func main() {
 	platform := appagent.NewPlatform(toolRegistry, platformDirectory)
 	if chatService != nil {
 		chatService.SetToolSource(platform.RunTools)
+		chatService.SetToolPermissions(platform)
 	}
 	for _, boundService := range []application.Service{
 		application.NewService(appagent.NewAPI(platform, func(ctx context.Context) (string, error) {

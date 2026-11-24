@@ -15,14 +15,14 @@ import (
 	"github.com/coolerks/Fealdhord/internal/database/sqlc"
 )
 
-func (s *Service) articleReadTool(messageID string, ids []string) agentrun.ReadTool {
+func (s *Service) articleReadTool(conversationID, messageID string, ids []string) agentrun.ReadTool {
 	allowed := make(map[string]bool, len(ids))
 	for _, id := range ids {
 		allowed[id] = true
 	}
 	return agentrun.ReadTool{
 		Definition: ai.ToolDefinition{
-			Name:        "read_article",
+			Name:        agentrun.AuthorizedArticleTool,
 			Description: "读取本轮用户授权的本地文章正文，最多返回 8 KiB。只可使用已列出的文章 ID。",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false}`),
 		},
@@ -62,6 +62,12 @@ func (s *Service) articleReadTool(messageID string, ids []string) agentrun.ReadT
 			if !allowed[input.ID] {
 				status, errorCode = "denied", "PermissionError"
 				return `{"error":"PermissionError","message":"用户没有授权读取该文章。"}`, nil
+			}
+			if agentrun.ApprovalMode(ctx) == agentrun.ApprovalCustom {
+				if err := s.toolPermissions.AuthorizeArticleRead(ctx, conversationID, json.RawMessage(call.ArgumentsJSON)); err != nil {
+					status, errorCode = "denied", "PermissionDenied"
+					return `{"error":"PermissionDenied","message":"用户没有批准读取该文章。"}`, ctx.Err()
+				}
 			}
 			text, err := s.store.ArticleText(ctx, input.ID)
 			if err != nil {

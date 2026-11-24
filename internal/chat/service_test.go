@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/coolerks/Fealdhord/internal/aiconfig"
+	"github.com/coolerks/Fealdhord/internal/appagent"
 	"github.com/coolerks/Fealdhord/internal/database"
 	"github.com/coolerks/Fealdhord/internal/database/sqlc"
 )
@@ -181,7 +182,12 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 		t.Fatalf("wrong source scope: %s", request)
 	}
 	toolIDs <- [2]string{selected, foreign}
-	if err := reopened.Send(ctx, SendInput{ConversationID: global.ID, Text: "测试授权工具", ArticleIDs: []string{selected}, AllowArticleReads: true}); err != nil {
+	platform := appagent.NewPlatform(appagent.NewRegistry(), t.TempDir())
+	reopened.SetToolPermissions(platform)
+	if err := platform.SaveToolPermission("builtin:read_article", "bypass"); err != nil {
+		t.Fatal(err)
+	}
+	if err := reopened.Send(ctx, SendInput{ConversationID: global.ID, Text: "测试授权工具", ArticleIDs: []string{selected}, AllowArticleReads: true, ApprovalMode: "custom"}); err != nil {
 		t.Fatal(err)
 	}
 	withTools := waitMessage(t, reopened, global.ID, 4, "complete")
@@ -201,6 +207,24 @@ func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
 	}
 	if !strings.Contains(next, "不应发送的全文") || !strings.Contains(next, "PermissionError") || strings.Contains(next, "不可外传的正文") {
 		t.Fatalf("bad tool results: %s", next)
+	}
+	if err := platform.SaveToolPermission("builtin:read_article", "deny"); err != nil {
+		t.Fatal(err)
+	}
+	deniedConversation, err := reopened.Create(ctx, Scope{Kind: "global"}, "拒绝正文")
+	if err != nil {
+		t.Fatal(err)
+	}
+	toolIDs <- [2]string{selected, foreign}
+	if err := reopened.Send(ctx, SendInput{ConversationID: deniedConversation.ID, Text: "测试授权工具", ArticleIDs: []string{selected}, AllowArticleReads: true, ApprovalMode: "custom"}); err != nil {
+		t.Fatal(err)
+	}
+	denied := waitMessage(t, reopened, deniedConversation.ID, 2, "complete")
+	<-requests
+	deniedPayload := <-requests
+	if len(denied.Tools) != 2 || denied.Tools[0].ErrorCode != "PermissionDenied" || denied.Tools[1].ErrorCode != "PermissionError" ||
+		strings.Contains(deniedPayload, "不应发送的全文") || strings.Contains(deniedPayload, "不可外传的正文") {
+		t.Fatalf("custom denial leaked article content or lost its audit state: %+v", denied.Tools)
 	}
 
 	alternate, err := config.SaveModel(ctx, aiconfig.Model{

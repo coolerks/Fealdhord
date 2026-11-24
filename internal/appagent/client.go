@@ -288,15 +288,28 @@ func (a *Platform) ChatTools(id string) []agentrun.ReadTool {
 	tools := a.registry.ChatTools(id)
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	for name, conn := range a.clients {
-		for _, external := range conn.tools {
-			wire := clientToolName(name, external.Name, "tool")
-			schema, err := json.Marshal(external.InputSchema)
-			if err != nil || len(schema) > 8192 {
-				continue
-			}
-			tool := Tool{Name: wire, Description: external.Description, RequiresApproval: true, schema: schema, invoke: func(ctx context.Context, args json.RawMessage) (any, error) {
-				result, err := conn.session.CallTool(ctx, &mcp.CallToolParams{Name: external.Name, Arguments: args})
+	for _, conn := range a.clients {
+		for _, tool := range conn.chatTools() {
+			tools = append(tools, a.registry.chatTool(id, tool.Name, tool))
+		}
+	}
+	return tools
+}
+
+func (c *clientConnection) chatTools() []Tool {
+	name := c.status.Name
+	tools := make([]Tool, 0, len(c.tools)+2)
+	for _, external := range c.tools {
+		schema, err := json.Marshal(external.InputSchema)
+		if err != nil || len(schema) > 8192 {
+			continue
+		}
+		tools = append(tools, Tool{
+			Name: clientToolName(name, external.Name, "tool"), Description: external.Description,
+			permissionID: externalToolPermissionID(c.status.Config, "tool", external.Name),
+			externalName: external.Name, RequiresApproval: true, schema: schema,
+			invoke: func(ctx context.Context, args json.RawMessage) (any, error) {
+				result, err := c.session.CallTool(ctx, &mcp.CallToolParams{Name: external.Name, Arguments: args})
 				if err != nil {
 					return nil, errors.New("MCPResultUnknown")
 				}
@@ -304,14 +317,10 @@ func (a *Platform) ChatTools(id string) []agentrun.ReadTool {
 					return nil, errors.New("MCPAdditionalInputRequired")
 				}
 				return result, nil
-			}}
-			tools = append(tools, a.registry.chatTool(id, wire, tool))
-		}
-		for _, tool := range conn.contentTools(name) {
-			tools = append(tools, a.registry.chatTool(id, tool.Name, tool))
-		}
+			},
+		})
 	}
-	return tools
+	return append(tools, c.contentTools(name)...)
 }
 
 func clientToolName(connection, name, kind string) string {

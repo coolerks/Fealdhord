@@ -14,7 +14,11 @@ type API struct {
 func NewAPI(platform *Platform, pickSkill func(context.Context) (string, error)) *API {
 	return &API{platform: platform, pickSkill: pickSkill}
 }
-func (a *API) ToolList() []Tool                        { return a.platform.ToolList() }
+func (a *API) ToolList() []Tool                           { return a.platform.ToolList() }
+func (a *API) ToolPermissions() ([]ToolPermission, error) { return a.platform.ToolPermissions() }
+func (a *API) SaveToolPermission(id, mode string) error {
+	return a.platform.SaveToolPermission(id, mode)
+}
 func (a *API) PendingActions() []PendingAction         { return a.platform.PendingActions() }
 func (a *API) DecideAction(id string, allow bool) bool { return a.platform.DecideAction(id, allow) }
 func (a *API) PendingQuestions() []PendingQuestion     { return a.platform.PendingQuestions() }

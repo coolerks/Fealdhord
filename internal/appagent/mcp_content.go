@@ -17,7 +17,7 @@ func (c *clientConnection) contentTools(connection string) []Tool {
 		type resourceArgs struct {
 			URI string `json:"uri" jsonschema:"required,description=已发现的资源 URI"`
 		}
-		Register(r, clientToolName(connection, "read_resource", "resource"), "读取 MCP "+connection+" 提供的文本资源，需用户确认", true,
+		Register(r, clientToolName(connection, "read_resource", "resource"), "读取 MCP "+connection+" 提供的文本资源", true,
 			func(ctx context.Context, input resourceArgs) any {
 				if !slices.Contains(c.status.Resources, input.URI) {
 					return map[string]string{"error": "ResourceNotFound"}
@@ -34,13 +34,15 @@ func (c *clientConnection) contentTools(connection string) []Tool {
 				}
 				return map[string]any{"source": input.URI, "text": texts}
 			})
+		r.tools[len(r.tools)-1].permissionID = externalToolPermissionID(c.status.Config, "resource", "read_resource")
+		r.tools[len(r.tools)-1].externalName = "读取资源"
 	}
 	if len(c.status.Prompts) > 0 {
 		type promptArgs struct {
 			Name      string            `json:"name" jsonschema:"required"`
 			Arguments map[string]string `json:"arguments,omitempty"`
 		}
-		Register(r, clientToolName(connection, "get_prompt", "prompt"), "获取 MCP "+connection+" 的提示词模板文本，需用户确认", true,
+		Register(r, clientToolName(connection, "get_prompt", "prompt"), "获取 MCP "+connection+" 的提示词模板文本", true,
 			func(ctx context.Context, input promptArgs) any {
 				if !slices.Contains(c.status.Prompts, input.Name) || len(input.Arguments) > 16 {
 					return map[string]string{"error": "PromptNotFound"}
@@ -57,6 +59,8 @@ func (c *clientConnection) contentTools(connection string) []Tool {
 				}
 				return map[string]any{"source": input.Name, "text": texts}
 			})
+		r.tools[len(r.tools)-1].permissionID = externalToolPermissionID(c.status.Config, "prompt", "get_prompt")
+		r.tools[len(r.tools)-1].externalName = "获取提示词"
 	}
 	return r.tools
 }

@@ -24,7 +24,7 @@ migrations/00001_ui_preferences.sql 通过 goose 创建 app_settings，sqlc v1.3
 
 `chat_model_id` 保存全局聊天最近一次显式选择的模型记录 ID，最大 128 字节。空值和旧记录缺失字段时按默认聊天模型选择。全局聊天根据当前启用的模型和服务判断该 ID 是否可用。
 
-`chat_approval_presentation` 支持 `composer` 和 `dialog`，默认 `composer`。`chat_approval_mode` 支持 `ask`、`bypass` 和 `deny`，默认 `ask`。旧偏好分别使用默认值。全局聊天输入框旁选择的是当前会话的临时覆盖。
+`chat_approval_presentation` 支持 `composer` 和 `dialog`，默认 `composer`。`chat_approval_mode` 支持 `ask`、`bypass`、`deny` 和 `custom`，默认 `ask`。旧偏好分别使用默认值。全局聊天输入框旁选择的是当前会话的临时覆盖。`custom` 在发送时应用「MCP 与权限 → 工具权限」中的逐工具规则。
 
 通知方式 `preferences.notification_mode` 接受 `toast` 或 `native`，默认 `toast`。布尔值 `preferences.refresh_toast_auto_dismiss` 默认 `false`，旧记录缺少该字段时同样为 `false`。两个值由现有 Get／Update 契约和 CAS 保存，无需迁移。
 
