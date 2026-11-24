@@ -118,6 +118,59 @@ html[data-motion=subtle] .reader-body-skeleton [data-slot=skeleton] { animation:
 .reader-stage .reader-content { min-width: 0; }
 .reader-stage:has(.reader-outline) .reader-content { padding-inline-start: clamp(38px, 5vw, 64px); }
 .reader-prose img[role=button]:not([hidden]) { cursor: zoom-in; }
+
+/* 文章翻译：标题与段落级双语对照 / 仅译文样式 */
+.reader-translated-title {
+  margin: -.35em 0 1em;
+  font-size: 1.15em;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+}
+.reader-html [data-tr-hidden="true"] {
+  display: none;
+}
+.reader-html [data-tr-source="bilingual"] {
+  margin-block-end: .32em;
+  color: var(--muted-foreground);
+}
+.reader-html .reader-tr-block {
+  margin: 0 0 1.25em;
+  color: var(--foreground);
+}
+.reader-html .reader-tr-block[data-tr-mode="bilingual"] {
+  padding-inline-start: .75em;
+  border-inline-start: 2px solid color-mix(in srgb, var(--border) 85%, transparent);
+}
+.reader-html .reader-tr-block.reader-tr-inline-child {
+  margin: .32em 0 0;
+}
+.reader-html .reader-tr-block[data-tr-tag="h1"],
+.reader-html .reader-tr-block[data-tr-tag="h2"],
+.reader-html .reader-tr-block[data-tr-tag="h3"],
+.reader-html .reader-tr-block[data-tr-tag="h4"],
+.reader-html .reader-tr-block[data-tr-tag="h5"],
+.reader-html .reader-tr-block[data-tr-tag="h6"] {
+  font-weight: 650;
+  line-height: 1.35;
+}
+.reader-html .reader-tr-block[data-tr-mode="translated"][data-tr-tag="h1"] { font-size: 1.65em; margin: 1.65em 0 .55em; }
+.reader-html .reader-tr-block[data-tr-mode="translated"][data-tr-tag="h2"] { font-size: 1.4em; margin: 1.65em 0 .55em; }
+.reader-html .reader-tr-block[data-tr-mode="translated"][data-tr-tag="h3"] { font-size: 1.2em; margin: 1.65em 0 .55em; }
+.reader-html .reader-tr-block[data-tr-mode="translated"][data-tr-tag="h4"],
+.reader-html .reader-tr-block[data-tr-mode="translated"][data-tr-tag="h5"],
+.reader-html .reader-tr-block[data-tr-mode="translated"][data-tr-tag="h6"] { font-size: 1em; margin: 1.4em 0 .5em; }
+.reader-html .reader-tr-block[data-tr-mode="translated"][data-tr-tag="blockquote"] {
+  border-inline-start: 3px solid var(--border);
+  padding: .65em 1em;
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.reader-html .reader-tr-block[data-tr-tag="figcaption"] {
+  color: var(--muted-foreground);
+  font-size: .85em;
+  text-align: center;
+}
 .reader-prose img[role=button]:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
 .reader-prose img[hidden] { display: none; }
 .reader-prose img:is(.reader-image-source-hidden, .reader-image-source-returning) { visibility: hidden; }

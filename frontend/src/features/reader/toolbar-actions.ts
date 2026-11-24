@@ -5,7 +5,7 @@ import type { IconMeaning } from '@/components/animated-glyph'
 export const readerToolbarOptions = [
   { value: 'refresh', label: '重新提取正文', icon: RefreshCw, meaning: 'refresh' },
   { value: 'favorite', label: '收藏', keywords: ['收藏当前文章'], icon: Star, meaning: 'favorite' },
-  { value: 'translate', label: '翻译（暂未开放）', icon: Languages, meaning: 'languages' },
+  { value: 'translate', label: '翻译', keywords: ['文章翻译', '双语对照', '翻译（暂未开放）'], icon: Languages, meaning: 'languages' },
   { value: 'ai', label: 'AI 助手', keywords: ['文章 AI 助手'], icon: Sparkles, meaning: 'ai' },
   { value: 'categories', label: '归类', keywords: ['文章分类'], icon: Folder, meaning: 'folder' },
   { value: 'read', label: '标为已读／未读', keywords: ['切换当前文章已读状态', '标为未读'], icon: CheckCheck, meaning: 'read' },

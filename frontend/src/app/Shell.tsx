@@ -47,6 +47,7 @@ import { RefreshStatus } from '@/features/feeds/RefreshStatus'
 const readFeedMeta = (page: Page) => ({
   icons: new Map(page.items?.map(feed => [feed.id, feed.icon_data])),
   readerOpenModes: new Map(page.items?.map(feed => [feed.id, feed.reader_open_mode])),
+  autoTranslateModes: new Map(page.items?.map(feed => [feed.id, feed.auto_translate_mode])),
 })
 const listMinWidth = 300
 const listMaxWidth = 760
@@ -117,6 +118,7 @@ export function Shell() {
   const feedIcons = preferences.remote_images === 'never' ? undefined : feedMeta?.icons
   const selectedFeedIcon = selected?.feedID ? feedIcons?.get(selected.feedID) : undefined
   const selectedFeedReaderOpenMode = selected?.feedID ? feedMeta?.readerOpenModes.get(selected.feedID) : undefined
+  const selectedFeedAutoTranslateMode = selected?.feedID ? feedMeta?.autoTranslateModes.get(selected.feedID) : undefined
   const systemDark = useMediaQuery('(prefers-color-scheme: dark)')
   const systemReduced = useMediaQuery('(prefers-reduced-motion: reduce)')
   const mode = effectiveMotion(preferences, systemReduced)
@@ -251,7 +253,7 @@ export function Shell() {
 
   const emptySearch = search.trim() !== ''
   const platform = native.isMac() ? 'mac' : native.isWindows() ? 'windows' : 'other'
-  const reader = readerVisible && <Reader feedIcon={selectedFeedIcon} feedReaderOpenMode={selectedFeedReaderOpenMode} article={selected} preferences={preferences} overlay={overlay}
+  const reader = readerVisible && <Reader feedIcon={selectedFeedIcon} feedReaderOpenMode={selectedFeedReaderOpenMode} feedAutoTranslateMode={selectedFeedAutoTranslateMode} article={selected} preferences={preferences} overlay={overlay}
     onClose={closeReader} onFavorite={favorite} onRead={read} onShare={shareArticle} onAnchor={saveAnchor} />
   useLayoutEffect(() => {
     if (settingsWorkspace && workspace.current) clearSelectionWithin(workspace.current)

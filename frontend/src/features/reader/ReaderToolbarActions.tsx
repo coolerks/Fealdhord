@@ -9,9 +9,22 @@ import {
   DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ArticleCategories } from '@/features/categories/ArticleCategories'
+import { defaultTranslationLanguages } from '@/lib/translation-api'
+import type { TranslationDisplayMode } from '@/lib/translation-api'
 import { useWorkspace } from '@/stores/workspace'
 import { readerToolbarOptions, readerViews } from './toolbar-actions'
 import type { ArticleView, ReaderToolbarAction } from './toolbar-actions'
+
+export type ReaderTranslationControls = {
+  displayMode: TranslationDisplayMode
+  targetLang: string
+  hasTranslation: boolean
+  translating: boolean
+  onDisplayModeChange: (mode: TranslationDisplayMode) => void
+  onTargetLangChange: (lang: string) => void
+  onTranslate: (force?: boolean) => void
+  onCancel: () => void
+}
 
 type Props = {
   articleID: string
@@ -21,6 +34,7 @@ type Props = {
   isRead: boolean
   extracting: boolean
   hasOriginal: boolean
+  translation?: ReaderTranslationControls
   onViewChange: (view: string) => void
   onRefresh: () => void
   onFavorite: () => void
@@ -31,8 +45,60 @@ type Props = {
   onAI: (selection: string) => void
 }
 
+const translationDisplayOptions: ReadonlyArray<{ value: TranslationDisplayMode; label: string }> = [
+  { value: 'bilingual', label: '双语对照' },
+  { value: 'translated', label: '仅看译文' },
+  { value: 'original', label: '仅看原文' },
+]
+
+function TranslationMenuItems({ translation }: { translation: ReaderTranslationControls }) {
+  return <>
+    <DropdownMenuRadioGroup
+      aria-label="译文显示方式"
+      value={translation.displayMode}
+      onValueChange={next => {
+        if (next === 'bilingual' || next === 'translated' || next === 'original') {
+          translation.onDisplayModeChange(next)
+          if (next !== 'original' && !translation.hasTranslation && !translation.translating) {
+            translation.onTranslate(false)
+          }
+        }
+      }}
+    >
+      {translationDisplayOptions.map(option => (
+        <DropdownMenuRadioItem key={option.value} value={option.value}>{option.label}</DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
+    <DropdownMenuSeparator />
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <AnimatedGlyph meaning="languages" />目标语言（{defaultTranslationLanguages.find(item => item.code === translation.targetLang)?.label ?? translation.targetLang}）
+      </DropdownMenuSubTrigger>
+      <DropdownMenuPortal>
+        <DropdownMenuSubContent sideOffset={4}>
+          <DropdownMenuRadioGroup aria-label="目标语言" value={translation.targetLang} onValueChange={translation.onTargetLangChange}>
+            {defaultTranslationLanguages.map(lang => (
+              <DropdownMenuRadioItem key={lang.code} value={lang.code}>{lang.label}</DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuSubContent>
+      </DropdownMenuPortal>
+    </DropdownMenuSub>
+    <DropdownMenuSeparator />
+    {translation.translating ? (
+      <DropdownMenuItem onSelect={translation.onCancel}>
+        <AnimatedGlyph meaning="x" />取消翻译
+      </DropdownMenuItem>
+    ) : (
+      <DropdownMenuItem onSelect={() => translation.onTranslate(translation.hasTranslation)}>
+        <AnimatedGlyph meaning="refresh" />{translation.hasTranslation ? '重新翻译' : '翻译正文'}
+      </DropdownMenuItem>
+    )}
+  </>
+}
+
 export function ReaderToolbarActions({
-  articleID, pinned, view, isFavorite, isRead, extracting, hasOriginal, onViewChange,
+  articleID, pinned, view, isFavorite, isRead, extracting, hasOriginal, translation, onViewChange,
   onRefresh, onFavorite, onRead, onOriginal, onShare, readSelection, onAI,
 }: Props) {
   const [categoriesOpen, setCategoriesOpen] = useState(false)
@@ -52,7 +118,7 @@ export function ReaderToolbarActions({
   }
 
   function isDisabled(action: ReaderToolbarAction) {
-    return action === 'translate' || (action === 'refresh' && extracting) ||
+    return (action === 'translate' && !translation) || (action === 'refresh' && extracting) ||
       ((action === 'original' || action === 'refresh') && !hasOriginal)
   }
 
@@ -84,6 +150,17 @@ export function ReaderToolbarActions({
               <AnimatedGlyph icon={mode.icon} meaning={mode.meaning} />
             </Tabs.Trigger>)}
           </Tabs.List>
+        }
+        if (value === 'translate' && translation) {
+          const active = translation.translating || (translation.hasTranslation && translation.displayMode !== 'original')
+          return <DropdownMenu key={value}>
+            <DropdownMenuTrigger asChild>
+              <SemanticButton icon={icon} meaning={meaning} label={label} active={active} aria-pressed={active} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <TranslationMenuItems translation={translation} />
+            </DropdownMenuContent>
+          </DropdownMenu>
         }
         return <SemanticButton key={value} ref={value === 'categories' ? categoryTrigger : undefined} icon={icon} meaning={meaning} label={value === 'read' ? readLabel : label}
           disabled={isDisabled(value)}
@@ -123,6 +200,18 @@ export function ReaderToolbarActions({
                         <AnimatedGlyph icon={mode.icon} meaning={mode.meaning} />{mode.label}
                       </DropdownMenuRadioItem>)}
                     </DropdownMenuRadioGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
+            }
+            if (value === 'translate' && translation) {
+              return <DropdownMenuSub key={value}>
+                <DropdownMenuSubTrigger>
+                  <AnimatedGlyph icon={icon} meaning={meaning} />{label}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuSubContent sideOffset={4}>
+                    <TranslationMenuItems translation={translation} />
                   </DropdownMenuSubContent>
                 </DropdownMenuPortal>
               </DropdownMenuSub>

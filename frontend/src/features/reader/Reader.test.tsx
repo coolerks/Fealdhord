@@ -11,8 +11,16 @@ import { useWorkspace } from '@/stores/workspace'
 import { native } from '@/lib/native'
 import type { Detail } from '@/lib/reader-api'
 const api=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
+const translationMock = vi.hoisted(() => ({ get: vi.fn(), translate: vi.fn(), cancel: vi.fn(), clear: vi.fn(), languages: vi.fn() }))
 const copyImage = vi.hoisted(() => vi.fn())
 vi.mock('../../../bindings/github.com/coolerks/Fealdhord/internal/media/api', () => ({ CopyInlineImage: copyImage }))
+vi.mock('../../../bindings/github.com/coolerks/Fealdhord/internal/articleai/api', () => ({
+  Settings: vi.fn(async () => ({ classification: false, featured: false, prompt: '', revision: 1, requestsPerHour: 100, tokensPerHour: 200000, minimumImportance: 0.7, minimumRelevance: 0.6, autoTranslate: false, autoTranslateScope: 'summary', translateOnOpen: false, translationTargetLang: 'zh-CN', translationPrompt: '' })),
+}))
+vi.mock('@/lib/translation-api', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/translation-api')>('@/lib/translation-api')
+  return { ...actual, translationAPI: translationMock }
+})
 vi.mock('@/lib/reader-api',()=>({readerAPI:api}))
 vi.mock('@/lib/preferences',()=>({preferencesAPI:{get:vi.fn(),update:vi.fn()}}))
 vi.mock('@/lib/navigation-api',()=>({navigationQueryKey:['navigation'],navigationAPI:{list:vi.fn(async()=>({categories:[],feeds:[],totals:{total:0,unread:0,favorites:0}})),memberships:async()=>[]}}))
@@ -23,7 +31,7 @@ const feed:Detail={article_id:'a-0',mode:'feed',html:`<p>订阅正文 <a href="#
 const extracted:Detail={...feed,mode:'reader',html:'<p>提取后的正文</p>',text:'提取后的正文',has_cached:true}
 const imageIDs = ['d'.repeat(64), 'e'.repeat(64)]
 const illustrated: Detail = { ...feed, html: `<h2>章节</h2><img src="/media/inline/${imageIDs[0]}" alt="第一张"><h6>小节</h6><img src="/media/inline/${imageIDs[1]}" alt="第二张">` }
-beforeEach(()=>{vi.resetAllMocks();api.get.mockResolvedValue(feed);api.open.mockResolvedValue(undefined);useWorkspace.setState({preferences:preferencesFixture(),readerModeRequestID:null})})
+beforeEach(()=>{vi.resetAllMocks();api.get.mockResolvedValue(feed);api.open.mockResolvedValue(undefined);translationMock.get.mockResolvedValue({articleId:'a-0',targetLang:'zh-CN',sourceMode:'feed',contentHash:'',detectedLang:'',status:'none',translatedTitle:'',translatedSummary:'',blocks:[],translatedBlocks:0,totalBlocks:0,modelId:'',errorCode:'',updatedAt:0});translationMock.translate.mockResolvedValue({articleId:'a-0',targetLang:'zh-CN',sourceMode:'feed',contentHash:'',detectedLang:'en',status:'completed',translatedTitle:'译文标题',translatedSummary:'',blocks:[],translatedBlocks:0,totalBlocks:0,modelId:'m1',errorCode:'',updatedAt:1});useWorkspace.setState({preferences:preferencesFixture(),readerModeRequestID:null})})
 function setup(patch:Parameters<typeof preferencesFixture>[0]={}){
  const prefs=preferencesFixture(patch),onRead=vi.fn(),article={...articleFixtures(1)[0],contentText:'',isRead:false,url:'https://example.test/article'}
  const renderTree=(revision=1,isRead=false)=><StrictMode><QueryClientProvider client={client}><TooltipProvider><Reader article={{...article,revision,isRead}} preferences={prefs} overlay onClose={vi.fn()} onFavorite={vi.fn()} onRead={onRead} onAnchor={vi.fn()}/></TooltipProvider></QueryClientProvider></StrictMode>
@@ -204,13 +212,58 @@ it('默认常驻四项，更多中的分类对话框关闭后回到触发器', a
  await screen.findByText('订阅正文')
  const toolbar = document.querySelector('.reader-toolbar-actions')!
  expect(Array.from(toolbar.querySelectorAll('button'), button => button.getAttribute('aria-label'))).toEqual([
-  '重新提取正文', '收藏', '翻译（暂未开放）', 'AI 助手', '更多',
+  '重新提取正文', '收藏', '翻译', 'AI 助手', '更多',
  ])
- expect(screen.getByRole('button',{name:'翻译（暂未开放）'})).toBeDisabled()
+ expect(screen.getByRole('button',{name:'翻译'})).toBeEnabled()
  await selectMoreItem('归类')
  expect(await screen.findByRole('dialog',{name:'文章分类'})).toBeInTheDocument()
  await userEvent.keyboard('{Escape}')
  await waitFor(() => expect(screen.getByRole('button',{name:'更多'})).toHaveFocus())
+})
+
+it('支持段落行内双语对照、仅看译文和仅看原文切换，且不重复目录标题', async () => {
+ const user = userEvent.setup()
+ api.get.mockResolvedValue({
+  ...feed,
+  html: '<h2 data-tr-block="b0">Overview</h2><p data-tr-block="b1">Hello English paragraph.</p><pre><code>const keep = true;</code></pre>',
+ })
+ translationMock.get.mockResolvedValue({
+  articleId: 'a-0',
+  targetLang: 'zh-CN',
+  sourceMode: 'feed',
+  contentHash: 'h1',
+  detectedLang: 'en',
+  status: 'completed',
+  translatedTitle: '中文译文标题',
+  translatedSummary: '',
+  blocks: [
+   { id: 'b0', sourceHash: 's0', translatedHtml: '概览' },
+   { id: 'b1', sourceHash: 's1', translatedHtml: '你好英文段落。' },
+  ],
+  translatedBlocks: 2,
+  totalBlocks: 2,
+  modelId: 'm1',
+  errorCode: '',
+  updatedAt: 1,
+ })
+ setup({ reader_translation_display: 'bilingual', reader_outline: 'fixed' })
+
+ expect(await screen.findByText('你好英文段落。')).toBeInTheDocument()
+ expect(screen.getByText('Hello English paragraph.')).toBeInTheDocument()
+ expect(screen.getByText('中文译文标题')).toBeInTheDocument()
+ expect(document.querySelector('pre code')?.textContent).toContain('const keep = true;')
+ expect(document.querySelectorAll('.reader-outline-panel li')).toHaveLength(1)
+
+ await user.click(screen.getByRole('button', { name: '翻译' }))
+ await user.click(await screen.findByRole('menuitemradio', { name: '仅看译文' }))
+ await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('中文译文标题'))
+ expect(document.querySelector('[data-tr-block="b1"]')).toHaveAttribute('data-tr-hidden', 'true')
+ expect(screen.getByText('你好英文段落。')).toBeInTheDocument()
+
+ await user.click(screen.getByRole('button', { name: '翻译' }))
+ await user.click(await screen.findByRole('menuitemradio', { name: '仅看原文' }))
+ await waitFor(() => expect(screen.queryByText('你好英文段落。')).not.toBeInTheDocument())
+ expect(screen.getByText('Hello English paragraph.')).toBeInTheDocument()
 })
 
 it('已读操作显示执行后的状态，点击沿用同一篇文章的切换操作', async () => {

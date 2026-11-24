@@ -15,6 +15,7 @@ import { SemanticButton } from '@/components/semantic-button'
 import { Empty,EmptyHeader,EmptyMedia,EmptyTitle } from '@/components/ui/empty'
 import { useWorkspace } from '@/stores/workspace'
 import { useReaderContent } from './use-reader-content'
+import { useArticleTranslation } from './use-article-translation'
 import { ReaderToolbarActions } from './ReaderToolbarActions'
 import { readerViews } from './toolbar-actions'
 import type { ArticleView } from './toolbar-actions'
@@ -24,7 +25,7 @@ import { ReaderOutline } from './ReaderOutline'
 import { ArticleHTML } from './ArticleHTML'
 import './reader-prose.css'
 
-type ReaderProps={feedIcon?:string;feedReaderOpenMode?:string;article?:Article;preferences:Preferences;overlay:boolean;onClose:()=>void;onFavorite:(id:string)=>void;onRead:(id:string)=>void;onShare?:(article:Article,trigger:HTMLButtonElement)=>void;onAnchor:(key:string,anchor:{article_id:string;offset:number})=>void}
+type ReaderProps={feedIcon?:string;feedReaderOpenMode?:string;feedAutoTranslateMode?:string;article?:Article;preferences:Preferences;overlay:boolean;onClose:()=>void;onFavorite:(id:string)=>void;onRead:(id:string)=>void;onShare?:(article:Article,trigger:HTMLButtonElement)=>void;onAnchor:(key:string,anchor:{article_id:string;offset:number})=>void}
 function resolveReaderOpenMode(feedReaderOpenMode: string | undefined, globalMode: string): 'feed' | 'full' {
  if (feedReaderOpenMode === 'full' || feedReaderOpenMode === 'feed') return feedReaderOpenMode
  return globalMode === 'full' ? 'full' : 'feed'
@@ -39,8 +40,9 @@ export function ReaderEmpty() {
  return <Empty className="reader-empty"><EmptyHeader><EmptyMedia variant="icon"><AnimatedGlyph icon={BookOpen} meaning="book"/></EmptyMedia><EmptyTitle>选择文章</EmptyTitle></EmptyHeader></Empty>
 }
 
-function ReaderPane({feedIcon,article,preferences,effectiveOpenMode,overlay,onClose,onFavorite,onRead,onShare,onAnchor,markedRef}:ReaderProps&{effectiveOpenMode:'feed'|'full';markedRef:RefObject<string>}){
+function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiveOpenMode,overlay,onClose,onFavorite,onRead,onShare,onAnchor,markedRef}:ReaderProps&{effectiveOpenMode:'feed'|'full';markedRef:RefObject<string>}){
  const content=useRef<HTMLDivElement>(null),timer=useRef<ReturnType<typeof setTimeout>|null>(null),pending=useRef<number|null>(null),save=useRef(onAnchor),title=useRef<HTMLHeadingElement>(null)
+ const showSettings = useWorkspace(state => state.showSettings)
  const articleID=article?.id
  const publicationDate=article?.publishedAt.slice(0,10)
  const body=useReaderContent(article,preferences)
@@ -49,6 +51,19 @@ function ReaderPane({feedIcon,article,preferences,effectiveOpenMode,overlay,onCl
  const [showToolbarTitle,setShowToolbarTitle]=useState(false)
  const [view,setView]=useState<ArticleView>(effectiveOpenMode==='full'?'reader':'feed')
  const [gallery, setGallery] = useState<{ images: ReaderImage[]; index: number; html: string; origin: DOMRectReadOnly }>()
+ const hasContent=Boolean(body.text.trim()||body.html)
+ const translation = useArticleTranslation({
+  articleID,
+  articleRevision: article?.revision,
+  sourceMode: body.mode,
+  hasContent,
+  extracting: body.extracting,
+  defaultDisplay: preferences.reader_translation_display,
+  feedAutoTranslateMode,
+ })
+ const translatedTitle = translation.record?.translatedTitle || article?.translatedTitle || ''
+ const headingTitle = translation.effectiveDisplayMode === 'translated' && translatedTitle ? translatedTitle : (article?.title ?? '')
+ const subTranslatedTitle = translation.effectiveDisplayMode === 'bilingual' && translatedTitle && translatedTitle !== article?.title ? translatedTitle : ''
  const viewing = imagesAllowed && gallery?.html === body.html ? gallery : undefined
  if (gallery && !viewing) setGallery(undefined)
  function changeView(next:string){
@@ -88,7 +103,6 @@ function ReaderPane({feedIcon,article,preferences,effectiveOpenMode,overlay,onCl
   observer.observe(heading)
   return ()=>observer.disconnect()
  },[articleID,view])
- const hasContent=Boolean(body.text.trim()||body.html)
  const loading=body.extracting||(body.query.isFetching&&!hasContent)
  useLayoutEffect(()=>{save.current=onAnchor},[onAnchor])
  useLayoutEffect(()=>{
@@ -129,10 +143,20 @@ function ReaderPane({feedIcon,article,preferences,effectiveOpenMode,overlay,onCl
   <Tabs.Root className="reader-tabs" value={view} onValueChange={changeView} activationMode="manual">
   {article && <header className="workspace-toolbar reader-toolbar" inert={Boolean(viewing)} aria-hidden={viewing ? true : undefined}>
    <div className="toolbar-start"><SemanticButton icon={ChevronLeft} meaning="chevron-left" label={overlay?'返回文章浏览':'收起阅读面板'} onClick={onClose}/>
-    {article && <span className="reader-toolbar-title" data-visible={showToolbarTitle} title={article.title} aria-hidden="true">{article.title}</span>}
+    {article && <span className="reader-toolbar-title" data-visible={showToolbarTitle} title={headingTitle} aria-hidden="true">{headingTitle}</span>}
    </div>
    <ReaderToolbarActions articleID={article.id} pinned={preferences.reader_toolbar_pinned} view={view} onViewChange={changeView}
      isFavorite={article.isFavorite} isRead={article.isRead} extracting={body.extracting} hasOriginal={Boolean(article.url || body.query.data?.has_original)}
+     translation={{
+      displayMode: translation.displayMode,
+      targetLang: translation.targetLang,
+      hasTranslation: translation.hasTranslation,
+      translating: translation.translating,
+      onDisplayModeChange: translation.setDisplayMode,
+      onTargetLangChange: translation.setTargetLang,
+      onTranslate: force => { void translation.translate(force) },
+      onCancel: translation.cancel,
+     }}
      onRefresh={() => { setGallery(undefined); started.current = true; setView('reader'); void body.extract() }}
      onFavorite={() => onFavorite(article.id)} onRead={() => onRead(article.id)} onOriginal={() => openLink()}
      onShare={onShare && (trigger => onShare(article, trigger))}
@@ -141,7 +165,7 @@ function ReaderPane({feedIcon,article,preferences,effectiveOpenMode,overlay,onCl
   {article?<Tabs.Content value={view} asChild {...(!preferences.reader_toolbar_pinned.includes('view') && {
    'aria-labelledby': undefined, 'aria-label': readerViews.find(mode => mode.value === view)?.label,
   })}><div className="reader-stage" inert={Boolean(viewing)} aria-hidden={viewing ? true : undefined}>
-   {!loading && <ReaderOutline mode={preferences.reader_outline} html={body.html} prose={prose} viewport={content} inert={Boolean(viewing)} />}
+   {!loading && <ReaderOutline mode={preferences.reader_outline} html={body.html} translationKey={`${translation.effectiveDisplayMode}:${translation.record?.translatedBlocks ?? 0}`} prose={prose} viewport={content} inert={Boolean(viewing)} />}
    <div ref={content} className="reader-content" onScroll={event=>{
    if(!articleID||!hasContent||loading)return
    const offset=event.currentTarget.scrollTop;pending.current=offset;if(timer.current)clearTimeout(timer.current)
@@ -149,8 +173,23 @@ function ReaderPane({feedIcon,article,preferences,effectiveOpenMode,overlay,onCl
   }}><article style={{maxWidth:preferences.reader_width,fontSize:preferences.reader_font_size,lineHeight:preferences.reader_line_height,fontFamily:preferences.reader_font_family==='serif'?'ui-serif, Georgia, "Songti SC", serif':preferences.reader_font_family==='monospace'?'ui-monospace, SFMono-Regular, monospace':undefined}}><p className="reader-byline">
     <span><FeedIcon data={preferences.remote_images==='never' ? undefined : feedIcon}/>{article.feedTitle}</span>
     {publicationDate && <time dateTime={publicationDate}><CalendarDays aria-hidden="true"/>{publicationDate}</time>}
-   </p><h1 ref={title} tabIndex={-1}>{article.title}</h1>
+   </p><h1 ref={title} tabIndex={-1}>{headingTitle}</h1>
+   {subTranslatedTitle && <p className="reader-translated-title">{subTranslatedTitle}</p>}
    {(body.extracting||body.error)&&<div className="reader-operation" role="status">{body.extracting?<><span>正在提取网页正文…</span><Button variant="ghost" size="sm" onClick={body.cancel}>取消提取</Button></>:<p role="alert">{body.error}</p>}</div>}
+   {!body.extracting && (translation.translating || translation.error) && (
+    <div className="reader-operation" role="status">
+     {translation.translating ? <>
+      <span>{translation.record?.totalBlocks ? `正在翻译正文（${translation.record.translatedBlocks}/${translation.record.totalBlocks} 段）…` : '正在翻译正文…'}</span>
+      <Button variant="ghost" size="sm" onClick={translation.cancel}>取消翻译</Button>
+     </> : <>
+      <p role="alert">{translation.error}</p>
+      <div className="flex items-center gap-1">
+       {translation.error.includes('用途分配') && <Button variant="ghost" size="sm" onClick={() => showSettings('ai')}>前往设置</Button>}
+       <Button variant="ghost" size="sm" onClick={() => { void translation.translate(false) }}>重试</Button>
+      </div>
+     </>}
+    </div>
+   )}
    <div ref={prose} className="reader-prose" aria-busy={loading || undefined} data-images={imagesAllowed?'allowed':'blocked'} onClick={event=>{
     if(!(event.target instanceof Element))return
     if(event.target instanceof HTMLImageElement && viewImage(event.target)){event.preventDefault();return}
@@ -175,7 +214,7 @@ function ReaderPane({feedIcon,article,preferences,effectiveOpenMode,overlay,onCl
        <Skeleton className="h-[0.8em] w-2/3" />
       </div>
      </div>
-    ) : body.query.isError&&!hasContent?<div role="alert">正文读取失败。<Button variant="ghost" onClick={()=>{void body.query.refetch()}}>重试</Button></div>:body.html?<ArticleHTML html={body.html} imagesAllowed={imagesAllowed} theme={preferences.reader_code_theme} />:body.text.split(/\n\n+/).map((paragraph,index)=><p key={index}>{paragraph}</p>)}
+    ) : body.query.isError&&!hasContent?<div role="alert">正文读取失败。<Button variant="ghost" onClick={()=>{void body.query.refetch()}}>重试</Button></div>:body.html?<ArticleHTML html={body.html} imagesAllowed={imagesAllowed} theme={preferences.reader_code_theme} translationBlocks={translation.blocksMap} translationMode={translation.effectiveDisplayMode} />:body.text.split(/\n\n+/).map((paragraph,index)=><p key={index}>{paragraph}</p>)}
    </div></article></div>
    </div></Tabs.Content>:<ReaderEmpty />}
   {viewing && <ReaderImageViewer images={viewing.images} initialIndex={viewing.index} origin={viewing.origin} readingViewport={content}
