@@ -30,9 +30,45 @@ var displayPolicy = func() *bluemonday.Policy {
 	p.AllowAttrs("src").Matching(regexp.MustCompile(`^/media/inline/[a-f0-9]{64}$`)).OnElements("img")
 	p.AllowAttrs("alt", "loading", "decoding").OnElements("img")
 	p.AllowAttrs("width", "height").Matching(regexp.MustCompile(`^[0-9]{1,4}$`)).OnElements("img")
+	p.AllowAttrs("data-tr-block").Matching(regexp.MustCompile(`^b[0-9]{1,5}$`)).OnElements("p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "figcaption", "dt", "dd", "td", "th", "blockquote")
 	p.AllowRelativeURLs(true)
 	return p
 }()
+
+var inlineTranslationPolicy = func() *bluemonday.Policy {
+	p := bluemonday.NewPolicy()
+	p.AllowElements("a", "strong", "em", "b", "i", "u", "s", "del", "code", "sup", "sub", "kbd", "br", "span")
+	p.AllowAttrs("href").Matching(regexp.MustCompile(`^#reader-link$`)).OnElements("a")
+	p.AllowAttrs("data-reader-link").Matching(regexp.MustCompile(`^[a-f0-9]{64}$`)).OnElements("a")
+	p.AllowRelativeURLs(true)
+	return p
+}()
+
+// SanitizeInlineTranslationHTML 清洗单段译文中的行内 HTML，仅保留受限行内格式与已登记的阅读器链接。
+func SanitizeInlineTranslationHTML(raw string) string {
+	return inlineTranslationPolicy.Sanitize(raw)
+}
+
+const translatableBlockSelector = "h1,h2,h3,h4,h5,h6,p,li,blockquote,figcaption,dt,dd,td,th"
+const nestedBlockSelector = "h1,h2,h3,h4,h5,h6,p,ul,ol,blockquote,pre,table,div,figure"
+
+func annotateTranslationBlocks(doc *goquery.Document) {
+	index := 0
+	doc.Find("body").Find(translatableBlockSelector).Each(func(_ int, node *goquery.Selection) {
+		if node.ParentsFiltered("pre,code").Length() > 0 {
+			return
+		}
+		// 若容器型块（如 li / blockquote / td / dd）内部还有块级子元素，交由子块分别标注，避免重复翻译。
+		if node.Find(nestedBlockSelector).Length() > 0 {
+			return
+		}
+		if strings.TrimSpace(node.Text()) == "" {
+			return
+		}
+		node.SetAttr("data-tr-block", fmt.Sprintf("b%d", index))
+		index++
+	})
+}
 
 func boundedDocument(ctx context.Context, raw string) (*xhtml.Node, error) {
 	if len(raw) > 5<<20 {
@@ -120,6 +156,7 @@ func prepareHTML(ctx context.Context, article database.ReaderArticle, mode, raw,
 		linkCount++
 		node.SetAttr("href", "#reader-link").SetAttr("data-reader-link", register("link", target))
 	})
+	annotateTranslationBlocks(doc)
 	result, err := doc.Find("body").Html()
 	if err != nil {
 		return "", nil, ErrContent
