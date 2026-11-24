@@ -1655,3 +1655,29 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 65: 实现自定义工具权限
+<!-- trellis-session: v=2 fp=2baffffcd6bbadc3 -->
+
+**Date**: 2026-11-24
+**Task**: 实现自定义工具权限
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+支持内置及外部 MCP 工具按项配置；全局聊天可选择自定义权限并设为新会话默认。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a912d98` | feat(chat): 支持内置与外部工具的自定义权限 |
+
+### Testing
+
+- [OK] Go 全量测试与 vet、相关包竞态、前端 190 项测试和生产构建通过。
+
+### Status
+
+[OK] **Completed**
