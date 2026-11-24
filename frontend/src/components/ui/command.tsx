@@ -151,6 +151,7 @@ function CommandItem({
   children,
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.Item>) {
+  const showCheck = 'data-checked' in props
   return (
     <CommandPrimitive.Item
       data-slot="command-item"
@@ -161,7 +162,9 @@ function CommandItem({
       {...props}
     >
       {children}
-      <AnimatedGlyph meaning="check" className="ml-auto opacity-0 group-has-[[data-slot=command-shortcut]]/command-item:hidden group-data-[checked=true]/command-item:opacity-100" />
+      {showCheck && (
+        <AnimatedGlyph meaning="check" className="ml-auto opacity-0 group-has-[[data-slot=command-shortcut]]/command-item:hidden! group-data-[checked=true]/command-item:opacity-100" />
+      )}
     </CommandPrimitive.Item>
   )
 }

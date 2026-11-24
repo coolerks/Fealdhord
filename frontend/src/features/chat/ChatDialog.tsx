@@ -214,10 +214,11 @@ function ChatSession({ target, close, workspace }: {
   const inlineQuestion = useInlineQuestion(conversationId, !tasksOpen && (!workspace || workspace.present), active)
   const theme = useReaderCodeTheme(workspace?.theme ?? 'app', Boolean(workspace && messages.data?.some(message => message.role === 'assistant')))
   const send = useMutation({
-    mutationFn: async () => {
-      let id = conversationId
+    mutationFn: async (override?: { text?: string; newConversation?: boolean }) => {
+      const messageText = override?.text ?? draft
+      let id = override?.newConversation ? '' : conversationId
       if (!id) {
-        const title = Array.from(draft.trim()).slice(0, 64).join('')
+        const title = Array.from(messageText.trim()).slice(0, 64).join('')
         const conversation = await api.Create(scope, title)
         id = conversation.id
         setApprovalChoices(current => {
@@ -228,7 +229,7 @@ function ChatSession({ target, close, workspace }: {
         void cache.invalidateQueries({ queryKey: listKey })
       }
       await api.Send({
-        conversationId: id, text: draft, includeContext, selection, allowArticleReads,
+        conversationId: id, text: messageText, includeContext, selection, allowArticleReads,
         articleIds: sources.map(article => article.id), ...(workspace && modelID ? { modelId: modelID } : {}),
         ...(workspace && selectedSkills.length ? { skills: selectedSkills } : {}),
         ...(workspace && reasoningEffort ? { reasoningEffort } : {}),
@@ -349,6 +350,20 @@ function ChatSession({ target, close, workspace }: {
   const openNewConversation = useEffectEvent(() => {
     if (!send.isPending) choose('')
   })
+  const pendingPrompt = useChatTarget(state => state.pendingPrompt)
+  const submitPendingPrompt = useEffectEvent((text: string) => {
+    choose('')
+    if (modelReady && !invalidEffort) {
+      send.mutate({ text, newConversation: true })
+    } else {
+      setDraft(text)
+    }
+  })
+  useEffect(() => {
+    if (!workspace || !pendingPrompt || configuration.isPending) return
+    useChatTarget.setState(current => (current.pendingPrompt?.id === pendingPrompt.id ? { pendingPrompt: null } : current))
+    submitPendingPrompt(pendingPrompt.text)
+  }, [workspace, pendingPrompt, configuration.isPending])
   useEffect(() => {
     if (!inWorkspace) return
     function onKeyDown(event: KeyboardEvent) {

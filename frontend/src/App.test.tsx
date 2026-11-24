@@ -1990,12 +1990,41 @@ describe('Phase 1 阅读 Shell', () => {
     const shortcut = settingsCommand.querySelector('[data-slot="command-shortcut"]')
     expect(shortcut).toHaveTextContent('Ctrl+,')
     expect(shortcut?.querySelectorAll('kbd')).toHaveLength(2)
+    expect(settingsCommand.querySelector('[data-meaning="check"]')).toBeNull()
 
     await userEvent.click(screen.getByRole('option',{name:'订阅管理…'}))
     expect(await screen.findByRole('textbox',{name:'订阅或网页地址'})).toBeInTheDocument()
     expect(screen.queryByText(/RSS 阶段/)).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button',{name:/^关闭$/}))
     await waitFor(()=>expect(screen.getByRole('button',{name:'打开设置'})).toHaveFocus())
+  })
+
+  it('命令面板无匹配时显示询问 AI 选项，点击后将输入内容发送给 AI', async () => {
+    const user = userEvent.setup()
+    listAIConfiguration.mockResolvedValue({
+      providers: [{ id: 'p-1', name: 'OpenAI', protocol: 'responses', endpoint: 'https://api.example.com', enabled: true }],
+      models: [{ id: 'm-1', providerId: 'p-1', name: 'gpt-4o', displayName: 'GPT-4o', enabled: true, reasoningLevels: [] }],
+      assignments: [{ task: 'chat', modelId: 'm-1' }],
+    })
+    chat.List.mockResolvedValue([])
+    chat.Create.mockResolvedValue({ id: 'conv-ask', title: '大地方', pinned: false, archived: false })
+    chat.Messages.mockResolvedValue([])
+    chat.Send.mockResolvedValue(undefined)
+    setup()
+
+    await user.click(await screen.findByRole('button', { name: '命令面板' }))
+    const dialog = await screen.findByRole('dialog', { name: '命令面板' })
+    await user.type(within(dialog).getByRole('combobox', { name: '搜索命令' }), '大地方')
+
+    const askButton = await within(dialog).findByRole('button', { name: /询问 AI：“大地方”/ })
+    await user.click(askButton)
+
+    await waitFor(() => expect(chat.Create).toHaveBeenCalledWith({ kind: 'global', id: '' }, '大地方'))
+    await waitFor(() => expect(chat.Send).toHaveBeenCalledWith(expect.objectContaining({
+      conversationId: 'conv-ask',
+      text: '大地方',
+      modelId: 'm-1',
+    })))
   })
 
   it.each(['list', 'masonry'] as const)('%s 接近底部自动载入，跳过空页，失败后可重试', async mode => {

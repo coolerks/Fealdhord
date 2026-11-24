@@ -58,7 +58,7 @@ export function ChatSlashMenu({ composer, label, active, items, onHighlight, onC
             <AnimatedGlyph icon={item.icon} />
             <span className="shrink-0">{item.label}</span>
             {item.detail && <span className="ml-2 min-w-0 truncate text-xs text-muted-foreground">{item.detail}</span>}
-            {'page' in item && <ChevronRight className="ml-auto shrink-0 text-muted-foreground" aria-hidden="true" />}
+            {'page' in item && <ChevronRight data-slot="command-shortcut" className="ml-auto shrink-0 text-muted-foreground" aria-hidden="true" />}
           </CommandItem>)}
         </CommandGroup>
       </CommandList>
