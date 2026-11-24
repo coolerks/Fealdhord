@@ -693,7 +693,7 @@ function ChatSession({ target, close, workspace }: {
             {workspace ? (active
               ? <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button type="button" size="icon-sm" className="rounded-full" aria-label="停止回复" disabled={cancel.isPending} onClick={() => cancel.mutate(conversationId)}><Square fill="currentColor" /></Button>
+                    <Button type="button" size="icon-sm" className="rounded-full" aria-label="停止回复" disabled={cancel.isPending} onClick={() => cancel.mutate(conversationId)}><Square className="size-2.5" fill="currentColor" /></Button>
                   </TooltipTrigger>
                   <TooltipContent>停止回复</TooltipContent>
                 </Tooltip>
