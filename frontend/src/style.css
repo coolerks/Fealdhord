@@ -201,7 +201,7 @@
 .sidebar-organize-wrap[data-scrolled=true]::before { opacity: 1; }
 .nav-section { margin-bottom: 20px; }
 .nav-section-heading { display: flex; align-items: center; justify-content: space-between; }
-.sidebar-footer { padding: 6px 12px; }
+.sidebar-footer { padding: 6px 12px 12px; }
 .sidebar-bottom { display: flex; align-items: center; justify-content: space-between; min-height: 32px; }
 .sidebar-ai { justify-content: start; gap: 10px; height: 32px; font-size: 13px; }
 .icon-hit-area { display: inline-flex; flex-shrink: 0; }
