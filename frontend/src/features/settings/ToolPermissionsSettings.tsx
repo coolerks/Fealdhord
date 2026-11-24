@@ -209,18 +209,20 @@ function ToolGroupCard({
                 key={tool.id}
                 className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3.5 py-2 pl-9"
               >
-                <div className="min-w-0 flex-1 space-y-0.5" title={tooltip || undefined}>
-                  <div className="flex min-w-0 items-center gap-2">
-                    <AnimatedGlyph meaning={icon} className="size-3.5 shrink-0 text-muted-foreground [&_svg]:size-3.5" />
-                    <span className="truncate text-[13px]">{displayName}</span>
-                    {!tool.available && <StatusBadge tone="muted">不可用</StatusBadge>}
-                    {tool.available && !tool.mode && tool.requiresApproval && (
-                      <StatusBadge tone="muted">默认需审批</StatusBadge>
+                <div className="flex min-w-0 flex-1 items-center gap-2.5" title={tooltip || undefined}>
+                  <AnimatedGlyph meaning={icon} className="size-4 shrink-0 text-muted-foreground [&_svg]:size-4" />
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-[13px] font-medium leading-snug">{displayName}</span>
+                      {!tool.available && <StatusBadge tone="muted">不可用</StatusBadge>}
+                      {tool.available && !tool.mode && tool.requiresApproval && (
+                        <StatusBadge tone="muted">默认需审批</StatusBadge>
+                      )}
+                    </div>
+                    {tool.description && (
+                      <p className="truncate text-xs leading-snug text-muted-foreground">{tool.description}</p>
                     )}
                   </div>
-                  {tool.description && (
-                    <p className="truncate pl-5.5 text-xs text-muted-foreground">{tool.description}</p>
-                  )}
                 </div>
 
                 <SegmentedControl

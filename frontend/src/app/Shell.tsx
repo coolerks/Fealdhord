@@ -266,14 +266,15 @@ export function Shell() {
     return animateWorkspaceEntry([sidebarCollapsed ? null : sidebar, content], mode, -6)
   }, [settingsWorkspace, chatVisible, sidebarCollapsed, mode])
   const sidebarToggle = <SemanticButton id="sidebar-toggle" icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
-    label={sidebarCollapsed ? '展开侧栏' : '折叠侧栏'} meaning={sidebarCollapsed ? 'expand' : 'collapse'}
+    label={settingsWorkspace ? (sidebarCollapsed ? '展开设置侧栏' : '收起设置侧栏') : (sidebarCollapsed ? '展开侧栏' : '折叠侧栏')}
+    meaning={sidebarCollapsed ? 'expand' : 'collapse'}
     aria-expanded={!sidebarCollapsed} aria-controls="workspace-sidebar"
     onClick={() => runCommand('sidebar', client)} />
   return <MotionConfig reducedMotion={mode === 'full' ? 'never' : 'always'} transition={{ duration: mode === 'off' ? 0 : mode === 'subtle' ? .1 : .22, ease: [.22, 1, .36, 1] }}>
     <div className="desktop-shell" data-platform={platform}>
-      {platform !== 'mac' && <ApplicationMenu windows={platform === 'windows'} windowsSidebarToggle={platform === 'windows' && !settingsWorkspace ? sidebarToggle : undefined} />}
+      {platform !== 'mac' && <ApplicationMenu windows={platform === 'windows'} windowsSidebarToggle={platform === 'windows' ? sidebarToggle : undefined} />}
       <div ref={shell} className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px`, '--list-width-cap': `${listMaxShare * 100}%` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={sidebarCollapsed} data-sidebar-resizing={visibleSidebarDraft !== null}>
-      {platform !== 'windows' && !settingsWorkspace && <div className="sidebar-toggle">{sidebarToggle}</div>}
+      {platform !== 'windows' && <div className="sidebar-toggle">{sidebarToggle}</div>}
       <div className="sidebar-track">
         <Sidebar motionMode={mode} inChat={chatVisible || settingsWorkspace} suspended={settingsWorkspace} />
         <div ref={setChatSidebar} className="chat-sidebar-host" inert={settingsWorkspace} hidden={settingsWorkspace} />
@@ -283,7 +284,7 @@ export function Shell() {
         value={sidebarWidth} min={settingsWorkspace ? 160 : 220} max={settingsWorkspace ? 300 : 360} onResize={resizeSidebar}
         onCollapse={() => {
           patch(settingsWorkspace ? { settings_sidebar_collapsed: true } : { sidebar_collapsed: true })
-          document.getElementById(settingsWorkspace ? 'settings-sidebar-toggle' : 'sidebar-toggle')?.focus()
+          document.getElementById('sidebar-toggle')?.focus()
         }} onCommit={value => {
           patch(settingsWorkspace ? { settings_sidebar_width: value } : { sidebar_width: value })
           resizeSidebar(null)

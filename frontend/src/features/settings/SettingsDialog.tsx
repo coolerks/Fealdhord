@@ -149,7 +149,7 @@ export function SettingsDialog({ sidebar, motionMode }: {
   useLayoutEffect(() => {
     if (!fullscreen || !sidebar) return
     const back = sidebar.querySelector<HTMLElement>('#settings-back')
-    const target = back?.closest('[inert]') ? document.getElementById('settings-sidebar-toggle') : back
+    const target = back?.closest('[inert]') ? document.getElementById('sidebar-toggle') : back
     target?.focus({ preventScroll: true })
     return animateEntry()
   }, [fullscreen, sidebar])
@@ -160,7 +160,7 @@ export function SettingsDialog({ sidebar, motionMode }: {
   const width = sidebarDraft ?? preferences.settings_sidebar_width ?? 220
   const toggle = <SemanticButton id="settings-sidebar-toggle" icon={collapsed ? PanelLeftOpen : PanelLeftClose}
     label={collapsed ? '展开设置侧栏' : '收起设置侧栏'} meaning={collapsed ? 'expand' : 'collapse'}
-    aria-expanded={!collapsed} aria-controls={fullscreen ? 'workspace-sidebar' : 'settings-dialog-sidebar'}
+    aria-expanded={!collapsed} aria-controls="settings-dialog-sidebar"
     onClick={() => set('settings_sidebar_collapsed', !collapsed)} />
   const navigation = (
     <nav aria-label="设置分区" className={fullscreen ? 'settings-workspace-nav' : 'settings-nav'} onKeyDown={moveSidebarFocus}>
@@ -408,7 +408,6 @@ export function SettingsDialog({ sidebar, motionMode }: {
       )}
       <main ref={workspaceMain} className="reading-workspace settings-workspace" aria-label="设置">
         <header className="workspace-toolbar settings-workspace-heading" data-settings-collapsed={collapsed}>
-          {toggle}
           {collapsed && <SidebarAction label="返回" meaning="chevron-left" shortcut="Escape" onClick={close} />}
           <h1 className="truncate text-sm font-semibold tracking-[-0.01em]">{title}</h1>
         </header>

@@ -36,7 +36,11 @@ export function runCommand(id: CommandID, client: QueryClient, articleID?: strin
  case 'search':patch({reader_open:false});useWorkspace.setState({searchOpen:true});requestAnimationFrame(()=>document.getElementById('article-search')?.focus());break
  case 'all':case 'unread':case 'favorites':case 'featured':state.selectScope(id);break
  case 'list':case 'masonry':patch({article_view_mode:id});break
- case 'sidebar':patch({sidebar_collapsed:!prefs.sidebar_collapsed});break
+ case 'sidebar': {
+  const inFullSettings = state.settingsOpen && state.settingsPresentation === 'full'
+  patch(inFullSettings ? { settings_sidebar_collapsed: !prefs.settings_sidebar_collapsed } : { sidebar_collapsed: !prefs.sidebar_collapsed })
+  break
+ }
  case 'reader':patch({reader_open:!prefs.reader_open});break
  case 'theme-system':patch({theme:'system'});break
  case 'theme-light':patch({theme:'light'});break

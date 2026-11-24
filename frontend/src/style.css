@@ -400,19 +400,24 @@ html[data-motion=subtle] .reader-toolbar-title { transform: none; }
   background: var(--background);
 }
 .settings-workspace-heading { justify-content: flex-start; }
-.settings-workspace .settings-body,
+.settings-workspace .settings-body {
+  grid-row: 3;
+  width: 100%;
+  padding: 12px 0 32px;
+  scrollbar-gutter: stable;
+}
+.settings-workspace .settings-body > div,
 .settings-workspace .settings-save {
   width: min(100%, 52rem);
   margin-inline: auto;
   padding-inline: clamp(20px, 4vw, 48px);
 }
-.settings-workspace .settings-body { grid-row: 3; padding-block: 12px 32px; }
 .settings-workspace .settings-save { grid-row: 4; padding-block-end: 12px; }
 .settings-layout { display: grid; grid-template-columns: var(--settings-sidebar-width) 4px minmax(0,1fr); flex: 1; min-height: 0; gap: 8px; }
 .settings-layout[data-sidebar-collapsed=true] { grid-template-columns: minmax(0,1fr); }
 .settings-dialog-sidebar { display: flex; min-height: 0; min-width: 0; }
 .settings-dialog-sidebar .settings-nav { flex: 1; }
-[data-platform=mac] .settings-workspace-heading[data-settings-collapsed=true] { padding-inline-start: var(--collapsed-toolbar-inset); }
+[data-sidebar-collapsed=true] .settings-workspace-heading { padding-inline-start: var(--collapsed-toolbar-inset); }
 .settings-nav { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: auto; padding-inline-end: 4px; }
 .settings-nav .animated-glyph,
 .settings-nav .animated-glyph svg { width: 16px; height: 16px; }
