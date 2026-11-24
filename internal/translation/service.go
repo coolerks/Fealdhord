@@ -52,6 +52,8 @@ type Record struct {
 	UpdatedAt         int64              `json:"updatedAt"`
 }
 
+const ProgressEventName = "translation:progress"
+
 type ProgressEvent struct {
 	Record Record `json:"record"`
 }

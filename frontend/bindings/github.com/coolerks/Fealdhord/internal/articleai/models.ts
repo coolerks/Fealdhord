@@ -26,4 +26,9 @@ export interface Settings {
     "tokensPerHour": number;
     "minimumImportance": number;
     "minimumRelevance": number;
+    "autoTranslate": boolean;
+    "autoTranslateScope": string;
+    "translateOnOpen": boolean;
+    "translationTargetLang": string;
+    "translationPrompt": string;
 }

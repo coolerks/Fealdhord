@@ -29,6 +29,7 @@ import (
 	"github.com/coolerks/Fealdhord/internal/refresh"
 	"github.com/coolerks/Fealdhord/internal/settings"
 	"github.com/coolerks/Fealdhord/internal/transfer"
+	"github.com/coolerks/Fealdhord/internal/translation"
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
@@ -224,6 +225,13 @@ func main() {
 	navigationService := navigation.NewService(navigationRepository, changed)
 	transferAPI := transfer.NewAPI(transferService)
 	articleAIAPI := articleai.NewAPI(articleAIService)
+	var translationService *translation.Service
+	if toolStore != nil && aiConfig != nil {
+		translationService = translation.New(toolStore, aiConfig, readerService, func(event translation.ProgressEvent) {
+			desktop.Event.Emit(translation.ProgressEventName, event)
+		}, changed)
+	}
+	translationAPI := translation.NewAPI(translationService)
 	var platformDirectory string
 	if pathErr == nil {
 		platformDirectory = filepath.Join(dataDir, "Fealdhord", "ai-platform")
@@ -250,6 +258,7 @@ func main() {
 		application.NewService(aiconfig.NewAPI(aiConfig)),
 		application.NewService(chat.NewAPI(chatService)),
 		application.NewService(articleAIAPI),
+		application.NewService(translationAPI),
 		application.NewService(transferAPI),
 		application.NewService(navigationService),
 		application.NewService(libraryService),
@@ -278,6 +287,9 @@ func main() {
 	stopNotifications = notifications.Start(context.Background(), refreshService.StartScheduler())
 	if articleAIService != nil {
 		defer articleAIService.Start(context.Background())()
+	}
+	if translationService != nil {
+		defer translationService.Start(context.Background())()
 	}
 	mainWindow = desktop.Window.NewWithOptions(desktopintegration.WindowOptions())
 	initialSettings := settingsService.Get(context.Background())

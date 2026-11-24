@@ -53,6 +53,8 @@ export interface Preferences {
     "chat_approval_presentation": string;
     "chat_max_retries": number;
     "reader_outline": string;
+    "reader_translation_display": string;
+    "list_show_translated": boolean;
 }
 
 export interface Result {

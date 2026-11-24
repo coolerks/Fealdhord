@@ -15,8 +15,10 @@ export interface Article {
     "title_matches": TextRange[] | null;
     "id": string;
     "title": string;
+    "translated_title"?: string;
     "feed_title": string;
     "summary": string;
+    "translated_summary"?: string;
     "sort_at": string;
     "is_read": boolean;
     "is_favorite": boolean;
