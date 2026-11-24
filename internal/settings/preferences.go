@@ -62,6 +62,8 @@ type Preferences struct {
 	ChatApprovalPresentation    string                  `json:"chat_approval_presentation"`
 	ChatMaxRetries              int                     `json:"chat_max_retries"`
 	ReaderOutline               string                  `json:"reader_outline"`
+	ReaderTranslationDisplay    string                  `json:"reader_translation_display"`
+	ListShowTranslated          bool                    `json:"list_show_translated"`
 }
 
 func Defaults() Preferences {
@@ -73,6 +75,7 @@ func Defaults() Preferences {
 		ScrollAnchors:       map[string]ScrollAnchor{}, ReaderFontSize: 17, ReaderLineHeight: 1.7, ReaderWidth: 720,
 		ReaderImageWheel: "zoom", ReaderImageBackdropClose: true, ReaderOutline: "ticks", ReaderCodeTheme: "app", ChatCodeTheme: "app",
 		ChatApprovalMode: agentrun.ApprovalAsk, ChatApprovalPresentation: "composer", ChatMaxRetries: DefaultChatMaxRetries,
+		ReaderTranslationDisplay: "bilingual", ListShowTranslated: true,
 	}
 }
 
@@ -152,6 +155,9 @@ func (p Preferences) Validate() error {
 	if !oneOf(p.ReaderImageWheel, "zoom", "navigate") || !oneOf(p.ReaderOutline, "ticks", "auto", "fixed", "hidden") {
 		return errors.New("看图或目录选项无效。")
 	}
+	if !oneOf(p.ReaderTranslationDisplay, "bilingual", "translated", "original") {
+		return errors.New("阅读器翻译显示方式无效。")
+	}
 	if !oneOf(p.RemoteImages, "always", "subscriptions", "never") || !oneOf(p.Theme, "light", "dark", "system") || !oneOf(p.ArticleViewMode, "list", "masonry") ||
 		!oneOf(p.ListDensity, "compact", "comfortable") || !oneOf(p.ListThumbnail, "none", "small") ||
 		!oneOf(p.MasonryImageMode, "original_ratio", "cropped") || !oneOf(p.Animation, "full", "subtle", "off") {
@@ -229,6 +235,9 @@ func (p *Preferences) normalize() {
 	}
 	if !oneOf(p.ReaderOutline, "ticks", "auto", "fixed", "hidden") {
 		p.ReaderOutline = d.ReaderOutline
+	}
+	if !oneOf(p.ReaderTranslationDisplay, "bilingual", "translated", "original") {
+		p.ReaderTranslationDisplay = d.ReaderTranslationDisplay
 	}
 	if !oneOf(p.RemoteImages, "always", "subscriptions", "never") {
 		p.RemoteImages = d.RemoteImages

@@ -7,7 +7,10 @@ UPDATE article_ai_settings SET
   THEN revision+1 ELSE profile_revision END,
  classification=sqlc.arg(classification),featured=sqlc.arg(featured),prompt=sqlc.arg(prompt),
  requests_per_hour=sqlc.arg(requests_per_hour),tokens_per_hour=sqlc.arg(tokens_per_hour),
- minimum_importance=sqlc.arg(minimum_importance),minimum_relevance=sqlc.arg(minimum_relevance),revision=revision+1
+ minimum_importance=sqlc.arg(minimum_importance),minimum_relevance=sqlc.arg(minimum_relevance),
+ auto_translate=sqlc.arg(auto_translate),auto_translate_scope=sqlc.arg(auto_translate_scope),
+ translate_on_open=sqlc.arg(translate_on_open),translation_target_lang=sqlc.arg(translation_target_lang),
+ translation_prompt=sqlc.arg(translation_prompt),revision=revision+1
 WHERE id=1 AND revision=sqlc.arg(revision) RETURNING *;
 
 -- name: ArticleAIInput :one

@@ -19,6 +19,34 @@ type queryRepository interface {
 	QueryArticles(context.Context, database.ArticleQuery) (database.QueryPage, error)
 }
 
+type translationSummaryRepository interface {
+	ArticleTranslationSummaries(context.Context, []string) (map[string]database.ArticleTranslationSummary, error)
+}
+
+func (s *Service) attachTranslations(ctx context.Context, items []Article) {
+	if len(items) == 0 {
+		return
+	}
+	repo, ok := s.repository.(translationSummaryRepository)
+	if !ok {
+		return
+	}
+	ids := make([]string, len(items))
+	for i := range items {
+		ids[i] = items[i].ID
+	}
+	summaries, err := repo.ArticleTranslationSummaries(ctx, ids)
+	if err != nil || len(summaries) == 0 {
+		return
+	}
+	for i := range items {
+		if tr, exists := summaries[items[i].ID]; exists {
+			items[i].TranslatedTitle = tr.Title
+			items[i].TranslatedSummary = tr.Summary
+		}
+	}
+}
+
 func projectArticle(row sqlc.ListArticlesRow, covers bool) Article {
 	article := Article{Revision: row.Revision, ID: row.ID, FeedID: row.FeedID, URL: row.Url, Title: row.Title, FeedTitle: row.FeedTitle, Summary: row.Summary, SortAt: time.UnixMilli(row.SortAt).UTC().Format(time.RFC3339Nano), IsRead: row.IsRead == 1, IsFavorite: row.IsFavorite == 1, TitleMatches: []TextRange{}}
 	if covers && row.CoverUrl.Valid && strings.HasPrefix(row.CoverUrl.String, "/media/") {
@@ -97,6 +125,7 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) ListResult {
 		}
 		result.Items = append(result.Items, article)
 	}
+	s.attachTranslations(ctx, result.Items)
 	out.OK = true
 	out.Data = result
 	return out

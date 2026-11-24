@@ -35,9 +35,10 @@ func NewService(repository Repository, fetcher netpolicy.Fetcher, onChange func(
 }
 
 type Feed struct {
-	CustomIconURL  string   `json:"custom_icon_url,omitempty"`
-	ReaderOpenMode string   `json:"reader_open_mode,omitempty"`
-	ID             string   `json:"id"`
+	CustomIconURL     string   `json:"custom_icon_url,omitempty"`
+	ReaderOpenMode    string   `json:"reader_open_mode,omitempty"`
+	AutoTranslateMode string   `json:"auto_translate_mode,omitempty"`
+	ID                string   `json:"id"`
 	Title          string   `json:"title"`
 	URL            string   `json:"url"`
 	SiteURL        string   `json:"site_url"`
@@ -67,19 +68,21 @@ type RevisionRequest struct {
 	Revision int64  `json:"revision"`
 }
 type AddRequest struct {
-	CustomIconURL  string   `json:"custom_icon_url,omitempty"`
-	UseDefaultIcon bool     `json:"use_default_icon,omitempty"`
-	ReaderOpenMode string   `json:"reader_open_mode,omitempty"`
-	URL            string   `json:"url"`
-	Title          string   `json:"title"`
-	CategoryIDs    []string `json:"category_ids"`
+	CustomIconURL     string   `json:"custom_icon_url,omitempty"`
+	UseDefaultIcon    bool     `json:"use_default_icon,omitempty"`
+	ReaderOpenMode    string   `json:"reader_open_mode,omitempty"`
+	AutoTranslateMode string   `json:"auto_translate_mode,omitempty"`
+	URL               string   `json:"url"`
+	Title             string   `json:"title"`
+	CategoryIDs       []string `json:"category_ids"`
 }
 type UpdateRequest struct {
-	CustomIconURL  string   `json:"custom_icon_url,omitempty"`
-	UseDefaultIcon *bool    `json:"use_default_icon,omitempty"`
-	ApplyExisting  *bool    `json:"apply_existing,omitempty"`
-	ReaderOpenMode string   `json:"reader_open_mode,omitempty"`
-	ID             string   `json:"id"`
+	CustomIconURL     string   `json:"custom_icon_url,omitempty"`
+	UseDefaultIcon    *bool    `json:"use_default_icon,omitempty"`
+	ApplyExisting     *bool    `json:"apply_existing,omitempty"`
+	ReaderOpenMode    string   `json:"reader_open_mode,omitempty"`
+	AutoTranslateMode string   `json:"auto_translate_mode,omitempty"`
+	ID                string   `json:"id"`
 	Revision       int64    `json:"revision"`
 	URL            string   `json:"url"`
 	Title          string   `json:"title"`
@@ -146,7 +149,11 @@ func wire(row database.Subscription) Feed {
 	if mode == "" {
 		mode = "global"
 	}
-	result := Feed{ID: row.ID, Title: row.Title, URL: row.URL, SiteURL: row.SiteURL, IconData: row.IconData, CustomIconURL: row.CustomIconURL, ReaderOpenMode: mode, Description: row.Description, Revision: row.Revision, Archived: row.Archived, LastError: row.LastError, CategoryIDs: row.CategoryIDs}
+	translateMode := row.AutoTranslateMode
+	if translateMode == "" {
+		translateMode = "global"
+	}
+	result := Feed{ID: row.ID, Title: row.Title, URL: row.URL, SiteURL: row.SiteURL, IconData: row.IconData, CustomIconURL: row.CustomIconURL, ReaderOpenMode: mode, AutoTranslateMode: translateMode, Description: row.Description, Revision: row.Revision, Archived: row.Archived, LastError: row.LastError, CategoryIDs: row.CategoryIDs}
 	if row.NextCheckAt != nil {
 		value := time.UnixMilli(*row.NextCheckAt).UTC().Format(time.RFC3339Nano)
 		result.NextCheckAt = &value
@@ -280,7 +287,7 @@ func (s *Service) Add(ctx context.Context, request AddRequest) Result {
 		icon = s.favicon(ctx, document.SiteURL, response.URL)
 	}
 	now := s.now().UTC().UnixMilli()
-	id, err := s.repository.AddSubscription(ctx, database.SubscriptionInput{URL: canonical, Title: title, SiteURL: document.SiteURL, IconData: &icon, CustomIconURL: customURL, ReaderOpenMode: request.ReaderOpenMode, Description: document.Description, CategoryIDs: request.CategoryIDs}, ArticleInputs(document), database.FeedCheck{At: now, Next: now + int64(30*time.Minute/time.Millisecond), ETag: response.Header.Get("ETag"), LastModified: response.Header.Get("Last-Modified")})
+	id, err := s.repository.AddSubscription(ctx, database.SubscriptionInput{URL: canonical, Title: title, SiteURL: document.SiteURL, IconData: &icon, CustomIconURL: customURL, ReaderOpenMode: request.ReaderOpenMode, AutoTranslateMode: request.AutoTranslateMode, Description: document.Description, CategoryIDs: request.CategoryIDs}, ArticleInputs(document), database.FeedCheck{At: now, Next: now + int64(30*time.Minute/time.Millisecond), ETag: response.Header.Get("ETag"), LastModified: response.Header.Get("Last-Modified")})
 	if err != nil {
 		return Result{RequestID: rand.Text(), Error: DataError(err)}
 	}
@@ -307,7 +314,11 @@ func (s *Service) Update(ctx context.Context, request UpdateRequest) Result {
 	if readerOpenMode == "" {
 		readerOpenMode = old.ReaderOpenMode
 	}
-	input := database.SubscriptionInput{URL: old.URL, Title: request.Title, SiteURL: old.SiteURL, Description: old.Description, ReaderOpenMode: readerOpenMode, CategoryIDs: request.CategoryIDs, ApplyExisting: request.ApplyExisting}
+	autoTranslateMode := request.AutoTranslateMode
+	if autoTranslateMode == "" {
+		autoTranslateMode = old.AutoTranslateMode
+	}
+	input := database.SubscriptionInput{URL: old.URL, Title: request.Title, SiteURL: old.SiteURL, Description: old.Description, ReaderOpenMode: readerOpenMode, AutoTranslateMode: autoTranslateMode, CategoryIDs: request.CategoryIDs, ApplyExisting: request.ApplyExisting}
 	if request.URL != "" {
 		input.URL, err = netpolicy.NormalizeURL(request.URL)
 		if err != nil {

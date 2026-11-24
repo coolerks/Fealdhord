@@ -50,6 +50,12 @@ func (s *Store) ArticleAISettings(ctx context.Context) (sqlc.ArticleAiSetting, e
 }
 
 func (s *Store) SaveArticleAISettings(ctx context.Context, input sqlc.SaveArticleAISettingsParams) (row sqlc.ArticleAiSetting, err error) {
+	if input.AutoTranslateScope == "" {
+		input.AutoTranslateScope = "summary"
+	}
+	if input.TranslationTargetLang == "" {
+		input.TranslationTargetLang = "zh-CN"
+	}
 	err = s.transaction(ctx, func(q *sqlc.Queries) error {
 		row, err = q.SaveArticleAISettings(ctx, input)
 		if errors.Is(err, sql.ErrNoRows) {

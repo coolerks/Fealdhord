@@ -94,16 +94,21 @@ type ArticleAiResult struct {
 }
 
 type ArticleAiSetting struct {
-	ID                int64   `json:"id"`
-	Classification    int64   `json:"classification"`
-	Featured          int64   `json:"featured"`
-	Prompt            string  `json:"prompt"`
-	Revision          int64   `json:"revision"`
-	RequestsPerHour   int64   `json:"requests_per_hour"`
-	TokensPerHour     int64   `json:"tokens_per_hour"`
-	MinimumImportance float64 `json:"minimum_importance"`
-	MinimumRelevance  float64 `json:"minimum_relevance"`
-	ProfileRevision   int64   `json:"profile_revision"`
+	ID                    int64   `json:"id"`
+	Classification        int64   `json:"classification"`
+	Featured              int64   `json:"featured"`
+	Prompt                string  `json:"prompt"`
+	Revision              int64   `json:"revision"`
+	RequestsPerHour       int64   `json:"requests_per_hour"`
+	TokensPerHour         int64   `json:"tokens_per_hour"`
+	MinimumImportance     float64 `json:"minimum_importance"`
+	MinimumRelevance      float64 `json:"minimum_relevance"`
+	ProfileRevision       int64   `json:"profile_revision"`
+	AutoTranslate         int64   `json:"auto_translate"`
+	AutoTranslateScope    string  `json:"auto_translate_scope"`
+	TranslateOnOpen       int64   `json:"translate_on_open"`
+	TranslationTargetLang string  `json:"translation_target_lang"`
+	TranslationPrompt     string  `json:"translation_prompt"`
 }
 
 type ArticleCategory struct {
@@ -152,6 +157,25 @@ type ArticleMedium struct {
 type ArticleQueryBirth struct {
 	ArticleID  string `json:"article_id"`
 	Generation int64  `json:"generation"`
+}
+
+type ArticleTranslation struct {
+	ArticleID         string        `json:"article_id"`
+	TargetLang        string        `json:"target_lang"`
+	SourceMode        string        `json:"source_mode"`
+	ContentHash       string        `json:"content_hash"`
+	DetectedLang      string        `json:"detected_lang"`
+	Status            string        `json:"status"`
+	TranslatedTitle   string        `json:"translated_title"`
+	TranslatedSummary string        `json:"translated_summary"`
+	BlocksJson        string        `json:"blocks_json"`
+	TranslatedBlocks  int64         `json:"translated_blocks"`
+	TotalBlocks       int64         `json:"total_blocks"`
+	ModelID           string        `json:"model_id"`
+	InputTokens       sql.NullInt64 `json:"input_tokens"`
+	OutputTokens      sql.NullInt64 `json:"output_tokens"`
+	ErrorCode         string        `json:"error_code"`
+	UpdatedAt         int64         `json:"updated_at"`
 }
 
 type Category struct {
@@ -209,28 +233,29 @@ type Favorite struct {
 }
 
 type Feed struct {
-	ID             string        `json:"id"`
-	Title          string        `json:"title"`
-	Url            string        `json:"url"`
-	NormalizedUrl  string        `json:"normalized_url"`
-	SiteUrl        string        `json:"site_url"`
-	Description    string        `json:"description"`
-	IconUrl        string        `json:"icon_url"`
-	Etag           string        `json:"etag"`
-	LastModified   string        `json:"last_modified"`
-	LastCheckedAt  sql.NullInt64 `json:"last_checked_at"`
-	LastSuccessAt  sql.NullInt64 `json:"last_success_at"`
-	NextCheckAt    sql.NullInt64 `json:"next_check_at"`
-	ErrorCount     int64         `json:"error_count"`
-	LastError      string        `json:"last_error"`
-	CreatedAt      int64         `json:"created_at"`
-	UpdatedAt      int64         `json:"updated_at"`
-	ArchivedAt     sql.NullInt64 `json:"archived_at"`
-	SortPosition   int64         `json:"sort_position"`
-	Revision       int64         `json:"revision"`
-	LastErrorCode  string        `json:"last_error_code"`
-	CustomIconUrl  string        `json:"custom_icon_url"`
-	ReaderOpenMode string        `json:"reader_open_mode"`
+	ID                string        `json:"id"`
+	Title             string        `json:"title"`
+	Url               string        `json:"url"`
+	NormalizedUrl     string        `json:"normalized_url"`
+	SiteUrl           string        `json:"site_url"`
+	Description       string        `json:"description"`
+	IconUrl           string        `json:"icon_url"`
+	Etag              string        `json:"etag"`
+	LastModified      string        `json:"last_modified"`
+	LastCheckedAt     sql.NullInt64 `json:"last_checked_at"`
+	LastSuccessAt     sql.NullInt64 `json:"last_success_at"`
+	NextCheckAt       sql.NullInt64 `json:"next_check_at"`
+	ErrorCount        int64         `json:"error_count"`
+	LastError         string        `json:"last_error"`
+	CreatedAt         int64         `json:"created_at"`
+	UpdatedAt         int64         `json:"updated_at"`
+	ArchivedAt        sql.NullInt64 `json:"archived_at"`
+	SortPosition      int64         `json:"sort_position"`
+	Revision          int64         `json:"revision"`
+	LastErrorCode     string        `json:"last_error_code"`
+	CustomIconUrl     string        `json:"custom_icon_url"`
+	ReaderOpenMode    string        `json:"reader_open_mode"`
+	AutoTranslateMode string        `json:"auto_translate_mode"`
 }
 
 type FeedCategory struct {

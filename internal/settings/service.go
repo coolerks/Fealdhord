@@ -86,6 +86,9 @@ func (s *Service) Update(ctx context.Context, req UpdateRequest) Result {
 	if req.Preferences.SettingsSidebarWidth == 0 {
 		req.Preferences.SettingsSidebarWidth = Defaults().SettingsSidebarWidth
 	}
+	if req.Preferences.ReaderTranslationDisplay == "" {
+		req.Preferences.ReaderTranslationDisplay = Defaults().ReaderTranslationDisplay
+	}
 	if err := req.Preferences.Validate(); err != nil {
 		return failure("ValidationError", err.Error(), false)
 	}

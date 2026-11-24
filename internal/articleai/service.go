@@ -32,14 +32,19 @@ func New(store *database.Store, resolver Resolver, changed func()) *Service {
 }
 
 type Settings struct {
-	Classification    bool    `json:"classification"`
-	Featured          bool    `json:"featured"`
-	Prompt            string  `json:"prompt"`
-	Revision          int64   `json:"revision"`
-	RequestsPerHour   int64   `json:"requestsPerHour"`
-	TokensPerHour     int64   `json:"tokensPerHour"`
-	MinimumImportance float64 `json:"minimumImportance"`
-	MinimumRelevance  float64 `json:"minimumRelevance"`
+	Classification        bool    `json:"classification"`
+	Featured              bool    `json:"featured"`
+	Prompt                string  `json:"prompt"`
+	Revision              int64   `json:"revision"`
+	RequestsPerHour       int64   `json:"requestsPerHour"`
+	TokensPerHour         int64   `json:"tokensPerHour"`
+	MinimumImportance     float64 `json:"minimumImportance"`
+	MinimumRelevance      float64 `json:"minimumRelevance"`
+	AutoTranslate         bool    `json:"autoTranslate"`
+	AutoTranslateScope    string  `json:"autoTranslateScope"`
+	TranslateOnOpen       bool    `json:"translateOnOpen"`
+	TranslationTargetLang string  `json:"translationTargetLang"`
+	TranslationPrompt     string  `json:"translationPrompt"`
 }
 
 type Request struct {
@@ -55,9 +60,20 @@ type Result struct {
 }
 
 func publicSettings(row sqlc.ArticleAiSetting) Settings {
+	scope := row.AutoTranslateScope
+	if scope != "full" {
+		scope = "summary"
+	}
+	targetLang := strings.TrimSpace(row.TranslationTargetLang)
+	if targetLang == "" {
+		targetLang = "zh-CN"
+	}
 	return Settings{Classification: row.Classification == 1, Featured: row.Featured == 1, Prompt: row.Prompt, Revision: row.Revision,
 		RequestsPerHour: row.RequestsPerHour, TokensPerHour: row.TokensPerHour,
-		MinimumImportance: row.MinimumImportance, MinimumRelevance: row.MinimumRelevance}
+		MinimumImportance: row.MinimumImportance, MinimumRelevance: row.MinimumRelevance,
+		AutoTranslate: row.AutoTranslate == 1, AutoTranslateScope: scope,
+		TranslateOnOpen: row.TranslateOnOpen == 1, TranslationTargetLang: targetLang,
+		TranslationPrompt: row.TranslationPrompt}
 }
 
 func (s *Service) Settings(ctx context.Context) (Settings, error) {
@@ -67,7 +83,17 @@ func (s *Service) Settings(ctx context.Context) (Settings, error) {
 
 func (s *Service) Save(ctx context.Context, input Settings) (Settings, error) {
 	input.Prompt = strings.TrimSpace(input.Prompt)
-	if len(input.Prompt) > 4096 || input.RequestsPerHour < 1 || input.RequestsPerHour > 1000 ||
+	input.TranslationPrompt = strings.TrimSpace(input.TranslationPrompt)
+	input.TranslationTargetLang = strings.TrimSpace(input.TranslationTargetLang)
+	if input.TranslationTargetLang == "" {
+		input.TranslationTargetLang = "zh-CN"
+	}
+	if input.AutoTranslateScope == "" {
+		input.AutoTranslateScope = "summary"
+	}
+	if len(input.Prompt) > 4096 || len(input.TranslationPrompt) > 4096 || len(input.TranslationTargetLang) > 32 ||
+		(input.AutoTranslateScope != "summary" && input.AutoTranslateScope != "full") ||
+		input.RequestsPerHour < 1 || input.RequestsPerHour > 1000 ||
 		input.TokensPerHour < 1000 || input.TokensPerHour > 2000000 ||
 		math.IsNaN(input.MinimumImportance) || input.MinimumImportance < 0 || input.MinimumImportance > 1 ||
 		math.IsNaN(input.MinimumRelevance) || input.MinimumRelevance < 0 || input.MinimumRelevance > 1 {
@@ -77,11 +103,20 @@ func (s *Service) Save(ctx context.Context, input Settings) (Settings, error) {
 	p.Prompt, p.Revision = input.Prompt, input.Revision
 	p.RequestsPerHour, p.TokensPerHour = input.RequestsPerHour, input.TokensPerHour
 	p.MinimumImportance, p.MinimumRelevance = input.MinimumImportance, input.MinimumRelevance
+	p.AutoTranslateScope = input.AutoTranslateScope
+	p.TranslationTargetLang = input.TranslationTargetLang
+	p.TranslationPrompt = input.TranslationPrompt
 	if input.Classification {
 		p.Classification = 1
 	}
 	if input.Featured {
 		p.Featured = 1
+	}
+	if input.AutoTranslate {
+		p.AutoTranslate = 1
+	}
+	if input.TranslateOnOpen {
+		p.TranslateOnOpen = 1
 	}
 	row, err := s.store.SaveArticleAISettings(ctx, p)
 	if err == nil && s.changed != nil {

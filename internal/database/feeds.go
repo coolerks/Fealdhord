@@ -12,18 +12,18 @@ import (
 
 type Subscription struct {
 	ID, Title, URL, SiteURL, Description, ETag, LastModified, LastError, LastErrorCode string
-	IconData, CustomIconURL, ReaderOpenMode                                            string
+	IconData, CustomIconURL, ReaderOpenMode, AutoTranslateMode                         string
 	Revision, ErrorCount                                                               int64
 	Archived                                                                           bool
 	CheckedAt, SuccessAt, NextCheckAt                                                  *int64
 	CategoryIDs                                                                        []string
 }
 type SubscriptionInput struct {
-	ApplyExisting                    *bool
-	IconData                         *string
-	CustomIconURL, ReaderOpenMode    string
-	URL, Title, SiteURL, Description string
-	CategoryIDs                      []string
+	ApplyExisting                                     *bool
+	IconData                                          *string
+	CustomIconURL, ReaderOpenMode, AutoTranslateMode  string
+	URL, Title, SiteURL, Description                  string
+	CategoryIDs                                       []string
 }
 type FeedCheck struct {
 	At, Next           int64
@@ -48,12 +48,26 @@ func normalizeReaderOpenMode(mode string) (string, error) {
 		return "", ErrInvalidInput
 	}
 }
+func normalizeAutoTranslateMode(mode string) (string, error) {
+	switch mode {
+	case "", "global":
+		return "global", nil
+	case "on", "off":
+		return mode, nil
+	default:
+		return "", ErrInvalidInput
+	}
+}
 func subscription(row sqlc.Feed) Subscription {
 	mode := row.ReaderOpenMode
 	if mode == "" {
 		mode = "global"
 	}
-	return Subscription{ID: row.ID, Title: row.Title, URL: row.NormalizedUrl, SiteURL: row.SiteUrl, IconData: row.IconUrl, CustomIconURL: row.CustomIconUrl, ReaderOpenMode: mode, Description: row.Description, ETag: row.Etag, LastModified: row.LastModified, LastError: row.LastError, LastErrorCode: row.LastErrorCode, Revision: row.Revision, ErrorCount: row.ErrorCount, Archived: row.ArchivedAt.Valid, CheckedAt: intPointer(row.LastCheckedAt), SuccessAt: intPointer(row.LastSuccessAt), NextCheckAt: intPointer(row.NextCheckAt)}
+	translateMode := row.AutoTranslateMode
+	if translateMode == "" {
+		translateMode = "global"
+	}
+	return Subscription{ID: row.ID, Title: row.Title, URL: row.NormalizedUrl, SiteURL: row.SiteUrl, IconData: row.IconUrl, CustomIconURL: row.CustomIconUrl, ReaderOpenMode: mode, AutoTranslateMode: translateMode, Description: row.Description, ETag: row.Etag, LastModified: row.LastModified, LastError: row.LastError, LastErrorCode: row.LastErrorCode, Revision: row.Revision, ErrorCount: row.ErrorCount, Archived: row.ArchivedAt.Valid, CheckedAt: intPointer(row.LastCheckedAt), SuccessAt: intPointer(row.LastSuccessAt), NextCheckAt: intPointer(row.NextCheckAt)}
 }
 func (s *Store) GetSubscription(ctx context.Context, id string) (Subscription, error) {
 	row, err := s.queries.GetFeed(ctx, id)
@@ -114,6 +128,10 @@ func feedInput(input SubscriptionInput) (SubscriptionInput, error) {
 	if err != nil {
 		return input, err
 	}
+	input.AutoTranslateMode, err = normalizeAutoTranslateMode(input.AutoTranslateMode)
+	if err != nil {
+		return input, err
+	}
 	if input.Title == "" || len(input.Title) > 4096 || len(input.Description) > 16384 || len(input.SiteURL) > 8192 || len(input.CategoryIDs) > 256 {
 		return input, ErrInvalidInput
 	}
@@ -146,7 +164,7 @@ func saveDetails(ctx context.Context, q *sqlc.Queries, id string, revision int64
 	if input.IconData != nil {
 		icon = sql.NullString{String: *input.IconData, Valid: true}
 	}
-	rows, err := q.SaveFeedDetails(ctx, sqlc.SaveFeedDetailsParams{ID: id, Revision: revision, Title: input.Title, Url: input.URL, NormalizedUrl: input.URL, SiteUrl: input.SiteURL, IconData: icon, CustomIconUrl: input.CustomIconURL, ReaderOpenMode: input.ReaderOpenMode, Description: input.Description, UpdatedAt: time.Now().UTC().UnixMilli()})
+	rows, err := q.SaveFeedDetails(ctx, sqlc.SaveFeedDetailsParams{ID: id, Revision: revision, Title: input.Title, Url: input.URL, NormalizedUrl: input.URL, SiteUrl: input.SiteURL, IconData: icon, CustomIconUrl: input.CustomIconURL, ReaderOpenMode: input.ReaderOpenMode, AutoTranslateMode: input.AutoTranslateMode, Description: input.Description, UpdatedAt: time.Now().UTC().UnixMilli()})
 	if err != nil {
 		return err
 	}

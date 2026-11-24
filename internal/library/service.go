@@ -28,18 +28,20 @@ type TextRange struct {
 	End   int `json:"end"`
 }
 type Article struct {
-	Revision     int64       `json:"revision"`
-	FeedID       string      `json:"feed_id"`
-	URL          string      `json:"url"`
-	TitleMatches []TextRange `json:"title_matches"`
-	ID           string      `json:"id"`
-	Title        string      `json:"title"`
-	FeedTitle    string      `json:"feed_title"`
-	Summary      string      `json:"summary"`
-	SortAt       string      `json:"sort_at"`
-	IsRead       bool        `json:"is_read"`
-	IsFavorite   bool        `json:"is_favorite"`
-	Cover        *Cover      `json:"cover,omitempty"`
+	Revision          int64       `json:"revision"`
+	FeedID            string      `json:"feed_id"`
+	URL               string      `json:"url"`
+	TitleMatches      []TextRange `json:"title_matches"`
+	ID                string      `json:"id"`
+	Title             string      `json:"title"`
+	TranslatedTitle   string      `json:"translated_title,omitempty"`
+	FeedTitle         string      `json:"feed_title"`
+	Summary           string      `json:"summary"`
+	TranslatedSummary string      `json:"translated_summary,omitempty"`
+	SortAt            string      `json:"sort_at"`
+	IsRead            bool        `json:"is_read"`
+	IsFavorite        bool        `json:"is_favorite"`
+	Cover             *Cover      `json:"cover,omitempty"`
 }
 type Page struct {
 	NextCursor    string    `json:"next_cursor"`
@@ -142,6 +144,7 @@ func (s *Service) List(ctx context.Context, request ListRequest) ListResult {
 		article := projectArticle(row, covers)
 		page.Items = append(page.Items, article)
 	}
+	s.attachTranslations(ctx, page.Items)
 	result.OK = true
 	result.Data = page
 	return result
