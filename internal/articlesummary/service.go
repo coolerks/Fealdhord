@@ -14,6 +14,7 @@ import (
 	"github.com/coolerks/Fealdhord/internal/database"
 	"github.com/coolerks/Fealdhord/internal/database/sqlc"
 	"github.com/coolerks/Fealdhord/internal/reader"
+	"github.com/coolerks/Fealdhord/internal/translation"
 )
 
 const (
@@ -51,7 +52,12 @@ type Service struct {
 	reader   Reader
 	slots    chan struct{}
 	mu       sync.Mutex
-	active   map[Source]*run
+	active   map[runKey]*run
+}
+
+type runKey struct {
+	Source
+	targetLang string
 }
 
 type run struct {
@@ -63,7 +69,7 @@ type run struct {
 }
 
 func New(store *database.Store, resolver ModelResolver, bodyReader Reader) *Service {
-	return &Service{store: store, resolver: resolver, reader: bodyReader, slots: make(chan struct{}, 2), active: make(map[Source]*run)}
+	return &Service{store: store, resolver: resolver, reader: bodyReader, slots: make(chan struct{}, 2), active: make(map[runKey]*run)}
 }
 
 func (s *Service) check(ctx context.Context, source Source) (string, error) {
@@ -90,6 +96,9 @@ func (s *Service) cached(ctx context.Context, source Source, settings sqlc.Artic
 	}
 	if record.Status == "skipped_length" &&
 		(record.HanLimit != settings.SummaryHanLimit || record.EnglishLimit != settings.SummaryEnglishLimit) {
+		return Result{Status: "none"}, nil
+	}
+	if record.Status != "skipped_length" && record.TargetLang != translation.NormalizeTargetLang(settings.TranslationTargetLang) {
 		return Result{Status: "none"}, nil
 	}
 	if record.Status == "generated" {
@@ -123,8 +132,9 @@ func (s *Service) Generate(ctx context.Context, request Request) (Result, error)
 		return result, err
 	}
 
+	key := runKey{Source: source, targetLang: translation.NormalizeTargetLang(settings.TranslationTargetLang)}
 	s.mu.Lock()
-	job := s.active[source]
+	job := s.active[key]
 	if job != nil && job.waiters == 0 {
 		s.mu.Unlock()
 		select {
@@ -137,8 +147,8 @@ func (s *Service) Generate(ctx context.Context, request Request) (Result, error)
 	if job == nil {
 		jobCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 		job = &run{done: make(chan struct{}), cancel: cancel}
-		s.active[source] = job
-		go s.complete(jobCtx, source, job)
+		s.active[key] = job
+		go s.complete(jobCtx, key, job)
 	}
 	job.waiters++
 	s.mu.Unlock()
@@ -157,16 +167,16 @@ func (s *Service) Generate(ctx context.Context, request Request) (Result, error)
 	}
 }
 
-func (s *Service) complete(ctx context.Context, source Source, job *run) {
+func (s *Service) complete(ctx context.Context, key runKey, job *run) {
 	defer job.cancel()
-	job.result, job.err = s.generate(ctx, source)
+	job.result, job.err = s.generate(ctx, key)
 	s.mu.Lock()
-	delete(s.active, source)
+	delete(s.active, key)
 	close(job.done)
 	s.mu.Unlock()
 }
 
-func (s *Service) generate(ctx context.Context, source Source) (Result, error) {
+func (s *Service) generate(ctx context.Context, key runKey) (Result, error) {
 	queuedAt := time.Now()
 	queueCtx, finishQueue := context.WithTimeout(ctx, summaryQueueLimit)
 	select {
@@ -185,6 +195,7 @@ func (s *Service) generate(ctx context.Context, source Source) (Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, summaryRunLimit)
 	defer cancel()
 
+	source := key.Source
 	title, err := s.check(ctx, source)
 	if err != nil {
 		return Result{}, err
@@ -192,6 +203,9 @@ func (s *Service) generate(ctx context.Context, source Source) (Result, error) {
 	settings, err := s.store.ArticleAISettings(ctx)
 	if err != nil {
 		return Result{}, publicError(err)
+	}
+	if key.targetLang != translation.NormalizeTargetLang(settings.TranslationTargetLang) {
+		return Result{}, failure("Conflict")
 	}
 	if cached, err := s.cached(ctx, source, settings); err != nil || cached.Status != "none" {
 		return cached, err
@@ -226,11 +240,12 @@ func (s *Service) generate(ctx context.Context, source Source) (Result, error) {
 		if err != nil {
 			return Result{}, publicError(err)
 		}
-		text, err := summarize(ctx, model, adapter, title, body, short)
+		text, err := summarize(ctx, model, adapter, title, body, key.targetLang, short)
 		if err != nil {
 			return Result{}, publicError(err)
 		}
 		record.ModelID = model.ID
+		record.TargetLang = key.targetLang
 		record.SummaryText = text
 		record.Status = "skipped_model"
 		if text != "" {

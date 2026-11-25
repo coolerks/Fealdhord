@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/coolerks/Fealdhord/internal/ai"
-	"github.com/coolerks/Fealdhord/internal/aiconfig"
 	"github.com/coolerks/Fealdhord/internal/database"
 	"github.com/coolerks/Fealdhord/internal/database/sqlc"
 	"github.com/coolerks/Fealdhord/internal/reader"
@@ -120,7 +119,7 @@ func (s *Service) persistBody(ctx context.Context, w *bodyWork, status, code str
 }
 
 func (s *Service) translateBody(ctx context.Context, article database.ArticleTranslationInput, req TranslateRequest,
-	customPrompt string, modelCfg aiconfig.Model, adapter ai.Model, existing sqlc.ArticleTranslation,
+	customPrompt string, existing sqlc.ArticleTranslation,
 ) (Record, error) {
 	if s.reader == nil {
 		return Record{}, &ai.ModelError{Code: "StorageError"}
@@ -141,9 +140,31 @@ func (s *Service) translateBody(ctx context.Context, article database.ArticleTra
 	}
 	if !req.Force && existing.ContentHash == article.ContentHash && version != "" && existing.SourceVersion == version {
 		cached := decodeRecord(existing)
-		if cached.Status == "completed" {
+		if cached.Status == "completed" || cached.Status == "skipped_same_lang" {
 			return cached, nil
 		}
+	}
+	if !req.Force && bodyMatchesTarget(detail.Data.Text, req.TargetLang) {
+		rec := Record{ArticleID: article.ID, TargetLang: req.TargetLang, SourceMode: req.SourceMode,
+			ContentHash: article.ContentHash, SourceVersion: version, DetectedLang: req.TargetLang,
+			Status: "skipped_same_lang", Blocks: []BlockTranslation{},
+			UpdatedAt: max(time.Now().UTC().UnixMilli(), existing.UpdatedAt+1)}
+		if err := s.saveRecord(ctx, rec, sql.NullInt64{}, sql.NullInt64{}); err != nil {
+			switch {
+			case ctx.Err() != nil:
+				return Record{}, &ai.ModelError{Code: modelErrorCode(ctx.Err())}
+			case errors.Is(err, database.ErrConflict):
+				return Record{}, &ai.ModelError{Code: "Conflict"}
+			default:
+				return Record{}, &ai.ModelError{Code: "StorageError"}
+			}
+		}
+		s.notify(rec)
+		return rec, nil
+	}
+	modelCfg, adapter, err := s.resolveModel(ctx)
+	if err != nil {
+		return Record{}, err
 	}
 
 	sources, err := ExtractBlocks(detail.Data.HTML)

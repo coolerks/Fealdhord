@@ -75,6 +75,12 @@ func (s *Store) CurrentTranslationSource(ctx context.Context, articleID string) 
 	return s.queries.GetCurrentTranslationSource(ctx, articleID)
 }
 
+func (s *Store) TranslationBodyText(ctx context.Context, articleID, mode, version string) (string, error) {
+	return s.queries.GetTranslationBodyText(ctx, sqlc.GetTranslationBodyTextParams{
+		ArticleID: articleID, SourceMode: mode, SourceVersion: version,
+	})
+}
+
 // SaveCurrentArticleTranslation prevents an in-flight result from replacing a newer source.
 func (s *Store) SaveCurrentArticleTranslation(ctx context.Context, params sqlc.SaveArticleTranslationParams) error {
 	return s.transaction(ctx, func(q *sqlc.Queries) error {
@@ -149,7 +155,8 @@ JOIN feeds f ON f.id=a.feed_id
 JOIN article_translations ts ON ts.article_id=a.id AND ts.target_lang=? AND ts.source_mode='summary' AND ts.content_hash=a.content_hash
  AND (ts.status='completed' OR (ts.status='skipped_same_lang' AND trim(a.summary, char(9,10,13,32))=''))
 LEFT JOIN reader_contents r ON r.article_id=a.id AND r.content_hash=a.content_hash AND r.source_version<>''
-LEFT JOIN article_translations tf ON tf.article_id=a.id AND tf.target_lang=? AND tf.source_mode='reader' AND tf.content_hash=a.content_hash AND tf.source_version=r.source_version AND tf.status='completed' AND tf.translated_blocks=tf.total_blocks
+LEFT JOIN article_translations tf ON tf.article_id=a.id AND tf.target_lang=? AND tf.source_mode='reader' AND tf.content_hash=a.content_hash AND tf.source_version=r.source_version
+ AND (tf.status='skipped_same_lang' OR (tf.status='completed' AND tf.translated_blocks=tf.total_blocks))
 LEFT JOIN article_ai_deferrals d ON d.article_id=a.id AND d.task='translation_full' AND d.until_at>?
 WHERE f.archived_at IS NULL
  AND a.sort_at>=?

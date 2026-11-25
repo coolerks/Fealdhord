@@ -17,9 +17,11 @@ const summaryErrors: Record<string, string> = {
 
 export function useArticleSummary(articleId: string | undefined, mode: 'feed' | 'reader', version: string | undefined) {
   const client = useQueryClient()
-  const settings = useArticleAISettings(Boolean(articleId)).data?.summary
+  const articleAI = useArticleAISettings(Boolean(articleId)).data
+  const settings = articleAI?.summary
+  const targetLang = articleAI?.translationTargetLang || 'zh-CN'
   const source = useMemo(() => articleId && version ? { articleId, mode, version } : undefined, [articleId, mode, version])
-  const sourceKey = JSON.stringify(source ?? null)
+  const sourceKey = JSON.stringify([source ?? null, targetLang])
   const queryKey = useMemo(
     () => ['reader', 'article-summary', sourceKey, settings?.hanLimit, settings?.englishLimit],
     [sourceKey, settings?.hanLimit, settings?.englishLimit],

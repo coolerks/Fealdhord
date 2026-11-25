@@ -155,7 +155,7 @@ transfer.API 的 Choose 返回 token／name／cancelled；Preview 返回 preview
 
 `articleai.API.Settings` 返回 `summary: { onOpen, hanLimit, englishLimit }`。保存时按同一 revision 核验，两个阈值接受 JavaScript 安全范围内的正整数。旧调用方省略 `summary` 时保留已保存的摘要设置。
 
-`articlesummary.Service.Get({ articleId, mode, version })` 读取当前正文版本的摘要结果。`Generate({ source, automatic })` 可显式生成，或在 `automatic` 为 true 时读取自动开关。两者返回 `{ status: "none" | "generated" | "skipped", text }`。空结果、推理中断及旧版本不能写为成功。正文未就绪、版本变化、输出无效和处理超限分别返回 `BodyUnavailable`、`Conflict`、`InvalidModelOutput`、`ContextWindowExceeded`。关闭或切换阅读器会取消当前调用。最终等待方取消时停止生成。
+`articlesummary.Service.Get({ articleId, mode, version })` 读取当前正文版本及目标语言对应的摘要结果。`Generate({ source, automatic })` 可显式生成，或在 `automatic` 为 true 时读取自动开关。服务从同一份文章 AI 设置读取 `translationTargetLang`。两者返回 `{ status: "none" | "generated" | "skipped", text }`。正文未就绪、版本或目标语言变化、输出无效和处理超限分别返回 `BodyUnavailable`、`Conflict`、`InvalidModelOutput`、`ContextWindowExceeded`。关闭阅读器、切换正文或目标语言时取消当前调用。最终等待方取消时停止生成。
 
 `reader.Detail.has_full_feed_body` 为 true 时，表示订阅条目提供了显式正文输入，可参与摘要来源判定。没有该字段的存量订阅内容按可能是预览处理。
 

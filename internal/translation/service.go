@@ -198,7 +198,8 @@ func (s *Service) Get(ctx context.Context, articleID, targetLang, sourceMode str
 	}
 	if sourceMode != "summary" {
 		sumRow, sumErr := s.store.GetArticleTranslation(ctx, articleID, targetLang, "summary")
-		if rec.Status == "none" && sourceErr == nil && summaryMatchesTarget(source.Summary, source.ContentHash, targetLang, sumRow) {
+		if rec.Status == "none" && sourceErr == nil && (summaryMatchesTarget(source.Summary, source.ContentHash, targetLang, sumRow) ||
+			s.currentBodyMatchesTarget(ctx, rec)) {
 			rec.Status, rec.DetectedLang = "skipped_same_lang", targetLang
 			rec.UpdatedAt = max(rec.UpdatedAt, sumRow.UpdatedAt)
 		} else if rec.TranslatedTitle == "" && sumErr == nil && sumRow.ContentHash == rec.ContentHash {
@@ -216,6 +217,10 @@ func summaryMatchesTarget(summary, contentHash, target string, cached sqlc.Artic
 	if strings.TrimSpace(summary) == "" {
 		return false
 	}
+	detected, confident := DetectLocal(summary)
+	if MatchesTarget(detected, confident, target) {
+		return true
+	}
 	if cached.ContentHash == contentHash {
 		switch cached.Status {
 		case "skipped_same_lang":
@@ -224,8 +229,15 @@ func summaryMatchesTarget(summary, contentHash, target string, cached sqlc.Artic
 			return false
 		}
 	}
-	detected, confident := DetectLocal(summary)
-	return MatchesTarget(detected, confident, target)
+	return false
+}
+
+func (s *Service) currentBodyMatchesTarget(ctx context.Context, rec Record) bool {
+	if rec.SourceVersion == "" || !bodyLanguageCheckSupported(rec.TargetLang) {
+		return false
+	}
+	text, err := s.store.TranslationBodyText(ctx, rec.ArticleID, rec.SourceMode, rec.SourceVersion)
+	return err == nil && bodyMatchesTarget(text, rec.TargetLang)
 }
 
 func (s *Service) normalizeCachedBody(ctx context.Context, rec Record) Record {
@@ -303,7 +315,7 @@ func (s *Service) Clear(ctx context.Context, articleID, targetLang string) error
 }
 
 func (s *Service) Translate(ctx context.Context, req TranslateRequest) (Record, error) {
-	if s.store == nil || s.resolver == nil {
+	if s.store == nil {
 		return Record{}, &ai.ModelError{Code: "StorageError"}
 	}
 	if req.ArticleID == "" || len(req.ArticleID) > 256 {
@@ -427,15 +439,21 @@ func (s *Service) Translate(ctx context.Context, req TranslateRequest) (Record, 
 		return rec, nil
 	}
 
-	modelCfg, adapter, err := s.resolver.Resolve(runCtx, "translation")
-	if err != nil {
-		return Record{}, err
-	}
-
 	if req.SourceMode == "summary" {
+		modelCfg, adapter, err := s.resolveModel(runCtx)
+		if err != nil {
+			return Record{}, err
+		}
 		return s.translateSummary(runCtx, article, req, detectedLang, customPrompt, modelCfg, adapter)
 	}
-	return s.translateBody(runCtx, article, req, customPrompt, modelCfg, adapter, existing)
+	return s.translateBody(runCtx, article, req, customPrompt, existing)
+}
+
+func (s *Service) resolveModel(ctx context.Context) (aiconfig.Model, ai.Model, error) {
+	if s.resolver == nil {
+		return aiconfig.Model{}, nil, &ai.ModelError{Code: "StorageError"}
+	}
+	return s.resolver.Resolve(ctx, "translation")
 }
 
 func (s *Service) translateSummary(

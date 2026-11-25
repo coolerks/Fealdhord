@@ -78,6 +78,29 @@ const traditionalMarkers = "這為個來時會說們對實學開關點體國發�
 // DetectLocal 对文本进行零成本本地语言初筛。
 // 仅在特征足够明确时返回 confident=true，避免误判导致漏翻或误跳。
 func DetectLocal(sample string) (lang string, confident bool) {
+	return detectLocal(sample, false)
+}
+
+// 正文是摘要判定未命中时的补充证据。只有一种文字明显占优时才跳过，
+// 以免整篇跳过带有实质性外语内容的混合文章。
+func bodyMatchesTarget(text, target string) bool {
+	if !bodyLanguageCheckSupported(target) {
+		return false
+	}
+	detected, confident := detectLocal(text, true)
+	return MatchesTarget(detected, confident, target)
+}
+
+func bodyLanguageCheckSupported(target string) bool {
+	switch target {
+	case "zh-CN", "zh-TW", "ja", "ko", "ru":
+		return true
+	default:
+		return false
+	}
+}
+
+func detectLocal(sample string, wholeBody bool) (lang string, confident bool) {
 	cleaned := urlPattern.ReplaceAllString(sample, " ")
 	var han, kana, hangul, cyrillic, latin, total int
 	var tradCount int
@@ -103,32 +126,36 @@ func DetectLocal(sample string) (lang string, confident bool) {
 			total++
 		}
 	}
-	if total < 8 {
+	minLetters, scriptRatio := 8, 0.0
+	if wholeBody {
+		minLetters, scriptRatio = 32, 0.90
+	}
+	if total < minLetters {
 		return "", false
 	}
 	ratio := func(n int) float64 { return float64(n) / float64(total) }
 
 	// 日文：存在明显假名即可高置信度判定为日文（日文常夹杂大量汉字）。
-	if kana >= 3 && ratio(kana+han) >= 0.55 {
+	if kana >= 3 && ratio(kana+han) >= max(0.55, scriptRatio) && (!wholeBody || ratio(kana) >= 0.08) {
 		return "ja", true
 	}
 	// 韩文：谚文占比高。
-	if hangul >= 4 && ratio(hangul) >= 0.45 {
+	if hangul >= 4 && ratio(hangul+han) >= max(0.45, scriptRatio) && ratio(hangul) >= 0.45 {
 		return "ko", true
 	}
 	// 中文：汉字占比高且几乎无假名。
-	if han >= 6 && kana == 0 && ratio(han) >= 0.40 {
+	if han >= 6 && kana == 0 && ratio(han) >= max(0.40, scriptRatio) {
 		if tradCount >= 3 && float64(tradCount)/float64(han) >= 0.08 {
 			return "zh-TW", true
 		}
 		return "zh-CN", true
 	}
 	// 俄文等西里尔文。
-	if cyrillic >= 8 && ratio(cyrillic) >= 0.55 {
+	if cyrillic >= 8 && ratio(cyrillic) >= max(0.55, scriptRatio) {
 		return "ru", true
 	}
 	// 拉丁语系：用高频停用词区分英语/法语/德语/西语。
-	if latin >= 20 && ratio(latin) >= 0.70 {
+	if !wholeBody && latin >= 20 && ratio(latin) >= 0.70 {
 		words := strings.FieldsFunc(strings.ToLower(cleaned), func(r rune) bool {
 			return !unicode.IsLetter(r)
 		})

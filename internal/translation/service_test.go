@@ -165,6 +165,58 @@ func TestDetectLocal(t *testing.T) {
 	}
 }
 
+func TestChineseBodySkipsTranslationWhenRSSSummaryIsWrongOrEmpty(t *testing.T) {
+	ctx := t.Context()
+	store, err := database.Open(ctx, filepath.Join(t.TempDir(), "translation.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	feedID, err := store.EnsureFeed(ctx, "https://example.test/feed", "测试订阅")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := "养猫新手，捡了一只狸白，现在七八个月大，养了快两个月。\n\n" +
+		"原本亲近的关系慢慢变了，我想抱他，他开始躲。我靠近他，他有时会哈气。\n\n" +
+		"但网上的信息实在太混乱了。抖音、小红书上有人说千万不能打。AI 给出的建议又几乎都是顺其自然、不要强迫、给猫时间。\n\n" +
+		"希望有实际养猫经验的人能给一些真正可操作的建议。"
+	svc := New(store, nil, reader.NewService(store, nil, nil, nil), nil, nil)
+	for _, summary := range []string{"", "The discussion is on our forum and the full article can be found on the site."} {
+		articleID, err := store.UpsertArticle(ctx, database.ArticleInput{FeedID: feedID, GUID: "cat-" + summary,
+			Title: "[宠物] 养猫两个月，我和猫的关系却越来越糟", Text: body, Summary: summary, FeedContentExplicit: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		article, err := store.GetArticleForTranslation(ctx, articleID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = store.SaveReaderDocument(ctx, articleID, database.ReaderDocument{
+			HTML: "<p>" + body + "</p>", Text: body, Hash: article.ContentHash, Version: "go-readability/v2.1.3", URL: "https://example.test/cat",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, mode := range []string{"feed", "reader"} {
+			detected, err := svc.Get(ctx, articleID, "zh-CN", mode)
+			if err != nil || detected.Status != "skipped_same_lang" || detected.DetectedLang != "zh-CN" || detected.SourceVersion == "" {
+				t.Fatalf("the %s reader would start translation for summary %q: %+v %v", mode, summary, detected, err)
+			}
+			result, err := svc.Translate(ctx, TranslateRequest{ArticleID: articleID, SourceMode: mode, TargetLang: "zh-CN", Background: true})
+			if err != nil || result.Status != "skipped_same_lang" || result.ModelID != "" {
+				t.Fatalf("the %s worker did not skip: %+v %v", mode, result, err)
+			}
+			stored, err := store.GetArticleTranslation(ctx, articleID, "zh-CN", mode)
+			if err != nil || stored.SourceVersion != result.SourceVersion || stored.Status != result.Status {
+				t.Fatalf("skip decision not persisted against current source: %+v %v", stored, err)
+			}
+		}
+		if different, err := svc.Get(ctx, articleID, "ja", "reader"); err != nil || different.Status != "none" {
+			t.Fatalf("the article must remain eligible for a Japanese translation: %+v %v", different, err)
+		}
+	}
+}
+
 func TestExtractBlocksAndSanitize(t *testing.T) {
 	rawHTML := `<h2 data-tr-block="b0">Introduction</h2>
 <p data-tr-block="b1">Read <a href="#reader-link" data-reader-link="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef">the docs</a> carefully.<img src="/media/inline/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" alt="fig"/></p>

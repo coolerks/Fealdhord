@@ -173,6 +173,7 @@ type ArticleSummary struct {
 	HanLimit      int64  `json:"han_limit"`
 	EnglishLimit  int64  `json:"english_limit"`
 	UpdatedAt     int64  `json:"updated_at"`
+	TargetLang    string `json:"target_lang"`
 }
 
 type ArticleTranslation struct {

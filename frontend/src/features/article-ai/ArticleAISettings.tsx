@@ -184,7 +184,10 @@ export function ArticleAISettings() {
               onCheckedChange={autoTranslate => setDraft({ ...value, autoTranslate })} />
           </SettingRow>
           <SettingRow>
-            <FieldLabel htmlFor="translation-target-lang" className="font-normal">目标语言</FieldLabel>
+            <div>
+              <FieldLabel htmlFor="translation-target-lang" className="font-normal">目标语言</FieldLabel>
+              <p className="text-xs text-muted-foreground">同时用于文章摘要和翻译。</p>
+            </div>
             <SearchableSelect
               id="translation-target-lang"
               label="目标语言"

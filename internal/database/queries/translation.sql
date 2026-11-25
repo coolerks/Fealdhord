@@ -7,6 +7,14 @@ FROM articles a JOIN feeds f ON f.id=a.feed_id
 LEFT JOIN reader_contents r ON r.article_id=a.id AND r.content_hash=a.content_hash
 WHERE a.id=? AND f.archived_at IS NULL;
 
+-- name: GetTranslationBodyText :one
+SELECT CAST(CASE WHEN sqlc.arg(source_mode)='reader' THEN r.content_text ELSE a.content_text END AS TEXT)
+FROM articles a
+LEFT JOIN reader_contents r ON r.article_id=a.id AND r.content_hash=a.content_hash
+WHERE a.id=sqlc.arg(article_id)
+ AND ((sqlc.arg(source_mode)='reader' AND r.source_version=sqlc.arg(source_version))
+   OR (sqlc.arg(source_mode)='feed' AND a.content_hash=sqlc.arg(source_version)));
+
 -- name: SaveArticleTranslation :exec
 INSERT INTO article_translations(
  article_id,target_lang,source_mode,content_hash,detected_lang,status,

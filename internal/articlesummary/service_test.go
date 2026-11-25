@@ -134,6 +134,56 @@ func TestSummaryWaitsForCompleteBody(t *testing.T) {
 	}
 }
 
+func TestSummaryUsesConfiguredLanguageAndRefreshesCache(t *testing.T) {
+	_, store, _, source := summaryFixture(t, strings.Repeat("The report explains the phased maintenance and how existing users can migrate. ", 31), true)
+	ctx := t.Context()
+	const english = "The report explains how existing users can migrate during the phased maintenance."
+	const chinese = "报告介绍了分阶段维护期间现有用户的迁移安排。"
+	calls := 0
+	resolver := testResolver{testModel(func(_ context.Context, req *ai.ModelRequest) (*ai.ModelResponse, error) {
+		calls++
+		switch calls {
+		case 1, 2:
+			if !strings.Contains(req.System, "Simplified Chinese") {
+				t.Errorf("Chinese preference absent: %s", req.System)
+			}
+			if calls == 1 {
+				return output("generated", english), nil
+			}
+			return output("generated", chinese), nil
+		default:
+			if !strings.Contains(req.System, "Write the text field in English.") {
+				t.Errorf("English preference absent: %s", req.System)
+			}
+			return output("generated", english), nil
+		}
+	})}
+	service := New(store, resolver, reader.NewService(store, nil, nil, nil))
+	result, err := service.Generate(ctx, Request{Source: source})
+	if err != nil || result.Text != chinese || calls != 2 {
+		t.Fatalf("wrong-language output was not retried: %+v calls=%d %v", result, calls, err)
+	}
+	configuration := articleai.New(store, nil, nil)
+	settings, err := configuration.Settings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings.TranslationTargetLang = "en"
+	if _, err = configuration.Save(ctx, settings); err != nil {
+		t.Fatal(err)
+	}
+	if stale, err := service.Get(ctx, source); err != nil || stale.Status != "none" {
+		t.Fatalf("old language was reused: %+v %v", stale, err)
+	}
+	result, err = service.Generate(ctx, Request{Source: source})
+	if err != nil || result.Text != english || calls != 3 {
+		t.Fatalf("summary did not follow new language: %+v calls=%d %v", result, calls, err)
+	}
+	if cached, err := New(store, nil, nil).Get(ctx, source); err != nil || cached.Text != english {
+		t.Fatalf("new summary language was not persisted: %+v %v", cached, err)
+	}
+}
+
 func TestSummaryCoalescesRequestsAndRejectsLateResult(t *testing.T) {
 	_, store, input, source := summaryFixture(t, strings.Repeat("正文细节很多，需要检查最后的方案。", 42), true)
 	entered, release := make(chan struct{}), make(chan struct{})
@@ -166,7 +216,7 @@ func TestSummaryCoalescesRequestsAndRejectsLateResult(t *testing.T) {
 	}
 	for {
 		service.mu.Lock()
-		waiters := service.active[source].waiters
+		waiters := service.active[runKey{Source: source, targetLang: "zh-CN"}].waiters
 		service.mu.Unlock()
 		if waiters == 2 {
 			break
@@ -245,7 +295,7 @@ func TestLongSummaryIncludesTheFinalPartAndRejectsInvalidOutput(t *testing.T) {
 		}
 		return output("generated", "The final ruling begins July 1, with a waiver for existing holders."), nil
 	})
-	result, err := summarize(t.Context(), cfg, model, "A local project", body, false)
+	result, err := summarize(t.Context(), cfg, model, "A local project", body, "en", false)
 	if err != nil || calls < 4 || finalPartAttempts != 2 || !strings.Contains(result, "July 1") {
 		t.Fatalf("长文摘要：%q %d %v", result, calls, err)
 	}
@@ -254,7 +304,7 @@ func TestLongSummaryIncludesTheFinalPartAndRejectsInvalidOutput(t *testing.T) {
 		repeatCalls++
 		return output("generated", "Content should stay unchanged."), nil
 	})
-	if _, err := summarize(t.Context(), cfg, repeat, "Title", "Content should stay unchanged.", true); err == nil ||
+	if _, err := summarize(t.Context(), cfg, repeat, "Title", "Content should stay unchanged.", "en", true); err == nil ||
 		err.Error() != "InvalidModelOutput" || repeatCalls != 2 {
 		t.Fatalf("重复正文应在一次补发后结束：调用 %d 次，错误 %v", repeatCalls, err)
 	}
@@ -400,7 +450,7 @@ func TestSummaryRetriesOnlyTransientModelFailures(t *testing.T) {
 					return nil, failure(test.code)
 				})
 				body := strings.Repeat("An update on the project explains the opening schedule and exceptions. ", 12)
-				result, err := summarize(t.Context(), aiconfig.Model{Name: "test"}, model, "Project update", body, false)
+				result, err := summarize(t.Context(), aiconfig.Model{Name: "test"}, model, "Project update", body, "en", false)
 				if calls != test.wantCalls {
 					t.Errorf("模型调用 %d 次，预期 %d 次", calls, test.wantCalls)
 				}
@@ -432,7 +482,7 @@ func TestSummaryCancellationStopsPendingRetry(t *testing.T) {
 		})
 		go func() {
 			body := strings.Repeat("An update on the project explains the opening schedule and exceptions. ", 12)
-			_, err := summarize(ctx, aiconfig.Model{Name: "test"}, model, "Project update", body, false)
+			_, err := summarize(ctx, aiconfig.Model{Name: "test"}, model, "Project update", body, "en", false)
 			result <- err
 		}()
 		<-firstCall

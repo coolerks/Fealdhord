@@ -127,6 +127,28 @@ func (q *Queries) GetCurrentTranslationSource(ctx context.Context, id string) (G
 	return i, err
 }
 
+const getTranslationBodyText = `-- name: GetTranslationBodyText :one
+SELECT CAST(CASE WHEN ?1='reader' THEN r.content_text ELSE a.content_text END AS TEXT)
+FROM articles a
+LEFT JOIN reader_contents r ON r.article_id=a.id AND r.content_hash=a.content_hash
+WHERE a.id=?2
+ AND ((?1='reader' AND r.source_version=?3)
+   OR (?1='feed' AND a.content_hash=?3))
+`
+
+type GetTranslationBodyTextParams struct {
+	SourceMode    interface{} `json:"source_mode"`
+	ArticleID     string      `json:"article_id"`
+	SourceVersion string      `json:"source_version"`
+}
+
+func (q *Queries) GetTranslationBodyText(ctx context.Context, arg GetTranslationBodyTextParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getTranslationBodyText, arg.SourceMode, arg.ArticleID, arg.SourceVersion)
+	var column_1 string
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const saveArticleTranslation = `-- name: SaveArticleTranslation :exec
 INSERT INTO article_translations(
  article_id,target_lang,source_mode,content_hash,detected_lang,status,

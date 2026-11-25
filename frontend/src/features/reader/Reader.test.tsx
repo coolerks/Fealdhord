@@ -9,6 +9,7 @@ import { preferencesFixture,articleFixtures } from '@/test/fixtures'
 import { installGeometry } from '@/test/geometry'
 import { useWorkspace } from '@/stores/workspace'
 import { native } from '@/lib/native'
+import { articleAISettingsKey } from '@/features/article-ai/settings-query'
 import type { Detail } from '@/lib/reader-api'
 import type { TranslationRecord } from '@/lib/translation-api'
 const api=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
@@ -992,5 +993,23 @@ it('开启自动摘要后跳过订阅预览，重开同一正文复用已缓存�
     : { ...feed, has_cached: true })
   setup({ reader_open_mode: 'full' })
   expect(await screen.findByText('本次更新将在下月发布。')).toBeVisible()
+  expect(summaryMock.generate).toHaveBeenCalledTimes(1)
+})
+
+it('修改目标语言后重新读取摘要，同一个正文不继续显示旧语言', async () => {
+  summaryMock.settings.onOpen = true
+  summaryMock.get.mockImplementation(() => summaryResponse('generated', '本次更新将在下月发布。'))
+  summaryMock.generate.mockImplementation(() => summaryResponse('generated', 'The update ships next month.'))
+  api.get.mockImplementation(async (_id: string, mode: string) => mode === 'reader'
+    ? { ...extracted, source_version: 'web-v1' }
+    : { ...feed, has_cached: true })
+  const { client } = setup({ reader_open_mode: 'full' })
+  expect(await screen.findByText('本次更新将在下月发布。')).toBeVisible()
+  expect(summaryMock.generate).not.toHaveBeenCalled()
+
+  summaryMock.get.mockImplementation(() => summaryResponse('none'))
+  act(() => client.setQueryData<object>(articleAISettingsKey, previous => ({ ...previous, translationTargetLang: 'en' })))
+  expect(await screen.findByText('The update ships next month.')).toBeVisible()
+  expect(screen.queryByText('本次更新将在下月发布。')).not.toBeInTheDocument()
   expect(summaryMock.generate).toHaveBeenCalledTimes(1)
 })

@@ -16,7 +16,7 @@ func dropArticleSummarySchema() []string {
 		"ALTER TABLE article_ai_settings DROP COLUMN summary_english_limit",
 		"ALTER TABLE article_ai_settings DROP COLUMN summary_han_limit",
 		"ALTER TABLE article_ai_settings DROP COLUMN summarize_on_open",
-		"DELETE FROM goose_db_version WHERE version_id=28",
+		"DELETE FROM goose_db_version WHERE version_id IN (28,31)",
 	}
 }
 
@@ -89,5 +89,50 @@ func TestArticleSummaryUpgradeAndPersistence(t *testing.T) {
 	}
 	if err := reopened.SaveCurrentArticleSummary(ctx, record); !errors.Is(err, ErrConflict) {
 		t.Fatalf("允许旧结果写入：%v", err)
+	}
+}
+
+func TestSummaryLanguageMigrationKeepsOldTextAndRejectsStaleLanguage(t *testing.T) {
+	ctx := t.Context()
+	filename := filepath.Join(t.TempDir(), "library.db")
+	old, err := openWithMigrations(ctx, filename, sqlMigrationsBefore(t, "00031"), goose.WithGoMigrations(
+		goose.NewGoMigration(21, &goose.GoFunc{RunTx: repairNotificationSchema}, nil),
+		goose.NewGoMigration(22, &goose.GoFunc{RunTx: repairAISchema}, nil),
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = old.db.ExecContext(ctx, `
+		INSERT INTO feeds (id,title,url,normalized_url,created_at,updated_at)
+		VALUES ('source','订阅','https://example.test/feed','https://example.test/feed',1,1);
+		INSERT INTO articles(id,feed_id,title,summary,content_text,fetched_at,sort_at,content_hash,dedup_key,feed_content_explicit)
+		VALUES ('old','source','旧文章','短摘录','完整正文',1,1,'old-version','guid:old',1);
+		INSERT INTO article_summaries(article_id,source_mode,source_version,status,summary_text,model_id,han_limit,english_limit,updated_at)
+		VALUES ('old','feed','old-version','generated','Existing summary','test',0,0,1);
+	`)
+	if closeErr := old.Close(); err != nil || closeErr != nil {
+		t.Fatalf("legacy database setup: %v %v", err, closeErr)
+	}
+
+	store, err := Open(ctx, filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	key := sqlc.GetArticleSummaryParams{ArticleID: "old", SourceMode: "feed", SourceVersion: "old-version"}
+	record, err := store.GetArticleSummary(ctx, key)
+	if err != nil || record.SummaryText != "Existing summary" || record.TargetLang != "" {
+		t.Fatalf("stored text was lost or given an assumed language: %+v %v", record, err)
+	}
+	params := sqlc.SaveArticleSummaryParams{ArticleID: "old", SourceMode: "feed", SourceVersion: "old-version", Status: "generated",
+		SummaryText: "本次更新包含两项安排。", TargetLang: "zh-CN"}
+	if err := store.SaveCurrentArticleSummary(ctx, params); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx, `UPDATE article_ai_settings SET translation_target_lang='en'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveCurrentArticleSummary(ctx, params); !errors.Is(err, ErrConflict) {
+		t.Fatalf("wrong-language result was written after settings changed: %v", err)
 	}
 }

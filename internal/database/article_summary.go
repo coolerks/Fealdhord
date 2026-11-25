@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/coolerks/Fealdhord/internal/database/sqlc"
 )
@@ -40,12 +41,20 @@ func (s *Store) SaveCurrentArticleSummary(ctx context.Context, params sqlc.SaveA
 		if _, err := articleSummarySource(ctx, q, params.ArticleID, params.SourceMode, params.SourceVersion); err != nil {
 			return err
 		}
+		settings, err := q.GetArticleAISettings(ctx)
+		if err != nil {
+			return err
+		}
 		if params.Status == "skipped_length" {
-			settings, err := q.GetArticleAISettings(ctx)
-			if err != nil {
-				return err
-			}
 			if params.HanLimit != settings.SummaryHanLimit || params.EnglishLimit != settings.SummaryEnglishLimit {
+				return ErrConflict
+			}
+		} else {
+			target := strings.TrimSpace(settings.TranslationTargetLang)
+			if target == "" {
+				target = "zh-CN"
+			}
+			if !strings.EqualFold(params.TargetLang, target) {
 				return ErrConflict
 			}
 		}

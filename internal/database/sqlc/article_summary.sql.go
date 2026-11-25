@@ -10,7 +10,7 @@ import (
 )
 
 const getArticleSummary = `-- name: GetArticleSummary :one
-SELECT article_id, source_mode, source_version, status, summary_text, model_id, han_limit, english_limit, updated_at FROM article_summaries
+SELECT article_id, source_mode, source_version, status, summary_text, model_id, han_limit, english_limit, updated_at, target_lang FROM article_summaries
 WHERE article_id=? AND source_mode=? AND source_version=?
 `
 
@@ -33,6 +33,7 @@ func (q *Queries) GetArticleSummary(ctx context.Context, arg GetArticleSummaryPa
 		&i.HanLimit,
 		&i.EnglishLimit,
 		&i.UpdatedAt,
+		&i.TargetLang,
 	)
 	return i, err
 }
@@ -63,11 +64,11 @@ func (q *Queries) GetArticleSummarySource(ctx context.Context, id string) (GetAr
 }
 
 const saveArticleSummary = `-- name: SaveArticleSummary :exec
-INSERT INTO article_summaries(article_id,source_mode,source_version,status,summary_text,model_id,han_limit,english_limit,updated_at)
-VALUES(?,?,?,?,?,?,?,?,?)
+INSERT INTO article_summaries(article_id,source_mode,source_version,status,summary_text,model_id,han_limit,english_limit,updated_at,target_lang)
+VALUES(?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(article_id,source_mode,source_version) DO UPDATE SET
  status=excluded.status,summary_text=excluded.summary_text,model_id=excluded.model_id,
- han_limit=excluded.han_limit,english_limit=excluded.english_limit,updated_at=excluded.updated_at
+ han_limit=excluded.han_limit,english_limit=excluded.english_limit,updated_at=excluded.updated_at,target_lang=excluded.target_lang
 `
 
 type SaveArticleSummaryParams struct {
@@ -80,6 +81,7 @@ type SaveArticleSummaryParams struct {
 	HanLimit      int64  `json:"han_limit"`
 	EnglishLimit  int64  `json:"english_limit"`
 	UpdatedAt     int64  `json:"updated_at"`
+	TargetLang    string `json:"target_lang"`
 }
 
 func (q *Queries) SaveArticleSummary(ctx context.Context, arg SaveArticleSummaryParams) error {
@@ -93,6 +95,7 @@ func (q *Queries) SaveArticleSummary(ctx context.Context, arg SaveArticleSummary
 		arg.HanLimit,
 		arg.EnglishLimit,
 		arg.UpdatedAt,
+		arg.TargetLang,
 	)
 	return err
 }
