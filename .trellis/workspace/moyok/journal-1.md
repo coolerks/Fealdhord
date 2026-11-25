@@ -1834,3 +1834,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Next Steps
 
 - 真实模型和原生桌面待复测。
+
+
+## Session 72: 修复文章摘要输出校验失败
+<!-- trellis-session: v=2 fp=dbe665dc75cabaa1 -->
+
+**Date**: 2026-11-25
+**Task**: 修复文章摘要输出校验失败
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+兼容完整 JSON 代码围栏，提高摘要输出额度，按预算补发无效响应。Go 全量测试、vet 与摘要竞态测试通过。真实模型响应待复测。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4997749` | fix(reader): 修复文章摘要输出校验失败 |
+
+### Status
+
+[OK] **Completed**
