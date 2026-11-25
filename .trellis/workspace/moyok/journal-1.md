@@ -1856,3 +1856,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 73: 修复文章摘要超时与模型断连
+<!-- trellis-session: v=2 fp=cdd48fe2c159b0ee -->
+
+**Date**: 2026-11-25
+**Task**: 修复文章摘要超时与模型断连
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+真实摘要网关以合成短文约 3.6 秒完成生成。将排队和执行分别计时，临时故障按预算补发，区分提示并记录阶段。Go 全量测试、vet、摘要竞态、214 项前端测试和生产构建通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `71d284d` | fix(reader): 修复摘要超时和模型断连恢复 |
+
+### Status
+
+[OK] **Completed**
