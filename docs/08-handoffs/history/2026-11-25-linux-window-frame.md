@@ -8,4 +8,5 @@ Linux 菜单栏和侧栏共享随应用主题切换的实色。GTK3 构建沿用
 
 - Windows、Linux 单行菜单和 macOS 主机菜单的 3 项前端回归通过，前端生产构建和 TypeScript 检查通过。Lint 无错误，保留文章列表的 TanStack Virtual 既有警告。
 - macOS 上的 `go test ./internal/desktop .`、`go vet ./internal/desktop .` 与 Windows amd64 生产交叉编译通过。
+- Ubuntu 24.04 amd64 本地构建 `0.1.0-alpha.30+linuxframe.1` DEB 通过。已核对 amd64 ELF、桌面入口、两种尺寸的图标和交付文件校验和。
 - Linux 实机外观及交互由用户验证，覆盖浅色／深色配色、普通窗口阴影及四角、最大化后贴边、菜单栏拖动和外沿缩放。

@@ -1,6 +1,6 @@
 # 当前状态
 
-- Linux GTK4 主窗口保留 GTK 窗口阴影和边缘缩放，普通窗口四角为 12px 圆角。单行菜单栏与侧栏共用浅色／深色实色背景。前端窗口栏回归、生产构建、Go 桌面检查和 Windows 交叉编译通过，Linux 实机外观待验证。[修改与验证记录](../08-handoffs/history/2026-11-25-linux-window-frame.md)
+- Linux GTK4 主窗口保留 GTK 窗口阴影和边缘缩放，普通窗口四角为 12px 圆角。单行菜单栏与侧栏共用浅色／深色实色背景。Ubuntu 24.04 amd64 DEB 已构建并核对包内文件，前端窗口栏回归、生产构建、Go 桌面检查和 Windows 交叉编译通过。Linux 实机外观待验证。[修改与验证记录](../08-handoffs/history/2026-11-25-linux-window-frame.md)
 
 - Linux 主窗口与 Windows 共用单行窗口栏。DEB 在 hicolor 中安装两种尺寸的折栈图标，并对齐 GTK 应用 ID 与桌面入口。前端回归、生产构建、Go 检查、Windows 交叉编译和打包配置核对通过。实际 DEB 与 GNOME 桌面待验证。[修改与验证记录](../08-handoffs/history/2026-11-25-linux-desktop-chrome.md)
 
