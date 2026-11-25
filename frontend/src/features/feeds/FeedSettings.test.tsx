@@ -75,7 +75,7 @@ it('有网站图标时默认选中，用户仍可改用默认图标',async()=>{
   await userEvent.click(screen.getByRole('button',{name:'查找订阅'}))
   const website=await screen.findByRole('radio',{name:'网站图标'})
   await waitFor(()=>expect(website).toHaveAttribute('aria-checked','true'))
-  await userEvent.click(screen.getByRole('radio',{name:'默认图标'}))
+  await userEvent.click(screen.getByRole('radio',{name:'内置图标'}))
   await userEvent.click(screen.getByRole('button',{name:'添加订阅'}))
   await waitFor(()=>expect(api.add).toHaveBeenCalledWith(expect.objectContaining({use_default_icon:true})))
 })

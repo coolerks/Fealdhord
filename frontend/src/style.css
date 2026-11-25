@@ -526,6 +526,7 @@ html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion
 .system-nav { gap:3px;padding-bottom:4px; }
 [data-platform=mac] .nav-section:has(+ .nav-section) { margin-bottom: 10px; }
 .nav-item { height: 32px; font-size: 14px; border-radius: 8px; }
+.glass-sidebar .nav-item { padding-inline: 10px; }
 .glass-sidebar .nav-item :is(.animated-glyph, svg, .feed-icon) { width: 16px; height: 16px; }
 .nav-item.is-current { background:transparent;color:var(--sidebar-accent-foreground); }
 .glass-sidebar { box-shadow:none; }
@@ -730,13 +731,19 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 [data-slot=segmented-control] { border-radius: 10px; }
 [data-slot=segmented-control] > [data-slot=toggle-group-item] {
   border-radius: 8px;
+  padding-inline: 10px;
+  gap: 6px;
   color: var(--muted-foreground);
 }
 [data-slot=segmented-control] .animated-glyph,
 [data-slot=segmented-control] .animated-glyph svg,
-[data-slot=segmented-control] [data-slot=toggle-group-item] > img {
+[data-slot=segmented-control] [data-slot=toggle-group-item] > :is(img, svg) {
   width: 16px;
   height: 16px;
+}
+.icon-picker-grid :is(.animated-glyph, .animated-glyph svg, svg) {
+  width: 18px;
+  height: 18px;
 }
 [data-slot=segmented-control] > [data-slot=toggle-group-item]:hover:not(:disabled) {
   color: var(--foreground);

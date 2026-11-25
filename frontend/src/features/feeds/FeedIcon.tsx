@@ -16,8 +16,8 @@ export function FeedIcon({ data }: { data?: string }) {
   if (!data || data === failed || !/^data:image\/(x-icon|png|jpeg|gif|webp);base64,/.test(data)) {
     return <AnimatedGlyph meaning="radio-tower" />
   }
-  return <img src={data} alt="" draggable={false} width={18} height={18}
-    className="size-[18px] shrink-0 rounded-sm object-contain" onError={() => setFailed(data)} />
+  return <img src={data} alt="" draggable={false} width={16} height={16}
+    className="feed-icon size-4 shrink-0 rounded-sm object-contain" onError={() => setFailed(data)} />
 }
 
 export function FeedIconField({
@@ -50,7 +50,7 @@ export function FeedIconField({
         {data ? <FeedIcon data={data} /> : <AnimatedGlyph meaning="external-link" />}网站图标
       </ToggleGroupItem>
       <ToggleGroupItem value="default" onClick={() => onChange(true)}>
-        <CustomIcon value={icon || 'radio-tower'} fallback="radio-tower" />默认图标
+        <CustomIcon value={icon || 'radio-tower'} fallback="radio-tower" />内置图标
       </ToggleGroupItem>
       <ToggleGroupItem value="custom" disabled={!customAllowed}>
         {customData ? <FeedIcon data={customData} /> : <AnimatedGlyph meaning="settings" />}自定义图标

@@ -277,7 +277,7 @@ export function IconPicker({
               filteredAnimated.length === 0 ? (
                 <p className="py-6 text-center text-xs text-muted-foreground">没有匹配的动态图标</p>
               ) : (
-                <div className="grid grid-cols-6 gap-1">
+                <div className="icon-picker-grid grid grid-cols-6 gap-1">
                   {filteredAnimated.slice(0, limit).map(item => {
                     const selected = activeAnimated === item.name
                     return (
@@ -307,7 +307,7 @@ export function IconPicker({
             ) : filteredStatic.length === 0 ? (
               <p className="py-6 text-center text-xs text-muted-foreground">没有匹配的静态图标</p>
             ) : (
-              <div className="grid grid-cols-6 gap-1">
+              <div className="icon-picker-grid grid grid-cols-6 gap-1">
                 {filteredStatic.slice(0, limit).map(item => {
                   const IconComponent = lucideRegistry[item.name]
                   const selected = value === item.value
