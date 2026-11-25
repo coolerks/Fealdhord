@@ -15,6 +15,7 @@ export type {
     MCPGrant,
     MCPScope,
     PendingAction,
+    PendingPlan,
     PendingQuestion,
     ServerConfig,
     ServerStatus,

@@ -257,12 +257,35 @@ func main() {
 		application.NewService(desktopintegration.NewNotifier()),
 		application.NewService(readerService),
 		application.NewService(aiconfig.NewAPI(aiConfig)),
-		application.NewService(chat.NewAPI(chatService, func(ctx context.Context) ([]string, error) {
-			if mainWindow == nil || ctx.Err() != nil {
-				return nil, context.Canceled
-			}
-			return desktop.Dialog.OpenFile().SetTitle("添加文件夹").CanChooseFiles(false).CanChooseDirectories(true).
-				AttachToWindow(mainWindow).PromptForMultipleSelection()
+		application.NewService(chat.NewAPIWithHooks(chatService, chat.DesktopHooks{
+			PickFiles: func(ctx context.Context) ([]string, error) {
+				if mainWindow == nil || ctx.Err() != nil {
+					return nil, context.Canceled
+				}
+				return desktop.Dialog.OpenFile().SetTitle("选择文件或图片").CanChooseFiles(true).CanChooseDirectories(false).
+					AttachToWindow(mainWindow).PromptForMultipleSelection()
+			},
+			PickFolders: func(ctx context.Context) ([]string, error) {
+				if mainWindow == nil || ctx.Err() != nil {
+					return nil, context.Canceled
+				}
+				return desktop.Dialog.OpenFile().SetTitle("添加文件夹").CanChooseFiles(false).CanChooseDirectories(true).
+					AttachToWindow(mainWindow).PromptForMultipleSelection()
+			},
+			ReadClipboardFiles: func() []string {
+				return desktopintegration.ReadClipboardFiles(mainWindow)
+			},
+			SaveFile: func(ctx context.Context, title, filename, displayName, pattern string) (string, error) {
+				if mainWindow == nil || ctx.Err() != nil {
+					return "", context.Canceled
+				}
+				return desktop.Dialog.SaveFileWithOptions(&application.SaveFileDialogOptions{
+					Title:    title,
+					Filename: filename,
+					Filters:  []application.FileFilter{{DisplayName: displayName, Pattern: pattern}},
+					Window:   mainWindow,
+				}).PromptForSingleSelection()
+			},
 		})),
 		application.NewService(articleAIAPI),
 		application.NewService(articlesummary.New(toolStore, aiConfig, readerService)),

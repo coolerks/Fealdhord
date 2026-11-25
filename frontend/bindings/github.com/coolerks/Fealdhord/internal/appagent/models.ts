@@ -78,6 +78,14 @@ export interface PendingAction {
     "conversationId"?: string;
 }
 
+export interface PendingPlan {
+    "id": string;
+    "conversationId": string;
+    "title": string;
+    "summary"?: string;
+    "steps": string[] | null;
+}
+
 export interface PendingQuestion {
     "id": string;
     "conversationId": string;

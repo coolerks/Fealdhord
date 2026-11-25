@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/coolerks/Fealdhord/internal/agentrun"
 )
 
 type ConfirmPlanInput struct {
@@ -39,14 +41,9 @@ type planWait struct {
 	reply chan planReply
 }
 
-type planApprovedCallbackKey struct{}
-
 // WithPlanApprovedCallback attaches a callback fired when the user approves a ConfirmPlan call.
 func WithPlanApprovedCallback(ctx context.Context, fn func()) context.Context {
-	if fn == nil {
-		return ctx
-	}
-	return context.WithValue(ctx, planApprovedCallbackKey{}, fn)
+	return agentrun.WithPlanApprovedCallback(ctx, fn)
 }
 
 func (r *Registry) PendingPlans() []PendingPlan {
@@ -125,9 +122,7 @@ func (r *Registry) confirmPlan(ctx context.Context, conversationID string, input
 		}
 		switch response.decision {
 		case "approve":
-			if fn, ok := ctx.Value(planApprovedCallbackKey{}).(func()); ok && fn != nil {
-				fn()
-			}
+			agentrun.NotifyPlanApproved(ctx)
 			return ConfirmPlanOutput{Approved: true}, nil
 		case "revise":
 			return ConfirmPlanOutput{Approved: false, Feedback: response.feedback}, nil

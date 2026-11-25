@@ -66,12 +66,20 @@ export function PendingActions(): $CancellablePromise<$models.PendingAction[] | 
     return $Call.ByID(4076113139);
 }
 
+export function PendingPlans(): $CancellablePromise<$models.PendingPlan[] | null> {
+    return $Call.ByID(933065944);
+}
+
 export function PendingQuestions(): $CancellablePromise<$models.PendingQuestion[] | null> {
     return $Call.ByID(3521160645);
 }
 
 export function RecentAudit(): $CancellablePromise<$models.AuditEntry[] | null> {
     return $Call.ByID(3140995925);
+}
+
+export function ResolvePlan(id: string, decision: string, feedback: string): $CancellablePromise<boolean> {
+    return $Call.ByID(385331160, id, decision, feedback);
 }
 
 export function RotateGrantToken(name: string): $CancellablePromise<string> {

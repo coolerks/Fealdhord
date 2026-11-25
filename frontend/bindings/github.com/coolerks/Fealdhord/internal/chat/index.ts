@@ -8,17 +8,22 @@ export {
 
 export type {
     ArchivedPage,
+    AttachmentCandidate,
     ContextPin,
     ContextStatus,
     Conversation,
     Group,
     Message,
+    MessageAttachment,
     ReplyDetails,
+    ReplySteer,
     ReplyToolStep,
     ReplyWork,
     ReplyWorkPosition,
     Scope,
+    SendAttachment,
     SendInput,
+    SteerInput,
     ToolActivity,
     UpdateEvent
 } from "./models.js";

@@ -51,6 +51,7 @@ export interface Preferences {
     "chat_model_id": string;
     "chat_approval_mode": string;
     "chat_approval_presentation": string;
+    "chat_busy_send_mode": string;
     "chat_max_retries": number;
     "reader_outline": string;
     "reader_translation_display": string;

@@ -35,9 +35,16 @@ type ReplyWork struct {
 	ReasoningTruncated bool                `json:"reasoningTruncated,omitempty"`
 	Tools              []ReplyToolStep     `json:"tools,omitempty"`
 	Positions          []ReplyWorkPosition `json:"positions,omitempty"`
+	Steers             []ReplySteer        `json:"steers,omitempty"`
 	RetryAttempt       int                 `json:"retryAttempt,omitempty"`
 	RetryMax           int                 `json:"retryMax,omitempty"`
 	RetryCount         int                 `json:"retryCount,omitempty"`
+}
+
+type ReplySteer struct {
+	Text   string `json:"text"`
+	Offset int    `json:"offset"`
+	At     int64  `json:"at"`
 }
 
 // All string offsets use UTF-16 code units to match the frontend's source text.
@@ -69,6 +76,7 @@ type replyWork struct {
 	textOffset        int
 	lastText          time.Time
 	positions         []ReplyWorkPosition
+	steers            []ReplySteer
 	activity          string
 	retryAttempt      int
 	retryMax          int
@@ -92,6 +100,7 @@ type replyWorkCheckpoint struct {
 	textOffset        int
 	lastText          time.Time
 	positions         []ReplyWorkPosition
+	steers            []ReplySteer
 	activity          string
 }
 
@@ -113,6 +122,7 @@ func (w *replyWork) checkpoint() replyWorkCheckpoint {
 		textOffset:        w.textOffset,
 		lastText:          w.lastText,
 		positions:         slices.Clone(w.positions),
+		steers:            slices.Clone(w.steers),
 		activity:          w.activity,
 	}
 }
@@ -136,7 +146,17 @@ func (w *replyWork) restore(cp replyWorkCheckpoint) {
 	w.textOffset = cp.textOffset
 	w.lastText = cp.lastText
 	w.positions = slices.Clone(cp.positions)
+	w.steers = slices.Clone(cp.steers)
 	w.activity = cp.activity
+}
+
+func (w *replyWork) addSteer(text string, now time.Time) {
+	w.lastActivity = now
+	w.steers = append(w.steers, ReplySteer{
+		Text:   text,
+		Offset: w.textOffset,
+		At:     now.UnixMilli(),
+	})
 }
 
 func (w *replyWork) setRetry(attempt, maxRetries int) {
@@ -247,7 +267,7 @@ func (w *replyWork) observe(event ai.ModelEvent, now time.Time) {
 }
 
 func (w *replyWork) snapshot(started, ended time.Time, terminalStatus string) *ReplyWork {
-	if w.lastActivity.IsZero() && w.retryCount == 0 && (terminalStatus != "running" || w.retryAttempt == 0) {
+	if w.lastActivity.IsZero() && len(w.steers) == 0 && w.retryCount == 0 && (terminalStatus != "running" || w.retryAttempt == 0) {
 		return nil
 	}
 	until := ended
@@ -290,6 +310,7 @@ func (w *replyWork) snapshot(started, ended time.Time, terminalStatus string) *R
 		ReasoningObserved: w.reasoningObserved, ReasoningSummary: w.summary.text.String(), ReasoningText: w.thinking.text.String(),
 		ReasoningTruncated: w.summary.truncated || w.thinking.truncated,
 		Positions:          positions,
+		Steers:             slices.Clone(w.steers),
 		RetryAttempt:       retryAttempt,
 		RetryMax:           retryMax,
 		RetryCount:         w.retryCount,

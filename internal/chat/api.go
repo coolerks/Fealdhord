@@ -6,17 +6,98 @@ import (
 	"github.com/coolerks/Fealdhord/internal/aiconfig"
 )
 
+type DesktopHooks struct {
+	PickFiles          func(context.Context) ([]string, error)
+	PickFolders        func(context.Context) ([]string, error)
+	ReadClipboardFiles func() []string
+	SaveFile           func(ctx context.Context, title, filename, displayName, pattern string) (string, error)
+}
+
 type API struct {
 	service     *Service
 	pickFolders func(context.Context) ([]string, error)
+	hooks       DesktopHooks
 }
 
 func NewAPI(service *Service, pickFolders ...func(context.Context) ([]string, error)) *API {
 	api := &API{service: service}
 	if len(pickFolders) != 0 {
 		api.pickFolders = pickFolders[0]
+		api.hooks.PickFolders = pickFolders[0]
 	}
 	return api
+}
+
+func NewAPIWithHooks(service *Service, hooks DesktopHooks) *API {
+	api := &API{service: service, hooks: hooks, pickFolders: hooks.PickFolders}
+	return api
+}
+
+func (a *API) PickAttachments(ctx context.Context, kind string) ([]AttachmentCandidate, error) {
+	var paths []string
+	var err error
+	switch kind {
+	case "files":
+		if a.hooks.PickFiles == nil {
+			return nil, modelError("Unavailable")
+		}
+		paths, err = a.hooks.PickFiles(ctx)
+	case "folders":
+		if a.hooks.PickFolders == nil {
+			return nil, modelError("Unavailable")
+		}
+		paths, err = a.hooks.PickFolders(ctx)
+	default:
+		return nil, modelError("ValidationError")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return inspectPaths(paths), nil
+}
+
+func (a *API) InspectClipboardFiles() []AttachmentCandidate {
+	if a.hooks.ReadClipboardFiles == nil {
+		return nil
+	}
+	return inspectPaths(a.hooks.ReadClipboardFiles())
+}
+
+func (a *API) SaveMermaidImage(ctx context.Context, defaultName, format, data string) (bool, error) {
+	if a.hooks.SaveFile == nil {
+		return false, modelError("Unavailable")
+	}
+	if format != "svg" && format != "png" {
+		return false, modelError("ValidationError")
+	}
+	title := "保存 Mermaid 图片"
+	displayName := "SVG 矢量图"
+	pattern := "*.svg"
+	if format == "png" {
+		displayName = "PNG 图片"
+		pattern = "*.png"
+	}
+	if defaultName == "" {
+		defaultName = "diagram." + format
+	}
+	path, err := a.hooks.SaveFile(ctx, title, defaultName, displayName, pattern)
+	if err != nil {
+		return false, err
+	}
+	if path == "" {
+		return false, nil
+	}
+	if err := saveExportFile(path, format, data); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (a *API) Steer(ctx context.Context, input SteerInput) error {
+	if a.service == nil {
+		return modelError("StorageError")
+	}
+	return a.service.Steer(ctx, input)
 }
 
 func (a *API) PickGroupFolders(ctx context.Context) ([]string, error) {

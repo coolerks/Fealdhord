@@ -10,6 +10,17 @@ export interface ArchivedPage {
     "hasMore": boolean;
 }
 
+export interface AttachmentCandidate {
+    /**
+     * "image" | "file" | "folder"
+     */
+    "kind": string;
+    "name": string;
+    "path": string;
+    "mimeType"?: string;
+    "preview"?: string;
+}
+
 export interface ContextPin {
     "id": string;
     "title": string;
@@ -47,8 +58,21 @@ export interface Message {
     "status": string;
     "errorCode": string;
     "modelName": string;
+    "createdAt": number;
+    "attachments"?: MessageAttachment[] | null;
     "details"?: ReplyDetails | null;
     "tools"?: ToolActivity[] | null;
+}
+
+export interface MessageAttachment {
+    /**
+     * "image" | "file" | "folder"
+     */
+    "kind": string;
+    "name": string;
+    "path"?: string;
+    "mimeType"?: string;
+    "preview"?: string;
 }
 
 export interface ReplyDetails {
@@ -61,6 +85,12 @@ export interface ReplyDetails {
     "firstTokenMs"?: number | null;
     "outputTokensPerSecond"?: number | null;
     "work"?: ReplyWork | null;
+}
+
+export interface ReplySteer {
+    "text": string;
+    "offset": number;
+    "at": number;
 }
 
 export interface ReplyToolStep {
@@ -80,6 +110,7 @@ export interface ReplyWork {
     "reasoningTruncated"?: boolean;
     "tools"?: ReplyToolStep[] | null;
     "positions"?: ReplyWorkPosition[] | null;
+    "steers"?: ReplySteer[] | null;
     "retryAttempt"?: number;
     "retryMax"?: number;
     "retryCount"?: number;
@@ -101,6 +132,21 @@ export interface Scope {
     "id": string;
 }
 
+export interface SendAttachment {
+    /**
+     * "image" | "file" | "folder"
+     */
+    "kind": string;
+    "name": string;
+    "path"?: string;
+    "mimeType"?: string;
+
+    /**
+     * base64 without data: prefix
+     */
+    "data"?: string;
+}
+
 export interface SendInput {
     "skills"?: string[] | null;
     "disableTools"?: boolean;
@@ -113,6 +159,14 @@ export interface SendInput {
     "selection": string;
     "articleIds": string[] | null;
     "allowArticleReads": boolean;
+    "attachments"?: SendAttachment[] | null;
+    "planMode"?: boolean;
+}
+
+export interface SteerInput {
+    "conversationId": string;
+    "text": string;
+    "attachments"?: SendAttachment[] | null;
 }
 
 export interface ToolActivity {

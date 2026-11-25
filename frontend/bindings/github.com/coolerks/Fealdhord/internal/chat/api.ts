@@ -57,6 +57,10 @@ export function Groups(): $CancellablePromise<$models.Group[] | null> {
     return $Call.ByID(709141663);
 }
 
+export function InspectClipboardFiles(): $CancellablePromise<$models.AttachmentCandidate[] | null> {
+    return $Call.ByID(3951057968);
+}
+
 export function List(scope: $models.Scope): $CancellablePromise<$models.Conversation[] | null> {
     return $Call.ByID(1215161111, scope);
 }
@@ -67,6 +71,10 @@ export function Messages(id: string): $CancellablePromise<$models.Message[] | nu
 
 export function Model(): $CancellablePromise<aiconfig$0.Model> {
     return $Call.ByID(686777260);
+}
+
+export function PickAttachments(kind: string): $CancellablePromise<$models.AttachmentCandidate[] | null> {
+    return $Call.ByID(2522817796, kind);
 }
 
 export function PickGroupFolders(): $CancellablePromise<string[] | null> {
@@ -85,6 +93,10 @@ export function SaveContext(id: string, summary: string, restore: boolean): $Can
     return $Call.ByID(700997893, id, summary, restore);
 }
 
+export function SaveMermaidImage(defaultName: string, format: string, data: string): $CancellablePromise<boolean> {
+    return $Call.ByID(4079209426, defaultName, format, data);
+}
+
 export function Send(input: $models.SendInput): $CancellablePromise<void> {
     return $Call.ByID(1532627401, input);
 }
@@ -99,4 +111,8 @@ export function SetAutomaticCompaction(id: string, enabled: boolean): $Cancellab
 
 export function SetPinned(id: string, pinned: boolean): $CancellablePromise<$models.Conversation> {
     return $Call.ByID(1819977119, id, pinned);
+}
+
+export function Steer(input: $models.SteerInput): $CancellablePromise<void> {
+    return $Call.ByID(2231617172, input);
 }
