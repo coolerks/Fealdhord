@@ -54,8 +54,10 @@ type ToolCall struct {
 }
 
 type ContentBlock struct {
-	Type string
-	Text string
+	Type     string
+	Text     string
+	MIMEType string
+	Data     string
 }
 
 type Usage struct {

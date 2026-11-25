@@ -48,6 +48,10 @@ func EstimateRequest(request ModelRequest) int {
 	for _, message := range request.Messages {
 		count += 8
 		for _, content := range message.Content {
+			if content.Type == "image" {
+				count += 1024
+				continue
+			}
 			count += EstimateTokens(content.Text)
 		}
 		for _, call := range message.ToolCalls {

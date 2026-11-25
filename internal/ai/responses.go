@@ -86,7 +86,23 @@ func (r *Responses) request(ctx context.Context, req *ModelRequest, stream bool)
 				{Type: "reasoning_text", Text: *msg.ReasoningContent},
 			}})
 		}
-		if msg.Content != "" || len(msg.ToolCalls) == 0 {
+		if len(msg.Parts) > 0 {
+			parts := make([]map[string]any, 0, len(msg.Parts))
+			for _, block := range msg.Parts {
+				switch block.Type {
+				case "text":
+					if block.Text != "" {
+						parts = append(parts, map[string]any{"type": "input_text", "text": block.Text})
+					}
+				case "image":
+					parts = append(parts, map[string]any{
+						"type":      "input_image",
+						"image_url": "data:" + block.MIMEType + ";base64," + block.Data,
+					})
+				}
+			}
+			input = append(input, responseItem{Role: msg.Role, Content: parts})
+		} else if msg.Content != "" || len(msg.ToolCalls) == 0 {
 			input = append(input, responseItem{Role: msg.Role, Content: msg.Content})
 		}
 		for _, call := range msg.ToolCalls {

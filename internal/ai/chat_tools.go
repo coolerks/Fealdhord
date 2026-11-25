@@ -101,13 +101,24 @@ func encodeChatHistory(payload *chatRequest, req *ModelRequest) error {
 		}
 		wire := chatMessage{Role: message.Role, ToolCallID: message.ToolCallID}
 		var content strings.Builder
+		hasImage := false
 		for _, block := range message.Content {
-			if block.Type != "text" {
+			switch block.Type {
+			case "text":
+				content.WriteString(block.Text)
+			case "image":
+				if message.Role != "user" || !strings.HasPrefix(block.MIMEType, "image/") || strings.TrimSpace(block.Data) == "" {
+					return invalid
+				}
+				hasImage = true
+			default:
 				return &ModelError{Code: "CapabilityError"}
 			}
-			content.WriteString(block.Text)
 		}
 		wire.Content = content.String()
+		if hasImage {
+			wire.Parts = append([]ContentBlock(nil), message.Content...)
+		}
 		if message.Role != "assistant" && len(message.ToolCalls) > 0 ||
 			message.Role != "tool" && message.ToolCallID != "" {
 			return invalid
@@ -166,6 +177,10 @@ func deepSeekHistory(messages []chatMessage) []chatMessage {
 		history.WriteString(message.Role + ": " + message.Content + "\n\n")
 	}
 	messages[end].Content = "先前可见对话（仅供参考）：\n" + history.String() + "本轮用户消息：\n" + messages[end].Content
+	if len(messages[end].Parts) > 0 {
+		prefix := ContentBlock{Type: "text", Text: "先前可见对话（仅供参考）：\n" + history.String() + "本轮用户消息：\n"}
+		messages[end].Parts = append([]ContentBlock{prefix}, messages[end].Parts...)
+	}
 	return append(messages[:start], messages[end:]...)
 }
 

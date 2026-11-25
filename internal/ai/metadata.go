@@ -30,6 +30,10 @@ type Metadata struct {
 	ReferencePrice  bool     `json:"referencePrice,omitempty"`
 }
 
+func (metadata Metadata) SupportsImage() bool {
+	return slices.Contains(metadata.Modalities, "image")
+}
+
 type CatalogIndex struct {
 	directory string
 	mu        sync.Mutex

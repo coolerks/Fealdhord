@@ -22,15 +22,22 @@ func NewMessages(baseURL, apiKey string, client *http.Client) (*Messages, error)
 	return &Messages{transport}, nil
 }
 
+type messageImageSource struct {
+	Type      string `json:"type"`
+	MediaType string `json:"media_type"`
+	Data      string `json:"data"`
+}
+
 type messageBlock struct {
-	Type      string          `json:"type"`
-	Text      *string         `json:"text,omitempty"`
-	Thinking  string          `json:"thinking,omitempty"`
-	ID        string          `json:"id,omitempty"`
-	Name      string          `json:"name,omitempty"`
-	Input     json.RawMessage `json:"input,omitempty"`
-	ToolUseID string          `json:"tool_use_id,omitempty"`
-	Content   *string         `json:"content,omitempty"`
+	Type      string              `json:"type"`
+	Text      *string             `json:"text,omitempty"`
+	Source    *messageImageSource `json:"source,omitempty"`
+	Thinking  string              `json:"thinking,omitempty"`
+	ID        string              `json:"id,omitempty"`
+	Name      string              `json:"name,omitempty"`
+	Input     json.RawMessage     `json:"input,omitempty"`
+	ToolUseID string              `json:"tool_use_id,omitempty"`
+	Content   *string             `json:"content,omitempty"`
 }
 
 type messagesTurn struct {
@@ -73,7 +80,22 @@ func messagesPayload(req *ModelRequest, stream bool) (map[string]any, error) {
 			role = "user"
 			blocks = append(blocks, messageBlock{Type: "tool_result", ToolUseID: msg.ToolCallID, Content: &msg.Content})
 		} else {
-			if msg.Content != "" || len(msg.ToolCalls) == 0 {
+			if len(msg.Parts) > 0 {
+				for _, block := range msg.Parts {
+					switch block.Type {
+					case "text":
+						if block.Text != "" {
+							text := block.Text
+							blocks = append(blocks, messageBlock{Type: "text", Text: &text})
+						}
+					case "image":
+						blocks = append(blocks, messageBlock{
+							Type:   "image",
+							Source: &messageImageSource{Type: "base64", MediaType: block.MIMEType, Data: block.Data},
+						})
+					}
+				}
+			} else if msg.Content != "" || len(msg.ToolCalls) == 0 {
 				blocks = append(blocks, messageBlock{Type: "text", Text: &msg.Content})
 			}
 			for _, call := range msg.ToolCalls {

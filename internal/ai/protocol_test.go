@@ -228,3 +228,81 @@ func TestProtocolToolRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+func TestMultimodalImageEncodingAcrossProtocols(t *testing.T) {
+	if (Metadata{Modalities: []string{"text"}}).SupportsImage() {
+		t.Fatal("text-only metadata should not support image")
+	}
+	if !(Metadata{Modalities: []string{"text", "image"}}).SupportsImage() {
+		t.Fatal("image modality metadata should support image")
+	}
+
+	req := &ModelRequest{
+		Model: "vision-model",
+		Messages: []Message{{
+			Role: "user",
+			Content: []ContentBlock{
+				{Type: "text", Text: "描述这张图"},
+				{Type: "image", MIMEType: "image/png", Data: "iVBORw0KGgo="},
+			},
+		}},
+	}
+	if got := EstimateRequest(*req); got < 1024 {
+		t.Fatalf("expected image token estimate >= 1024, got %d", got)
+	}
+
+	tests := []struct {
+		name     string
+		newModel func(string, string, *http.Client) (Model, error)
+		reply    string
+		want     []string
+	}{
+		{
+			name:     "chat_completions",
+			newModel: func(base, key string, client *http.Client) (Model, error) { return NewChatCompletions(base, key, client) },
+			reply:    `{"choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`,
+			want:     []string{`"type":"image_url"`, `"url":"data:image/png;base64,iVBORw0KGgo="`, `"text":"描述这张图"`},
+		},
+		{
+			name:     "responses",
+			newModel: func(base, key string, client *http.Client) (Model, error) { return NewResponses(base, key, client) },
+			reply:    `{"status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"ok"}]}]}`,
+			want:     []string{`"type":"input_image"`, `"image_url":"data:image/png;base64,iVBORw0KGgo="`, `"type":"input_text"`},
+		},
+		{
+			name:     "messages",
+			newModel: func(base, key string, client *http.Client) (Model, error) { return NewMessages(base, key, client) },
+			reply:    `{"type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn"}`,
+			want:     []string{`"type":"image"`, `"media_type":"image/png"`, `"data":"iVBORw0KGgo="`},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var captured string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var raw json.RawMessage
+				if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+					t.Error(err)
+					return
+				}
+				captured = string(raw)
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprint(w, tc.reply)
+			}))
+			defer server.Close()
+			model, err := tc.newModel(server.URL, "key", server.Client())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := model.Generate(context.Background(), req); err != nil {
+				t.Fatal(err)
+			}
+			for _, part := range tc.want {
+				if !strings.Contains(captured, part) {
+					t.Fatalf("protocol %s payload missing %s: %s", tc.name, part, captured)
+				}
+			}
+		})
+	}
+}

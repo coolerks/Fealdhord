@@ -72,11 +72,47 @@ func newModelClient(baseURL, apiKey, path string, client *http.Client) (*modelCl
 type chatMessage struct {
 	Role             string          `json:"role"`
 	Content          string          `json:"content"`
+	Parts            []ContentBlock  `json:"-"`
 	Refusal          string          `json:"refusal,omitempty"`
 	ToolCalls        []chatToolCall  `json:"tool_calls,omitempty"`
 	ToolCallID       string          `json:"tool_call_id,omitempty"`
 	ReasoningContent *string         `json:"reasoning_content,omitempty"`
 	ReasoningText    json.RawMessage `json:"reasoning,omitempty"`
+}
+
+func (m chatMessage) MarshalJSON() ([]byte, error) {
+	if len(m.Parts) == 0 {
+		type plain chatMessage
+		return json.Marshal(plain(m))
+	}
+	parts := make([]map[string]any, 0, len(m.Parts))
+	for _, block := range m.Parts {
+		switch block.Type {
+		case "text":
+			if block.Text != "" {
+				parts = append(parts, map[string]any{"type": "text", "text": block.Text})
+			}
+		case "image":
+			parts = append(parts, map[string]any{
+				"type":      "image_url",
+				"image_url": map[string]string{"url": "data:" + block.MIMEType + ";base64," + block.Data},
+			})
+		}
+	}
+	payload := map[string]any{"role": m.Role, "content": parts}
+	if m.Refusal != "" {
+		payload["refusal"] = m.Refusal
+	}
+	if len(m.ToolCalls) > 0 {
+		payload["tool_calls"] = m.ToolCalls
+	}
+	if m.ToolCallID != "" {
+		payload["tool_call_id"] = m.ToolCallID
+	}
+	if m.ReasoningContent != nil {
+		payload["reasoning_content"] = m.ReasoningContent
+	}
+	return json.Marshal(payload)
 }
 
 type chatRequest struct {
