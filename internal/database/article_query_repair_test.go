@@ -47,18 +47,18 @@ func TestUpgradeRepairsArticleQueryBirth(t *testing.T) {
 				source, "订阅", "https://example.test/feed", "https://example.test/feed"); err != nil {
 				t.Fatal(err)
 			}
-			first, err := old.UpsertArticle(ctx, ArticleInput{FeedID: source, GUID: "first", Title: "原有文章", FetchedAt: 1})
+			const first, second = "first", "second"
+			_, err = old.db.ExecContext(ctx, `INSERT INTO articles
+				(id,feed_id,guid,title,fetched_at,sort_at,content_hash,dedup_key)
+				VALUES (?,?,'first','原有文章',1,1,'hash-first','guid:first'),
+				       (?,?,'second','另一篇',2,2,'hash-second','guid:second')`, first, source, second, source)
 			if err != nil {
 				t.Fatal(err)
 			}
-			second, err := old.UpsertArticle(ctx, ArticleInput{FeedID: source, GUID: "second", Title: "另一篇", FetchedAt: 2})
-			if err != nil {
+			if _, err = old.db.ExecContext(ctx, `INSERT INTO reading_states (article_id,is_read,updated_at) VALUES (?,1,1)`, first); err != nil {
 				t.Fatal(err)
 			}
-			if err = old.SetRead(ctx, first, true); err != nil {
-				t.Fatal(err)
-			}
-			if err = old.SetFavorite(ctx, first, true); err != nil {
+			if _, err = old.db.ExecContext(ctx, `INSERT INTO favorites (article_id,created_at) VALUES (?,1)`, first); err != nil {
 				t.Fatal(err)
 			}
 			var originalBirth int64

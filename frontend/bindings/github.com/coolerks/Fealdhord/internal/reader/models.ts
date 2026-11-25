@@ -11,6 +11,7 @@ export interface Detail {
     "text": string;
     "mode": string;
     "has_cached": boolean;
+    "has_full_feed_body"?: boolean;
     "has_original": boolean;
     "source_version"?: string;
 }

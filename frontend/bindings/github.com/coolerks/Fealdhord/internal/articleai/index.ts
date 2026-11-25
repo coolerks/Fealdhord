@@ -9,5 +9,6 @@ export {
 export type {
     Request,
     Result,
-    Settings
+    Settings,
+    SummarySettings
 } from "./models.js";

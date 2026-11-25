@@ -10,7 +10,11 @@ UPDATE article_ai_settings SET
  minimum_importance=sqlc.arg(minimum_importance),minimum_relevance=sqlc.arg(minimum_relevance),
  auto_translate=sqlc.arg(auto_translate),auto_translate_scope=sqlc.arg(auto_translate_scope),
  translate_on_open=sqlc.arg(translate_on_open),translation_target_lang=sqlc.arg(translation_target_lang),
- translation_prompt=sqlc.arg(translation_prompt),revision=revision+1
+ translation_prompt=sqlc.arg(translation_prompt),
+ summarize_on_open=COALESCE(sqlc.narg(summarize_on_open),summarize_on_open),
+ summary_han_limit=COALESCE(sqlc.narg(summary_han_limit),summary_han_limit),
+ summary_english_limit=COALESCE(sqlc.narg(summary_english_limit),summary_english_limit),
+ revision=revision+1
 WHERE id=1 AND revision=sqlc.arg(revision) RETURNING *;
 
 -- name: ArticleAIInput :one

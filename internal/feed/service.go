@@ -257,7 +257,7 @@ func FetchDocument(ctx context.Context, fetcher netpolicy.Fetcher, raw string, o
 func ArticleInputs(document *Document) []database.ArticleInput {
 	items := make([]database.ArticleInput, 0, len(document.Items))
 	for _, item := range document.Items {
-		items = append(items, database.ArticleInput{GUID: item.GUID, Title: item.Title, URL: item.URL, Author: item.Author, Summary: item.Summary, HTML: item.HTML, Text: item.Text, PublishedAt: item.PublishedAt, UpdatedAt: item.UpdatedAt})
+		items = append(items, database.ArticleInput{GUID: item.GUID, Title: item.Title, URL: item.URL, Author: item.Author, Summary: item.Summary, HTML: item.HTML, Text: item.Text, FeedContentExplicit: item.ExplicitContent, PublishedAt: item.PublishedAt, UpdatedAt: item.UpdatedAt})
 	}
 	return items
 }

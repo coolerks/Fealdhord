@@ -118,6 +118,8 @@ export function ArticleAISettings() {
   }
 
   const busy = save.isPending || testing
+  const summary = value.summary ?? { onOpen: false, hanLimit: 600, englishLimit: 350 }
+  const validSummaryThresholds = [summary.hanLimit, summary.englishLimit].every(limit => Number.isSafeInteger(limit) && limit > 0)
   const enabled = task === 'classification' ? settings.data?.classification : settings.data?.featured
   const showRules = value.classification || value.featured || value.autoTranslate || value.translateOnOpen || Boolean(draft)
   const targetLangOptions = defaultTranslationLanguages.map(item => ({
@@ -127,13 +129,13 @@ export function ArticleAISettings() {
   }))
 
   return <div className="space-y-6">
-    <form className="space-y-6" onSubmit={event => { event.preventDefault(); if (!busy && draft) save.mutate(draft) }}>
+    <form className="space-y-6" onSubmit={event => { event.preventDefault(); if (!busy && draft && validSummaryThresholds) save.mutate(draft) }}>
       <SettingSection
         title="自动评估"
         actions={draft && (
           <>
             <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => setDraft(undefined)}>放弃更改</Button>
-            <Button type="submit" size="sm" disabled={busy}>保存文章 AI 设置</Button>
+            <Button type="submit" size="sm" disabled={busy || !validSummaryThresholds}>保存文章 AI 设置</Button>
           </>
         )}
       >
@@ -148,6 +150,29 @@ export function ArticleAISettings() {
             <Switch id="automatic-featured" disabled={busy} checked={value.featured}
               onCheckedChange={featured => setDraft({ ...value, featured })} />
           </SettingRow>
+        </SettingCard>
+      </SettingSection>
+
+      <SettingSection title="文章摘要">
+        <SettingCard>
+          <SettingRow>
+            <FieldLabel htmlFor="summary-on-open" className="font-normal">打开文章时自动生成摘要</FieldLabel>
+            <Switch id="summary-on-open" disabled={busy} checked={summary.onOpen}
+              onCheckedChange={onOpen => setDraft({ ...value, summary: { ...summary, onOpen } })} />
+          </SettingRow>
+          {([
+            { key: 'hanLimit', label: '中文短文阈值（字）' },
+            { key: 'englishLimit', label: '英文短文阈值（词）' },
+          ] as const).map(({ key, label }) => (
+            <SettingRow key={key}>
+              <FieldLabel htmlFor={`summary-${key}`} className="font-normal">{label}</FieldLabel>
+              <Input id={`summary-${key}`} type="number" min={1} max={Number.MAX_SAFE_INTEGER} step={1}
+                className="w-28" disabled={busy} required
+                aria-invalid={!Number.isSafeInteger(summary[key]) || summary[key] < 1 || undefined}
+                value={Number.isNaN(summary[key]) || summary[key] === 0 ? '' : summary[key]}
+                onChange={event => setDraft({ ...value, summary: { ...summary, [key]: event.target.valueAsNumber } })} />
+            </SettingRow>
+          ))}
         </SettingCard>
       </SettingSection>
 
@@ -267,7 +292,7 @@ export function ArticleAISettings() {
               <p className="min-w-0 flex-1 text-xs text-muted-foreground">
                 启用后会向已分配模型发送近期文章标题、摘要和部分正文。自动分类还会发送分类名称、描述及自定义提示词。
               </p>
-              <Button type="submit" size="sm" disabled={busy || !draft}>保存文章 AI 设置</Button>
+              <Button type="submit" size="sm" disabled={busy || !draft || !validSummaryThresholds}>保存文章 AI 设置</Button>
             </SettingRow>
           </SettingCard>
         </SettingSection>

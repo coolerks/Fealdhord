@@ -123,28 +123,29 @@ func (q *Queries) BlockAllMedia(ctx context.Context) error {
 }
 
 const createArticle = `-- name: CreateArticle :exec
-INSERT INTO articles(id,feed_id,guid,title,url,normalized_url,author,summary,content_html,content_text,cjk_terms,published_at,updated_at,fetched_at,sort_at,content_hash,dedup_key)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+INSERT INTO articles(id,feed_id,guid,title,url,normalized_url,author,summary,content_html,content_text,cjk_terms,published_at,updated_at,fetched_at,sort_at,content_hash,dedup_key,feed_content_explicit)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 `
 
 type CreateArticleParams struct {
-	ID            string         `json:"id"`
-	FeedID        string         `json:"feed_id"`
-	Guid          sql.NullString `json:"guid"`
-	Title         string         `json:"title"`
-	Url           string         `json:"url"`
-	NormalizedUrl sql.NullString `json:"normalized_url"`
-	Author        string         `json:"author"`
-	Summary       string         `json:"summary"`
-	ContentHtml   string         `json:"content_html"`
-	ContentText   string         `json:"content_text"`
-	CjkTerms      string         `json:"cjk_terms"`
-	PublishedAt   sql.NullInt64  `json:"published_at"`
-	UpdatedAt     sql.NullInt64  `json:"updated_at"`
-	FetchedAt     int64          `json:"fetched_at"`
-	SortAt        int64          `json:"sort_at"`
-	ContentHash   string         `json:"content_hash"`
-	DedupKey      string         `json:"dedup_key"`
+	ID                  string         `json:"id"`
+	FeedID              string         `json:"feed_id"`
+	Guid                sql.NullString `json:"guid"`
+	Title               string         `json:"title"`
+	Url                 string         `json:"url"`
+	NormalizedUrl       sql.NullString `json:"normalized_url"`
+	Author              string         `json:"author"`
+	Summary             string         `json:"summary"`
+	ContentHtml         string         `json:"content_html"`
+	ContentText         string         `json:"content_text"`
+	CjkTerms            string         `json:"cjk_terms"`
+	PublishedAt         sql.NullInt64  `json:"published_at"`
+	UpdatedAt           sql.NullInt64  `json:"updated_at"`
+	FetchedAt           int64          `json:"fetched_at"`
+	SortAt              int64          `json:"sort_at"`
+	ContentHash         string         `json:"content_hash"`
+	DedupKey            string         `json:"dedup_key"`
+	FeedContentExplicit int64          `json:"feed_content_explicit"`
 }
 
 func (q *Queries) CreateArticle(ctx context.Context, arg CreateArticleParams) error {
@@ -166,6 +167,7 @@ func (q *Queries) CreateArticle(ctx context.Context, arg CreateArticleParams) er
 		arg.SortAt,
 		arg.ContentHash,
 		arg.DedupKey,
+		arg.FeedContentExplicit,
 	)
 	return err
 }
@@ -298,7 +300,7 @@ func (q *Queries) FindIdentity(ctx context.Context, arg FindIdentityParams) (str
 }
 
 const getArticle = `-- name: GetArticle :one
-SELECT rowid, id, feed_id, guid, title, url, normalized_url, author, summary, content_html, content_text, cjk_terms, published_at, updated_at, fetched_at, sort_at, content_hash, dedup_key, revision FROM articles WHERE id=?
+SELECT rowid, id, feed_id, guid, title, url, normalized_url, author, summary, content_html, content_text, cjk_terms, published_at, updated_at, fetched_at, sort_at, content_hash, dedup_key, revision, feed_content_explicit FROM articles WHERE id=?
 `
 
 func (q *Queries) GetArticle(ctx context.Context, id string) (Article, error) {
@@ -324,6 +326,7 @@ func (q *Queries) GetArticle(ctx context.Context, id string) (Article, error) {
 		&i.ContentHash,
 		&i.DedupKey,
 		&i.Revision,
+		&i.FeedContentExplicit,
 	)
 	return i, err
 }
@@ -1352,23 +1355,24 @@ func (q *Queries) TouchImportedFeed(ctx context.Context, arg TouchImportedFeedPa
 }
 
 const updateArticle = `-- name: UpdateArticle :exec
-UPDATE articles SET guid=COALESCE(?,guid),title=?,url=?,normalized_url=COALESCE(?,normalized_url),author=?,summary=?,content_html=?,content_text=?,cjk_terms=?,published_at=COALESCE(?,published_at),updated_at=?,content_hash=?,revision=revision+1 WHERE id=?
+UPDATE articles SET guid=COALESCE(?,guid),title=?,url=?,normalized_url=COALESCE(?,normalized_url),author=?,summary=?,content_html=?,content_text=?,cjk_terms=?,published_at=COALESCE(?,published_at),updated_at=?,content_hash=?,feed_content_explicit=?,revision=revision+1 WHERE id=?
 `
 
 type UpdateArticleParams struct {
-	Guid          sql.NullString `json:"guid"`
-	Title         string         `json:"title"`
-	Url           string         `json:"url"`
-	NormalizedUrl sql.NullString `json:"normalized_url"`
-	Author        string         `json:"author"`
-	Summary       string         `json:"summary"`
-	ContentHtml   string         `json:"content_html"`
-	ContentText   string         `json:"content_text"`
-	CjkTerms      string         `json:"cjk_terms"`
-	PublishedAt   sql.NullInt64  `json:"published_at"`
-	UpdatedAt     sql.NullInt64  `json:"updated_at"`
-	ContentHash   string         `json:"content_hash"`
-	ID            string         `json:"id"`
+	Guid                sql.NullString `json:"guid"`
+	Title               string         `json:"title"`
+	Url                 string         `json:"url"`
+	NormalizedUrl       sql.NullString `json:"normalized_url"`
+	Author              string         `json:"author"`
+	Summary             string         `json:"summary"`
+	ContentHtml         string         `json:"content_html"`
+	ContentText         string         `json:"content_text"`
+	CjkTerms            string         `json:"cjk_terms"`
+	PublishedAt         sql.NullInt64  `json:"published_at"`
+	UpdatedAt           sql.NullInt64  `json:"updated_at"`
+	ContentHash         string         `json:"content_hash"`
+	FeedContentExplicit int64          `json:"feed_content_explicit"`
+	ID                  string         `json:"id"`
 }
 
 func (q *Queries) UpdateArticle(ctx context.Context, arg UpdateArticleParams) error {
@@ -1385,6 +1389,7 @@ func (q *Queries) UpdateArticle(ctx context.Context, arg UpdateArticleParams) er
 		arg.PublishedAt,
 		arg.UpdatedAt,
 		arg.ContentHash,
+		arg.FeedContentExplicit,
 		arg.ID,
 	)
 	return err

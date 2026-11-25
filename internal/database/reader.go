@@ -13,7 +13,7 @@ import (
 
 type ReaderArticle struct {
 	ID, URL, HTML, Text, Summary, Hash, FeedURL string
-	Archived                                    bool
+	Archived, ExplicitContent                   bool
 }
 type ReaderDocument struct {
 	HTML, Text, URL, Hash, Version, SourceVersion string
@@ -26,7 +26,7 @@ type ReaderResource struct {
 
 func (s *Store) ReaderArticle(ctx context.Context, id string) (ReaderArticle, error) {
 	var out ReaderArticle
-	err := s.db.QueryRowContext(ctx, `SELECT a.id,a.url,a.content_html,a.content_text,a.summary,a.content_hash,f.url,f.archived_at IS NOT NULL FROM articles a JOIN feeds f ON f.id=a.feed_id WHERE a.id=?`, id).Scan(&out.ID, &out.URL, &out.HTML, &out.Text, &out.Summary, &out.Hash, &out.FeedURL, &out.Archived)
+	err := s.db.QueryRowContext(ctx, `SELECT a.id,a.url,a.content_html,a.content_text,a.summary,a.content_hash,f.url,f.archived_at IS NOT NULL,a.feed_content_explicit FROM articles a JOIN feeds f ON f.id=a.feed_id WHERE a.id=?`, id).Scan(&out.ID, &out.URL, &out.HTML, &out.Text, &out.Summary, &out.Hash, &out.FeedURL, &out.Archived, &out.ExplicitContent)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = ErrNotFound
 	}

@@ -45,6 +45,11 @@ func TestAIRepairRestoresChatAndArticleEvaluationOnVersion21Database(t *testing.
 	// Reproduce the schema observed in the dev database, including the recorded old migrations.
 	_, err = old.ExecContext(ctx, `
 		DELETE FROM goose_db_version WHERE version_id>21;
+		DROP TABLE article_summaries;
+		ALTER TABLE articles DROP COLUMN feed_content_explicit;
+		ALTER TABLE article_ai_settings DROP COLUMN summary_english_limit;
+		ALTER TABLE article_ai_settings DROP COLUMN summary_han_limit;
+		ALTER TABLE article_ai_settings DROP COLUMN summarize_on_open;
 		DROP TABLE article_translations;
 		ALTER TABLE reader_contents DROP COLUMN source_version;
 		ALTER TABLE feeds DROP COLUMN auto_translate_mode;

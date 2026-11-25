@@ -119,6 +119,7 @@ type ArticleInput struct {
 	FeedID, GUID, Title, URL, Author, Summary, HTML, Text string
 	PublishedAt, UpdatedAt                                *int64
 	FetchedAt                                             int64
+	FeedContentExplicit                                   bool
 }
 
 func articleHash(input ArticleInput) string {
@@ -180,6 +181,10 @@ func upsertArticle(ctx context.Context, q *sqlc.Queries, input ArticleInput) (id
 				matchedGUID = true
 			}
 		}
+		var explicitContent int64
+		if input.FeedContentExplicit {
+			explicitContent = 1
+		}
 		if id == "" {
 			created = true
 			id = rand.Text()
@@ -187,7 +192,7 @@ func upsertArticle(ctx context.Context, q *sqlc.Queries, input ArticleInput) (id
 			if input.PublishedAt != nil {
 				sortAt = *input.PublishedAt
 			}
-			if err := q.CreateArticle(ctx, sqlc.CreateArticleParams{ID: id, FeedID: input.FeedID, Guid: nullString(input.GUID), Title: input.Title, Url: input.URL, NormalizedUrl: nullString(canonical), Author: input.Author, Summary: input.Summary, ContentHtml: input.HTML, ContentText: input.Text, CjkTerms: terms, PublishedAt: nullTime(input.PublishedAt), UpdatedAt: nullTime(input.UpdatedAt), FetchedAt: input.FetchedAt, SortAt: sortAt, ContentHash: hash, DedupKey: aliases[0].kind + ":" + aliases[0].value}); err != nil {
+			if err := q.CreateArticle(ctx, sqlc.CreateArticleParams{ID: id, FeedID: input.FeedID, Guid: nullString(input.GUID), Title: input.Title, Url: input.URL, NormalizedUrl: nullString(canonical), Author: input.Author, Summary: input.Summary, ContentHtml: input.HTML, ContentText: input.Text, CjkTerms: terms, PublishedAt: nullTime(input.PublishedAt), UpdatedAt: nullTime(input.UpdatedAt), FetchedAt: input.FetchedAt, SortAt: sortAt, ContentHash: hash, DedupKey: aliases[0].kind + ":" + aliases[0].value, FeedContentExplicit: explicitContent}); err != nil {
 				return err
 			}
 		} else {
@@ -202,7 +207,7 @@ func upsertArticle(ctx context.Context, q *sqlc.Queries, input ArticleInput) (id
 			if actualURL == "" {
 				actualURL = old.Url
 			}
-			if err := q.UpdateArticle(ctx, sqlc.UpdateArticleParams{ID: id, Guid: nullString(input.GUID), Title: input.Title, Url: actualURL, NormalizedUrl: nullString(canonical), Author: input.Author, Summary: input.Summary, ContentHtml: input.HTML, ContentText: input.Text, CjkTerms: terms, PublishedAt: nullTime(input.PublishedAt), UpdatedAt: nullTime(input.UpdatedAt), ContentHash: hash}); err != nil {
+			if err := q.UpdateArticle(ctx, sqlc.UpdateArticleParams{ID: id, Guid: nullString(input.GUID), Title: input.Title, Url: actualURL, NormalizedUrl: nullString(canonical), Author: input.Author, Summary: input.Summary, ContentHtml: input.HTML, ContentText: input.Text, CjkTerms: terms, PublishedAt: nullTime(input.PublishedAt), UpdatedAt: nullTime(input.UpdatedAt), ContentHash: hash, FeedContentExplicit: explicitContent}); err != nil {
 				return err
 			}
 		}

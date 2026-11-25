@@ -53,7 +53,7 @@
 | REQ-045 | 四十五 | 精选 | [规格](../04-specs/smart-views.md) | VIEW-01 | Phase 4／6 |
 | REQ-046 | 四十六 | Prompt 测试 | [规格](../04-specs/ai-classification.md) | AI-03 | Phase 6 |
 | REQ-047 | 四十七 | 搜索 | [规格](../04-specs/search.md) | SEARCH-01 | Phase 4 |
-| REQ-048 | 四十八 | Reader | [规格](../04-specs/reader.md) | READER-01 | Phase 4 |
+| REQ-048 | 四十八 | Reader | [规格](../04-specs/reader.md) · [文章摘要](../04-specs/reader.md#文章摘要) | READER-01、AS-01 至 AS-05 | Phase 4／文章摘要 |
 | REQ-049 | 四十九 | 阅读体验 | [规格](../04-specs/reader.md) | READER-03 | Phase 4 |
 | REQ-050 | 五十 | 主界面 | [规格](../02-design/app-shell.md) | SHELL-01 | Phase 1 |
 | REQ-051 | 五十一 | Sidebar 毛玻璃效果 | [规格](../02-design/sidebar.md) | SIDEBAR-01 | Phase 1／4 |

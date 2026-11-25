@@ -11,10 +11,10 @@ SELECT * FROM feeds WHERE archived_at IS NULL ORDER BY sort_position,title,id;
 -- name: FindIdentity :one
 SELECT article_id FROM article_identities WHERE feed_id=? AND kind=? AND value=?;
 -- name: CreateArticle :exec
-INSERT INTO articles(id,feed_id,guid,title,url,normalized_url,author,summary,content_html,content_text,cjk_terms,published_at,updated_at,fetched_at,sort_at,content_hash,dedup_key)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);
+INSERT INTO articles(id,feed_id,guid,title,url,normalized_url,author,summary,content_html,content_text,cjk_terms,published_at,updated_at,fetched_at,sort_at,content_hash,dedup_key,feed_content_explicit)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);
 -- name: UpdateArticle :exec
-UPDATE articles SET guid=COALESCE(?,guid),title=?,url=?,normalized_url=COALESCE(?,normalized_url),author=?,summary=?,content_html=?,content_text=?,cjk_terms=?,published_at=COALESCE(?,published_at),updated_at=?,content_hash=?,revision=revision+1 WHERE id=?;
+UPDATE articles SET guid=COALESCE(?,guid),title=?,url=?,normalized_url=COALESCE(?,normalized_url),author=?,summary=?,content_html=?,content_text=?,cjk_terms=?,published_at=COALESCE(?,published_at),updated_at=?,content_hash=?,feed_content_explicit=?,revision=revision+1 WHERE id=?;
 -- name: InsertIdentity :exec
 INSERT INTO article_identities(article_id,feed_id,kind,value) VALUES(?,?,?,?) ON CONFLICT(feed_id,kind,value) DO NOTHING;
 -- name: GetArticle :one

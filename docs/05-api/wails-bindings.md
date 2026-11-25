@@ -147,6 +147,12 @@ transfer.API 的 Choose 返回 token／name／cancelled；Preview 返回 preview
 
 `articleai.API.Settings` 返回启用位、分类提示词、每小时预算、精选阈值与 revision；`Save` 按 revision 条件写入。 `Evaluate` 接收 `{articleId, task, preview}`，task 为 classification 或 featured。preview 返回评估而不写文章结果，且仍占用调用预算。成功返回命中分类、评分或缓存标志，已缓存时不重新请求。并发运行、预算、模型输出异常分别返回 Busy、BudgetExceeded、InvalidModelOutput。详情见 [自动分类](../04-specs/ai-classification.md)。
 
+`articleai.API.Settings` 返回 `summary: { onOpen, hanLimit, englishLimit }`。保存时按同一 revision 核验，两个阈值接受 JavaScript 安全范围内的正整数。旧调用方省略 `summary` 时保留已保存的摘要设置。
+
+`articlesummary.Service.Get({ articleId, mode, version })` 读取当前正文版本的摘要结果。`Generate({ source, automatic })` 可显式生成，或在 `automatic` 为 true 时读取自动开关。两者返回 `{ status: "none" | "generated" | "skipped", text }`。空结果、推理中断及旧版本不能写为成功。正文未就绪、版本变化、输出无效和处理超限分别返回 `BodyUnavailable`、`Conflict`、`InvalidModelOutput`、`ContextWindowExceeded`。关闭或切换阅读器会取消当前调用。最终等待方取消时停止生成。
+
+`reader.Detail.has_full_feed_body` 为 true 时，表示订阅条目提供了显式正文输入，可参与摘要来源判定。没有该字段的存量订阅内容按可能是预览处理。
+
 `Chat.Send` 的 `allowArticleReads` 默认 false。启用时，文章对话只允许读取会话当前文章，全局对话只允许读取该次请求的已选文章。其他范围返回校验错误。授权仅用于本轮。
 
 模型目录通过 `aiconfig.API.FetchModels(providerID)` 查询。返回服务当前响应中去重后的 `{id, displayName}`，保存仍使用既有模型写入接口。密钥由后端从已保存的服务配置读取，列表查询有 15 秒总时限并拒绝重定向。

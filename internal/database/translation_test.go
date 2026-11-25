@@ -171,7 +171,7 @@ func TestArticleTranslationStoreAndUpgrade(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open raw sqlite: %v", err)
 	}
-	stmts := []string{
+	stmts := append(dropArticleSummarySchema(), []string{
 		`DROP TABLE article_translations`,
 		`ALTER TABLE reader_contents DROP COLUMN source_version`,
 		`ALTER TABLE feeds DROP COLUMN auto_translate_mode`,
@@ -181,7 +181,7 @@ func TestArticleTranslationStoreAndUpgrade(t *testing.T) {
 		`ALTER TABLE article_ai_settings DROP COLUMN translation_target_lang`,
 		`ALTER TABLE article_ai_settings DROP COLUMN translation_prompt`,
 		`DELETE FROM goose_db_version WHERE version_id IN (26,27)`,
-	}
+	}...)
 	for _, stmt := range stmts {
 		if _, err := rawDB.ExecContext(ctx, stmt); err != nil {
 			rawDB.Close()
@@ -242,12 +242,12 @@ func TestTranslationCheckpointMigrationPreservesV26Cache(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	for _, statement := range []string{
+	for _, statement := range append(dropArticleSummarySchema(), []string{
 		"ALTER TABLE article_translations DROP COLUMN source_version",
 		"ALTER TABLE article_translations DROP COLUMN checkpoint_json",
 		"ALTER TABLE reader_contents DROP COLUMN source_version",
 		"DELETE FROM goose_db_version WHERE version_id=27",
-	} {
+	}...) {
 		if _, err := store.db.ExecContext(ctx, statement); err != nil {
 			t.Fatal(err)
 		}

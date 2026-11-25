@@ -48,13 +48,14 @@ type LinkRequest struct {
 	ResourceID string `json:"resource_id"`
 }
 type Detail struct {
-	ArticleID     string `json:"article_id"`
-	HTML          string `json:"html"`
-	Text          string `json:"text"`
-	Mode          string `json:"mode"`
-	HasCached     bool   `json:"has_cached"`
-	HasOriginal   bool   `json:"has_original"`
-	SourceVersion string `json:"source_version,omitempty"`
+	ArticleID       string `json:"article_id"`
+	HTML            string `json:"html"`
+	Text            string `json:"text"`
+	Mode            string `json:"mode"`
+	HasCached       bool   `json:"has_cached"`
+	HasFullFeedBody bool   `json:"has_full_feed_body,omitempty"`
+	HasOriginal     bool   `json:"has_original"`
+	SourceVersion   string `json:"source_version,omitempty"`
 }
 type Result struct {
 	OK        bool          `json:"ok"`
@@ -140,7 +141,7 @@ func (s *Service) Get(ctx context.Context, request Request) Result {
 		return failed(err)
 	}
 	originalURL, _ := netpolicy.NormalizeURL(article.URL)
-	return Result{OK: true, RequestID: rand.Text(), Data: &Detail{ArticleID: article.ID, HTML: display, Text: text, Mode: request.Mode, HasCached: hasCached, HasOriginal: originalURL != "", SourceVersion: sourceVersion}}
+	return Result{OK: true, RequestID: rand.Text(), Data: &Detail{ArticleID: article.ID, HTML: display, Text: text, Mode: request.Mode, HasCached: hasCached, HasOriginal: originalURL != "", HasFullFeedBody: article.ExplicitContent && strings.TrimSpace(article.Text) != "", SourceVersion: sourceVersion}}
 }
 func (s *Service) Extract(ctx context.Context, request Request) (out Result) {
 	// 解析器只操作有界字节；局部恢复第三方异常，不允许把堆栈返回界面。

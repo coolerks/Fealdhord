@@ -32,19 +32,26 @@ func New(store *database.Store, resolver Resolver, changed func()) *Service {
 }
 
 type Settings struct {
-	Classification        bool    `json:"classification"`
-	Featured              bool    `json:"featured"`
-	Prompt                string  `json:"prompt"`
-	Revision              int64   `json:"revision"`
-	RequestsPerHour       int64   `json:"requestsPerHour"`
-	TokensPerHour         int64   `json:"tokensPerHour"`
-	MinimumImportance     float64 `json:"minimumImportance"`
-	MinimumRelevance      float64 `json:"minimumRelevance"`
-	AutoTranslate         bool    `json:"autoTranslate"`
-	AutoTranslateScope    string  `json:"autoTranslateScope"`
-	TranslateOnOpen       bool    `json:"translateOnOpen"`
-	TranslationTargetLang string  `json:"translationTargetLang"`
-	TranslationPrompt     string  `json:"translationPrompt"`
+	Classification        bool             `json:"classification"`
+	Featured              bool             `json:"featured"`
+	Prompt                string           `json:"prompt"`
+	Revision              int64            `json:"revision"`
+	RequestsPerHour       int64            `json:"requestsPerHour"`
+	TokensPerHour         int64            `json:"tokensPerHour"`
+	MinimumImportance     float64          `json:"minimumImportance"`
+	MinimumRelevance      float64          `json:"minimumRelevance"`
+	AutoTranslate         bool             `json:"autoTranslate"`
+	AutoTranslateScope    string           `json:"autoTranslateScope"`
+	TranslateOnOpen       bool             `json:"translateOnOpen"`
+	TranslationTargetLang string           `json:"translationTargetLang"`
+	TranslationPrompt     string           `json:"translationPrompt"`
+	Summary               *SummarySettings `json:"summary,omitempty"`
+}
+
+type SummarySettings struct {
+	OnOpen       bool  `json:"onOpen"`
+	HanLimit     int64 `json:"hanLimit"`
+	EnglishLimit int64 `json:"englishLimit"`
 }
 
 type Request struct {
@@ -73,7 +80,8 @@ func publicSettings(row sqlc.ArticleAiSetting) Settings {
 		MinimumImportance: row.MinimumImportance, MinimumRelevance: row.MinimumRelevance,
 		AutoTranslate: row.AutoTranslate == 1, AutoTranslateScope: scope,
 		TranslateOnOpen: row.TranslateOnOpen == 1, TranslationTargetLang: targetLang,
-		TranslationPrompt: row.TranslationPrompt}
+		TranslationPrompt: row.TranslationPrompt,
+		Summary:           &SummarySettings{OnOpen: row.SummarizeOnOpen == 1, HanLimit: row.SummaryHanLimit, EnglishLimit: row.SummaryEnglishLimit}}
 }
 
 func (s *Service) Settings(ctx context.Context) (Settings, error) {
@@ -100,6 +108,18 @@ func (s *Service) Save(ctx context.Context, input Settings) (Settings, error) {
 		return Settings{}, code("ValidationError")
 	}
 	var p sqlc.SaveArticleAISettingsParams
+	if summary := input.Summary; summary != nil {
+		const maxSafeInteger = 1<<53 - 1
+		if summary.HanLimit < 1 || summary.HanLimit > maxSafeInteger || summary.EnglishLimit < 1 || summary.EnglishLimit > maxSafeInteger {
+			return Settings{}, code("ValidationError")
+		}
+		p.SummarizeOnOpen.Valid = true
+		if summary.OnOpen {
+			p.SummarizeOnOpen.Int64 = 1
+		}
+		p.SummaryHanLimit = sql.NullInt64{Int64: summary.HanLimit, Valid: true}
+		p.SummaryEnglishLimit = sql.NullInt64{Int64: summary.EnglishLimit, Valid: true}
+	}
 	p.Prompt, p.Revision = input.Prompt, input.Revision
 	p.RequestsPerHour, p.TokensPerHour = input.RequestsPerHour, input.TokensPerHour
 	p.MinimumImportance, p.MinimumRelevance = input.MinimumImportance, input.MinimumRelevance

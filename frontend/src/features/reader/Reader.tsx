@@ -1,11 +1,11 @@
 import { openChat } from '@/features/chat/chat-scope'
 import { AnimatedGlyph } from '@/components/animated-glyph'
-import { BookOpen,CalendarDays,ChevronLeft } from 'lucide-react'
+import { BookOpen,CalendarDays,ChevronDown,ChevronLeft } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Tabs } from 'radix-ui'
 import { FeedIcon } from '@/features/feeds/FeedIcon'
-import { useCallback,useEffect,useEffectEvent,useLayoutEffect,useRef,useState } from 'react'
+import { useCallback,useEffect,useEffectEvent,useId,useLayoutEffect,useRef,useState } from 'react'
 import type { RefObject } from 'react'
 import type { Article } from '@/lib/library'
 import type { Preferences } from '@/lib/preferences'
@@ -16,6 +16,7 @@ import { Empty,EmptyHeader,EmptyMedia,EmptyTitle } from '@/components/ui/empty'
 import { useWorkspace } from '@/stores/workspace'
 import { useReaderContent } from './use-reader-content'
 import { useArticleTranslation } from './use-article-translation'
+import { useArticleSummary } from './use-article-summary'
 import { ReaderToolbarActions } from './ReaderToolbarActions'
 import { readerViews } from './toolbar-actions'
 import type { ArticleView } from './toolbar-actions'
@@ -66,6 +67,26 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
   defaultDisplay: preferences.reader_translation_display,
   feedAutoTranslateMode,
  })
+ const [manualSummary, setManualSummary] = useState(false)
+ const [collapsedSummaryVersion, setCollapsedSummaryVersion] = useState<string>()
+ const summaryArea = useId()
+ const summaryDetail = body.query.data
+ const feedOnly = Boolean(summaryDetail?.has_full_feed_body && !summaryDetail.has_original)
+ const canUseSummaryBody = view === 'reader' && !body.extracting &&
+  (body.mode === 'reader' || feedOnly || Boolean(body.error && summaryDetail?.has_full_feed_body))
+ const summaryVersion = canUseSummaryBody ? summaryDetail?.source_version : undefined
+ const summary = useArticleSummary(articleID, body.mode, summaryVersion)
+ const shouldGenerateSummary = manualSummary && Boolean(summaryVersion)
+ const generateManualSummary = useEffectEvent(() => {
+  setManualSummary(false)
+  void summary.generate()
+ })
+ useEffect(() => {
+  if (!shouldGenerateSummary) return
+  let current = true
+  queueMicrotask(() => { if (current) generateManualSummary() })
+  return () => { current = false }
+ }, [shouldGenerateSummary])
  const translatedTitle = translation.record?.translatedTitle || ''
  const headingTitle = translation.effectiveDisplayMode === 'translated' && translatedTitle ? translatedTitle : (article?.title ?? '')
  const subTranslatedTitle = translation.effectiveDisplayMode === 'bilingual' && translatedTitle && translatedTitle !== article?.title ? translatedTitle : ''
@@ -73,15 +94,24 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
  if (gallery && !viewing) setGallery(undefined)
  function changeView(next:string){
   setGallery(undefined)
-  if(next==='feed'){body.leave();setView('feed')}
+  if(next==='feed'){setManualSummary(false);body.leave();setView('feed')}
   else if(next==='reader')setView('reader')
+ }
+ function requestSummary() {
+  if (summaryVersion) {
+   void summary.generate()
+  } else {
+   setManualSummary(true)
+   if (view === 'feed') changeView('reader')
+   else if (body.error) void body.extract()
+  }
  }
  const started=useRef(false)
  const enterReader=useEffectEvent(()=>body.enter())
  const ready=Boolean(article?.contentText)||!body.query.isPending
  useEffect(()=>{
   if(view!=='reader'){started.current=false;return}
-  if(!articleID||!ready||started.current)return
+  if(!articleID||!ready||started.current||feedOnly)return
   let current=true
   queueMicrotask(()=>{
    if(!current||started.current)return
@@ -89,7 +119,7 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
    enterReader()
   })
   return ()=>{current=false}
- },[articleID,view,ready])
+ },[articleID,view,ready,feedOnly])
  const toggleReader=useEffectEvent(()=>changeView(view==='reader'?'feed':'reader'))
  const modeRequest=useWorkspace(state=>state.readerModeRequestID)
  useEffect(()=>{
@@ -164,6 +194,13 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
       onTranslate: force => { void translation.translate(force) },
       onCancel: translation.cancel,
      }}
+     summary={{
+      pending: summary.pending,
+      resolved: summary.result?.status === 'generated' || summary.result?.status === 'skipped',
+      disabled: body.extracting || (!article.url && !summaryDetail?.has_cached && !summaryDetail?.has_full_feed_body && !summaryVersion),
+      onGenerate: requestSummary,
+      onCancel: summary.cancel,
+     }}
      onRefresh={() => { setGallery(undefined); started.current = true; setView('reader'); void body.extract() }}
      onFavorite={() => onFavorite(article.id)} onRead={() => onRead(article.id)} onOriginal={() => openLink()}
      onShare={onShare && (trigger => onShare(article, trigger))}
@@ -209,6 +246,23 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
      </>}
     </div>
    )}
+   {summary.pending && <span className="sr-only" role="status">正在生成文章摘要</span>}
+   {summary.error && <div className="reader-operation" data-tone="warning">
+    <p role="alert" className="min-w-0 flex-1 m-0">{summary.error}</p>
+    {summary.needsModel
+     ? <Button variant="outline" size="sm" onClick={() => showSettings('ai')}>配置模型</Button>
+     : <Button variant="ghost" size="sm" onClick={requestSummary}>重试摘要</Button>}
+   </div>}
+   {summaryVersion && summary.result?.status === 'generated' &&
+    <section aria-label="文章摘要" className="mb-5 rounded-md border bg-muted/35 px-3 py-2">
+     <Button type="button" variant="ghost" size="sm" className="w-full justify-between"
+      aria-expanded={collapsedSummaryVersion !== summaryVersion} aria-controls={summaryArea}
+      onClick={() => setCollapsedSummaryVersion(collapsedSummaryVersion === summaryVersion ? undefined : summaryVersion)}>
+      摘要 <ChevronDown data-icon="inline-end" className={collapsedSummaryVersion === summaryVersion ? '-rotate-90' : undefined} />
+     </Button>
+     <p id={summaryArea} hidden={collapsedSummaryVersion === summaryVersion}
+      className="m-0 whitespace-pre-line break-words px-2 pb-1">{summary.result.text}</p>
+    </section>}
    <div ref={prose} className="reader-prose" aria-busy={loading || undefined} data-images={imagesAllowed?'allowed':'blocked'} onClick={event=>{
     if(!(event.target instanceof Element))return
     if(event.target instanceof HTMLImageElement && viewImage(event.target)){event.preventDefault();return}

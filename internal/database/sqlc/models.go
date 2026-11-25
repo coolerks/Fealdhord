@@ -42,25 +42,26 @@ type AppSetting struct {
 }
 
 type Article struct {
-	Rowid         int64          `json:"rowid"`
-	ID            string         `json:"id"`
-	FeedID        string         `json:"feed_id"`
-	Guid          sql.NullString `json:"guid"`
-	Title         string         `json:"title"`
-	Url           string         `json:"url"`
-	NormalizedUrl sql.NullString `json:"normalized_url"`
-	Author        string         `json:"author"`
-	Summary       string         `json:"summary"`
-	ContentHtml   string         `json:"content_html"`
-	ContentText   string         `json:"content_text"`
-	CjkTerms      string         `json:"cjk_terms"`
-	PublishedAt   sql.NullInt64  `json:"published_at"`
-	UpdatedAt     sql.NullInt64  `json:"updated_at"`
-	FetchedAt     int64          `json:"fetched_at"`
-	SortAt        int64          `json:"sort_at"`
-	ContentHash   string         `json:"content_hash"`
-	DedupKey      string         `json:"dedup_key"`
-	Revision      int64          `json:"revision"`
+	Rowid               int64          `json:"rowid"`
+	ID                  string         `json:"id"`
+	FeedID              string         `json:"feed_id"`
+	Guid                sql.NullString `json:"guid"`
+	Title               string         `json:"title"`
+	Url                 string         `json:"url"`
+	NormalizedUrl       sql.NullString `json:"normalized_url"`
+	Author              string         `json:"author"`
+	Summary             string         `json:"summary"`
+	ContentHtml         string         `json:"content_html"`
+	ContentText         string         `json:"content_text"`
+	CjkTerms            string         `json:"cjk_terms"`
+	PublishedAt         sql.NullInt64  `json:"published_at"`
+	UpdatedAt           sql.NullInt64  `json:"updated_at"`
+	FetchedAt           int64          `json:"fetched_at"`
+	SortAt              int64          `json:"sort_at"`
+	ContentHash         string         `json:"content_hash"`
+	DedupKey            string         `json:"dedup_key"`
+	Revision            int64          `json:"revision"`
+	FeedContentExplicit int64          `json:"feed_content_explicit"`
 }
 
 type ArticleAiAttempt struct {
@@ -109,6 +110,9 @@ type ArticleAiSetting struct {
 	TranslateOnOpen       int64   `json:"translate_on_open"`
 	TranslationTargetLang string  `json:"translation_target_lang"`
 	TranslationPrompt     string  `json:"translation_prompt"`
+	SummarizeOnOpen       int64   `json:"summarize_on_open"`
+	SummaryHanLimit       int64   `json:"summary_han_limit"`
+	SummaryEnglishLimit   int64   `json:"summary_english_limit"`
 }
 
 type ArticleCategory struct {
@@ -157,6 +161,18 @@ type ArticleMedium struct {
 type ArticleQueryBirth struct {
 	ArticleID  string `json:"article_id"`
 	Generation int64  `json:"generation"`
+}
+
+type ArticleSummary struct {
+	ArticleID     string `json:"article_id"`
+	SourceMode    string `json:"source_mode"`
+	SourceVersion string `json:"source_version"`
+	Status        string `json:"status"`
+	SummaryText   string `json:"summary_text"`
+	ModelID       string `json:"model_id"`
+	HanLimit      int64  `json:"han_limit"`
+	EnglishLimit  int64  `json:"english_limit"`
+	UpdatedAt     int64  `json:"updated_at"`
 }
 
 type ArticleTranslation struct {

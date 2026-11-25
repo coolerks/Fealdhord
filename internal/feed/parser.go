@@ -42,6 +42,7 @@ type Item struct {
 	GUID, Title, URL, Author, Summary, HTML, Text string
 	PublishedAt, UpdatedAt                        *int64
 	Images                                        []ImageCandidate
+	ExplicitContent                               bool
 }
 type Document struct {
 	Title, URL, SiteURL, Description string
@@ -231,11 +232,13 @@ func parse(ctx context.Context, data []byte, base string) (*Document, error) {
 			item.Author = bounded(entry.Authors[0].Name, 1024)
 		}
 		content := entry.Content
+		item.ExplicitContent = strings.TrimSpace(content) != ""
 		if content == "" {
 			content = entry.Description
 		}
 		if originalJSON != nil && index < len(originalJSON.Items) {
 			source := originalJSON.Items[index]
+			item.ExplicitContent = strings.TrimSpace(source.ContentHTML) != "" || strings.TrimSpace(source.ContentText) != ""
 			if source.ContentHTML == "" {
 				content = "<p>" + html.EscapeString(source.ContentText) + "</p>"
 			}

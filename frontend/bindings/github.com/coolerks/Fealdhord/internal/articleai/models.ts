@@ -31,4 +31,11 @@ export interface Settings {
     "translateOnOpen": boolean;
     "translationTargetLang": string;
     "translationPrompt": string;
+    "summary"?: SummarySettings | null;
+}
+
+export interface SummarySettings {
+    "onOpen": boolean;
+    "hanLimit": number;
+    "englishLimit": number;
 }

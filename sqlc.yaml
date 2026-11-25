@@ -26,6 +26,7 @@ sql:
       - migrations/00025_chat_conversation_management.sql
       - migrations/00026_article_translation.sql
       - migrations/00027_translation_checkpoints.sql
+      - migrations/00028_article_summary.sql
     queries: internal/database/queries
     gen:
       go:

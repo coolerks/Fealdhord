@@ -16,6 +16,7 @@ import (
 	fealdhord "github.com/coolerks/Fealdhord/internal/app"
 	"github.com/coolerks/Fealdhord/internal/appagent"
 	"github.com/coolerks/Fealdhord/internal/articleai"
+	"github.com/coolerks/Fealdhord/internal/articlesummary"
 	"github.com/coolerks/Fealdhord/internal/chat"
 	"github.com/coolerks/Fealdhord/internal/database"
 	desktopintegration "github.com/coolerks/Fealdhord/internal/desktop"
@@ -258,6 +259,7 @@ func main() {
 		application.NewService(aiconfig.NewAPI(aiConfig)),
 		application.NewService(chat.NewAPI(chatService)),
 		application.NewService(articleAIAPI),
+		application.NewService(articlesummary.New(toolStore, aiConfig, readerService)),
 		application.NewService(translationAPI),
 		application.NewService(transferAPI),
 		application.NewService(navigationService),

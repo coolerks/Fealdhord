@@ -14,6 +14,10 @@ import type { TranslationRecord } from '@/lib/translation-api'
 const api=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
 const translationMock = vi.hoisted(() => ({ get: vi.fn(), translate: vi.fn(), cancel: vi.fn(), clear: vi.fn(), languages: vi.fn() }))
 const translationPreferences = vi.hoisted(() => ({ translateOnOpen: false }))
+const summaryMock = vi.hoisted(() => ({ get: vi.fn(), generate: vi.fn(), settings: { onOpen: false, hanLimit: 600, englishLimit: 350 } }))
+vi.mock('../../../bindings/github.com/coolerks/Fealdhord/internal/articlesummary/service', () => ({
+  Get: summaryMock.get, Generate: summaryMock.generate,
+}))
 const copyImage = vi.hoisted(() => vi.fn())
 const translationEvents = vi.hoisted(() => new Set<(event: { data: { record: TranslationRecord } }) => void>())
 vi.mock('@wailsio/runtime', async importOriginal => {
@@ -28,7 +32,7 @@ vi.mock('@wailsio/runtime', async importOriginal => {
 })
 vi.mock('../../../bindings/github.com/coolerks/Fealdhord/internal/media/api', () => ({ CopyInlineImage: copyImage }))
 vi.mock('../../../bindings/github.com/coolerks/Fealdhord/internal/articleai/api', () => ({
-  Settings: vi.fn(async () => ({ classification: false, featured: false, prompt: '', revision: 1, requestsPerHour: 100, tokensPerHour: 200000, minimumImportance: 0.7, minimumRelevance: 0.6, autoTranslate: false, autoTranslateScope: 'summary', translateOnOpen: translationPreferences.translateOnOpen, translationTargetLang: 'zh-CN', translationPrompt: '' })),
+  Settings: vi.fn(async () => ({ classification: false, featured: false, prompt: '', revision: 1, requestsPerHour: 100, tokensPerHour: 200000, minimumImportance: 0.7, minimumRelevance: 0.6, autoTranslate: false, autoTranslateScope: 'summary', translateOnOpen: translationPreferences.translateOnOpen, translationTargetLang: 'zh-CN', translationPrompt: '', summary: { ...summaryMock.settings } })),
 }))
 vi.mock('@/lib/translation-api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/translation-api')>('@/lib/translation-api')
@@ -44,7 +48,7 @@ const feed:Detail={article_id:'a-0',mode:'feed',html:`<p>订阅正文 <a href="#
 const extracted:Detail={...feed,mode:'reader',html:'<p>提取后的正文</p>',text:'提取后的正文',has_cached:true}
 const imageIDs = ['d'.repeat(64), 'e'.repeat(64)]
 const illustrated: Detail = { ...feed, html: `<h2>章节</h2><img src="/media/inline/${imageIDs[0]}" alt="第一张"><h6>小节</h6><img src="/media/inline/${imageIDs[1]}" alt="第二张">` }
-beforeEach(()=>{vi.resetAllMocks();api.get.mockResolvedValue(feed);api.open.mockResolvedValue(undefined);translationMock.get.mockResolvedValue({articleId:'a-0',targetLang:'zh-CN',sourceMode:'feed',contentHash:'',detectedLang:'',status:'none',translatedTitle:'',translatedSummary:'',blocks:[],translatedBlocks:0,totalBlocks:0,modelId:'',errorCode:'',updatedAt:0});translationMock.translate.mockResolvedValue({articleId:'a-0',targetLang:'zh-CN',sourceMode:'feed',contentHash:'',detectedLang:'en',status:'completed',translatedTitle:'译文标题',translatedSummary:'',blocks:[],translatedBlocks:0,totalBlocks:0,modelId:'m1',errorCode:'',updatedAt:1});useWorkspace.setState({preferences:preferencesFixture(),readerModeRequestID:null})})
+beforeEach(()=>{vi.resetAllMocks();summaryMock.settings.onOpen=false;api.get.mockResolvedValue(feed);api.open.mockResolvedValue(undefined);translationMock.get.mockResolvedValue({articleId:'a-0',targetLang:'zh-CN',sourceMode:'feed',contentHash:'',detectedLang:'',status:'none',translatedTitle:'',translatedSummary:'',blocks:[],translatedBlocks:0,totalBlocks:0,modelId:'',errorCode:'',updatedAt:0});translationMock.translate.mockResolvedValue({articleId:'a-0',targetLang:'zh-CN',sourceMode:'feed',contentHash:'',detectedLang:'en',status:'completed',translatedTitle:'译文标题',translatedSummary:'',blocks:[],translatedBlocks:0,totalBlocks:0,modelId:'m1',errorCode:'',updatedAt:1});useWorkspace.setState({preferences:preferencesFixture(),readerModeRequestID:null})})
 function setup(patch:Parameters<typeof preferencesFixture>[0]={}){
  const prefs=preferencesFixture(patch),onRead=vi.fn(),article={...articleFixtures(1)[0],contentText:'',isRead:false,url:'https://example.test/article'}
  const renderTree=(revision=1,isRead=false,feedAutoTranslateMode?:string)=><StrictMode><QueryClientProvider client={client}><TooltipProvider><Reader article={{...article,revision,isRead}} preferences={prefs} feedAutoTranslateMode={feedAutoTranslateMode} overlay onClose={vi.fn()} onFavorite={vi.fn()} onRead={onRead} onAnchor={vi.fn()}/></TooltipProvider></QueryClientProvider></StrictMode>
@@ -891,4 +895,60 @@ it.each([
   if (previous === undefined) delete root.dataset.motion
   else root.dataset.motion = previous
  }
+})
+
+function summaryResponse(status: string, text = '') {
+  return Object.assign(Promise.resolve({ status, text }), { cancel: vi.fn(async () => undefined) })
+}
+
+it('手动摘要等待阅读模式正文，允许键盘折叠结果', async () => {
+  summaryMock.get.mockImplementation(() => summaryResponse('none'))
+  summaryMock.generate.mockImplementation(() => summaryResponse('generated', '下个月发布。'))
+  const document = { ...extracted, source_version: 'web-v1' }
+  api.extract.mockResolvedValue(document)
+  api.get.mockImplementation(async (_id: string, mode: string) => mode === 'reader' ? document : feed)
+  setup({ reader_open_mode: 'feed' })
+  await screen.findByText('订阅正文')
+  expect(summaryMock.generate).not.toHaveBeenCalled()
+
+  await selectMoreItem('生成摘要')
+  await waitFor(() => expect(screen.getByText('提取后的正文')).toBeVisible())
+  await waitFor(() => expect(summaryMock.generate).toHaveBeenCalled())
+  expect(await screen.findByText('下个月发布。')).toBeVisible()
+  expect(summaryMock.generate).toHaveBeenCalledExactlyOnceWith({
+    source: { articleId: 'a-0', mode: 'reader', version: 'web-v1' }, automatic: false,
+  })
+  const toggle = screen.getByRole('button', { name: '摘要' })
+  toggle.focus()
+  await userEvent.keyboard('{Enter}')
+  expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  expect(screen.getByText('下个月发布。')).not.toBeVisible()
+})
+
+it('开启自动摘要后跳过订阅预览，重开同一正文复用已缓存摘要', async () => {
+  summaryMock.settings.onOpen = true
+  summaryMock.get.mockImplementation(() => summaryResponse('none'))
+  summaryMock.generate.mockImplementation(() => summaryResponse('generated', '本次更新将在下月发布。'))
+  const document = { ...extracted, source_version: 'web-v1' }
+  api.extract.mockResolvedValue(document)
+  api.get.mockImplementation(async (_id: string, mode: string) => mode === 'reader' ? document : feed)
+  const first = setup({ reader_open_mode: 'feed' })
+  await screen.findByText('订阅正文')
+  expect(summaryMock.generate).not.toHaveBeenCalled()
+  await selectReaderMode('阅读模式')
+  await waitFor(() => expect(summaryMock.get).toHaveBeenCalled())
+  await waitFor(() => expect(summaryMock.generate).toHaveBeenCalled())
+  expect(await screen.findByText('本次更新将在下月发布。')).toBeVisible()
+  expect(summaryMock.generate).toHaveBeenCalledExactlyOnceWith({
+    source: { articleId: 'a-0', mode: 'reader', version: 'web-v1' }, automatic: true,
+  })
+  first.unmount()
+
+  summaryMock.get.mockImplementation(() => summaryResponse('generated', '本次更新将在下月发布。'))
+  api.get.mockImplementation(async (_id: string, mode: string) => mode === 'reader'
+    ? { ...extracted, source_version: 'web-v1' }
+    : { ...feed, has_cached: true })
+  setup({ reader_open_mode: 'full' })
+  expect(await screen.findByText('本次更新将在下月发布。')).toBeVisible()
+  expect(summaryMock.generate).toHaveBeenCalledTimes(1)
 })

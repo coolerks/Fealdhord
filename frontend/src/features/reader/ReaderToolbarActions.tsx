@@ -39,6 +39,7 @@ type Props = {
   extracting: boolean
   hasOriginal: boolean
   translation?: ReaderTranslationControls
+  summary?: { pending: boolean; resolved: boolean; disabled: boolean; onGenerate: () => void; onCancel: () => void }
   onViewChange: (view: string) => void
   onRefresh: () => void
   onFavorite: () => void
@@ -98,7 +99,7 @@ function TranslationMenuItems({ translation, onChooseLanguage }: {
 }
 
 export function ReaderToolbarActions({
-  articleID, pinned, view, isFavorite, isRead, extracting, hasOriginal, translation, onViewChange,
+  articleID, pinned, view, isFavorite, isRead, extracting, hasOriginal, translation, summary, onViewChange,
   onRefresh, onFavorite, onRead, onOriginal, onShare, readSelection, onAI,
 }: Props) {
   const [categoriesOpen, setCategoriesOpen] = useState(false)
@@ -236,10 +237,16 @@ export function ReaderToolbarActions({
             </DropdownMenuItem>
           })}
         </DropdownMenuGroup>
+        {summary && <DropdownMenuGroup>
+          <DropdownMenuItem disabled={summary.disabled || summary.resolved}
+            onSelect={summary.pending ? summary.onCancel : summary.onGenerate}>
+            <AnimatedGlyph meaning={summary.pending ? 'x' : 'book-text'} />{summary.pending ? '取消摘要' : '生成摘要'}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>}
         {onShare && <DropdownMenuItem onSelect={() => {
           afterMenuClose.current = () => { if (moreTrigger.current) onShare(moreTrigger.current) }
         }}><AnimatedGlyph meaning="send" />发送到…</DropdownMenuItem>}
-        {(overflowOptions.length > 0 || onShare) && <DropdownMenuSeparator />}
+        {(overflowOptions.length > 0 || onShare || summary) && <DropdownMenuSeparator />}
         <DropdownMenuGroup>
           <DropdownMenuItem onSelect={() => { afterMenuClose.current = () => showSettings('reader') }}>
             <AnimatedGlyph meaning="settings" />工具栏设置…
