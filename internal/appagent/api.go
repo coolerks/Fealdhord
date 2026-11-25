@@ -36,7 +36,20 @@ func (a *API) ConnectMCP(ctx context.Context, config ClientConfig) (ClientStatus
 }
 func (a *API) MCPClients() ([]ClientStatus, error) { return a.platform.MCPClients() }
 func (a *API) DisconnectMCP(name string)           { a.platform.DisconnectMCP(name) }
-func (a *API) Skills() []Skill                     { return a.platform.Skills() }
+func (a *API) Skills() []Skill {
+	skills := a.platform.Skills()
+	for i := range skills {
+		skills[i].Markdown, skills[i].Resources = "", nil
+	}
+	return skills
+}
+func (a *API) SkillDetails(name string) (Skill, error) {
+	return a.platform.skillDetails(name)
+}
+func (a *API) SetSkillEnabled(name string, enabled bool) (Skill, error) {
+	return a.platform.setSkillEnabled(name, enabled)
+}
+func (a *API) CancelSkillImport(id string) { a.platform.cancelSkillImport(id) }
 func (a *API) SaveSkill(markdown string, enabled bool) (Skill, error) {
 	return a.platform.saveSkill(markdown, enabled)
 }
@@ -64,13 +77,13 @@ func (a *API) ImportSkill(ctx context.Context) (Skill, error) {
 	if path == "" {
 		return Skill{}, errors.New("Cancelled")
 	}
-	return loadSkillFile(path)
+	return a.platform.previewSkillImport(ctx, path)
 }
 
 func (a *API) RecentAudit() []AuditEntry { return a.platform.registry.RecentAudit() }
 
 func (a *API) SaveSkillPackage(input Skill) (Skill, error) {
-	return a.platform.saveSkillResources(input.Markdown, input.Enabled, input.Resources)
+	return a.platform.saveSkillInput(input)
 }
 
 func (a *API) MCPClientLogs(id string, attempt bool) []MCPClientLog {

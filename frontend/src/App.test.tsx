@@ -34,6 +34,7 @@ const reader=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
 vi.mock('@/lib/reader-api',()=>({readerAPI:reader}))
 const chat = vi.hoisted(() => ({
   List: vi.fn(), Create: vi.fn(), Branch: vi.fn(), Messages: vi.fn(), Send: vi.fn(), Cancel: vi.fn(), Model: vi.fn(),
+  Groups: vi.fn(), GroupConversations: vi.fn(), CreateInGroup: vi.fn(), CreateGroup: vi.fn(), PickGroupFolders: vi.fn(),
   ContextStatus: vi.fn(), GenerateContextSummary: vi.fn(), SaveContext: vi.fn(), Rename: vi.fn(), SetPinned: vi.fn(), SetArchived: vi.fn(), Archived: vi.fn(), Delete: vi.fn(),
 }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/chat/api', () => chat)
@@ -96,6 +97,8 @@ import App from './App'
 let geometry: ReturnType<typeof installGeometry>
 beforeEach(() => {
   vi.clearAllMocks()
+  chat.Groups.mockReset().mockResolvedValue([])
+  chat.GroupConversations.mockReset().mockResolvedValue([])
   pendingActions.mockResolvedValue([])
   decideAction.mockResolvedValue(true)
   toolPermissions.ToolPermissions.mockResolvedValue([])
@@ -540,23 +543,23 @@ describe('Phase 1 阅读 Shell', () => {
     expect(saveSkillPackage).toHaveBeenLastCalledWith(expect.objectContaining({ markdown: template, enabled: true }))
   })
 
-  it('提示 Skill 参考资料超限，重新导入后可预览参考文件再保存', async () => {
+  it('提示 Skill 解包超限，重新导入后通过预览 ID 保存', async () => {
     const user = userEvent.setup()
     setup()
     const markdown = '---\nname: faq\ndescription: 查阅常见问题\n---\n先阅读参考资料。'
-    const resources = [{ path: 'references/faq.md', text: '常见问题' }]
-    importSkill.mockRejectedValueOnce(new Error('SkillResourcesTooLarge')).mockResolvedValueOnce({ markdown, resources, enabled: false })
+    const resources = [{ path: 'references/faq.md', size: 12 }]
+    importSkill.mockRejectedValueOnce(new Error('SkillArchiveExpandedTooLarge')).mockResolvedValueOnce({ markdown, resources, enabled: false, importId: 'preview' })
     await user.click(await screen.findByRole('button', { name: '打开设置' }))
     await user.click(await screen.findByRole('button', { name: 'Skills' }))
     const importButton = await screen.findByRole('button', { name: '导入 Skill' })
     await user.click(importButton)
-    expect(await screen.findByText(/文本解压后合计超过 12 KiB/)).toBeInTheDocument()
+    expect(await screen.findByText(/ZIP 解压后超过 256 MiB/)).toBeInTheDocument()
     await user.click(importButton)
     const editor = within(await screen.findByRole('dialog', { name: '编辑 Skill' }))
     expect(editor.getByText('references/faq.md')).toBeInTheDocument()
     expect(saveSkillPackage).not.toHaveBeenCalled()
     await user.click(editor.getByRole('button', { name: '保存 Skill' }))
-    await waitFor(() => expect(saveSkillPackage).toHaveBeenCalledWith(expect.objectContaining({ markdown, resources })))
+    await waitFor(() => expect(saveSkillPackage).toHaveBeenCalledWith(expect.objectContaining({ markdown, importId: 'preview' })))
   })
 
   it('用斜杠选择技能和模型，不将命令或路径误当成对方', async () => {
@@ -602,6 +605,40 @@ describe('Phase 1 阅读 Shell', () => {
     await waitFor(() => expect(chat.Send).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
       conversationId: 'slash-chat', modelId: 'second', text: '/tmp/article.txt', skills: ['reading-notes'],
     })))
+  })
+
+  it('新建会话分组可关联多个目录并独立收起侧栏层级', async () => {
+    const user = userEvent.setup()
+    setup()
+    chat.PickGroupFolders.mockResolvedValue(['/work/one', '/work/two'])
+    chat.CreateGroup.mockImplementation(async () => {
+      const group = { id: 'work', name: '工作' }
+      chat.Groups.mockResolvedValue([group])
+      return group
+    })
+    chat.GroupConversations.mockResolvedValue([{ id: 'grouped', groupId: 'work', title: '组内会话' }])
+    await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    await user.click(await screen.findByRole('button', { name: '新建分组' }))
+    const dialog = within(await screen.findByRole('dialog', { name: '新建会话分组' }))
+    await user.type(dialog.getByRole('textbox', { name: '分组名称' }), '工作')
+    await user.click(dialog.getByRole('button', { name: '添加文件夹' }))
+    expect(await dialog.findByText('/work/two')).toBeVisible()
+    await user.click(dialog.getByRole('button', { name: '创建分组' }))
+    expect(chat.CreateGroup).toHaveBeenCalledWith('工作', ['/work/one', '/work/two'])
+    const group = await screen.findByRole('button', { name: '工作' })
+    expect(await screen.findByRole('button', { name: '组内会话' })).toBeVisible()
+    await user.click(group)
+    expect(group).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button', { name: '组内会话' })).not.toBeInTheDocument()
+    const history = screen.getByRole('button', { name: '会话' })
+    await user.click(history)
+    expect(history).toHaveAttribute('aria-expanded', 'false')
+    const groups = screen.getByRole('button', { name: '分组' })
+    await user.click(groups)
+    expect(screen.queryByRole('button', { name: '工作' })).not.toBeInTheDocument()
+    await user.click(history)
+    await user.click(groups)
+    await user.click(screen.getByRole('button', { name: '工作' }))
   })
 
   it('会话列表读取失败时不添加提示或触发再次读取', async () => {
@@ -1019,7 +1056,7 @@ describe('Phase 1 阅读 Shell', () => {
     expect(tools.compareDocumentPosition(screen.getByText('调用后的推理')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it.each(['composer', 'dialog'] as const)('按偏好在 %s 中请求审批并保留草稿', async presentation => {
+  it.each(['composer', 'dialog'] as const)('按偏好在 %s 中显示命令审批并保留草稿', async presentation => {
     const user = userEvent.setup()
     api.get.mockResolvedValue({ preferences: preferencesFixture({ chat_approval_presentation: presentation }), revision: 0 })
     chat.List.mockResolvedValue([{ id: 'history', title: '历史会话' }])
@@ -1029,12 +1066,16 @@ describe('Phase 1 阅读 Shell', () => {
     const textarea = screen.getByRole('textbox', { name: '消息' })
     await user.type(textarea, '保留这份草稿')
     expect(screen.getByRole('button', { name: '审批方式' })).toHaveTextContent('需要审批')
-    const action = { id: 'action', principal: '会话 history', conversationId: 'history', tool: 'article.get', arguments: '{"id":"test"}' }
+    const command = 'printf "%s" "保留完整命令"\nprintf "第二行"'
+    const action = { id: 'action', principal: '会话 history', conversationId: 'history', tool: 'shell',
+      arguments: JSON.stringify({ command, workdir: '/work/session' }) }
     act(() => client.setQueryData(['ai-platform', 'pending'], [action]))
     const prompt = presentation === 'composer'
       ? await screen.findByRole('region', { name: '工具审批' })
       : await screen.findByRole('dialog', { name: '允许 AI 调用工具？' })
     if (presentation === 'composer') expect(screen.queryByRole('textbox', { name: '消息' })).not.toBeInTheDocument()
+    expect(within(prompt).getByText('/work/session')).toBeVisible()
+    expect(prompt.querySelector('pre')?.textContent?.trim()).toBe(command)
     await user.click(within(prompt).getByRole('button', { name: '允许本次调用' }))
     expect(decideAction).toHaveBeenCalledWith('action', true)
     expect(await screen.findByRole('textbox', { name: '消息' })).toHaveValue('保留这份草稿')
@@ -1151,8 +1192,8 @@ describe('Phase 1 阅读 Shell', () => {
     await act(async () => { geometry.resize() })
     expect(useWorkspace.getState().preferences?.selected_article_id).toBe('a-0')
     expect(screen.getByRole('heading', { name: '测试文章 0' })).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: '搜索文章' }))
-    const search = screen.getByRole('textbox', { name: '搜索全部文章' })
+    fireEvent.keyDown(window, { key: '/' })
+    const search = await screen.findByRole('textbox', { name: '搜索全部文章' })
     await userEvent.type(search, '不存在')
     expect(await screen.findByText('没有找到匹配文章')).toBeInTheDocument()
     fireEvent.keyDown(search, { key: 'm' })

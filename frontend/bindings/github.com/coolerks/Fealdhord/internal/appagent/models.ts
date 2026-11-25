@@ -107,11 +107,14 @@ export interface Skill {
     "enabled": boolean;
     "tools": string[] | null;
     "resources"?: SkillResource[] | null;
+    "revision"?: string;
+    "importId"?: string;
 }
 
 export interface SkillResource {
     "path": string;
-    "text": string;
+    "text"?: string;
+    "size"?: number;
 }
 
 export interface Tool {

@@ -90,6 +90,9 @@ func (l *mcpListener) Accept() (net.Conn, error) {
 
 type Platform struct {
 	registry       *Registry
+	skillEdit      sync.Mutex
+	skillImports   map[string]skillImport
+	localFileEdit  sync.Mutex
 	dir            string
 	mu             sync.Mutex
 	state          serverSettings
@@ -108,6 +111,7 @@ type Platform struct {
 
 func NewPlatform(registry *Registry, dir string) *Platform {
 	a := &Platform{registry: registry, dir: dir, clients: make(map[string]*clientConnection), credentials: aiconfig.SystemCredentials{}}
+	a.cleanSkillPackages()
 	registry.auditDir = dir
 	a.state.Config.Port = 8769
 	var stored serverSettings
@@ -126,6 +130,11 @@ func NewPlatform(registry *Registry, dir string) *Platform {
 }
 
 func (a *Platform) Shutdown() {
+	a.skillEdit.Lock()
+	for id := range a.skillImports {
+		a.dropSkillImport(id)
+	}
+	a.skillEdit.Unlock()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.stopRequests != nil {

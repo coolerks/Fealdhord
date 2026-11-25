@@ -57,6 +57,23 @@ function ScheduleApproval({ args }: { args: string }) {
   </dl>
 }
 
+function ShellApproval({ args }: { args: string }) {
+  let request: { command?: unknown; workdir?: unknown }
+  try {
+    request = JSON.parse(args)
+  } catch {
+    request = {}
+  }
+  return <dl className="space-y-2 text-sm">
+    <dt className="text-muted-foreground">工作目录</dt>
+    <dd className="break-all font-mono">{typeof request?.workdir === 'string' ? request.workdir : ''}</dd>
+    <dt className="text-muted-foreground">命令</dt>
+    <dd><pre className="max-h-52 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-3 font-mono">
+      {typeof request?.command === 'string' ? request.command : args}
+    </pre></dd>
+  </dl>
+}
+
 export function AIApprovals() {
   const inline = useApprovalSurface(state => state.id)
   const pending = useQuery({ queryKey: key, queryFn: () => PendingActions(), refetchInterval: 1000, retry: false })
@@ -97,7 +114,8 @@ export function ToolApproval({ action, inline = false, onStop, stopping }: {
         </DialogTitle>
         <DialogDescription>{action.principal} · {toolSummary}</DialogDescription>
       </DialogHeader>}
-      {['schedule.create', 'schedule.update'].includes(action.tool) ? <ScheduleApproval args={action.arguments} />
+      {action.tool === 'shell' ? <ShellApproval args={action.arguments} /> :
+        ['schedule.create', 'schedule.update'].includes(action.tool) ? <ScheduleApproval args={action.arguments} />
         : <pre className="max-h-52 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs">{action.arguments}</pre>}
       {decision.isError && <p role="alert" className="text-sm text-destructive">提交失败，请重试。</p>}
       <Footer className={inline ? 'flex flex-wrap justify-end gap-2' : undefined}>

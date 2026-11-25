@@ -14,7 +14,11 @@
 
 `API.MCPClientLogs(id, attempt)` 返回 STDIO 的近期日志，条目含 `time`、`source`、`level?` 和 `message`。查询失败启动时使用实际提交过的临时 `attemptId` 且令 `attempt=true`，其他情况使用稳定连接 ID。日志保留在内存中。
 
-`API.ImportSkill()` 通过本地文件选择器读取并返回 Skill 预览。所选路径不存在或不是常规文件时返回 `SkillFileUnreadable`。`API.SaveSkill(markdown, enabled)`、`API.SaveSkillPackage(input)` 和导入共用 Markdown 校验，接受 UTF-8 BOM 和 CRLF。编码、YAML 前置区、`name`、`description` 或正文不合规时分别返回 `SkillEncodingInvalid`、`SkillFrontMatterInvalid`、`SkillNameInvalid`、`SkillDescriptionInvalid` 或 `SkillBodyRequired`。超过 ZIP 文件或解压后参考文本大小限制分别返回 `SkillArchiveTooLarge`、`SkillResourcesTooLarge`，超过 `SKILL.md` 大小限制返回 `SkillTextTooLarge`。ZIP 结构、路径或资源类型不合规时返回 `InvalidSkillPackage`。
+`Chat.Groups()` 返回分组 ID 和名称。`Chat.PickGroupFolders()` 打开原生目录选择器。`Chat.CreateGroup(name, folders)` 保存文件夹的顺序与分组，接受空列表；无法取得文件夹时返回 `ChatFolderUnavailable`。`Chat.CreateInGroup(id, title)` 和 `Chat.GroupConversations(id)` 使用分组 ID。会话 DTO 可带 `groupId`。普通 `Chat.List` 只返回对应 scope 下的未分组会话。
+
+`API.ImportSkill()` 通过本地文件选择器返回预览。ZIP 预览携带 `importId` 和不含文件正文的资源清单。确认时 `API.SaveSkillPackage(input)` 使用预览标识、编辑后的声明和启用状态。`API.CancelSkillImport(id)` 取消暂存。`API.Skills()` 返回元数据，`API.SkillDetails(name)` 加载说明及清单，`API.SetSkillEnabled(name, enabled)` 更新启用状态。支持 UTF-8 BOM 和 CRLF。压缩包、解包总量、单文件和条目超限分别返回 `SkillArchiveTooLarge`、`SkillArchiveExpandedTooLarge`、`SkillArchiveFileTooLarge`、`SkillArchiveEntriesExceeded`。预览失效返回 `SkillImportExpired`。旧版本变化返回 `SkillChanged`。ZIP 路径或结构异常返回 `InvalidSkillPackage`。声明错误沿用 `SkillEncodingInvalid`、`SkillFrontMatterInvalid`、`SkillNameInvalid`、`SkillDescriptionInvalid`、`SkillBodyRequired` 和 `SkillTextTooLarge`。
+
+本机 `shell` 的 `PendingAction.arguments` 提供完整 `command` 和解析后的 `workdir`。审批类型沿用现有会话匹配，`builtin:shell` 支持审批和拒绝规则。
 
 ## 1. 范围与触发条件
 

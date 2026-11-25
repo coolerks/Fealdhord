@@ -130,6 +130,9 @@ func (r *Registry) requestApproval(ctx context.Context, principal, conversationI
 	defer cancel()
 	select {
 	case allow := <-decision:
+		if err := wait.Err(); err != nil {
+			return err
+		}
 		if !allow {
 			return errors.New("PermissionDenied")
 		}

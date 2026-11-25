@@ -36,7 +36,7 @@ const auditStatuses: Record<string, { label: string; tone: 'active' | 'muted' | 
 }
 
 const newClient: ClientConfig = { name: '', endpoint: '', command: '', args: [] }
-function newSkillDraft(skills: Skill[]): Pick<Skill, 'markdown' | 'enabled' | 'resources'> {
+function newSkillDraft(skills: Skill[]): Pick<Skill, 'markdown' | 'enabled' | 'resources' | 'importId' | 'revision'> {
   const names = new Set(skills.map(skill => skill.name))
   let name = 'my-skill'
   for (let suffix = 2; names.has(name); suffix++) name = `my-skill-${suffix}`
@@ -641,8 +641,14 @@ export function MCPSettings() {
 
 const skillErrorMessages: Partial<Record<string, string>> = {
   SkillFileUnreadable: '无法读取 Skill 文件，请重新选择本地文件。',
-  InvalidSkillPackage: '无法导入 ZIP。请确认只有一个 SKILL.md，位于 ZIP 根目录或单层技能目录，且只附带 references 或 assets 中的 Markdown、TXT、JSON 文本。',
-  SkillArchiveTooLarge: 'ZIP 超过 268 KiB，请缩小文件后重新导入。',
+  InvalidSkillPackage: '无法导入 ZIP。请确认只有一个 SKILL.md，位于 ZIP 根目录或单层技能目录，包内路径必须有效。',
+  SkillArchiveTooLarge: 'ZIP 超过 64 MiB，请缩小文件后重新导入。',
+  SkillArchiveExpandedTooLarge: 'ZIP 解压后超过 256 MiB。',
+  SkillArchiveFileTooLarge: 'ZIP 内单个文件超过 64 MiB。',
+  SkillArchiveEntriesExceeded: 'ZIP 内条目超过 2,048 个。',
+  SkillImportExpired: '导入预览已过期，请重新选择文件。',
+  SkillImportLimit: '待确认的 Skill 导入过多，请关闭其他预览后重试。',
+  SkillChanged: '这个 Skill 在预览后已更新，请重新打开后再保存。',
   SkillTextTooLarge: 'SKILL.md 超过 256 KiB，请缩短正文后重试。',
   SkillResourcesTooLarge: 'references 和 assets 的文本解压后合计超过 12 KiB，请精简后重新导入。',
   SkillEncodingInvalid: '请将 SKILL.md 保存为 UTF-8 后重试。',
@@ -655,7 +661,7 @@ const skillErrorMessages: Partial<Record<string, string>> = {
 export function SkillsSettings() {
   const cache = useQueryClient()
   const skills = useQuery({ queryKey: skillsKey, queryFn: () => api.Skills(), retry: false })
-  const [skill, setSkill] = useState<Pick<Skill, 'markdown' | 'enabled' | 'resources'> | null>(null)
+  const [skill, setSkill] = useState<Pick<Skill, 'markdown' | 'enabled' | 'resources' | 'importId' | 'revision'> | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
 
   const mutation = useMutation({
@@ -668,6 +674,12 @@ export function SkillsSettings() {
   const mutationError = mutation.isError && skillError !== 'Cancelled'
     ? skillErrorMessages[skillError] ?? `Skill 操作失败（${skillError || '请检查内容'}）`
     : undefined
+
+  function closeEditor() {
+    if (skill?.importId) void api.CancelSkillImport(skill.importId)
+    setSkill(null)
+    mutation.reset()
+  }
 
   return <div className="space-y-6">
     <SettingSection
@@ -701,9 +713,9 @@ export function SkillsSettings() {
                 aria-label={`启用 ${item.name}`}
                 checked={item.enabled}
                 disabled={busy}
-                onCheckedChange={enabled => mutation.mutate(() => api.SaveSkill(item.markdown, enabled))}
+                onCheckedChange={enabled => mutation.mutate(() => api.SetSkillEnabled(item.name, enabled))}
               />
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => { mutation.reset(); setSkill(item) }}>编辑</Button>
+              <Button size="sm" variant="ghost" disabled={busy} onClick={() => mutation.mutate(async () => setSkill(await api.SkillDetails(item.name)))}>编辑</Button>
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => { mutation.reset(); setDeleting(item.name) }}>删除</Button>
             </div>
           </SettingRow>
@@ -712,7 +724,7 @@ export function SkillsSettings() {
       {mutationError && !skill && !deleting && <FieldError>{mutationError}</FieldError>}
     </SettingSection>
 
-    <Dialog open={Boolean(skill)} onOpenChange={open => { if (!open && !busy) { setSkill(null); mutation.reset() } }}>
+    <Dialog open={Boolean(skill)} onOpenChange={open => { if (!open && !busy) closeEditor() }}>
       {skill && (
         <DialogContent aria-describedby={undefined} className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
@@ -721,7 +733,8 @@ export function SkillsSettings() {
           <form onSubmit={event => {
             event.preventDefault()
             mutation.mutate(async () => {
-              await api.SaveSkillPackage({ name: '', description: '', tools: [], ...skill })
+              const { markdown, enabled, importId, revision } = skill
+              await api.SaveSkillPackage({ name: '', description: '', tools: [], markdown, enabled, importId, revision })
               setSkill(null)
             })
           }}>
@@ -747,7 +760,7 @@ export function SkillsSettings() {
               ) : null}
               {mutationError && <FieldError>{mutationError}</FieldError>}
               <DialogFooter>
-                <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => { setSkill(null); mutation.reset() }}>取消</Button>
+                <Button type="button" size="sm" variant="outline" disabled={busy} onClick={closeEditor}>取消</Button>
                 <Button type="submit" size="sm" disabled={busy}>保存 Skill</Button>
               </DialogFooter>
             </FieldGroup>

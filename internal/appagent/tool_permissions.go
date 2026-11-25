@@ -115,6 +115,9 @@ func (a *Platform) availableToolPermissions() map[string]ToolPermission {
 	for _, tool := range a.registry.tools {
 		add(tool.Name, "", tool)
 	}
+	for _, tool := range localTools {
+		add(tool.Name, "", tool)
+	}
 	add(agentrun.AuthorizedArticleTool, "", Tool{Name: agentrun.AuthorizedArticleTool})
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -176,6 +179,9 @@ func (a *Platform) SaveToolPermissions(changes []ToolPermissionChange) error {
 	needsAvailable := false
 	for _, change := range changes {
 		if change.ID == "" || len(change.ID) > 128 || (change.Mode != "" && !agentrun.ValidToolPermission(change.Mode)) {
+			return errors.New("ValidationError")
+		}
+		if change.ID == "builtin:shell" && change.Mode == agentrun.ApprovalBypass {
 			return errors.New("ValidationError")
 		}
 		if change.Mode != "" {

@@ -18,10 +18,12 @@ const (
 )
 
 type ReadTool struct {
-	Definition   ai.ToolDefinition
-	Read         func(context.Context, ai.ToolCall) (string, error)
-	ArticleNext  func(context.Context, ai.ToolCall, string) (string, error)
-	activityCall func(ai.ToolCall) ai.ToolCall
+	Definition      ai.ToolDefinition
+	Read            func(context.Context, ai.ToolCall) (string, error)
+	ArticleNext     func(context.Context, ai.ToolCall, string) (string, error)
+	activityCall    func(ai.ToolCall) ai.ToolCall
+	MaxResultBytes  int
+	PrivateActivity bool
 }
 
 type StreamOptions struct {
@@ -124,13 +126,22 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 				if tool.activityCall != nil {
 					activity = tool.activityCall(call)
 				}
+				if tool.PrivateActivity {
+					activity.ArgumentsJSON = "{}"
+				}
 				event := ai.ModelEvent{Type: "tool_work_started", CallID: call.ID, ToolName: activity.Name, ToolCall: &activity}
 				if !forward(event) {
 					return ctx.Err()
 				}
-				result, err := tool.Read(ctx, call)
+				resultLimit := maxToolReplyBytes
+				toolCtx := ctx
+				if tool.MaxResultBytes > 0 {
+					resultLimit = tool.MaxResultBytes
+					toolCtx = context.WithValue(ctx, localOutputBudgetKey{}, request.Budget.InputLimit)
+				}
+				result, err := tool.Read(toolCtx, call)
 				if err == nil {
-					if len(result) > maxToolReplyBytes {
+					if len(result) > resultLimit {
 						result = `{"error":"ToolResultLimit"}`
 					} else {
 						result, err = compaction.completeArticle(ctx, request, call, tool, result)
@@ -139,7 +150,7 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 				event.Type = "tool_work_finished"
 				event.ToolStatus = toolWorkStatus(result, err)
 				event.ToolCall = nil
-				if err == nil || result != "" {
+				if !tool.PrivateActivity && (err == nil || result != "") {
 					event.ToolOutput = &result
 				}
 				if !forward(event) {

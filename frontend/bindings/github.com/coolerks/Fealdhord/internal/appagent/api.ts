@@ -18,6 +18,10 @@ export function AnswerQuestion(id: string, answers: $models.UserQuestionAnswer[]
     return $Call.ByID(716453335, id, answers, cancelled);
 }
 
+export function CancelSkillImport(id: string): $CancellablePromise<void> {
+    return $Call.ByID(4280134697, id);
+}
+
 export function ConnectMCP(config: $models.ClientConfig): $CancellablePromise<$models.ClientStatus> {
     return $Call.ByID(2649804259, config);
 }
@@ -100,6 +104,14 @@ export function SaveToolPermission(id: string, mode: string): $CancellablePromis
 
 export function SaveToolPermissions(changes: $models.ToolPermissionChange[] | null): $CancellablePromise<void> {
     return $Call.ByID(2116358662, changes);
+}
+
+export function SetSkillEnabled(name: string, enabled: boolean): $CancellablePromise<$models.Skill> {
+    return $Call.ByID(3761599245, name, enabled);
+}
+
+export function SkillDetails(name: string): $CancellablePromise<$models.Skill> {
+    return $Call.ByID(2123999288, name);
 }
 
 export function Skills(): $CancellablePromise<$models.Skill[] | null> {

@@ -257,7 +257,13 @@ func main() {
 		application.NewService(desktopintegration.NewNotifier()),
 		application.NewService(readerService),
 		application.NewService(aiconfig.NewAPI(aiConfig)),
-		application.NewService(chat.NewAPI(chatService)),
+		application.NewService(chat.NewAPI(chatService, func(ctx context.Context) ([]string, error) {
+			if mainWindow == nil || ctx.Err() != nil {
+				return nil, context.Canceled
+			}
+			return desktop.Dialog.OpenFile().SetTitle("添加文件夹").CanChooseFiles(false).CanChooseDirectories(true).
+				AttachToWindow(mainWindow).PromptForMultipleSelection()
+		})),
 		application.NewService(articleAIAPI),
 		application.NewService(articlesummary.New(toolStore, aiConfig, readerService)),
 		application.NewService(translationAPI),

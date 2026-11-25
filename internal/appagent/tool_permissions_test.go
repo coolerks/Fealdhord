@@ -110,12 +110,22 @@ func TestExternalToolPermissionsAreScopedToConnectionAndTarget(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	catalog, err := platform.ToolPermissions()
-	if err != nil || len(catalog) != 3 || catalog[1].Connection != a.Name || catalog[2].Connection != b.Name ||
-		catalog[1].Name != "lookup" || catalog[2].Name != "lookup" || catalog[1].ID == catalog[2].ID {
+	externalPermissions := func() ([]ToolPermission, error) {
+		entries, err := platform.ToolPermissions()
+		var external []ToolPermission
+		for _, entry := range entries {
+			if entry.Connection != "" {
+				external = append(external, entry)
+			}
+		}
+		return external, err
+	}
+	catalog, err := externalPermissions()
+	if err != nil || len(catalog) != 2 || catalog[0].Connection != a.Name || catalog[1].Connection != b.Name ||
+		catalog[0].Name != "lookup" || catalog[1].Name != "lookup" || catalog[0].ID == catalog[1].ID {
 		t.Fatalf("same-name tool identities: %+v %v", catalog, err)
 	}
-	alphaID, betaID := catalog[1].ID, catalog[2].ID
+	alphaID, betaID := catalog[0].ID, catalog[1].ID
 	clients, err := platform.MCPClients()
 	if err != nil || len(clients) != 2 {
 		t.Fatalf("clients: %+v %v", clients, err)
@@ -128,8 +138,8 @@ func TestExternalToolPermissionsAreScopedToConnectionAndTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 	platform.DisconnectMCP(a.Name)
-	catalog, err = platform.ToolPermissions()
-	if err != nil || catalog[1].Available || catalog[1].ID != alphaID {
+	catalog, err = externalPermissions()
+	if err != nil || catalog[0].Available || catalog[0].ID != alphaID {
 		t.Fatalf("disconnected rule disappeared: %+v %v", catalog, err)
 	}
 	if _, err := platform.ConnectMCP(t.Context(), a); err != nil {
@@ -149,9 +159,9 @@ func TestExternalToolPermissionsAreScopedToConnectionAndTarget(t *testing.T) {
 	if _, err := platform.ConnectMCP(t.Context(), a); err != nil {
 		t.Fatal(err)
 	}
-	catalog, err = platform.ToolPermissions()
-	if err != nil || len(catalog) != 4 || !catalog[1].Available || catalog[1].ID == alphaID ||
-		catalog[1].Mode != "" || catalog[2].Available || catalog[2].ID != alphaID {
+	catalog, err = externalPermissions()
+	if err != nil || len(catalog) != 3 || !catalog[0].Available || catalog[0].ID == alphaID ||
+		catalog[0].Mode != "" || catalog[1].Available || catalog[1].ID != alphaID {
 		t.Fatalf("new target inherited old rule: %+v %v", catalog, err)
 	}
 	if err := platform.SaveToolPermission(alphaID, ""); err != nil {

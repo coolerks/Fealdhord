@@ -92,7 +92,15 @@ func TestGlobalChatContinuesRoutedDeepSeekResponsesWithReasoning(t *testing.T) {
 	}
 	service.SetToolSource(platform.RunTools)
 	service.SetToolPermissions(platform)
-	conversation, err := service.Create(ctx, Scope{Kind: "global"}, "Responses 工具回归")
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	group, err := service.CreateGroup(ctx, "分组工具回归", []string{root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conversation, err := service.CreateInGroup(ctx, group.ID, "Responses 工具回归")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,8 +122,10 @@ func TestGlobalChatContinuesRoutedDeepSeekResponsesWithReasoning(t *testing.T) {
 		t.Fatalf("unexpected reply or tool audit: %+v, %+v", reply, registry.RecentAudit())
 	}
 	first, next := <-requests, <-requests
+	encodedPath, _ := json.Marshal(root)
+	escapedPath, _ := json.Marshal(string(encodedPath))
 	for _, payload := range []string{first, next} {
-		for _, required := range []string{`"model":"` + modelID + `"`, `"reasoning":{"effort":"medium"}`, `"tools":[`, `"name":"library_search"`} {
+		for _, required := range []string{`"model":"` + modelID + `"`, `"reasoning":{"effort":"medium"}`, `"tools":[`, `"name":"library_search"`, string(escapedPath[1 : len(escapedPath)-1])} {
 			if !strings.Contains(payload, required) {
 				t.Fatalf("request missing %s: %s", required, payload)
 			}

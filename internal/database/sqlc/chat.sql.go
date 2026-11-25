@@ -200,25 +200,28 @@ func (q *Queries) CopyChatBranchMessages(ctx context.Context, arg CopyChatBranch
 }
 
 const createChatBranch = `-- name: CreateChatBranch :one
-INSERT INTO conversations (id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, auto_compact)
+INSERT INTO conversations (id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, auto_compact, group_id, workspace_day)
 SELECT ?1, c.scope_type, c.scope_id, c.title, ?2, ?2,
- min(c.context_after, m.position), CASE WHEN c.context_after <= m.position THEN c.context_summary ELSE '' END, c.auto_compact
+ min(c.context_after, m.position), CASE WHEN c.context_after <= m.position THEN c.context_summary ELSE '' END, c.auto_compact,
+ c.group_id, ?3
 FROM conversations c JOIN messages m ON m.conversation_id=c.id
-WHERE c.id=?3 AND c.archived_at IS NULL AND m.id=?4 AND m.role='assistant' AND m.status<>'running'
-RETURNING id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at
+WHERE c.id=?4 AND c.archived_at IS NULL AND m.id=?5 AND m.role='assistant' AND m.status<>'running'
+RETURNING id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at, group_id, workspace_day
 `
 
 type CreateChatBranchParams struct {
-	NewID     string `json:"new_id"`
-	Now       int64  `json:"now"`
-	SourceID  string `json:"source_id"`
-	MessageID string `json:"message_id"`
+	NewID        string `json:"new_id"`
+	Now          int64  `json:"now"`
+	WorkspaceDay string `json:"workspace_day"`
+	SourceID     string `json:"source_id"`
+	MessageID    string `json:"message_id"`
 }
 
 func (q *Queries) CreateChatBranch(ctx context.Context, arg CreateChatBranchParams) (Conversation, error) {
 	row := q.db.QueryRowContext(ctx, createChatBranch,
 		arg.NewID,
 		arg.Now,
+		arg.WorkspaceDay,
 		arg.SourceID,
 		arg.MessageID,
 	)
@@ -238,22 +241,26 @@ func (q *Queries) CreateChatBranch(ctx context.Context, arg CreateChatBranchPara
 		&i.AutoCompact,
 		&i.PinnedAt,
 		&i.ArchivedAt,
+		&i.GroupID,
+		&i.WorkspaceDay,
 	)
 	return i, err
 }
 
 const createConversation = `-- name: CreateConversation :one
-INSERT INTO conversations (id,scope_type,scope_id,title,created_at,updated_at)
-VALUES (?,?,?,?,?,?) RETURNING id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at
+INSERT INTO conversations (id,scope_type,scope_id,title,created_at,updated_at,group_id,workspace_day)
+VALUES (?,?,?,?,?,?,?,?) RETURNING id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at, group_id, workspace_day
 `
 
 type CreateConversationParams struct {
-	ID        string `json:"id"`
-	ScopeType string `json:"scope_type"`
-	ScopeID   string `json:"scope_id"`
-	Title     string `json:"title"`
-	CreatedAt int64  `json:"created_at"`
-	UpdatedAt int64  `json:"updated_at"`
+	ID           string         `json:"id"`
+	ScopeType    string         `json:"scope_type"`
+	ScopeID      string         `json:"scope_id"`
+	Title        string         `json:"title"`
+	CreatedAt    int64          `json:"created_at"`
+	UpdatedAt    int64          `json:"updated_at"`
+	GroupID      sql.NullString `json:"group_id"`
+	WorkspaceDay string         `json:"workspace_day"`
 }
 
 func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversationParams) (Conversation, error) {
@@ -264,6 +271,8 @@ func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversation
 		arg.Title,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.GroupID,
+		arg.WorkspaceDay,
 	)
 	var i Conversation
 	err := row.Scan(
@@ -281,6 +290,8 @@ func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversation
 		&i.AutoCompact,
 		&i.PinnedAt,
 		&i.ArchivedAt,
+		&i.GroupID,
+		&i.WorkspaceDay,
 	)
 	return i, err
 }
@@ -359,8 +370,19 @@ func (q *Queries) FinishChatToolAudit(ctx context.Context, arg FinishChatToolAud
 	return err
 }
 
+const getChatGroup = `-- name: GetChatGroup :one
+SELECT id, name, created_at FROM chat_groups WHERE id=?
+`
+
+func (q *Queries) GetChatGroup(ctx context.Context, id string) (ChatGroup, error) {
+	row := q.db.QueryRowContext(ctx, getChatGroup, id)
+	var i ChatGroup
+	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+	return i, err
+}
+
 const getConversation = `-- name: GetConversation :one
-SELECT id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at FROM conversations WHERE id=?
+SELECT id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at, group_id, workspace_day FROM conversations WHERE id=?
 `
 
 func (q *Queries) GetConversation(ctx context.Context, id string) (Conversation, error) {
@@ -381,8 +403,40 @@ func (q *Queries) GetConversation(ctx context.Context, id string) (Conversation,
 		&i.AutoCompact,
 		&i.PinnedAt,
 		&i.ArchivedAt,
+		&i.GroupID,
+		&i.WorkspaceDay,
 	)
 	return i, err
+}
+
+const insertChatGroup = `-- name: InsertChatGroup :exec
+INSERT INTO chat_groups (id,name,created_at) VALUES (?,?,?)
+`
+
+type InsertChatGroupParams struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	CreatedAt int64  `json:"created_at"`
+}
+
+func (q *Queries) InsertChatGroup(ctx context.Context, arg InsertChatGroupParams) error {
+	_, err := q.db.ExecContext(ctx, insertChatGroup, arg.ID, arg.Name, arg.CreatedAt)
+	return err
+}
+
+const insertChatGroupFolder = `-- name: InsertChatGroupFolder :exec
+INSERT INTO chat_group_folders (group_id,position,path) VALUES (?,?,?)
+`
+
+type InsertChatGroupFolderParams struct {
+	GroupID  string `json:"group_id"`
+	Position int64  `json:"position"`
+	Path     string `json:"path"`
+}
+
+func (q *Queries) InsertChatGroupFolder(ctx context.Context, arg InsertChatGroupFolderParams) error {
+	_, err := q.db.ExecContext(ctx, insertChatGroupFolder, arg.GroupID, arg.Position, arg.Path)
+	return err
 }
 
 const interruptChatMessages = `-- name: InterruptChatMessages :exec
@@ -417,7 +471,7 @@ func (q *Queries) LatestGlobalBranchPoint(ctx context.Context, id string) (strin
 }
 
 const listArchivedConversations = `-- name: ListArchivedConversations :many
-SELECT id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at FROM conversations WHERE scope_type='global' AND archived_at IS NOT NULL
+SELECT id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at, group_id, workspace_day FROM conversations WHERE scope_type='global' AND archived_at IS NOT NULL
 ORDER BY archived_at DESC,id LIMIT 51 OFFSET ?1
 `
 
@@ -445,7 +499,63 @@ func (q *Queries) ListArchivedConversations(ctx context.Context, pageOffset int6
 			&i.AutoCompact,
 			&i.PinnedAt,
 			&i.ArchivedAt,
+			&i.GroupID,
+			&i.WorkspaceDay,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listChatGroupFolders = `-- name: ListChatGroupFolders :many
+SELECT path FROM chat_group_folders WHERE group_id=? ORDER BY position
+`
+
+func (q *Queries) ListChatGroupFolders(ctx context.Context, groupID string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listChatGroupFolders, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, err
+		}
+		items = append(items, path)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listChatGroups = `-- name: ListChatGroups :many
+SELECT id, name, created_at FROM chat_groups ORDER BY created_at DESC,id
+`
+
+func (q *Queries) ListChatGroups(ctx context.Context) ([]ChatGroup, error) {
+	rows, err := q.db.QueryContext(ctx, listChatGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatGroup
+	for rows.Next() {
+		var i ChatGroup
+		if err := rows.Scan(&i.ID, &i.Name, &i.CreatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -580,7 +690,7 @@ func (q *Queries) ListConversationMessages(ctx context.Context, conversationID s
 }
 
 const listConversations = `-- name: ListConversations :many
-SELECT id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at FROM conversations WHERE scope_type=? AND scope_id=? AND archived_at IS NULL ORDER BY pinned_at DESC,updated_at DESC,id LIMIT 100
+SELECT id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at, group_id, workspace_day FROM conversations WHERE scope_type=? AND scope_id=? AND group_id IS NULL AND archived_at IS NULL ORDER BY pinned_at DESC,updated_at DESC,id LIMIT 100
 `
 
 type ListConversationsParams struct {
@@ -612,6 +722,53 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 			&i.AutoCompact,
 			&i.PinnedAt,
 			&i.ArchivedAt,
+			&i.GroupID,
+			&i.WorkspaceDay,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGroupConversations = `-- name: ListGroupConversations :many
+SELECT id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at, group_id, workspace_day FROM conversations WHERE scope_type='global' AND group_id=? AND archived_at IS NULL
+ORDER BY pinned_at DESC,updated_at DESC,id LIMIT 100
+`
+
+func (q *Queries) ListGroupConversations(ctx context.Context, groupID sql.NullString) ([]Conversation, error) {
+	rows, err := q.db.QueryContext(ctx, listGroupConversations, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Conversation
+	for rows.Next() {
+		var i Conversation
+		if err := rows.Scan(
+			&i.ID,
+			&i.ScopeType,
+			&i.ScopeID,
+			&i.Title,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ContextAfter,
+			&i.ContextSummary,
+			&i.ContextPins,
+			&i.LastInputTokens,
+			&i.LastUsageModel,
+			&i.AutoCompact,
+			&i.PinnedAt,
+			&i.ArchivedAt,
+			&i.GroupID,
+			&i.WorkspaceDay,
 		); err != nil {
 			return nil, err
 		}
@@ -643,7 +800,7 @@ func (q *Queries) RecordContextUsage(ctx context.Context, arg RecordContextUsage
 
 const renameGlobalConversation = `-- name: RenameGlobalConversation :one
 UPDATE conversations SET title=?1
-WHERE id=?2 AND scope_type='global' AND archived_at IS NULL RETURNING id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at
+WHERE id=?2 AND scope_type='global' AND archived_at IS NULL RETURNING id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at, group_id, workspace_day
 `
 
 type RenameGlobalConversationParams struct {
@@ -669,6 +826,8 @@ func (q *Queries) RenameGlobalConversation(ctx context.Context, arg RenameGlobal
 		&i.AutoCompact,
 		&i.PinnedAt,
 		&i.ArchivedAt,
+		&i.GroupID,
+		&i.WorkspaceDay,
 	)
 	return i, err
 }
@@ -757,7 +916,7 @@ func (q *Queries) SetAutomaticCompaction(ctx context.Context, arg SetAutomaticCo
 
 const setGlobalConversationPin = `-- name: SetGlobalConversationPin :one
 UPDATE conversations SET pinned_at=?1
-WHERE id=?2 AND scope_type='global' AND archived_at IS NULL RETURNING id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at
+WHERE id=?2 AND scope_type='global' AND archived_at IS NULL RETURNING id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at, group_id, workspace_day
 `
 
 type SetGlobalConversationPinParams struct {
@@ -783,6 +942,8 @@ func (q *Queries) SetGlobalConversationPin(ctx context.Context, arg SetGlobalCon
 		&i.AutoCompact,
 		&i.PinnedAt,
 		&i.ArchivedAt,
+		&i.GroupID,
+		&i.WorkspaceDay,
 	)
 	return i, err
 }

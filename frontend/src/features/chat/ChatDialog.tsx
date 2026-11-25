@@ -16,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, useIsPresent } from 'motion/react'
 import { ArrowDown, ArrowUp, BookOpen, Box, Brain, CalendarClock, Check, Copy, FileText, Gauge, Paperclip, Pin, Plus, Settings, Sparkles, Square, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -42,6 +42,7 @@ import { UserQuestionPrompt, useInlineQuestion } from './UserQuestionPrompt'
 import { approvalModes } from './approval-options'
 import { ConversationConfirmation, ConversationMenu, RenameConversationDialog, archivedConversationsKey, conversationActionError } from './ConversationMenu'
 import type { ConversationAction } from './ConversationMenu'
+import { GroupDisclosure, NewConversationGroup, groupHistoryKey, groupKey, useConversationFolds } from './ConversationGroups'
 import { notify } from '@/lib/notifications'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/api'
 import type { Conversation } from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
@@ -167,6 +168,9 @@ function ChatSession({ target, close, workspace }: {
   const [effortChoices, setEffortChoices] = useState<Record<string, string>>({})
   const [following, setFollowing] = useState(true)
   const [conversationsScrolled, setConversationsScrolled] = useState(false)
+  const [draftGroup, setDraftGroup] = useState('')
+  const [creatingGroup, setCreatingGroup] = useState(false)
+  const { closed, toggle } = useConversationFolds()
   const [conversationDialog, setConversationDialog] = useState<{ action: 'rename' | 'archive' | 'delete'; item: Conversation } | null>(null)
   const [conversationTitle, setConversationTitle] = useState('')
   const chatContent = useRef<HTMLDivElement>(null)
@@ -182,6 +186,14 @@ function ChatSession({ target, close, workspace }: {
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   })
+  const groups = useQuery({ queryKey: groupKey, queryFn: () => api.Groups(), enabled: Boolean(workspace), retry: false })
+  const groupItems = groups.data ?? []
+  const groupedLists = useQueries({ queries: groupItems.map(group => ({
+    queryKey: [...groupHistoryKey, group.id],
+    queryFn: () => api.GroupConversations(group.id),
+    enabled: Boolean(workspace) && (draftGroup === group.id || (!closed.groups && !closed[group.id])),
+    retry: false,
+  })) })
   const model = useQuery({ queryKey: ['chat', 'model'], queryFn: () => api.Model(), enabled: !workspace, retry: false })
   const configuration = useQuery({ queryKey: aiConfigurationKey, queryFn: listAIConfiguration, enabled: Boolean(workspace), retry: false })
   const skills = useQuery({ queryKey: skillsKey, queryFn: () => Skills(), enabled: Boolean(workspace && slashQuery !== undefined), retry: false })
@@ -206,6 +218,8 @@ function ChatSession({ target, close, workspace }: {
   const selectedEffortLabel = effortLevels.find(level => level.value === reasoningEffort)?.label
   const invalidEffort = Boolean(reasoningEffort && !effortLevels.some(option => option.value === reasoningEffort))
   const conversationId = chosen ?? history.data?.[0]?.id ?? ''
+  const activeConversation = (draftGroup ? groupedLists[groupItems.findIndex(group => group.id === draftGroup)]?.data : history.data)
+    ?.find(item => item.id === conversationId)
   const approvalMode = approvalChoices[conversationId] ?? defaultApprovalMode
   const inlineApproval = useInlineApproval(conversationId,
     approvalPresentation === 'composer' && !tasksOpen && (!workspace || workspace.present))
@@ -219,14 +233,17 @@ function ChatSession({ target, close, workspace }: {
       let id = override?.newConversation ? '' : conversationId
       if (!id) {
         const title = Array.from(messageText.trim()).slice(0, 64).join('')
-        const conversation = await api.Create(scope, title)
+        const group = override?.newConversation ? '' : draftGroup
+        const conversation = group ? await api.CreateInGroup(group, title) : await api.Create(scope, title)
         id = conversation.id
         setApprovalChoices(current => {
           const { '': draftMode, ...existing } = current
           return draftMode ? { ...existing, [id]: draftMode } : current
         })
         setChosen(id)
-        void cache.invalidateQueries({ queryKey: listKey })
+        setDraftGroup(group)
+        if (group) cache.setQueryData<Conversation[]>([...groupHistoryKey, group], items => [conversation, ...(items ?? [])])
+        void cache.invalidateQueries({ queryKey: group ? [...groupHistoryKey, group] : listKey })
       }
       await api.Send({
         conversationId: id, text: messageText, includeContext, selection, allowArticleReads,
@@ -238,6 +255,7 @@ function ChatSession({ target, close, workspace }: {
       await Promise.all([
         cache.invalidateQueries({ queryKey: chatMessagesKey(id) }),
         workspace && cache.invalidateQueries({ queryKey: listKey }),
+        workspace && cache.invalidateQueries({ queryKey: groupHistoryKey }),
       ])
     },
     onError: () => {
@@ -262,8 +280,9 @@ function ChatSession({ target, close, workspace }: {
     mutationFn: ({ id, messageId }: { id: string; messageId: string }) => api.Branch(id, messageId),
     onSuccess: (created, { id }) => {
       void cache.invalidateQueries({ queryKey: listKey })
+      void cache.invalidateQueries({ queryKey: groupHistoryKey })
       if (conversationId === id) {
-        choose(created.id)
+        choose(created.id, created.groupId)
         composer.current?.focus({ preventScroll: true })
       }
     },
@@ -281,7 +300,7 @@ function ChatSession({ target, close, workspace }: {
     },
     onSuccess: (result, { action, item }) => {
       setConversationDialog(null)
-      if (action === 'branch' && result) choose(result.id)
+      if (action === 'branch' && result) choose(result.id, result.groupId)
       if (action === 'archive' || action === 'delete') {
         if (conversationId === item.id) choose('')
         cache.setQueryData<Conversation[]>(listKey, current => current?.filter(entry => entry.id !== item.id))
@@ -289,6 +308,7 @@ function ChatSession({ target, close, workspace }: {
         void cache.invalidateQueries({ queryKey: archivedConversationsKey })
       }
       void cache.invalidateQueries({ queryKey: listKey })
+      void cache.invalidateQueries({ queryKey: groupHistoryKey })
     },
     onError: (error, { action }) => {
       if (action === 'pin' || action === 'branch') void notify(conversationActionError(error), undefined, true)
@@ -323,18 +343,19 @@ function ChatSession({ target, close, workspace }: {
     if (chatContent.current) clearSelectionWithin(chatContent.current)
     setTasksOpen(true)
   }
-  function choose(id: string) {
+  function choose(id: string, group = '') {
     if (id !== conversationId && timeline.current) clearSelectionWithin(timeline.current)
     setTasksOpen(false)
     follow.current = true
     setFollowing(true)
     setChosen(id)
+    setDraftGroup(group)
     if (!id && approvalChoices['']) setApprovalChoices(current => {
       const existing = { ...current }
       delete existing['']
       return existing
     })
-    if (workspace && id !== conversationId) {
+    if (workspace && (id !== conversationId || group !== draftGroup)) {
       setSlashPage('actions')
       setHighlightedSlash('')
       setDraft('')
@@ -448,6 +469,23 @@ function ChatSession({ target, close, workspace }: {
     !(conversationId && messages.isPending)
   const isEmptyWorkspace = Boolean(workspace && !tasksOpen && (!conversationId || (!messages.isPending && !messages.isError && (messages.data?.length ?? 0) === 0)))
   const hasComposerChips = Boolean(workspace && (selectedSkills.length > 0 || sources.length > 0))
+  function conversationRows(items: Conversation[] | null | undefined) {
+    return items?.map(item => {
+      const current = !tasksOpen && item.id === conversationId
+      return <li key={item.id}>
+        <ConversationMenu item={item} active={item.id === conversationId && active} busy={send.isPending || manageConversation.isPending}
+          onAction={openConversationAction}>
+          <Button data-navigation={item.id} variant={current ? 'secondary' : 'ghost'} className={cn('nav-item', current && 'is-current')}
+            title={item.title} aria-description={item.pinned ? '已置顶' : undefined} aria-current={current ? 'page' : undefined} disabled={send.isPending}
+            onClick={() => choose(item.id, item.groupId)}>
+            {current && <span className="nav-selected-surface" />}
+            <AnimatedGlyph meaning="message-square" /><span className="nav-node-label">{item.title}</span>
+            {item.pinned && <Pin className="ml-auto" aria-hidden="true" />}
+          </Button>
+        </ConversationMenu>
+      </li>
+    })
+  }
   return <div className={workspace ? 'chat-session reader-html' : 'flex min-h-0 flex-col gap-3'} data-code-theme={workspace ? theme : undefined} data-empty={isEmptyWorkspace ? 'true' : undefined}>
     {workspace?.sidebar && createPortal(
       <motion.aside id={workspace.present ? 'workspace-sidebar' : undefined} className="glass-sidebar chat-sidebar workspace-mode-chat"
@@ -465,23 +503,29 @@ function ChatSession({ target, close, workspace }: {
         <div className="sidebar-organize-wrap" data-scrolled={conversationsScrolled}>
         <nav className="sidebar-organize" aria-label="会话" onKeyDown={moveSidebarFocus}
           onScroll={event => setConversationsScrolled(event.currentTarget.scrollTop > 0)}>
-          <div className="nav-section-heading"><h2>会话</h2></div>
-          {history.isPending && <p role="status">正在读取会话…</p>}
-          {!history.isPending && !history.isError && history.data?.length === 0 && <p className="px-2 py-1.5 text-xs text-muted-foreground">暂无会话</p>}
-          <ul className="feed-nav">{history.data?.map(item => {
-            const current = !tasksOpen && item.id === conversationId
-            return <li key={item.id}>
-              <ConversationMenu item={item} active={item.id === conversationId && active} busy={send.isPending || manageConversation.isPending}
-                onAction={openConversationAction}>
-              <Button data-navigation={item.id} variant={current ? 'secondary' : 'ghost'} className={cn('nav-item', current && 'is-current')}
-                title={item.title} aria-description={item.pinned ? '已置顶' : undefined} aria-current={current ? 'page' : undefined} disabled={send.isPending} onClick={() => choose(item.id)}>
-                {current && <span className="nav-selected-surface" />}
-                <AnimatedGlyph meaning="message-square" /><span className="nav-node-label">{item.title}</span>
-                {item.pinned && <Pin className="ml-auto" aria-hidden="true" />}
-              </Button>
-              </ConversationMenu>
-            </li>
-          })}</ul>
+          <div className="nav-section-heading flex items-center justify-between">
+            <GroupDisclosure label="分组" open={!closed.groups} controls="chat-groups" onToggle={() => toggle('groups')} />
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="新建分组" title="新建分组"
+              onClick={() => setCreatingGroup(true)}><Plus aria-hidden="true" /></Button>
+          </div>
+          <ul id="chat-groups" hidden={closed.groups} inert={closed.groups}>
+            {!closed.groups && groupItems.map((group, index) => <li key={group.id}>
+              <div className="flex items-center justify-between">
+                <GroupDisclosure label={group.name} folder open={!closed[group.id]} controls={`chat-group-${group.id}`} onToggle={() => toggle(group.id)} />
+                <Button type="button" variant="ghost" size="icon-sm" aria-label={`在${group.name}中新建对话`} disabled={send.isPending}
+                  onClick={() => choose('', group.id)}><Plus aria-hidden="true" /></Button>
+              </div>
+              <ul id={`chat-group-${group.id}`} className="feed-nav pl-3" hidden={closed[group.id]} inert={closed[group.id]}>
+                {!closed[group.id] && conversationRows(groupedLists[index]?.data)}
+              </ul>
+            </li>)}
+          </ul>
+          <div className="nav-section-heading"><GroupDisclosure label="会话" open={!closed.history} controls="chat-history" onToggle={() => toggle('history')} /></div>
+          <div id="chat-history" hidden={closed.history} inert={closed.history}>
+            {!closed.history && history.isPending && <p role="status">正在读取会话…</p>}
+            {!closed.history && !history.isPending && !history.isError && history.data?.length === 0 && <p className="px-2 py-1.5 text-xs text-muted-foreground">暂无会话</p>}
+            <ul className="feed-nav">{!closed.history && conversationRows(history.data)}</ul>
+          </div>
         </nav>
         </div>
         <footer className="sidebar-footer"><div className="sidebar-bottom">
@@ -489,6 +533,12 @@ function ChatSession({ target, close, workspace }: {
           <SemanticButton id="open-ai-settings" icon={Settings} meaning="settings" label="AI 设置" onClick={() => showSettings('ai')} />
         </div></footer>
       </motion.aside>, workspace.sidebar)}
+    {workspace && creatingGroup && <NewConversationGroup onClose={() => setCreatingGroup(false)} onCreated={group => {
+      setCreatingGroup(false)
+      if (closed.groups) toggle('groups')
+      cache.setQueryData(groupKey, (current: typeof groupItems | undefined) => [group, ...(current ?? [])])
+      void cache.invalidateQueries({ queryKey: groupKey })
+    }} />}
     {workspace && conversationDialog && (conversationDialog.action === 'rename'
       ? <RenameConversationDialog item={conversationDialog.item} title={conversationTitle} onChange={setConversationTitle}
         busy={manageConversation.isPending} error={manageConversation.isError ? conversationActionError(manageConversation.error) : undefined}
@@ -500,7 +550,7 @@ function ChatSession({ target, close, workspace }: {
     <div ref={chatContent} hidden={tasksOpen} className={tasksOpen ? undefined : 'contents'}>
     {workspace ? <header className="workspace-toolbar chat-header" data-sidebar-collapsed={workspace.collapsed}>
       {workspace.collapsed && <SemanticButton icon={BookOpen} meaning="book" label="阅读" onClick={close} />}
-      <h1>{history.data?.find(item => item.id === conversationId)?.title ?? (conversationId ? 'AI 助手' : '新对话')}</h1>
+      <h1>{activeConversation?.title ?? (conversationId ? 'AI 助手' : draftGroup ? (groupItems.find(group => group.id === draftGroup)?.name ?? '新对话') : '新对话')}</h1>
       {workspace.collapsed && <Button type="button" variant="ghost" size="icon" aria-label="定时任务" title="定时任务" onClick={openTasks}><CalendarClock /></Button>}
       {workspace.collapsed && <SemanticButton icon={Plus} meaning="add" label="新对话" aria-keyshortcuts={newConversationShortcut}
         disabled={send.isPending} onClick={() => choose('')} />}

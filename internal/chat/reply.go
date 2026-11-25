@@ -314,6 +314,7 @@ func (s *Service) Branch(ctx context.Context, id, messageID string) (Conversatio
 	}
 	row, err := s.store.BranchChat(ctx, sqlc.CreateChatBranchParams{
 		NewID: rand.Text(), Now: time.Now().UnixMilli(), SourceID: id, MessageID: messageID,
+		WorkspaceDay: time.Now().Format(time.DateOnly),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return Conversation{}, modelError("ChatBranchUnavailable")

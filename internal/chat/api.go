@@ -6,9 +6,53 @@ import (
 	"github.com/coolerks/Fealdhord/internal/aiconfig"
 )
 
-type API struct{ service *Service }
+type API struct {
+	service     *Service
+	pickFolders func(context.Context) ([]string, error)
+}
 
-func NewAPI(service *Service) *API { return &API{service: service} }
+func NewAPI(service *Service, pickFolders ...func(context.Context) ([]string, error)) *API {
+	api := &API{service: service}
+	if len(pickFolders) != 0 {
+		api.pickFolders = pickFolders[0]
+	}
+	return api
+}
+
+func (a *API) PickGroupFolders(ctx context.Context) ([]string, error) {
+	if a.pickFolders == nil {
+		return nil, modelError("Unavailable")
+	}
+	return a.pickFolders(ctx)
+}
+
+func (a *API) CreateGroup(ctx context.Context, name string, folders []string) (Group, error) {
+	if a.service == nil {
+		return Group{}, modelError("StorageError")
+	}
+	return a.service.CreateGroup(ctx, name, folders)
+}
+
+func (a *API) Groups(ctx context.Context) ([]Group, error) {
+	if a.service == nil {
+		return nil, modelError("StorageError")
+	}
+	return a.service.Groups(ctx)
+}
+
+func (a *API) GroupConversations(ctx context.Context, id string) ([]Conversation, error) {
+	if a.service == nil {
+		return nil, modelError("StorageError")
+	}
+	return a.service.GroupConversations(ctx, id)
+}
+
+func (a *API) CreateInGroup(ctx context.Context, id, title string) (Conversation, error) {
+	if a.service == nil {
+		return Conversation{}, modelError("StorageError")
+	}
+	return a.service.CreateInGroup(ctx, id, title)
+}
 
 func (a *API) List(ctx context.Context, scope Scope) ([]Conversation, error) {
 	if a.service == nil {

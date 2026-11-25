@@ -1,26 +1,22 @@
 package appagent
 
 import (
-	"archive/zip"
 	"errors"
 	"io"
 	"io/fs"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 	"unicode/utf8"
 )
 
 const maxSkillText = 256 << 10
 const maxSkillResources = 12 << 10
-const maxSkillArchive = maxSkillText + maxSkillResources
-
-var errSkillResourcesTooLarge = errors.New("SkillResourcesTooLarge")
 
 type SkillResource struct {
 	Path string `json:"path"`
-	Text string `json:"text"`
+	Text string `json:"text,omitempty"`
+	Size int64  `json:"size,omitempty"`
 }
 
 func skillResourcePath(name string) bool {
@@ -54,12 +50,6 @@ func loadSkillFile(filename string) (Skill, error) {
 	if err != nil || !info.Mode().IsRegular() {
 		return Skill{}, errors.New("SkillFileUnreadable")
 	}
-	if strings.EqualFold(filepath.Ext(filename), ".zip") {
-		if info.Size() > maxSkillArchive {
-			return Skill{}, errors.New("SkillArchiveTooLarge")
-		}
-		return unpackSkill(filename)
-	}
 	if info.Size() > maxSkillText {
 		return Skill{}, errSkillTextTooLarge
 	}
@@ -76,75 +66,4 @@ func loadSkillFile(filename string) (Skill, error) {
 		return Skill{}, errSkillTextTooLarge
 	}
 	return parseSkill(string(data), false)
-}
-
-func unpackSkill(filename string) (Skill, error) {
-	invalid := errors.New("InvalidSkillPackage")
-	archive, err := zip.OpenReader(filename)
-	if err != nil {
-		return Skill{}, invalid
-	}
-	defer archive.Close()
-	if len(archive.File) > 32 {
-		return Skill{}, invalid
-	}
-	root, found := "", false
-	for _, file := range archive.File {
-		name := strings.TrimSuffix(file.Name, "/")
-		if !fs.ValidPath(name) || strings.Contains(name, "\\") || (file.Mode().Type() != 0 && !file.FileInfo().IsDir()) ||
-			len(strings.Split(name, "/")) > 5 {
-			return Skill{}, invalid
-		}
-		if path.Base(name) == "SKILL.md" && file.Mode().IsRegular() {
-			if found || strings.Count(name, "/") > 1 {
-				return Skill{}, invalid
-			}
-			root, found = strings.TrimSuffix(name, "SKILL.md"), true
-		}
-	}
-	if !found {
-		return Skill{}, invalid
-	}
-	var value Skill
-	var resources []SkillResource
-	remainingResources := maxSkillResources
-	for _, file := range archive.File {
-		if file.FileInfo().IsDir() {
-			continue
-		}
-		name, belongs := strings.CutPrefix(file.Name, root)
-		if !belongs || name != "SKILL.md" && !skillResourcePath(name) {
-			return Skill{}, invalid
-		}
-		limit, sizeError := remainingResources, errSkillResourcesTooLarge
-		if name == "SKILL.md" {
-			limit, sizeError = maxSkillText, errSkillTextTooLarge
-		}
-		if file.UncompressedSize64 > uint64(limit) {
-			return Skill{}, sizeError
-		}
-		entry, err := file.Open()
-		if err != nil {
-			return Skill{}, invalid
-		}
-		data, err := io.ReadAll(io.LimitReader(entry, int64(limit)+1))
-		entry.Close()
-		if err != nil || len(data) > limit {
-			return Skill{}, invalid
-		}
-		if name == "SKILL.md" {
-			value, err = parseSkill(string(data), false)
-			if err != nil {
-				return Skill{}, err
-			}
-		} else {
-			resources = append(resources, SkillResource{Path: name, Text: string(data)})
-			remainingResources -= len(data)
-		}
-	}
-	if !validateSkillResources(resources) {
-		return Skill{}, invalid
-	}
-	value.Resources = resources
-	return value, nil
 }

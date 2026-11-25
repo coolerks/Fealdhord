@@ -240,7 +240,7 @@ function ToolGroupCard({
                     <ToggleGroupItem
                       key={segment.value}
                       value={segment.value}
-                      disabled={rowPending || (segment.value !== 'default' && !tool.available)}
+                      disabled={rowPending || (segment.value !== 'default' && !tool.available) || (tool.id === 'builtin:shell' && segment.value === 'bypass')}
                       title={
                         segment.value === 'default'
                           ? (tool.requiresApproval ? '默认（需要审批）' : '默认（放行）')
@@ -345,7 +345,7 @@ export function ToolPermissionsSettings() {
     for (const { tool } of group.entries) {
       if (wireMode === '') {
         if (tool.mode) changes.push({ id: tool.id, mode: '' })
-      } else if (tool.available && tool.mode !== wireMode) {
+      } else if (tool.available && tool.mode !== wireMode && !(tool.id === 'builtin:shell' && wireMode === 'bypass')) {
         changes.push({ id: tool.id, mode: wireMode })
       }
     }

@@ -33,12 +33,28 @@ export function Create(scope: $models.Scope, title: string): $CancellablePromise
     return $Call.ByID(2751688823, scope, title);
 }
 
+export function CreateGroup(name: string, folders: string[] | null): $CancellablePromise<$models.Group> {
+    return $Call.ByID(2737986078, name, folders);
+}
+
+export function CreateInGroup(id: string, title: string): $CancellablePromise<$models.Conversation> {
+    return $Call.ByID(1397630863, id, title);
+}
+
 export function Delete(id: string, archived: boolean): $CancellablePromise<void> {
     return $Call.ByID(1405195532, id, archived);
 }
 
 export function GenerateContextSummary(id: string, modelID: string): $CancellablePromise<string> {
     return $Call.ByID(1158139173, id, modelID);
+}
+
+export function GroupConversations(id: string): $CancellablePromise<$models.Conversation[] | null> {
+    return $Call.ByID(2260579370, id);
+}
+
+export function Groups(): $CancellablePromise<$models.Group[] | null> {
+    return $Call.ByID(709141663);
 }
 
 export function List(scope: $models.Scope): $CancellablePromise<$models.Conversation[] | null> {
@@ -51,6 +67,10 @@ export function Messages(id: string): $CancellablePromise<$models.Message[] | nu
 
 export function Model(): $CancellablePromise<aiconfig$0.Model> {
     return $Call.ByID(686777260);
+}
+
+export function PickGroupFolders(): $CancellablePromise<string[] | null> {
+    return $Call.ByID(2204804794);
 }
 
 export function PinContextArticle(conversationID: string, articleID: string, pinned: boolean): $CancellablePromise<void> {

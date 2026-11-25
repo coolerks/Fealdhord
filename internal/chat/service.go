@@ -49,6 +49,7 @@ type SendInput struct {
 type Conversation struct {
 	ID         string `json:"id"`
 	Title      string `json:"title"`
+	GroupID    string `json:"groupId,omitempty"`
 	Pinned     bool   `json:"pinned,omitempty"`
 	ArchivedAt int64  `json:"archivedAt,omitempty"`
 }
@@ -146,13 +147,22 @@ func (s *Service) List(ctx context.Context, scope Scope) ([]Conversation, error)
 }
 
 func (s *Service) Create(ctx context.Context, scope Scope, title string) (Conversation, error) {
+	return s.createConversation(ctx, scope, title, sql.NullString{})
+}
+
+func (s *Service) createConversation(ctx context.Context, scope Scope, title string, group sql.NullString) (Conversation, error) {
 	title = strings.TrimSpace(title)
 	if !validScope(scope) || title == "" || len(title) > 320 {
 		return Conversation{}, modelError("ValidationError")
 	}
-	now := time.Now().UnixMilli()
+	now := time.Now()
+	day := ""
+	if scope.Kind == "global" {
+		day = now.Format(time.DateOnly)
+	}
 	row, err := s.store.ChatQueries().CreateConversation(ctx, sqlc.CreateConversationParams{
-		ID: rand.Text(), ScopeType: scope.Kind, ScopeID: scope.ID, Title: title, CreatedAt: now, UpdatedAt: now,
+		ID: rand.Text(), ScopeType: scope.Kind, ScopeID: scope.ID, Title: title, CreatedAt: now.UnixMilli(), UpdatedAt: now.UnixMilli(),
+		GroupID: group, WorkspaceDay: day,
 	})
 	if err != nil {
 		return Conversation{}, modelError("StorageError")
@@ -355,6 +365,11 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 		request.System = instructions
 		tools = available
 	}
+	workspace, workspacePrompt, err := s.conversationWorkspace(ctx, conversation)
+	if err != nil {
+		return err
+	}
+	request.System += workspacePrompt
 	user := sqlc.AppendChatMessageParams{ID: rand.Text(), ConversationID: conversation.ID, Role: "user", Status: "complete", Content: question}
 	reply := sqlc.AppendChatMessageParams{ID: rand.Text(), ConversationID: conversation.ID, Role: "assistant", Status: "running", ModelName: model.DisplayName}
 	if len(readIDs) > 0 && !input.DisableTools && len(input.Skills) == 0 {
@@ -394,6 +409,7 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 	s.active[conversation.ID] = current
 	s.workers.Add(1)
 	executionCtx := agentrun.WithApprovalMode(runCtx, input.ApprovalMode)
+	executionCtx = agentrun.WithWorkspace(executionCtx, workspace)
 	if permissions != nil {
 		executionCtx = agentrun.WithToolPermissions(executionCtx, permissions)
 	}

@@ -1,9 +1,28 @@
 -- name: CreateConversation :one
-INSERT INTO conversations (id,scope_type,scope_id,title,created_at,updated_at)
-VALUES (?,?,?,?,?,?) RETURNING *;
+INSERT INTO conversations (id,scope_type,scope_id,title,created_at,updated_at,group_id,workspace_day)
+VALUES (?,?,?,?,?,?,?,?) RETURNING *;
 
 -- name: ListConversations :many
-SELECT * FROM conversations WHERE scope_type=? AND scope_id=? AND archived_at IS NULL ORDER BY pinned_at DESC,updated_at DESC,id LIMIT 100;
+SELECT * FROM conversations WHERE scope_type=? AND scope_id=? AND group_id IS NULL AND archived_at IS NULL ORDER BY pinned_at DESC,updated_at DESC,id LIMIT 100;
+
+-- name: ListGroupConversations :many
+SELECT * FROM conversations WHERE scope_type='global' AND group_id=? AND archived_at IS NULL
+ORDER BY pinned_at DESC,updated_at DESC,id LIMIT 100;
+
+-- name: InsertChatGroup :exec
+INSERT INTO chat_groups (id,name,created_at) VALUES (?,?,?);
+
+-- name: InsertChatGroupFolder :exec
+INSERT INTO chat_group_folders (group_id,position,path) VALUES (?,?,?);
+
+-- name: ListChatGroups :many
+SELECT * FROM chat_groups ORDER BY created_at DESC,id;
+
+-- name: ListChatGroupFolders :many
+SELECT path FROM chat_group_folders WHERE group_id=? ORDER BY position;
+
+-- name: GetChatGroup :one
+SELECT * FROM chat_groups WHERE id=?;
 
 -- name: ListArchivedConversations :many
 SELECT * FROM conversations WHERE scope_type='global' AND archived_at IS NOT NULL
@@ -116,9 +135,10 @@ UPDATE conversations SET context_after=sqlc.arg(new_after), context_summary=sqlc
 WHERE id=sqlc.arg(id) AND context_after=sqlc.arg(old_after) AND auto_compact=1;
 
 -- name: CreateChatBranch :one
-INSERT INTO conversations (id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, auto_compact)
+INSERT INTO conversations (id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, auto_compact, group_id, workspace_day)
 SELECT sqlc.arg(new_id), c.scope_type, c.scope_id, c.title, sqlc.arg(now), sqlc.arg(now),
- min(c.context_after, m.position), CASE WHEN c.context_after <= m.position THEN c.context_summary ELSE '' END, c.auto_compact
+ min(c.context_after, m.position), CASE WHEN c.context_after <= m.position THEN c.context_summary ELSE '' END, c.auto_compact,
+ c.group_id, sqlc.arg(workspace_day)
 FROM conversations c JOIN messages m ON m.conversation_id=c.id
 WHERE c.id=sqlc.arg(source_id) AND c.archived_at IS NULL AND m.id=sqlc.arg(message_id) AND m.role='assistant' AND m.status<>'running'
 RETURNING *;

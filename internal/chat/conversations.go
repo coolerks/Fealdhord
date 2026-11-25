@@ -19,7 +19,7 @@ type ArchivedPage struct {
 }
 
 func conversationDTO(row sqlc.Conversation) Conversation {
-	return Conversation{ID: row.ID, Title: row.Title, Pinned: row.PinnedAt.Valid, ArchivedAt: row.ArchivedAt.Int64}
+	return Conversation{ID: row.ID, Title: row.Title, GroupID: row.GroupID.String, Pinned: row.PinnedAt.Valid, ArchivedAt: row.ArchivedAt.Int64}
 }
 
 func (s *Service) Archived(ctx context.Context, offset int64) (ArchivedPage, error) {

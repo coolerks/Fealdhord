@@ -11,6 +11,7 @@ export type {
     ContextPin,
     ContextStatus,
     Conversation,
+    Group,
     Message,
     ReplyDetails,
     ReplyToolStep,

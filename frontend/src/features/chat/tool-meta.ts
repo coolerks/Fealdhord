@@ -51,6 +51,9 @@ const groups = {
   viewDiagnostics: { summary: '查看了诊断状态', runningSummary: '查看诊断状态中', icon: 'activity', priority: 75, category: 'app' },
   viewSchedules: { summary: '查看了定时任务', runningSummary: '查看定时任务中', icon: 'clock', priority: 80, category: 'schedules' },
   manageSchedules: { summary: '管理了定时任务', runningSummary: '管理定时任务中', icon: 'clock', priority: 82, category: 'schedules' },
+  readFiles: { summary: '读取了本地文件', runningSummary: '读取本地文件中', icon: 'book-text', priority: 87, category: 'app' },
+  writeFiles: { summary: '更新了本地文件', runningSummary: '更新本地文件中', icon: 'file-text', priority: 88, category: 'app' },
+  runCommands: { summary: '运行了命令', runningSummary: '运行命令中', icon: 'blocks', priority: 89, category: 'app' },
   findTools: { summary: '查找了可用工具', runningSummary: '查找可用工具中', icon: 'blocks', priority: 85, category: 'app' },
   runBuiltinTool: { summary: '调用了内置工具', runningSummary: '调用内置工具中', icon: 'blocks', priority: 86, category: 'app' },
   viewNotifications: { summary: '查看了通知配置', runningSummary: '查看通知配置中', icon: 'bell', priority: 95, category: 'notifications' },
@@ -60,6 +63,10 @@ const groups = {
 type BuiltinToolEntry = { label: string; group: BuiltinToolGroup }
 
 const canonicalBuiltinTools: Record<string, BuiltinToolEntry> = {
+  read: { label: '读取本地文件', group: groups.readFiles },
+  write: { label: '写入本地文件', group: groups.writeFiles },
+  edit: { label: '编辑本地文件', group: groups.writeFiles },
+  shell: { label: '运行命令', group: groups.runCommands },
   // 用户澄清
   AskUserQuestion: { label: '向用户提问', group: groups.askUser },
   // 文章查询与阅读

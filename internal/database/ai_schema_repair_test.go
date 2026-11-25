@@ -60,6 +60,11 @@ func TestAIRepairRestoresChatAndArticleEvaluationOnVersion21Database(t *testing.
 		ALTER TABLE article_ai_settings DROP COLUMN translation_prompt;
 		DROP INDEX conversations_active_order;
 		DROP INDEX conversations_archive_order;
+		DROP INDEX conversations_group;
+		ALTER TABLE conversations DROP COLUMN workspace_day;
+		ALTER TABLE conversations DROP COLUMN group_id;
+		DROP TABLE chat_group_folders;
+		DROP TABLE chat_groups;
 		ALTER TABLE conversations DROP COLUMN pinned_at;
 		ALTER TABLE conversations DROP COLUMN archived_at;
 		ALTER TABLE feeds DROP COLUMN reader_open_mode;

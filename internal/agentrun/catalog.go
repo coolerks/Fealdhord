@@ -22,6 +22,18 @@ func CompactToolCatalog(request ai.ModelRequest, tools []ReadTool) []ReadTool {
 	if len(tools) <= 90 && cost <= request.Budget.InputLimit/3 {
 		return tools
 	}
+	var direct, discovered []ReadTool
+	for _, tool := range tools {
+		if tool.MaxResultBytes > 0 {
+			direct = append(direct, tool)
+		} else {
+			discovered = append(discovered, tool)
+		}
+	}
+	if len(discovered) == 0 {
+		return direct
+	}
+	tools = discovered
 	discovery := ReadTool{
 		Definition: ai.ToolDefinition{
 			Name: "find_app_tools", Description: "查询已授权的应用或 MCP 工具。按名称可读取参数结构；列表返回 next_offset 时可续查。使用 run_app_tool 调用。",
@@ -112,5 +124,5 @@ func CompactToolCatalog(request ai.ModelRequest, tools []ReadTool) []ReadTool {
 			return resolved
 		},
 	}
-	return []ReadTool{discovery, invocation}
+	return append(direct, discovery, invocation)
 }

@@ -188,7 +188,7 @@ func TestSkillActivationIntersectsToolAllowlist(t *testing.T) {
 		}
 	}
 	tools, prompt, err := p.RunTools("id", []string{"one", "two"}, false)
-	if err != nil || len(tools) != 1 || tools[0].Definition.Name != "article_read" || !strings.Contains(prompt, "Second") {
+	if err != nil || len(tools) != 2 || tools[0].Definition.Name != "article_read" || tools[1].Definition.Name != "read" || strings.Contains(prompt, "Second") || !strings.Contains(prompt, "skill://two/SKILL.md") {
 		t.Fatalf("unexpected activation: %v %q %v", tools, prompt, err)
 	}
 }
@@ -243,8 +243,8 @@ func TestSkillPackageAcceptsTextAndRejectsTraversal(t *testing.T) {
 		{name: "wrapped", root: "fixture/", markdown: standard, resource: "references/faq.md"},
 		{name: "UTF-8 BOM and CRLF", markdown: "\uFEFF" + strings.ReplaceAll(standard, "\n", "\r\n"), resource: "references/faq.md"},
 		{name: "escape", markdown: standard, resource: "references/../outside.md", wantError: "InvalidSkillPackage"},
-		{name: "executable", markdown: standard, resource: "assets/program.py", wantError: "InvalidSkillPackage"},
-		{name: "resource budget", markdown: standard, resource: "references/faq.md", extraResourceBytes: maxSkillResources, wantError: "SkillResourcesTooLarge"},
+		{name: "executable", markdown: standard, resource: "scripts/program.py"},
+		{name: "larger reference", markdown: standard, resource: "references/faq.md", extraResourceBytes: 300 << 10},
 		{name: "large manifest", markdown: standard + strings.Repeat("a", maxSkillText), resource: "references/faq.md", wantError: "SkillTextTooLarge"},
 		{name: "malformed YAML", markdown: strings.Replace(standard, "name: fixture", "name: [", 1), resource: "references/faq.md", wantError: "SkillFrontMatterInvalid"},
 		{name: "invalid name", markdown: strings.Replace(standard, "name: fixture", "name: FAQ", 1), resource: "references/faq.md", wantError: "SkillNameInvalid"},
@@ -274,14 +274,14 @@ func TestSkillPackageAcceptsTextAndRejectsTraversal(t *testing.T) {
 			if err := errors.Join(zipper.Close(), file.Close()); err != nil {
 				t.Fatal(err)
 			}
-			got, err := loadSkillFile(path)
+			got, err := extractSkillPackage(t.Context(), path, t.TempDir())
 			if tc.wantError != "" {
 				if err == nil || err.Error() != tc.wantError {
 					t.Fatalf("want %s, got %v", tc.wantError, err)
 				}
 				return
 			}
-			if err != nil || got.Markdown != standard || !slices.Equal(got.Resources, []SkillResource{{Path: "references/faq.md", Text: "fixture text"}}) {
+			if err != nil || got.Markdown != standard || len(got.Resources) == 0 || got.Resources[0] != (SkillResource{Path: tc.resource, Size: int64(len("fixture text"))}) {
 				t.Fatalf("invalid package: %+v %v", got, err)
 			}
 		})
@@ -595,9 +595,13 @@ func TestSkillPackageRequiresInstructionsAndUsesSavedBody(t *testing.T) {
 	if _, err := NewAPI(p, nil).SaveSkillPackage(Skill{Markdown: header + "\n" + body + "\n", Enabled: true}); err != nil {
 		t.Fatal(err)
 	}
-	_, instructions, err := p.RunTools("chat", []string{"my-skill"}, false)
-	if err != nil || !strings.Contains(instructions, body) {
-		t.Fatalf("saved Skill unavailable in chat: %q %v", instructions, err)
+	tools, instructions, err := p.RunTools("chat", []string{"my-skill"}, false)
+	if err != nil || strings.Contains(instructions, body) {
+		t.Fatalf("Skill body disclosed in initial prompt: %q %v", instructions, err)
+	}
+	page, err := tools[0].Read(t.Context(), ai.ToolCall{ArgumentsJSON: `{"path":"skill://my-skill/SKILL.md"}`})
+	if err != nil || !strings.Contains(page, body) {
+		t.Fatalf("saved Skill unavailable through read: %q %v", page, err)
 	}
 }
 

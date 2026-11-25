@@ -30,8 +30,14 @@ export interface ContextStatus {
 export interface Conversation {
     "id": string;
     "title": string;
+    "groupId"?: string;
     "pinned"?: boolean;
     "archivedAt"?: number;
+}
+
+export interface Group {
+    "id": string;
+    "name": string;
 }
 
 export interface Message {

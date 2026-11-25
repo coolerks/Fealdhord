@@ -8,6 +8,22 @@ import (
 
 func (s *Store) ChatQueries() *sqlc.Queries { return s.queries }
 
+func (s *Store) CreateChatGroup(ctx context.Context, group sqlc.InsertChatGroupParams, folders []string) error {
+	return s.transaction(ctx, func(q *sqlc.Queries) error {
+		if err := q.InsertChatGroup(ctx, group); err != nil {
+			return err
+		}
+		for position, folder := range folders {
+			if err := q.InsertChatGroupFolder(ctx, sqlc.InsertChatGroupFolderParams{
+				GroupID: group.ID, Position: int64(position), Path: folder,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func (s *Store) BranchChat(ctx context.Context, input sqlc.CreateChatBranchParams) (sqlc.Conversation, error) {
 	var branch sqlc.Conversation
 	err := s.transaction(ctx, func(q *sqlc.Queries) error {

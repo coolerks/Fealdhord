@@ -213,6 +213,18 @@ type Category struct {
 	Revision       int64          `json:"revision"`
 }
 
+type ChatGroup struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	CreatedAt int64  `json:"created_at"`
+}
+
+type ChatGroupFolder struct {
+	GroupID  string `json:"group_id"`
+	Position int64  `json:"position"`
+	Path     string `json:"path"`
+}
+
 type ChatToolAudit struct {
 	MessageID  string        `json:"message_id"`
 	CallID     string        `json:"call_id"`
@@ -224,20 +236,22 @@ type ChatToolAudit struct {
 }
 
 type Conversation struct {
-	ID              string        `json:"id"`
-	ScopeType       string        `json:"scope_type"`
-	ScopeID         string        `json:"scope_id"`
-	Title           string        `json:"title"`
-	CreatedAt       int64         `json:"created_at"`
-	UpdatedAt       int64         `json:"updated_at"`
-	ContextAfter    int64         `json:"context_after"`
-	ContextSummary  string        `json:"context_summary"`
-	ContextPins     string        `json:"context_pins"`
-	LastInputTokens int64         `json:"last_input_tokens"`
-	LastUsageModel  string        `json:"last_usage_model"`
-	AutoCompact     int64         `json:"auto_compact"`
-	PinnedAt        sql.NullInt64 `json:"pinned_at"`
-	ArchivedAt      sql.NullInt64 `json:"archived_at"`
+	ID              string         `json:"id"`
+	ScopeType       string         `json:"scope_type"`
+	ScopeID         string         `json:"scope_id"`
+	Title           string         `json:"title"`
+	CreatedAt       int64          `json:"created_at"`
+	UpdatedAt       int64          `json:"updated_at"`
+	ContextAfter    int64          `json:"context_after"`
+	ContextSummary  string         `json:"context_summary"`
+	ContextPins     string         `json:"context_pins"`
+	LastInputTokens int64          `json:"last_input_tokens"`
+	LastUsageModel  string         `json:"last_usage_model"`
+	AutoCompact     int64          `json:"auto_compact"`
+	PinnedAt        sql.NullInt64  `json:"pinned_at"`
+	ArchivedAt      sql.NullInt64  `json:"archived_at"`
+	GroupID         sql.NullString `json:"group_id"`
+	WorkspaceDay    string         `json:"workspace_day"`
 }
 
 type EffectiveArticleCategory struct {
