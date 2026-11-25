@@ -222,6 +222,7 @@ func TestLongSummaryIncludesTheFinalPartAndRejectsInvalidOutput(t *testing.T) {
 		"The final ruling takes effect on July 1, with a waiver for existing holders."
 	cfg := aiconfig.Model{Name: "test", Metadata: ai.Metadata{Context: 2200}}
 	calls := 0
+	finalPartAttempts := 0
 	model := testModel(func(_ context.Context, req *ai.ModelRequest) (*ai.ModelResponse, error) {
 		calls++
 		var input summaryInput
@@ -230,6 +231,10 @@ func TestLongSummaryIncludesTheFinalPartAndRejectsInvalidOutput(t *testing.T) {
 		}
 		if strings.HasPrefix(req.System, noteInstructions) {
 			if strings.Contains(input.Text, "July 1") {
+				finalPartAttempts++
+				if finalPartAttempts == 1 {
+					return &ai.ModelResponse{FinishReason: "stop"}, nil
+				}
 				return output("generated", "July 1; waiver for existing holders."), nil
 			}
 			return output("generated", "Local project background."), nil
@@ -240,18 +245,79 @@ func TestLongSummaryIncludesTheFinalPartAndRejectsInvalidOutput(t *testing.T) {
 		return output("generated", "The final ruling begins July 1, with a waiver for existing holders."), nil
 	})
 	result, err := summarize(t.Context(), cfg, model, "A local project", body, false)
-	if err != nil || calls < 3 || !strings.Contains(result, "July 1") {
+	if err != nil || calls < 4 || finalPartAttempts != 2 || !strings.Contains(result, "July 1") {
 		t.Fatalf("长文摘要：%q %d %v", result, calls, err)
 	}
+	repeatCalls := 0
 	repeat := testModel(func(context.Context, *ai.ModelRequest) (*ai.ModelResponse, error) {
+		repeatCalls++
 		return output("generated", "Content should stay unchanged."), nil
 	})
-	if _, err := summarize(t.Context(), cfg, repeat, "Title", "Content should stay unchanged.", true); err == nil {
-		t.Fatal("复述被接受")
+	if _, err := summarize(t.Context(), cfg, repeat, "Title", "Content should stay unchanged.", true); err == nil ||
+		err.Error() != "InvalidModelOutput" || repeatCalls != 2 {
+		t.Fatalf("重复正文应在一次补发后结束：调用 %d 次，错误 %v", repeatCalls, err)
 	}
 	truncated := output("generated", "A complete-looking result.")
 	truncated.FinishReason = "length"
 	if _, err := parseOutput(truncated, 100); err == nil {
 		t.Fatal("截断被接受")
+	}
+}
+
+func TestSummaryRecoversAndCachesValidModelOutput(t *testing.T) {
+	const summary = "维护窗口定于下周，现有用户无需迁移。"
+	for _, test := range []struct {
+		name  string
+		first *ai.ModelResponse
+	}{
+		{name: "JSON 代码围栏"},
+		{name: "输出截断", first: &ai.ModelResponse{FinishReason: "length"}},
+		{name: "格式错误", first: &ai.ModelResponse{FinishReason: "stop"}},
+		{name: "只重复标题", first: output("generated", "测试正文")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, store, _, source := summaryFixture(t, strings.Repeat("这段正文详细介绍了维护计划和现有用户的处理方案。", 40), true)
+			var calls, firstLimit int
+			var firstInput string
+			resolver := testResolver{testModel(func(_ context.Context, request *ai.ModelRequest) (*ai.ModelResponse, error) {
+				calls++
+				input := request.Messages[0].Content[0].Text
+				if *request.MaxOutputTokens > request.Budget.OutputReserve {
+					t.Errorf("输出额度超过模型预留：%d > %d", *request.MaxOutputTokens, request.Budget.OutputReserve)
+				}
+				if calls == 1 {
+					firstLimit = *request.MaxOutputTokens
+					firstInput = input
+					if firstLimit < ai.EstimateTokens(strings.Repeat("中", 720)) {
+						t.Errorf("完整中文摘要的输出额度不足：%d token", firstLimit)
+					}
+					if test.first != nil {
+						return test.first, nil
+					}
+				}
+				if input != firstInput {
+					t.Error("重试修改了摘要来源")
+				}
+				if test.first != nil && test.first.FinishReason == "length" && *request.MaxOutputTokens <= firstLimit {
+					t.Errorf("截断后的输出额度未提高：%d → %d", firstLimit, *request.MaxOutputTokens)
+				}
+				result := output("generated", summary)
+				result.Message.Content[0].Text = "```json\r\n" + result.Message.Content[0].Text + "\r\n```"
+				return result, nil
+			})}
+			service := New(store, resolver, reader.NewService(store, nil, nil, nil))
+			result, err := service.Generate(t.Context(), Request{Source: source})
+			wantCalls := 1
+			if test.first != nil {
+				wantCalls = 2
+			}
+			if err != nil || result.Status != "generated" || result.Text != summary || calls != wantCalls {
+				t.Fatalf("生成摘要：%+v，调用 %d 次，错误 %v", result, calls, err)
+			}
+			cached, err := service.Get(t.Context(), source)
+			if err != nil || cached != result {
+				t.Fatalf("摘要未保存：%+v %v", cached, err)
+			}
+		})
 	}
 }
