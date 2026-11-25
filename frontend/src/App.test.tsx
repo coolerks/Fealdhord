@@ -68,6 +68,7 @@ const notificationAPI = vi.hoisted(() => ({
 }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/notification/api', () => notificationAPI)
 const listSkills = vi.hoisted(() => vi.fn())
+const importSkill = vi.hoisted(() => vi.fn())
 const saveSkillPackage = vi.hoisted(() => vi.fn())
 const pendingActions = vi.hoisted(() => vi.fn())
 const decideAction = vi.hoisted(() => vi.fn())
@@ -85,6 +86,7 @@ vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/appagent/api', () =>
   ...mcpGrants,
   ...toolPermissions,
   ...mcpConnections,
+  ImportSkill: importSkill,
   SaveSkillPackage: saveSkillPackage,
 }))
 const copyImage = vi.hoisted(() => vi.fn())
@@ -109,6 +111,7 @@ beforeEach(() => {
   mcpGrants.MCPServer.mockResolvedValue({ url: '', config: { port: 8769, tools: [] } })
   useChatTarget.setState({ target: null })
   listSkills.mockResolvedValue([])
+  importSkill.mockReset()
   saveSkillPackage.mockReset().mockResolvedValue(undefined)
   chat.ContextStatus.mockResolvedValue({
     budget: { context: 32768, inputLimit: 24064, outputReserve: 8192, estimated: true },
@@ -535,6 +538,25 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(within(editor).getByRole('button', { name: '保存 Skill' }))
     await waitFor(() => expect(editor).not.toBeInTheDocument())
     expect(saveSkillPackage).toHaveBeenLastCalledWith(expect.objectContaining({ markdown: template, enabled: true }))
+  })
+
+  it('提示 Skill 参考资料超限，重新导入后可预览参考文件再保存', async () => {
+    const user = userEvent.setup()
+    setup()
+    const markdown = '---\nname: faq\ndescription: 查阅常见问题\n---\n先阅读参考资料。'
+    const resources = [{ path: 'references/faq.md', text: '常见问题' }]
+    importSkill.mockRejectedValueOnce(new Error('SkillResourcesTooLarge')).mockResolvedValueOnce({ markdown, resources, enabled: false })
+    await user.click(await screen.findByRole('button', { name: '打开设置' }))
+    await user.click(await screen.findByRole('button', { name: 'Skills' }))
+    const importButton = await screen.findByRole('button', { name: '导入 Skill' })
+    await user.click(importButton)
+    expect(await screen.findByText(/文本解压后合计超过 12 KiB/)).toBeInTheDocument()
+    await user.click(importButton)
+    const editor = within(await screen.findByRole('dialog', { name: '编辑 Skill' }))
+    expect(editor.getByText('references/faq.md')).toBeInTheDocument()
+    expect(saveSkillPackage).not.toHaveBeenCalled()
+    await user.click(editor.getByRole('button', { name: '保存 Skill' }))
+    await waitFor(() => expect(saveSkillPackage).toHaveBeenCalledWith(expect.objectContaining({ markdown, resources })))
   })
 
   it('用斜杠选择技能和模型，不将命令或路径误当成对方', async () => {

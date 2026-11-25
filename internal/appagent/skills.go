@@ -26,6 +26,8 @@ type Skill struct {
 // JSON can expand each input byte and also stores the parsed front matter.
 const maxStoredSkill = 12*maxSkillText + 6*maxSkillResources + (32 << 10)
 
+var errSkillTextTooLarge = errors.New("SkillTextTooLarge")
+
 var skillName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$`)
 
 func parseSkill(markdown string, enabled bool) (Skill, error) {
@@ -35,13 +37,23 @@ func parseSkill(markdown string, enabled bool) (Skill, error) {
 		Tools        []string `yaml:"tools"`
 		AllowedTools string   `yaml:"allowed-tools"`
 	}
-	markdown = strings.ReplaceAll(markdown, "\r\n", "\n")
+	if !utf8.ValidString(markdown) {
+		return Skill{}, errors.New("SkillEncodingInvalid")
+	}
+	markdown = strings.ReplaceAll(strings.TrimPrefix(markdown, "\uFEFF"), "\r\n", "\n")
+	if len(markdown) > maxSkillText {
+		return Skill{}, errSkillTextTooLarge
+	}
 	input, ok := strings.CutPrefix(markdown, "---\n")
 	front, body, found := strings.Cut(input, "\n---\n")
-	if !ok || !found || len(markdown) > maxSkillText || !utf8.ValidString(markdown) ||
-		yaml.Unmarshal([]byte(front), &manifest) != nil || !skillName.MatchString(manifest.Name) || strings.TrimSpace(manifest.Description) == "" ||
-		len([]rune(manifest.Description)) > 1024 {
-		return Skill{}, errors.New("InvalidSkill")
+	if !ok || !found || yaml.Unmarshal([]byte(front), &manifest) != nil {
+		return Skill{}, errors.New("SkillFrontMatterInvalid")
+	}
+	if !skillName.MatchString(manifest.Name) {
+		return Skill{}, errors.New("SkillNameInvalid")
+	}
+	if strings.TrimSpace(manifest.Description) == "" || utf8.RuneCountInString(manifest.Description) > 1024 {
+		return Skill{}, errors.New("SkillDescriptionInvalid")
 	}
 	if strings.TrimSpace(body) == "" {
 		return Skill{}, errors.New("SkillBodyRequired")

@@ -14,7 +14,7 @@
 
 `API.MCPClientLogs(id, attempt)` 返回 STDIO 的近期日志，条目含 `time`、`source`、`level?` 和 `message`。查询失败启动时使用实际提交过的临时 `attemptId` 且令 `attempt=true`，其他情况使用稳定连接 ID。日志保留在内存中。
 
-`API.SaveSkill(markdown, enabled)` 和 `API.SaveSkillPackage(input)` 要求有效的 YAML 前置区和非空 Markdown 正文。前置区有效但正文为空时返回 `SkillBodyRequired`。直接导入 `SKILL.md` 使用相同校验。
+`API.ImportSkill()` 通过本地文件选择器读取并返回 Skill 预览。所选路径不存在或不是常规文件时返回 `SkillFileUnreadable`。`API.SaveSkill(markdown, enabled)`、`API.SaveSkillPackage(input)` 和导入共用 Markdown 校验，接受 UTF-8 BOM 和 CRLF。编码、YAML 前置区、`name`、`description` 或正文不合规时分别返回 `SkillEncodingInvalid`、`SkillFrontMatterInvalid`、`SkillNameInvalid`、`SkillDescriptionInvalid` 或 `SkillBodyRequired`。超过 ZIP 文件或解压后参考文本大小限制分别返回 `SkillArchiveTooLarge`、`SkillResourcesTooLarge`，超过 `SKILL.md` 大小限制返回 `SkillTextTooLarge`。ZIP 结构、路径或资源类型不合规时返回 `InvalidSkillPackage`。
 
 ## 1. 范围与触发条件
 

@@ -14,6 +14,9 @@ import (
 
 const maxSkillText = 256 << 10
 const maxSkillResources = 12 << 10
+const maxSkillArchive = maxSkillText + maxSkillResources
+
+var errSkillResourcesTooLarge = errors.New("SkillResourcesTooLarge")
 
 type SkillResource struct {
 	Path string `json:"path"`
@@ -48,11 +51,17 @@ func validateSkillResources(resources []SkillResource) bool {
 
 func loadSkillFile(filename string) (Skill, error) {
 	info, err := os.Lstat(filename)
-	if err != nil || !info.Mode().IsRegular() || info.Size() > maxSkillText+maxSkillResources {
-		return Skill{}, errors.New("InvalidSkill")
+	if err != nil || !info.Mode().IsRegular() {
+		return Skill{}, errors.New("SkillFileUnreadable")
 	}
 	if strings.EqualFold(filepath.Ext(filename), ".zip") {
+		if info.Size() > maxSkillArchive {
+			return Skill{}, errors.New("SkillArchiveTooLarge")
+		}
 		return unpackSkill(filename)
+	}
+	if info.Size() > maxSkillText {
+		return Skill{}, errSkillTextTooLarge
 	}
 	file, err := os.Open(filename)
 	if err != nil {
@@ -62,6 +71,9 @@ func loadSkillFile(filename string) (Skill, error) {
 	data, err := io.ReadAll(io.LimitReader(file, maxSkillText+1))
 	if err != nil {
 		return Skill{}, errors.New("StorageError")
+	}
+	if len(data) > maxSkillText {
+		return Skill{}, errSkillTextTooLarge
 	}
 	return parseSkill(string(data), false)
 }
@@ -95,6 +107,7 @@ func unpackSkill(filename string) (Skill, error) {
 	}
 	var value Skill
 	var resources []SkillResource
+	remainingResources := maxSkillResources
 	for _, file := range archive.File {
 		if file.FileInfo().IsDir() {
 			continue
@@ -103,12 +116,12 @@ func unpackSkill(filename string) (Skill, error) {
 		if !belongs || name != "SKILL.md" && !skillResourcePath(name) {
 			return Skill{}, invalid
 		}
-		limit := maxSkillResources
+		limit, sizeError := remainingResources, errSkillResourcesTooLarge
 		if name == "SKILL.md" {
-			limit = maxSkillText
+			limit, sizeError = maxSkillText, errSkillTextTooLarge
 		}
 		if file.UncompressedSize64 > uint64(limit) {
-			return Skill{}, invalid
+			return Skill{}, sizeError
 		}
 		entry, err := file.Open()
 		if err != nil {
@@ -126,6 +139,7 @@ func unpackSkill(filename string) (Skill, error) {
 			}
 		} else {
 			resources = append(resources, SkillResource{Path: name, Text: string(data)})
+			remainingResources -= len(data)
 		}
 	}
 	if !validateSkillResources(resources) {

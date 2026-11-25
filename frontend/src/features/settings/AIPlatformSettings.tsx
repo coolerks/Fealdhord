@@ -637,6 +637,19 @@ export function MCPSettings() {
   </div>
 }
 
+const skillErrorMessages: Partial<Record<string, string>> = {
+  SkillFileUnreadable: '无法读取 Skill 文件，请重新选择本地文件。',
+  InvalidSkillPackage: '无法导入 ZIP。请确认只有一个 SKILL.md，位于 ZIP 根目录或单层技能目录，且只附带 references 或 assets 中的 Markdown、TXT、JSON 文本。',
+  SkillArchiveTooLarge: 'ZIP 超过 268 KiB，请缩小文件后重新导入。',
+  SkillTextTooLarge: 'SKILL.md 超过 256 KiB，请缩短正文后重试。',
+  SkillResourcesTooLarge: 'references 和 assets 的文本解压后合计超过 12 KiB，请精简后重新导入。',
+  SkillEncodingInvalid: '请将 SKILL.md 保存为 UTF-8 后重试。',
+  SkillFrontMatterInvalid: '请在 SKILL.md 开头用两行独立的 --- 包住有效的 YAML 配置。',
+  SkillNameInvalid: '请填写有效的 name。最多 64 个字符，只使用小写英文字母、数字和连字符，首尾使用字母或数字。',
+  SkillDescriptionInvalid: '请填写 description，最多 1024 个字符。',
+  SkillBodyRequired: '请在第二条 --- 下方填写 Skill 的正文。',
+}
+
 export function SkillsSettings() {
   const cache = useQueryClient()
   const skills = useQuery({ queryKey: skillsKey, queryFn: () => api.Skills(), retry: false })
@@ -650,10 +663,8 @@ export function SkillsSettings() {
 
   const busy = mutation.isPending
   const skillError = mutation.error instanceof Error ? mutation.error.message : ''
-  const mutationError = mutation.isError
-    ? skillError === 'SkillBodyRequired'
-      ? '请在第二条 --- 下方填写 Skill 的正文。'
-      : `Skill 操作失败（${skillError || '请检查内容'}）`
+  const mutationError = mutation.isError && skillError !== 'Cancelled'
+    ? skillErrorMessages[skillError] ?? `Skill 操作失败（${skillError || '请检查内容'}）`
     : undefined
 
   return <div className="space-y-6">

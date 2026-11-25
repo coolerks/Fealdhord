@@ -235,13 +235,21 @@ func TestScopedToolsCheckRealArticleMembership(t *testing.T) {
 }
 
 func TestSkillPackageAcceptsTextAndRejectsTraversal(t *testing.T) {
+	const standard = "---\nname: fixture\ndescription: fixture\n---\nUse FAQ"
 	for _, tc := range []struct {
-		name, resource string
-		valid          bool
+		name, root, markdown, resource, wantError string
+		extraResourceBytes                        int
 	}{
-		{"reference", "fixture/references/faq.md", true},
-		{"escape", "fixture/references/../outside.md", false},
-		{"executable", "fixture/assets/program.py", false},
+		{name: "wrapped", root: "fixture/", markdown: standard, resource: "references/faq.md"},
+		{name: "UTF-8 BOM and CRLF", markdown: "\uFEFF" + strings.ReplaceAll(standard, "\n", "\r\n"), resource: "references/faq.md"},
+		{name: "escape", markdown: standard, resource: "references/../outside.md", wantError: "InvalidSkillPackage"},
+		{name: "executable", markdown: standard, resource: "assets/program.py", wantError: "InvalidSkillPackage"},
+		{name: "resource budget", markdown: standard, resource: "references/faq.md", extraResourceBytes: maxSkillResources, wantError: "SkillResourcesTooLarge"},
+		{name: "large manifest", markdown: standard + strings.Repeat("a", maxSkillText), resource: "references/faq.md", wantError: "SkillTextTooLarge"},
+		{name: "malformed YAML", markdown: strings.Replace(standard, "name: fixture", "name: [", 1), resource: "references/faq.md", wantError: "SkillFrontMatterInvalid"},
+		{name: "invalid name", markdown: strings.Replace(standard, "name: fixture", "name: FAQ", 1), resource: "references/faq.md", wantError: "SkillNameInvalid"},
+		{name: "missing description", markdown: strings.Replace(standard, "description: fixture\n", "", 1), resource: "references/faq.md", wantError: "SkillDescriptionInvalid"},
+		{name: "invalid UTF-8", markdown: standard + "\xff", resource: "references/faq.md", wantError: "SkillEncodingInvalid"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "skill.zip")
@@ -250,15 +258,16 @@ func TestSkillPackageAcceptsTextAndRejectsTraversal(t *testing.T) {
 				t.Fatal(err)
 			}
 			zipper := zip.NewWriter(file)
-			for name, contents := range map[string]string{
-				"fixture/SKILL.md": "---\nname: fixture\ndescription: fixture\n---\nUse FAQ",
-				tc.resource:        "fixture text",
-			} {
-				entry, err := zipper.Create(name)
+			files := [][2]string{{"SKILL.md", tc.markdown}, {tc.resource, "fixture text"}}
+			if tc.extraResourceBytes > 0 {
+				files = append(files, [2]string{"references/extra.txt", strings.Repeat("a", tc.extraResourceBytes)})
+			}
+			for _, file := range files {
+				entry, err := zipper.Create(tc.root + file[0])
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err = io.WriteString(entry, contents); err != nil {
+				if _, err = io.WriteString(entry, file[1]); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -266,12 +275,14 @@ func TestSkillPackageAcceptsTextAndRejectsTraversal(t *testing.T) {
 				t.Fatal(err)
 			}
 			got, err := loadSkillFile(path)
-			if tc.valid {
-				if err != nil || len(got.Resources) != 1 || got.Resources[0].Path != "references/faq.md" {
-					t.Fatalf("invalid package: %+v %v", got, err)
+			if tc.wantError != "" {
+				if err == nil || err.Error() != tc.wantError {
+					t.Fatalf("want %s, got %v", tc.wantError, err)
 				}
-			} else if err == nil {
-				t.Fatal("unsafe package accepted")
+				return
+			}
+			if err != nil || got.Markdown != standard || !slices.Equal(got.Resources, []SkillResource{{Path: "references/faq.md", Text: "fixture text"}}) {
+				t.Fatalf("invalid package: %+v %v", got, err)
 			}
 		})
 	}
