@@ -471,6 +471,10 @@ html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion
 [data-platform=windows] :is(.application-menu, .glass-sidebar) {
   background: var(--window-chrome-surface);
 }
+[data-platform=linux] { --sidebar: #f0f0f2; }
+.dark [data-platform=linux] { --sidebar: #27272a; }
+[data-platform=linux] .application-menu { background: var(--sidebar); }
+[data-platform=linux] .glass-sidebar { backdrop-filter: none; }
 :is([data-platform=windows], [data-platform=linux]) .application-menu { display:flex; align-items:center; border-bottom:0; padding:0 0 0 4px; }
 [data-platform=windows] :is(.glass-sidebar button, [id=sidebar-toggle], [data-slot=menubar-trigger]) {
   background-color: transparent;

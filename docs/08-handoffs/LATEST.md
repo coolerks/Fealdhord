@@ -1,5 +1,7 @@
 # 最近交接
 
+2026-11-25 Linux GTK4 恢复窗口阴影和四角裁切，菜单栏与侧栏统一配色。[修改与验证记录](history/2026-11-25-linux-window-frame.md)
+
 2026-11-25 Linux 主窗口与 Windows 共用单行窗口栏，DEB 图标改用标准尺寸目录并对齐桌面标识。[修改与验证记录](history/2026-11-25-linux-desktop-chrome.md)
 
 2026-11-25 修复阅读器摘要沿用原文语言，以及 RSS 摘录缺失或不可靠时同语种正文误入翻译的问题。[修改与验证记录](history/2026-11-25-article-output-language.md)

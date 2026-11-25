@@ -29,7 +29,7 @@ func WindowOptions() application.WebviewWindowOptions {
 	options := application.WebviewWindowOptions{
 		Title: "折栈", Width: width, Height: height, MinWidth: minWidth, MinHeight: minHeight, URL: "/",
 		Hidden: true, DevToolsEnabled: true, InitialPosition: application.WindowCentered,
-		Frameless:        runtime.GOOS == "windows" || runtime.GOOS == "linux",
+		Frameless:        runtime.GOOS == "windows" || (runtime.GOOS == "linux" && !usesGTKWindowFrame),
 		BackgroundType:   application.BackgroundTypeTransparent,
 		BackgroundColour: application.NewRGBA(0, 0, 0, 0), DefaultContextMenuDisabled: true,
 		Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, TitleBar: application.MacTitleBarHiddenInset, InvisibleTitleBarHeight: 52},
@@ -53,6 +53,7 @@ func initialWindowSize() (int, int) {
 
 // ShowMainWindow fits the window to the active display before its first paint.
 func ShowMainWindow(app *application.App, window *application.WebviewWindow) {
+	prepareGTKWindowFrame(window)
 	var once sync.Once
 	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
 		once.Do(func() {
