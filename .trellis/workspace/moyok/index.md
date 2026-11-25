@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 73
+- **Total Sessions**: 74
 - **Last Active**: 2026-11-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1880 | Active |
+| `journal-1.md` | ~1902 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 74 | 2026-11-25 | 实现会话分组、Skill 按需读取和本地工具 | `22bb806` | `codex/interface-clarity` |
 | 73 | 2026-11-25 | 修复文章摘要超时与模型断连 | `71d284d` | `codex/interface-clarity` |
 | 72 | 2026-11-25 | 修复文章摘要输出校验失败 | `4997749` | `codex/interface-clarity` |
 | 71 | 2026-11-25 | 文章摘要与可调短文阈值 | `ac7e3c8` | `codex/interface-clarity` |

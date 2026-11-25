@@ -1878,3 +1878,25 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 74: 实现会话分组、Skill 按需读取和本地工具
+<!-- trellis-session: v=2 fp=eeba204fd1980031 -->
+
+**Date**: 2026-11-25
+**Task**: 实现会话分组、Skill 按需读取和本地工具
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+接入本地分组、隐式路径的按需创建、原样 ZIP 安装及 read、write、edit、shell。逐次审批展示完整命令和实际目录。Go、前端 215 项、生产构建与 Windows/Linux 本地工具交叉编译通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `22bb806` | feat(ai): 接入会话分组、Skill 按需读取和本地工具 |
+
+### Status
+
+[OK] **Completed**
