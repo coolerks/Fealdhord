@@ -205,7 +205,39 @@ func (s *Service) Get(ctx context.Context, articleID, targetLang, sourceMode str
 			}
 		}
 	}
-	return rec, nil
+	return s.normalizeCachedBody(ctx, rec), nil
+}
+
+func (s *Service) normalizeCachedBody(ctx context.Context, rec Record) Record {
+	if rec.SourceMode == "summary" || rec.SourceVersion == "" || s.reader == nil {
+		return rec
+	}
+	for _, block := range rec.Blocks {
+		if !hasEscapedNumericText(block.TranslatedHTML) {
+			continue
+		}
+		detail := s.reader.Get(ctx, reader.Request{ArticleID: rec.ArticleID, Mode: rec.SourceMode})
+		if !detail.OK || detail.Data == nil || detail.Data.SourceVersion != rec.SourceVersion {
+			return rec
+		}
+		blocks, err := ExtractBlocks(detail.Data.HTML)
+		if err != nil {
+			return rec
+		}
+		original := make(map[string]SourceBlock, len(blocks))
+		for _, source := range blocks {
+			original[source.ID] = source
+		}
+		for i, stored := range rec.Blocks {
+			if source := original[stored.ID]; source.SourceHash == stored.SourceHash && hasEscapedNumericText(stored.TranslatedHTML) {
+				if cleaned, matches := restoreInline(SanitizeTranslatedHTML(source.InnerHTML), SanitizeTranslatedHTML(stored.TranslatedHTML)); matches {
+					rec.Blocks[i].TranslatedHTML = cleaned
+				}
+			}
+		}
+		break
+	}
+	return rec
 }
 
 func (s *Service) Cancel(articleID, targetLang, sourceMode string) {
@@ -320,7 +352,7 @@ func (s *Service) Translate(ctx context.Context, req TranslateRequest) (Record, 
 			if version == existing.SourceVersion && (req.SourceVersion == "" || req.SourceVersion == version) {
 				cached := decodeRecord(existing)
 				if cached.Status == "completed" {
-					return cached, nil
+					return s.normalizeCachedBody(runCtx, cached), nil
 				}
 			}
 		}

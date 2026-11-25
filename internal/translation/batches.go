@@ -29,6 +29,7 @@ type translationUnit struct {
 	ID, HTML                          string
 	prefix, suffix, leading, trailing string
 	code                              []protectedCode
+	retry                             *inlineRetry
 }
 
 type protectedCode struct{ marker, original string }
@@ -60,7 +61,9 @@ func (p batchPlanner) request(units []translationUnit, title bool, section strin
 	items := make([]translationItem, 0, len(units))
 	payload := translationPayload{ArticleTitle: truncateRunes(p.title, 256), Context: section, Items: items}
 	output := 64
+	hasInlineRetry := false
 	for _, unit := range units {
+		hasInlineRetry = hasInlineRetry || unit.retry != nil
 		payload.Items = append(payload.Items, translationItem{ID: unit.ID, HTML: unit.HTML})
 		output += (ai.EstimateTokens(unit.HTML)*3+1)/2 + 24
 	}
@@ -74,8 +77,12 @@ func (p batchPlanner) request(units []translationUnit, title bool, section strin
 		return nil, false
 	}
 	body, _ := json.Marshal(payload)
+	system := p.system
+	if hasInlineRetry {
+		system += " 带 [[FT0]] 形式标记的段落请保持所有方括号标记和代码占位符的原样及顺序，只翻译文字，不添加 HTML 或 Markdown 格式。"
+	}
 	req := &ai.ModelRequest{
-		Model: p.model, System: p.system, Budget: p.budget, MaxOutputTokens: &output,
+		Model: p.model, System: system, Budget: p.budget, MaxOutputTokens: &output,
 		Messages: []ai.Message{{Role: "user", Content: []ai.ContentBlock{{Type: "text", Text: string(body)}}}},
 	}
 	return req, ai.EstimateRequest(*req) <= p.budget.InputLimit
@@ -333,9 +340,19 @@ func splitInline(raw, id string, fits func(translationUnit) bool) ([]translation
 var codeMarkup = regexp.MustCompile(`<(?:code|kbd)>[^<]+</(?:code|kbd)>`)
 
 func validateUnit(unit translationUnit, raw string) (string, bool) {
+	source := unit.HTML
 	clean := SanitizeTranslatedHTML(raw)
-	if clean == "" || inlineSignature(unit.HTML) != inlineSignature(clean) ||
-		(hasTranslatableText(unit.HTML) && !hasTranslatableText(clean)) ||
+	if unit.retry != nil {
+		var ok bool
+		clean, ok = unit.retry.restore(clean)
+		if !ok {
+			return "", false
+		}
+		source = unit.retry.original
+	}
+	clean, matches := restoreInline(source, clean)
+	if clean == "" || !matches ||
+		(hasTranslatableText(source) && !hasTranslatableText(clean)) ||
 		!strings.HasPrefix(clean, unit.prefix) || !strings.HasSuffix(clean, unit.suffix) {
 		return "", false
 	}
@@ -386,21 +403,4 @@ func hasTranslatableText(raw string) bool {
 		}
 	}
 	return false
-}
-
-func inlineSignature(raw string) string {
-	var tags strings.Builder
-	z := xhtml.NewTokenizer(strings.NewReader(raw))
-	for kind := z.Next(); kind != xhtml.ErrorToken; kind = z.Next() {
-		if kind != xhtml.StartTagToken && kind != xhtml.EndTagToken && kind != xhtml.SelfClosingTagToken {
-			continue
-		}
-		token := z.Token()
-		if token.Data == "br" && kind == xhtml.SelfClosingTagToken {
-			token.Type = xhtml.StartTagToken
-		}
-		// Attributes originate from the reader, so extra or changed attributes invalidate the item.
-		tags.WriteString(token.String())
-	}
-	return tags.String()
 }

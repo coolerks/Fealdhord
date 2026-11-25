@@ -52,8 +52,8 @@ func matchingTranslations(sources []SourceBlock, cached []BlockTranslation) []Bl
 		if prior := byID[source.ID]; prior.SourceHash == source.SourceHash {
 			translated = prior.TranslatedHTML
 		}
-		translated = SanitizeTranslatedHTML(translated)
-		if translated != "" && inlineSignature(translated) == inlineSignature(SanitizeTranslatedHTML(source.InnerHTML)) {
+		translated, matches := restoreInline(SanitizeTranslatedHTML(source.InnerHTML), SanitizeTranslatedHTML(translated))
+		if translated != "" && matches {
 			out = append(out, BlockTranslation{ID: source.ID, SourceHash: source.SourceHash, TranslatedHTML: translated})
 		}
 	}
@@ -285,9 +285,17 @@ func (s *Service) translateBody(ctx context.Context, article database.ArticleTra
 			half := max(1, (len(batch)+1)/2)
 			for len(missing) > 0 || missingTitle {
 				n := min(half, len(missing))
-				if missingTitle {
-					if _, fits := planner.request(missing[:n], true, ""); !fits {
-						n = 0
+				for n > 0 {
+					if _, fits := planner.request(missing[:n], missingTitle, ""); fits {
+						break
+					}
+					n--
+				}
+				if n == 0 && !missingTitle {
+					n = 1
+					// If the additional formatting instruction cannot fit, keep the original wire format.
+					if retry := missing[0].retry; retry != nil {
+						missing[0].HTML, missing[0].retry = retry.original, nil
 					}
 				}
 				_, _, recovered, err := s.runBodyBatch(ctx, &w, adapter, planner, missing[:n], missingTitle, hint, req.Background, false)
@@ -386,6 +394,11 @@ func (s *Service) runBodyBatch(ctx context.Context, work *bodyWork, adapter ai.M
 			return batch, title, 0, errTranslationBudget
 		}
 	}
+	if !retryTransient {
+		// Leave more room for a repair response, especially for providers that include reasoning in the limit.
+		output := min(maxBodyOutput, request.Budget.OutputReserve, max(512, *request.MaxOutputTokens*2))
+		request.MaxOutputTokens = &output
+	}
 	var resp *ai.ModelResponse
 	for attempt := 0; attempt < 2; attempt++ {
 		if ctx.Err() != nil {
@@ -459,11 +472,16 @@ func (s *Service) runBodyBatch(ctx context.Context, work *bodyWork, adapter ai.M
 		items[item.ID] = item.HTML
 	}
 	for i, unit := range batch {
-		if result, ok := validateUnit(unit, items[unit.ID]); ok && !duplicates[unit.ID] &&
-			(resp.FinishReason != "length" || i < len(batch)-1) {
+		raw := items[unit.ID]
+		truncated := resp.FinishReason == "length" && i == len(batch)-1
+		result, ok := validateUnit(unit, raw)
+		if ok && !duplicates[unit.ID] && !truncated {
 			work.accept(unit, result)
 			accepted++
 		} else {
+			if retryTransient && !ok && raw != "" && !duplicates[unit.ID] && !truncated {
+				unit = useInlineRetry(unit)
+			}
 			missing = append(missing, unit)
 		}
 	}

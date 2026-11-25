@@ -188,6 +188,7 @@ func TestTranslationRefreshRejectsInFlightResultAndReusesMatchingBlocks(t *testi
 func TestTranslationTruncatedResponseRetriesOnlyUnverifiedTail(t *testing.T) {
 	_, store, id := phase1Article(t, "<p>One paragraph.</p><p>The next paragraph.</p>")
 	var batches [][]string
+	var firstOutputLimit int
 	adapter := &fakeModel{fn: func(_ context.Context, request *ai.ModelRequest, call int32) (*ai.ModelResponse, error) {
 		payload := readPhase1Payload(t, request)
 		ids := make([]string, len(payload.Items))
@@ -196,7 +197,11 @@ func TestTranslationTruncatedResponseRetriesOnlyUnverifiedTail(t *testing.T) {
 		}
 		batches = append(batches, ids)
 		if call == 1 {
+			firstOutputLimit = *request.MaxOutputTokens
 			return phase1ModelReply(t, payload, "length"), nil
+		}
+		if *request.MaxOutputTokens <= firstOutputLimit {
+			t.Fatal("repair should reserve more response tokens")
 		}
 		return phase1ModelReply(t, payload, "stop"), nil
 	}}
