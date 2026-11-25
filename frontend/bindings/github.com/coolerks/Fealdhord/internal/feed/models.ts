@@ -10,6 +10,7 @@ import * as database$0 from "../database/models.js";
 
 export interface AddRequest {
     "custom_icon_url"?: string;
+    "icon"?: string;
     "use_default_icon"?: boolean;
     "reader_open_mode"?: string;
     "auto_translate_mode"?: string;
@@ -100,6 +101,7 @@ export interface URLRequest {
 
 export interface UpdateRequest {
     "custom_icon_url"?: string;
+    "icon"?: string;
     "use_default_icon"?: boolean | null;
     "apply_existing"?: boolean | null;
     "reader_open_mode"?: string;

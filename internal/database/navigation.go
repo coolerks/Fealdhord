@@ -121,13 +121,40 @@ func (s *Store) Navigation(ctx context.Context) (Navigation, error) {
 	rows.Close()
 	return out, tx.Commit()
 }
+func ValidIconName(icon string) bool {
+	if icon == "" {
+		return true
+	}
+	if strings.HasPrefix(icon, "lucide:") {
+		name := icon[len("lucide:"):]
+		if len(name) == 0 || len(name) > 64 {
+			return false
+		}
+		for i := 0; i < len(name); i++ {
+			c := name[i]
+			if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-') {
+				return false
+			}
+		}
+		return true
+	}
+	if len(icon) > 64 {
+		return false
+	}
+	for i := 0; i < len(icon); i++ {
+		c := icon[i]
+		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
+			return false
+		}
+	}
+	return true
+}
+
 func validCategory(input CategoryInput) bool {
 	if strings.TrimSpace(input.Name) == "" || len(input.Name) > 256 || len(input.Description) > 2048 || len(input.ParentID) > 256 || len(input.ID) > 256 || input.SortPosition < -1000000 || input.SortPosition > 1000000 {
 		return false
 	}
-	switch input.Icon {
-	case "", "folder", "book", "radio-tower", "favorite", "ai":
-	default:
+	if !ValidIconName(input.Icon) {
 		return false
 	}
 	if input.Color != "" {

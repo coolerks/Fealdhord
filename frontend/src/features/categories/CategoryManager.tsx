@@ -2,14 +2,14 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { GripVertical } from 'lucide-react'
 import { AnimatedGlyph } from '@/components/animated-glyph'
+import { CustomIcon } from '@/components/custom-icon'
 import { Button } from '@/components/ui/button'
 import { ColorPicker } from '@/components/ui/color-picker'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { IconPicker } from '@/components/ui/icon-picker'
 import { Input } from '@/components/ui/input'
 import { SearchableSelect } from '@/components/ui/searchable-select'
-import { SegmentedControl } from '@/components/ui/segmented-control'
-import { ToggleGroupItem } from '@/components/ui/toggle-group'
 import { ConfirmDialog, SettingCard, SettingEmpty, SettingRow, SettingSection } from '@/features/settings/settings-primitives'
 import { articleQueryKey } from '@/lib/library'
 import { navigationAPI, navigationQueryKey } from '@/lib/navigation-api'
@@ -17,7 +17,6 @@ import type { CategoryDeletion, CategoryInfo, CategoryInput, CategoryOrderItem }
 import { feedsQueryKey } from '@/lib/rss-api'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/stores/workspace'
-import { categoryIcons } from './category-icons'
 import { categoryPath } from './category-path'
 import { useNavigation } from './use-navigation'
 
@@ -193,7 +192,6 @@ export function CategoryManager() {
         {orderedCategories.length > 0 && (
           <ul className="divide-y divide-border">
             {orderedCategories.map(({ category, depth, path }) => {
-              const icon = categoryIcons.find(name => name === category.icon) ?? 'folder'
               const color = hexPattern.test(category.color) ? category.color : undefined
               const isDragging = dragId === category.id
               const indicator = dropTarget?.id === category.id ? dropTarget.position : null
@@ -251,7 +249,7 @@ export function CategoryManager() {
                       <GripVertical className="size-4" />
                     </span>
                     <span className="inline-flex shrink-0 text-muted-foreground" style={{ color }}>
-                      <AnimatedGlyph meaning={icon} className="size-4 [&_svg]:size-4" />
+                      <CustomIcon value={category.icon} fallback="folder" className="size-4 [&_svg]:size-4" />
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-baseline gap-2">
@@ -317,15 +315,16 @@ export function CategoryManager() {
                 />
               </Field>
               <Field>
-                <FieldLabel id="category-icon-label">图标</FieldLabel>
-                <SegmentedControl disabled={busy} value={draft.icon || 'folder'} aria-labelledby="category-icon-label"
-                  onValueChange={value => { if (value) setDraft({ ...draft, icon: value }) }}>
-                  {categoryIcons.map(icon => (
-                    <ToggleGroupItem key={icon} value={icon} aria-label={{ folder: '文件夹', book: '图书', 'radio-tower': '订阅', favorite: '星标', ai: '星光' }[icon]}>
-                      <AnimatedGlyph meaning={icon} />
-                    </ToggleGroupItem>
-                  ))}
-                </SegmentedControl>
+                <FieldLabel htmlFor="category-icon">图标</FieldLabel>
+                <IconPicker
+                  id="category-icon"
+                  label="分类图标"
+                  className="w-full"
+                  disabled={busy}
+                  value={draft.icon || 'folder-open'}
+                  fallback="folder"
+                  onChange={icon => setDraft({ ...draft, icon })}
+                />
               </Field>
               <Field>
                 <FieldLabel htmlFor="category-color">颜色</FieldLabel>

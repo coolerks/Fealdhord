@@ -2,6 +2,7 @@ import { useId, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { GripVertical } from 'lucide-react'
 import { AnimatedGlyph } from '@/components/animated-glyph'
+import { parseFeedBuiltinIcon } from '@/components/custom-icon'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -113,6 +114,7 @@ export function FeedSettings() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'error'>('all')
   const [removing, setRemoving] = useState<Feed | null>(null)
   const [useDefaultIcon, setUseDefaultIcon] = useState(false)
+  const [selectedIcon, setSelectedIcon] = useState('')
   const [customIconURL, setCustomIconURL] = useState<string>()
   const [readerOpenMode, setReaderOpenMode] = useState<FeedReaderOpenMode>('global')
   const [autoTranslateMode, setAutoTranslateMode] = useState<FeedAutoTranslateMode>('global')
@@ -122,7 +124,7 @@ export function FeedSettings() {
   const prefs = useWorkspace(state => state.preferences)!
   const originalFeed = query.data?.items?.find(feed => feed.id === editing?.id)
   const editURLChanged = Boolean(editing && originalFeed && editing.url !== originalFeed.url)
-  const storedIcon = originalFeed?.custom_icon_url ? undefined : originalFeed?.icon_data
+  const storedIcon = originalFeed?.custom_icon_url || parseFeedBuiltinIcon(originalFeed?.icon_data) ? undefined : originalFeed?.icon_data
   const previewURL = editing ? (!editURLChanged && !storedIcon ? editing.url : '') : selected
   const allowIcons = prefs.remote_images !== 'never'
   const iconQuery = useQuery({
@@ -214,13 +216,14 @@ export function FeedSettings() {
                   category_ids: ids,
                   reader_open_mode: readerOpenMode,
                   ...(autoTranslateMode !== 'global' ? { auto_translate_mode: autoTranslateMode } : {}),
-                  ...(allowIcons && customIconURL ? { custom_icon_url: customIconURL } : useDefaultIcon ? { use_default_icon: true } : {}),
+                  ...(allowIcons && customIconURL ? { custom_icon_url: customIconURL } : selectedIcon ? { icon: selectedIcon, use_default_icon: true } : useDefaultIcon ? { use_default_icon: true } : {}),
                 })
                 setURL('')
                 setCandidates([])
                 setSelected('')
                 setTitle('')
                 setIDs([])
+                setSelectedIcon('')
                 setReaderOpenMode('global')
                 setAutoTranslateMode('global')
               })
@@ -258,12 +261,14 @@ export function FeedSettings() {
               <FeedIconField
                 data={previewIcon}
                 useDefault={useDefaultIcon || !previewIcon}
-                onChange={value => { setCustomIconURL(undefined); setUseDefaultIcon(value) }}
+                onChange={value => { setCustomIconURL(undefined); setUseDefaultIcon(value); if (!value) setSelectedIcon('') }}
                 disabled={busy}
                 siteAvailable={Boolean(previewIcon)}
                 customAllowed={allowIcons}
                 customURL={customIconURL}
                 onCustomURLChange={setCustomIconURL}
+                icon={selectedIcon}
+                onIconChange={icon => { setCustomIconURL(undefined); setUseDefaultIcon(true); setSelectedIcon(icon) }}
               />
             )}
             <FeedReaderOpenModeField value={readerOpenMode} onChange={setReaderOpenMode} disabled={busy} />
@@ -398,7 +403,7 @@ export function FeedSettings() {
                     )}
                     <div className="min-w-0 flex-1 space-y-0.5">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <FeedIcon data={allowIcons ? feed.icon_data : undefined} />
+                      <FeedIcon data={allowIcons || parseFeedBuiltinIcon(feed.icon_data) ? feed.icon_data : undefined} />
                       <strong className="min-w-0 font-medium [overflow-wrap:anywhere]">{feed.title}</strong>
                       {feed.archived && <StatusBadge tone="muted">已归档</StatusBadge>}
                       {!feed.archived && feed.last_error && <StatusBadge tone="error">异常</StatusBadge>}
@@ -434,6 +439,7 @@ export function FeedSettings() {
                             url: feed.url,
                             title: feed.title,
                             custom_icon_url: feed.custom_icon_url,
+                            icon: parseFeedBuiltinIcon(feed.icon_data) ?? '',
                             reader_open_mode: normalizeFeedReaderOpenMode(feed.reader_open_mode),
                             auto_translate_mode: normalizeFeedAutoTranslateMode(feed.auto_translate_mode),
                             category_ids: feed.category_ids ?? [],
@@ -498,11 +504,13 @@ export function FeedSettings() {
                 useDefault={!allowIcons || (editing.use_default_icon ?? !storedIcon)}
                 siteAvailable={allowIcons && Boolean(storedIcon || previewIcon || editURLChanged)}
                 disabled={busy}
-                onChange={use_default_icon => setEditing({ ...editing, use_default_icon, custom_icon_url: undefined })}
+                onChange={use_default_icon => setEditing({ ...editing, use_default_icon, custom_icon_url: undefined, icon: use_default_icon ? editing.icon : '' })}
                 customAllowed={allowIcons}
                 customURL={editing.custom_icon_url}
                 customData={allowIcons && editing.custom_icon_url === originalFeed?.custom_icon_url && originalFeed?.custom_icon_url ? originalFeed.icon_data : undefined}
-                onCustomURLChange={custom_icon_url => setEditing({ ...editing, custom_icon_url, use_default_icon: undefined })}
+                onCustomURLChange={custom_icon_url => setEditing({ ...editing, custom_icon_url, use_default_icon: undefined, icon: '' })}
+                icon={editing.icon ?? ''}
+                onIconChange={icon => setEditing({ ...editing, icon, use_default_icon: true, custom_icon_url: undefined })}
               />
               <FeedReaderOpenModeField
                 value={normalizeFeedReaderOpenMode(editing.reader_open_mode)}

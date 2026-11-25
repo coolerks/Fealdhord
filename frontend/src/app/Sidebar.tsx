@@ -4,7 +4,7 @@ import { useMemo,useState } from 'react'
 import type { ReactNode } from 'react'
 import { useNavigation } from '@/features/categories/use-navigation'
 import { categoryPath } from '@/features/categories/category-path'
-import { categoryIcons } from '@/features/categories/category-icons'
+import { CustomIcon, parseFeedBuiltinIcon } from '@/components/custom-icon'
 import type { CategoryInfo } from '@/lib/navigation-api'
 import { AnimatePresence, motion } from 'motion/react'
 import { Circle, LibraryBig, Plus, Settings, Sparkles, Star } from 'lucide-react'
@@ -63,7 +63,7 @@ export function Sidebar({ motionMode, inChat = false, suspended = false }: { mot
               return <Button key={feed.id} data-navigation={feed.id} variant={active ? 'secondary' : 'ghost'}
                 className="nav-item" aria-current={active ? 'page' : undefined}
                 aria-label={`浏览订阅 ${feed.title}`} onClick={() => selectScope('feed', feed.id)}>
-                <FeedIcon data={preferences.remote_images === 'never' ? undefined : feed.icon_data} />
+                <FeedIcon data={preferences.remote_images === 'never' ? (parseFeedBuiltinIcon(feed.icon_data) ? feed.icon_data : undefined) : feed.icon_data} />
                 <span className="nav-node-label" title={feed.title}>{feed.title}</span>
                 {feed.unread > 0 && <span className="nav-count">{feed.unread}</span>}
               </Button>
@@ -80,9 +80,8 @@ export function Sidebar({ motionMode, inChat = false, suspended = false }: { mot
     return <ul className="nav-tree">{children.get(parentID)?.map(category=>{
       const active=preferences.selected_scope==='category'&&preferences.selected_scope_id===category.id
       const hasChildren=Boolean(children.get(category.id)?.length),open=expanded.has(category.id)
-      const icon=categoryIcons.find(icon=>icon===category.icon) ?? 'folder'
       const categoryColor = /^#[a-f0-9]{6}$/i.test(category.color) ? category.color : undefined
-      return <li key={category.id}><div className="nav-tree-row" style={{paddingInlineStart:depth*16}}>{hasChildren && <Button variant="ghost" size="icon" className="nav-tree-disclosure" aria-label={`${open?'收起':'展开'}分类 ${category.name}`} aria-expanded={open} onClick={()=>setExpanded(current=>{const next=new Set(current);if(next.has(category.id))next.delete(category.id);else next.add(category.id);return next})}><span className="inline-flex" style={{rotate:open?'90deg':undefined}}><AnimatedGlyph meaning="chevron-right"/></span></Button>}<Button data-navigation={category.id} variant={active?'secondary':'ghost'} className="nav-item" aria-label={`浏览分类 ${categoryPath(category,navigation.data?.categories ?? [])}`} aria-current={active?'page':undefined} onClick={()=>selectScope('category', category.id)}><span className={cn('inline-flex shrink-0', categoryColor && 'category-glyph')} style={{color:categoryColor}}><AnimatedGlyph meaning={icon}/></span><span className="nav-node-label">{category.name}</span>{category.unread>0&&<span className="nav-count">{category.unread}</span>}</Button></div>{hasChildren && (motionMode === 'off' ? open && tree(category.id,depth+1) :
+      return <li key={category.id}><div className="nav-tree-row" style={{paddingInlineStart:depth*16}}>{hasChildren && <Button variant="ghost" size="icon" className="nav-tree-disclosure" aria-label={`${open?'收起':'展开'}分类 ${category.name}`} aria-expanded={open} onClick={()=>setExpanded(current=>{const next=new Set(current);if(next.has(category.id))next.delete(category.id);else next.add(category.id);return next})}><span className="inline-flex" style={{rotate:open?'90deg':undefined}}><AnimatedGlyph meaning="chevron-right"/></span></Button>}<Button data-navigation={category.id} variant={active?'secondary':'ghost'} className="nav-item" aria-label={`浏览分类 ${categoryPath(category,navigation.data?.categories ?? [])}`} aria-current={active?'page':undefined} onClick={()=>selectScope('category', category.id)}><span className={cn('inline-flex shrink-0', categoryColor && 'category-glyph')} style={{color:categoryColor}}><CustomIcon value={category.icon} fallback="folder"/></span><span className="nav-node-label">{category.name}</span>{category.unread>0&&<span className="nav-count">{category.unread}</span>}</Button></div>{hasChildren && (motionMode === 'off' ? open && tree(category.id,depth+1) :
         <div inert={!open} aria-hidden={!open || undefined}>
           <AnimatePresence initial={false}>
             {open && <motion.div key="children" className="overflow-hidden"
