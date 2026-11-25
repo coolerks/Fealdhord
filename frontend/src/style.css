@@ -82,19 +82,23 @@
 /* 两侧用相同距离平移，只在切换端点调整文章布局宽度。 */
 .app-shell { transition: --sidebar-docked var(--duration-normal) step-end; }
 .app-shell[data-sidebar-collapsed=true] { --sidebar-docked: 0; transition-timing-function: step-start; }
+.app-shell::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 0 calc(-1 * var(--sidebar-divider-width));
+  background: var(--background);
+  transform: translateX(var(--sidebar-travel));
+  transition: transform var(--duration-normal) var(--ease-standard);
+  pointer-events: none;
+  z-index: -1;
+}
+.app-shell[data-sidebar-collapsed=true]::after { transform: none; }
+.app-shell:is([data-sidebar-resizing=true], :has(> .splitter:focus-visible))::after { transition: none; }
 .sidebar-track {
   position: absolute;
   inset: 0 auto 0 0;
   width: var(--sidebar-width);
   z-index: 2;
-}
-[data-platform=windows] .sidebar-track::after {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 100%;
-  width: var(--sidebar-divider-width);
-  background: var(--background);
-  pointer-events: none;
 }
 .app-shell > .splitter { grid-column: 2; grid-row: 1; min-width: 0; z-index: 3; }
 .app-shell > .reading-workspace {
@@ -508,9 +512,6 @@ html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion
 }
 [data-platform=windows] .sidebar-titlebar { height: 4px; }
 [data-platform=windows] .app-shell { --collapsed-toolbar-inset: 14px; }
-[data-platform=windows] .app-shell > .splitter:not(:is(:hover, .is-dragging, :focus-visible)) {
-  background: var(--background);
-}
 .window-drag-area { flex:1; align-self:stretch; --wails-draggable: drag; }
 .window-controls { display:flex; flex:none; align-self:stretch; }
 .window-controls button { width:46px; height:100%; min-height:36px; border-radius:0; --wails-draggable: no-drag; }
