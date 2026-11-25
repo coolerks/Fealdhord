@@ -1803,3 +1803,34 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 71: 文章摘要与可调短文阈值
+<!-- trellis-session: v=2 fp=73928c3dad41a55d -->
+
+**Date**: 2026-11-25
+**Task**: 文章摘要与可调短文阈值
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+接入阅读器手动和可选自动摘要，按版本保存摘要和跳过结果，并提供中英文可调阈值。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ac7e3c8` | feat(reader): 添加可配置的文章摘要 |
+
+### Testing
+
+- [OK] Go 全量测试、vet、摘要和迁移定向竞态通过。
+- [OK] 前端 212 项测试、类型、lint 与生产构建通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 真实模型和原生桌面待复测。
