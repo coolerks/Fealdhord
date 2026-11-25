@@ -901,6 +901,27 @@ function summaryResponse(status: string, text = '') {
   return Object.assign(Promise.resolve({ status, text }), { cancel: vi.fn(async () => undefined) })
 }
 
+it.each([
+  ['Timeout', '生成摘要超时'],
+  ['ProviderConnectionError', '无法连接摘要模型服务'],
+])('阅读器区分摘要错误 %s 并保留重试入口', async (code, message) => {
+  const user = userEvent.setup()
+  const document = { ...extracted, source_version: 'web-v1' }
+  api.get.mockResolvedValue(document)
+  summaryMock.get.mockImplementation(() => summaryResponse('none'))
+  summaryMock.generate
+    .mockImplementationOnce(() => Object.assign(Promise.reject(new Error(code)), { cancel: vi.fn() }))
+    .mockImplementationOnce(() => summaryResponse('generated', '本次更新将在下月发布。'))
+  setup({ reader_open_mode: 'full' })
+  await screen.findByText('提取后的正文')
+
+  await user.click(screen.getByRole('button', { name: '生成摘要' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(message)
+  expect(screen.getByText('提取后的正文')).toBeVisible()
+  await user.click(screen.getByRole('button', { name: '重试摘要' }))
+  expect(await screen.findByText('本次更新将在下月发布。')).toBeVisible()
+})
+
 it('手动摘要等待阅读模式正文，生成中可取消并支持键盘折叠与复制', async () => {
   const user = userEvent.setup()
   let finishSummary!: (value: { status: string; text: string }) => void

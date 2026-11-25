@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -13,6 +14,11 @@ import (
 	"github.com/coolerks/Fealdhord/internal/database"
 	"github.com/coolerks/Fealdhord/internal/database/sqlc"
 	"github.com/coolerks/Fealdhord/internal/reader"
+)
+
+const (
+	summaryQueueLimit = 2 * time.Minute
+	summaryRunLimit   = 5 * time.Minute
 )
 
 type ModelResolver interface {
@@ -129,7 +135,7 @@ func (s *Service) Generate(ctx context.Context, request Request) (Result, error)
 		}
 	}
 	if job == nil {
-		jobCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+		jobCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 		job = &run{done: make(chan struct{}), cancel: cancel}
 		s.active[source] = job
 		go s.complete(jobCtx, source, job)
@@ -161,12 +167,24 @@ func (s *Service) complete(ctx context.Context, source Source, job *run) {
 }
 
 func (s *Service) generate(ctx context.Context, source Source) (Result, error) {
+	queuedAt := time.Now()
+	queueCtx, finishQueue := context.WithTimeout(ctx, summaryQueueLimit)
 	select {
 	case s.slots <- struct{}{}:
 		defer func() { <-s.slots }()
-	case <-ctx.Done():
-		return Result{}, publicError(ctx.Err())
+	case <-queueCtx.Done():
+		err := queueCtx.Err()
+		finishQueue()
+		if errors.Is(err, context.DeadlineExceeded) {
+			slog.WarnContext(ctx, "文章摘要排队超时", "component", "articlesummary", "stage", "queue", "code", "Timeout",
+				"duration_ms", time.Since(queuedAt).Milliseconds())
+		}
+		return Result{}, publicError(err)
 	}
+	finishQueue()
+	ctx, cancel := context.WithTimeout(ctx, summaryRunLimit)
+	defer cancel()
+
 	title, err := s.check(ctx, source)
 	if err != nil {
 		return Result{}, err

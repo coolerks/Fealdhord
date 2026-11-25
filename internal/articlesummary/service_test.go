@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/coolerks/Fealdhord/internal/ai"
@@ -320,4 +321,125 @@ func TestSummaryRecoversAndCachesValidModelOutput(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSummaryRetriesATimedOutRequestWithFreshDeadline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		_, store, _, source := summaryFixture(t, strings.Repeat("这段正文介绍了维护计划和停机范围。", 45), true)
+		var calls int
+		resolver := testResolver{testModel(func(ctx context.Context, _ *ai.ModelRequest) (*ai.ModelResponse, error) {
+			calls++
+			if calls == 1 {
+				<-ctx.Done()
+				return nil, ctx.Err()
+			}
+			if ctx.Err() != nil {
+				t.Error("重试继承了已过期的请求时限")
+			}
+			return output("generated", "维护范围仅涉及测试区。"), nil
+		})}
+		service := New(store, resolver, reader.NewService(store, nil, nil, nil))
+		result, err := service.Generate(t.Context(), Request{Source: source})
+		if err != nil || result.Status != "generated" || calls != 2 {
+			t.Fatalf("单次请求超时后生成摘要：%+v，调用 %d 次，错误 %v", result, calls, err)
+		}
+	})
+}
+
+func TestSummaryQueueWaitDoesNotConsumeGenerationTime(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		_, store, _, source := summaryFixture(t, strings.Repeat("这段正文介绍了维护计划和停机范围。", 45), true)
+		resolver := testResolver{testModel(func(ctx context.Context, _ *ai.ModelRequest) (*ai.ModelResponse, error) {
+			timer := time.NewTimer(30 * time.Second)
+			defer timer.Stop()
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-timer.C:
+				return output("generated", "维护范围仅涉及测试区。"), nil
+			}
+		})}
+		service := New(store, resolver, reader.NewService(store, nil, nil, nil))
+		for range cap(service.slots) {
+			service.slots <- struct{}{}
+		}
+		go func() {
+			time.Sleep(110 * time.Second)
+			<-service.slots
+		}()
+		result, err := service.Generate(t.Context(), Request{Source: source})
+		if err != nil || result.Status != "generated" {
+			t.Fatalf("排队消耗了模型执行时间：%+v %v", result, err)
+		}
+	})
+}
+
+func TestSummaryRetriesOnlyTransientModelFailures(t *testing.T) {
+	for _, test := range []struct {
+		code      string
+		recover   bool
+		wantCalls int
+	}{
+		{code: "ProviderConnectionError", recover: true, wantCalls: 2},
+		{code: "ProviderConnectionError", wantCalls: 2},
+		{code: "AuthenticationError", wantCalls: 1},
+		{code: "RateLimitError", wantCalls: 1},
+	} {
+		name := test.code
+		if test.recover {
+			name += "/recovers"
+		}
+		t.Run(name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				calls := 0
+				model := testModel(func(context.Context, *ai.ModelRequest) (*ai.ModelResponse, error) {
+					calls++
+					if calls == 2 && test.recover {
+						return output("generated", "The west entrance opens in July."), nil
+					}
+					return nil, failure(test.code)
+				})
+				body := strings.Repeat("An update on the project explains the opening schedule and exceptions. ", 12)
+				result, err := summarize(t.Context(), aiconfig.Model{Name: "test"}, model, "Project update", body, false)
+				if calls != test.wantCalls {
+					t.Errorf("模型调用 %d 次，预期 %d 次", calls, test.wantCalls)
+				}
+				if test.recover {
+					if err != nil || result == "" {
+						t.Fatalf("模型连接恢复后生成摘要：%q %v", result, err)
+					}
+				} else if err == nil || err.Error() != test.code || result != "" {
+					t.Fatalf("应保留模型错误：%q %v", result, err)
+				}
+			})
+		})
+	}
+}
+
+func TestSummaryCancellationStopsPendingRetry(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		firstCall := make(chan struct{})
+		result := make(chan error, 1)
+		calls := 0
+		model := testModel(func(context.Context, *ai.ModelRequest) (*ai.ModelResponse, error) {
+			calls++
+			if calls == 1 {
+				close(firstCall)
+			}
+			return nil, failure("ProviderConnectionError")
+		})
+		go func() {
+			body := strings.Repeat("An update on the project explains the opening schedule and exceptions. ", 12)
+			_, err := summarize(ctx, aiconfig.Model{Name: "test"}, model, "Project update", body, false)
+			result <- err
+		}()
+		<-firstCall
+		synctest.Wait()
+		cancel()
+		if err := <-result; err == nil || err.Error() != "Cancelled" || calls != 1 {
+			t.Fatalf("取消后仍有补发：调用 %d 次，错误 %v", calls, err)
+		}
+	})
 }

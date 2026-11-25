@@ -9,7 +9,8 @@ const summaryErrors: Record<string, string> = {
   ContextWindowExceeded: '正文超出当前摘要模型的处理范围。',
   InvalidModelOutput: '摘要结果不完整或重复正文，请重试。',
   Conflict: '正文或摘要设置已更新，请重试。',
-  Timeout: '生成摘要超时，请重试。',
+  Timeout: '生成摘要超时，请重试。若持续超时，可在「服务与模型」检查当前摘要模型。',
+  ProviderConnectionError: '无法连接摘要模型服务。请检查网络，或在「服务与模型」测试连接。',
   RateLimitError: '摘要模型暂时限流，请稍后重试。',
   StorageError: '无法保存或读取摘要，请重试。',
 }
