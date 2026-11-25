@@ -306,6 +306,8 @@ type Message struct {
 	ErrorCode      string `json:"error_code"`
 	ModelName      string `json:"model_name"`
 	ReplyDetails   string `json:"reply_details"`
+	CreatedAt      int64  `json:"created_at"`
+	Attachments    string `json:"attachments"`
 }
 
 type ModelAssignment struct {

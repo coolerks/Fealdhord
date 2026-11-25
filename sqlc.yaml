@@ -28,6 +28,7 @@ sql:
       - migrations/00027_translation_checkpoints.sql
       - migrations/00028_article_summary.sql
       - migrations/00029_chat_groups.sql
+      - migrations/00030_chat_messages_meta.sql
     queries: internal/database/queries
     gen:
       go:

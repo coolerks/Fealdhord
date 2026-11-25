@@ -60,6 +60,7 @@ type Preferences struct {
 	ChatModelID                 string                  `json:"chat_model_id"`
 	ChatApprovalMode            string                  `json:"chat_approval_mode"`
 	ChatApprovalPresentation    string                  `json:"chat_approval_presentation"`
+	ChatBusySendMode            string                  `json:"chat_busy_send_mode"`
 	ChatMaxRetries              int                     `json:"chat_max_retries"`
 	ReaderOutline               string                  `json:"reader_outline"`
 	ReaderTranslationDisplay    string                  `json:"reader_translation_display"`
@@ -74,7 +75,7 @@ func Defaults() Preferences {
 		ReaderToolbarPinned: []string{"refresh", "favorite", "translate", "summary", "ai"},
 		ScrollAnchors:       map[string]ScrollAnchor{}, ReaderFontSize: 17, ReaderLineHeight: 1.7, ReaderWidth: 720,
 		ReaderImageWheel: "zoom", ReaderImageBackdropClose: true, ReaderOutline: "ticks", ReaderCodeTheme: "app", ChatCodeTheme: "app",
-		ChatApprovalMode: agentrun.ApprovalAsk, ChatApprovalPresentation: "composer", ChatMaxRetries: DefaultChatMaxRetries,
+		ChatApprovalMode: agentrun.ApprovalAsk, ChatApprovalPresentation: "composer", ChatBusySendMode: "queue", ChatMaxRetries: DefaultChatMaxRetries,
 		ReaderTranslationDisplay: "bilingual", ListShowTranslated: true,
 	}
 }
@@ -117,6 +118,9 @@ func validReaderToolbarPinned(actions []string) bool {
 func (p Preferences) Validate() error {
 	if !agentrun.ValidApprovalMode(p.ChatApprovalMode) || !oneOf(p.ChatApprovalPresentation, "composer", "dialog") {
 		return errors.New("聊天工具审批选项无效。")
+	}
+	if !oneOf(p.ChatBusySendMode, "queue", "steer") {
+		return errors.New("聊天执行中发送模式无效。")
 	}
 	if p.ChatMaxRetries < 0 || p.ChatMaxRetries > MaxChatMaxRetries {
 		return errors.New("聊天失败重试次数须为 0 至 10 次。")
@@ -187,6 +191,9 @@ func (p *Preferences) normalize() {
 	}
 	if !oneOf(p.ChatApprovalPresentation, "composer", "dialog") {
 		p.ChatApprovalPresentation = d.ChatApprovalPresentation
+	}
+	if !oneOf(p.ChatBusySendMode, "queue", "steer") {
+		p.ChatBusySendMode = d.ChatBusySendMode
 	}
 	if p.ChatMaxRetries < 0 || p.ChatMaxRetries > MaxChatMaxRetries {
 		p.ChatMaxRetries = d.ChatMaxRetries

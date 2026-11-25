@@ -397,3 +397,24 @@ func TestSettingsOpenModeDefaultsAndPersists(t *testing.T) {
 		t.Fatalf("非法打开方式未被拒绝：%+v", rejected)
 	}
 }
+
+func TestChatBusySendModeDefaultsAndPersists(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t, filepath.Join(t.TempDir(), "chat-busy-mode.db"))
+	service := NewService(store)
+	initial := service.Get(ctx)
+	if !initial.OK || initial.Data.Preferences.ChatBusySendMode != "queue" {
+		t.Fatalf("默认应为排队模式：%+v", initial)
+	}
+	prefs := initial.Data.Preferences
+	prefs.ChatBusySendMode = "steer"
+	saved := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: initial.Data.Revision})
+	reloaded := NewService(store).Get(ctx)
+	if !saved.OK || !reloaded.OK || reloaded.Data.Preferences.ChatBusySendMode != "steer" {
+		t.Fatalf("引导模式未持久化：%+v", reloaded)
+	}
+	prefs.ChatBusySendMode = "invalid"
+	if rejected := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: reloaded.Data.Revision}); rejected.OK || rejected.Error.Code != "ValidationError" {
+		t.Fatalf("非法执行中发送模式未被拒绝：%+v", rejected)
+	}
+}

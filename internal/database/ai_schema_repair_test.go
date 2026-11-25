@@ -68,6 +68,8 @@ func TestAIRepairRestoresChatAndArticleEvaluationOnVersion21Database(t *testing.
 		ALTER TABLE conversations DROP COLUMN pinned_at;
 		ALTER TABLE conversations DROP COLUMN archived_at;
 		ALTER TABLE feeds DROP COLUMN reader_open_mode;
+		ALTER TABLE messages DROP COLUMN attachments;
+		ALTER TABLE messages DROP COLUMN created_at;
 		ALTER TABLE messages DROP COLUMN reply_details;
 		ALTER TABLE conversations DROP COLUMN auto_compact;
 		ALTER TABLE article_ai_results DROP COLUMN profile_key;
