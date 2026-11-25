@@ -19,7 +19,7 @@ import type { Message, SendInput, UpdateEvent } from '../bindings/github.com/coo
 
 import type { Task } from '../bindings/github.com/coolerks/Fealdhord/internal/notification/models'
 
-const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),isWindows:vi.fn(()=>false),isMaximized:vi.fn(async()=>false),onMaximizeChange:vi.fn<(_listener: (value: boolean) => void) => () => void>(()=>()=>{}),onCommand:vi.fn(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(async()=>{}),minimize:vi.fn(async()=>{}),maximize:vi.fn(async()=>{}),fullscreen:vi.fn(),openURL:vi.fn(async()=>{}),openDevTools:vi.fn(async()=>{}),quit:vi.fn()}))
+const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),isWindows:vi.fn(()=>false),isLinux:vi.fn(()=>false),isMaximized:vi.fn(async()=>false),onMaximizeChange:vi.fn<(_listener: (value: boolean) => void) => () => void>(()=>()=>{}),onCommand:vi.fn(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(async()=>{}),minimize:vi.fn(async()=>{}),maximize:vi.fn(async()=>{}),fullscreen:vi.fn(),openURL:vi.fn(async()=>{}),openDevTools:vi.fn(async()=>{}),quit:vi.fn()}))
 vi.mock('@/lib/native',()=>({native:host}))
 const authorize = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/desktop/notifier', () => ({ Authorize: authorize, Send: vi.fn() }))
@@ -132,6 +132,7 @@ beforeEach(() => {
   listAIConfiguration.mockResolvedValue({ providers: [], models: [], assignments: [] })
   host.isMac.mockReturnValue(false)
   host.isWindows.mockReturnValue(false)
+  host.isLinux.mockReturnValue(false)
   geometry = installGeometry()
   useWorkspace.setState({ preferences: null, revision: 0, version: 0, savedVersion: 0, saveError: null, saveStatus: 'saved', search: '', sort: 'newest',readFilter:'all',favoriteFilter:'all', settingsOpen: false, settingsTab: 'appearance', paletteOpen: false, searchOpen: false, aiOpen: false, helpOpen:false,diagnosticsOpen:false,commandError:null })
   reader.get.mockResolvedValue({article_id:'a-0',html:'',text:'',mode:'feed',has_cached:false,has_original:false})
@@ -1390,8 +1391,9 @@ describe('Phase 1 阅读 Shell', () => {
     expect(useWorkspace.getState().preferences?.reader_open).toBe(false)
   })
 
-  it('Windows 菜单与全局右键菜单执行同一视图命令并阻止浏览器菜单', async()=>{
-    host.isWindows.mockReturnValue(true)
+  it.each(['windows', 'linux'])('%s 窗口栏与全局右键菜单执行共享命令', async(platform)=>{
+    host.isWindows.mockReturnValue(platform === 'windows')
+    host.isLinux.mockReturnValue(platform === 'linux')
     setup()
     await screen.findByRole('heading',{name:'全部文章'})
     const menu=screen.getByRole('menubar',{name:'应用菜单栏'})
@@ -1408,6 +1410,10 @@ describe('Phase 1 阅读 Shell', () => {
     const onMaximizeChange = host.onMaximizeChange.mock.calls[0]?.[0]
     act(() => onMaximizeChange?.(true))
     expect(within(controls).getByRole('button', { name: '还原窗口' })).toBeInTheDocument()
+    await userEvent.dblClick(bar.querySelector('.window-drag-area') as HTMLElement)
+    expect(host.maximize).toHaveBeenCalledTimes(2)
+    act(() => onMaximizeChange?.(false))
+    expect(within(controls).getByRole('button', { name: '最大化窗口' })).toBeInTheDocument()
     expect(host.close).toHaveBeenCalledOnce()
     await userEvent.click(within(menu).getByRole('menuitem',{name:'显示'}))
     await userEvent.click(await screen.findByRole('menuitem',{name:'瀑布流视图'}))

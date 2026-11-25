@@ -63,10 +63,10 @@ func main() {
 		Linux:   application.LinuxOptions{DisableQuitOnLastWindowClosed: true},
 	}
 	if runtime.GOOS == "linux" {
-		const appID = "io.fealdhord.desktop"
-		options.Linux.ApplicationID = appID
+		// GTK 的应用 ID 对应已安装 .desktop 文件去掉扩展名后的名称。
+		options.Linux.ApplicationID = "io.fealdhord"
 		options.SingleInstance = &application.SingleInstanceOptions{
-			UniqueID: appID,
+			UniqueID: "io.fealdhord.desktop",
 			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
 				if window := reopenWindow.Load(); window != nil {
 					desktopintegration.RestoreMainWindow(window)

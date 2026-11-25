@@ -48,6 +48,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev libx11-dev
+      - name: 安装 Linux 图标打包工具
+        if: matrix.target == 'linux-amd64'
+        run: sudo apt-get install -y imagemagick
       - name: 生成绑定并构建前端
         shell: bash
         run: |
@@ -73,13 +76,17 @@ jobs:
           install -d "$root/DEBIAN" "$root/usr/bin"
           CGO_ENABLED=1 go build -tags production,devtools -trimpath -ldflags="-X github.com/coolerks/Fealdhord/internal/app.version=${VERSION#v} -s -w" -o "$root/usr/bin/Fealdhord" .
           install -Dm644 build/linux/Fealdhord.desktop "$root/usr/share/applications/io.fealdhord.desktop"
-          install -Dm644 build/appicon.png "$root/usr/share/icons/hicolor/1024x1024/apps/io.fealdhord.desktop.png"
+          for size in 48 256; do
+            icons="$root/usr/share/icons/hicolor/${size}x${size}/apps"
+            install -d "$icons"
+            convert build/appicon.png -resize "${size}x${size}" "PNG32:$icons/io.fealdhord.png"
+          done
           cat > "$root/DEBIAN/control" <<CONTROL
           Package: fealdhord
           Version: ${VERSION#v}
           Architecture: amd64
           Maintainer: Fealdhord
-          Depends: libc6 (>= 2.39), libgtk-4-1, libwebkitgtk-6.0-4, libx11-6
+          Depends: libc6 (>= 2.39), libgtk-4-1, libwebkitgtk-6.0-4, libx11-6, hicolor-icon-theme
           Description: Fealdhord RSS 阅读器
           CONTROL
           dpkg-deb --root-owner-group --build "$root" "bin/release/Fealdhord-${VERSION}-linux-amd64.deb"

@@ -3,6 +3,7 @@ import '../../bindings/events'
 
 export const native = {
   isWindows: () => System.IsWindows(),
+  isLinux: () => System.IsLinux(),
   isMac: () => System.IsMac(),
   onCommand: (listener: (id: string) => void) => Events.On('fealdhord:command', event => listener(event.data.id)),
   copy: (text: string) => Clipboard.SetText(text),
@@ -11,8 +12,9 @@ export const native = {
   minimize: () => Window.Minimise(),
   isMaximized: () => Window.IsMaximised(),
   onMaximizeChange: (listener: (maximized: boolean) => void) => {
-    const maximize = Events.On(Events.Types.Windows.WindowMaximise, () => listener(true))
-    const restore = Events.On(Events.Types.Windows.WindowRestore, () => listener(false))
+    const linux = System.IsLinux()
+    const maximize = Events.On(linux ? Events.Types.Common.WindowMaximise : Events.Types.Windows.WindowMaximise, () => listener(true))
+    const restore = Events.On(linux ? Events.Types.Common.WindowUnMaximise : Events.Types.Windows.WindowRestore, () => listener(false))
     return () => { maximize(); restore() }
   },
   maximize: () => Window.ToggleMaximise(),

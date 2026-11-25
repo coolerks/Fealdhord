@@ -253,7 +253,8 @@ export function Shell() {
   }, [commandError])
 
   const emptySearch = search.trim() !== ''
-  const platform = native.isMac() ? 'mac' : native.isWindows() ? 'windows' : 'other'
+  const platform = native.isMac() ? 'mac' : native.isWindows() ? 'windows' : native.isLinux() ? 'linux' : 'other'
+  const customTitleBar = platform === 'windows' || platform === 'linux'
   const reader = readerVisible && <Reader feedIcon={selectedFeedIcon} feedReaderOpenMode={selectedFeedReaderOpenMode} feedAutoTranslateMode={selectedFeedAutoTranslateMode} article={selected} preferences={preferences} overlay={overlay}
     onClose={closeReader} onFavorite={favorite} onRead={read} onShare={shareArticle} onAnchor={saveAnchor} />
   useLayoutEffect(() => {
@@ -274,9 +275,9 @@ export function Shell() {
     onClick={() => runCommand('sidebar', client)} />
   return <MotionConfig reducedMotion={mode === 'full' ? 'never' : 'always'} transition={{ duration: mode === 'off' ? 0 : mode === 'subtle' ? .1 : .22, ease: [.22, 1, .36, 1] }}>
     <div className="desktop-shell" data-platform={platform}>
-      {platform !== 'mac' && <ApplicationMenu windows={platform === 'windows'} windowsSidebarToggle={platform === 'windows' ? sidebarToggle : undefined} />}
+      {platform !== 'mac' && <ApplicationMenu titleBarSidebarToggle={customTitleBar ? sidebarToggle : undefined} />}
       <div ref={shell} className="app-shell" style={{ '--sidebar-width': `${sidebarWidth}px`, '--list-width': `${listWidth}px`, '--list-width-cap': `${listMaxShare * 100}%` } as CSSProperties} data-view={preferences.article_view_mode} data-sidebar-collapsed={sidebarCollapsed} data-sidebar-resizing={sidebarDraft !== null}>
-      {platform !== 'windows' && <div className="sidebar-toggle">{sidebarToggle}</div>}
+      {!customTitleBar && <div className="sidebar-toggle">{sidebarToggle}</div>}
       <div className="sidebar-track">
         <Sidebar motionMode={mode} inChat={chatVisible || settingsWorkspace} suspended={settingsWorkspace} />
         <div ref={setChatSidebar} className="chat-sidebar-host" inert={settingsWorkspace} hidden={settingsWorkspace} />

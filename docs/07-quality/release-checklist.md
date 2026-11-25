@@ -24,3 +24,5 @@
 | Linux x64 DEB | Ubuntu 24.04 或具有相应运行库的兼容系统，安装时解析 GTK 4 和 WebKitGTK 6 依赖 |
 
 应用图标源文件在 `build/appicon.svg`。以透明背景导出 1024px 的 `build/appicon.png` 供 macOS 和 Linux 使用。Windows 从该 PNG 的 (86, 82) 起裁切 856 × 856 px，用 Catmull–Rom 重采样至 1024 × 1024 px，保存为 `build/windows/appicon.png`。图标主体约占画布宽度的 97%，四角保留透明。运行 `wails3 task icons` 派生 ICNS 和多尺寸 ICO，检查 Windows 小尺寸帧的主体占比。Windows 本机构建和发布构建均将 ICO 嵌入可执行文件，托盘使用同一 Windows 专用彩色 PNG。macOS 状态栏使用 `build/tray.svg` 对应的模板 PNG，由系统着色。Linux 使用 `build/tray-contrast.svg` 对应的黑白 PNG，托盘显示取决于桌面环境是否支持 StatusNotifierItem。
+
+Linux DEB 从 `build/appicon.png` 生成 48×48 和 256×256 的透明 PNG，分别安装到 hicolor 对应尺寸的 `apps/io.fealdhord.png`。用 `dpkg-deb --contents` 检查这两张图标与 `/usr/share/applications/io.fealdhord.desktop`。GTK `ApplicationID`、`StartupWMClass` 和 `Icon` 同为 `io.fealdhord`。GNOME 安装验证覆盖应用网格、运行中的窗口归组和从启动器重新打开既有窗口。

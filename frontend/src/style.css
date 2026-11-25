@@ -78,7 +78,7 @@
 }
 .app-shell { --sidebar-docked: 1; --sidebar-divider-width: 4px; --sidebar-travel: calc(var(--sidebar-width) + var(--sidebar-divider-width)); --sidebar-space: calc(var(--sidebar-travel) * var(--sidebar-docked)); --workspace-toolbar-height: 50px; --sidebar-toggle-size: 32px; --sidebar-toggle-gap: 8px; --window-controls-inset: 14px; --collapsed-toolbar-inset: calc(var(--window-controls-inset) + var(--sidebar-toggle-size) + var(--sidebar-toggle-gap)); isolation: isolate; position: relative; display: grid; grid-template-columns: calc(var(--sidebar-width) * var(--sidebar-docked)) calc(var(--sidebar-divider-width) * var(--sidebar-docked)) minmax(0,1fr); height: 100%; overflow: hidden; background: transparent; }
 [data-platform=mac] .app-shell { --workspace-toolbar-height: 54px; --window-controls-inset: 92px; --sidebar-divider-width: 0px; }
-:is([data-platform=mac], [data-platform=windows]) .reading-workspace { background: var(--background); }
+:is([data-platform=mac], [data-platform=windows], [data-platform=linux]) .reading-workspace { background: var(--background); }
 /* 两侧用相同距离平移，只在切换端点调整文章布局宽度。 */
 .app-shell { transition: --sidebar-docked var(--duration-normal) step-end; }
 .app-shell[data-sidebar-collapsed=true] { --sidebar-docked: 0; transition-timing-function: step-start; }
@@ -456,13 +456,13 @@ html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion
 .application-menu { flex-shrink:0;background:var(--background);border-bottom:1px solid var(--border);padding:2px 12px; }
 .application-menu [data-slot=menubar] { border:0;border-radius:0; }
 /* DWM composites one backdrop behind the title bar and sidebar. */
-:is([data-platform=windows], .windows-menu-popover) {
+:is([data-platform=windows], .titlebar-menu-popover) {
   --window-chrome-surface: rgb(245 245 247 / .66);
   --sidebar-hover: rgb(0 0 0 / .065);
   --sidebar-selection: rgb(0 0 0 / .105);
   --sidebar-press: rgb(0 0 0 / .15);
 }
-.dark :is([data-platform=windows], .windows-menu-popover) {
+.dark :is([data-platform=windows], .titlebar-menu-popover) {
   --window-chrome-surface: rgb(35 35 39 / .9);
   --sidebar-hover: rgb(255 255 255 / .075);
   --sidebar-selection: rgb(255 255 255 / .14);
@@ -471,7 +471,7 @@ html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion
 [data-platform=windows] :is(.application-menu, .glass-sidebar) {
   background: var(--window-chrome-surface);
 }
-[data-platform=windows] .application-menu { display:flex; align-items:center; border-bottom:0; padding:0 0 0 4px; }
+:is([data-platform=windows], [data-platform=linux]) .application-menu { display:flex; align-items:center; border-bottom:0; padding:0 0 0 4px; }
 [data-platform=windows] :is(.glass-sidebar button, [id=sidebar-toggle], [data-slot=menubar-trigger]) {
   background-color: transparent;
   color: var(--sidebar-foreground);
@@ -498,10 +498,10 @@ html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion
   --sidebar-row-fill: var(--sidebar-press);
 }
 [data-platform=windows] .glass-sidebar { backdrop-filter: none; }
-.windows-menu-popover [data-slot=menubar-item][data-highlighted] {
+.titlebar-menu-popover [data-slot=menubar-item][data-highlighted] {
   background-color: var(--sidebar-hover);
 }
-.windows-menu-popover [data-slot=menubar-item]:active {
+.titlebar-menu-popover [data-slot=menubar-item]:active {
   background-color: var(--sidebar-press);
 }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
@@ -511,8 +511,8 @@ html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion
 @media (forced-colors: active) {
   [data-platform=windows] :is(.application-menu, .glass-sidebar) { background: Canvas; }
 }
-[data-platform=windows] .sidebar-titlebar { height: 4px; }
-[data-platform=windows] .app-shell { --collapsed-toolbar-inset: 14px; }
+:is([data-platform=windows], [data-platform=linux]) .sidebar-titlebar { height: 4px; }
+:is([data-platform=windows], [data-platform=linux]) .app-shell { --collapsed-toolbar-inset: 14px; }
 .window-drag-area { flex:1; align-self:stretch; --wails-draggable: drag; }
 .window-controls { display:flex; flex:none; align-self:stretch; }
 .window-controls button { width:46px; height:100%; min-height:36px; border-radius:0; --wails-draggable: no-drag; }
