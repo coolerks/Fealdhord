@@ -160,6 +160,10 @@ func (a *Platform) PendingQuestions() []PendingQuestion     { return a.registry.
 func (a *Platform) AnswerQuestion(id string, answers []UserQuestionAnswer, cancelled bool) bool {
 	return a.registry.AnswerQuestion(id, answers, cancelled)
 }
+func (a *Platform) PendingPlans() []PendingPlan { return a.registry.PendingPlans() }
+func (a *Platform) ResolvePlan(id, decision, feedback string) bool {
+	return a.registry.ResolvePlan(id, decision, feedback)
+}
 func (a *Platform) MCPServer() ServerStatus {
 	a.mu.Lock()
 	defer a.mu.Unlock()

@@ -35,6 +35,10 @@ func (a *API) PendingQuestions() []PendingQuestion     { return a.platform.Pendi
 func (a *API) AnswerQuestion(id string, answers []UserQuestionAnswer, cancelled bool) bool {
 	return a.platform.AnswerQuestion(id, answers, cancelled)
 }
+func (a *API) PendingPlans() []PendingPlan { return a.platform.PendingPlans() }
+func (a *API) ResolvePlan(id, decision, feedback string) bool {
+	return a.platform.ResolvePlan(id, decision, feedback)
+}
 func (a *API) MCPServer() ServerStatus                 { return a.platform.MCPServer() }
 func (a *API) SaveMCPServer(config ServerConfig) error { return a.platform.SaveMCPServer(config) }
 func (a *API) RotateMCPToken() (string, error)         { return a.platform.RotateMCPToken() }

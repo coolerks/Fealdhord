@@ -18,17 +18,20 @@ const (
 )
 
 type ReadTool struct {
-	Definition      ai.ToolDefinition
-	Read            func(context.Context, ai.ToolCall) (string, error)
-	ArticleNext     func(context.Context, ai.ToolCall, string) (string, error)
-	activityCall    func(ai.ToolCall) ai.ToolCall
-	MaxResultBytes  int
-	PrivateActivity bool
+	Definition       ai.ToolDefinition
+	Read             func(context.Context, ai.ToolCall) (string, error)
+	ArticleNext      func(context.Context, ai.ToolCall, string) (string, error)
+	activityCall     func(ai.ToolCall) ai.ToolCall
+	MaxResultBytes   int
+	PrivateActivity  bool
+	RequiresApproval bool
 }
 
 type StreamOptions struct {
-	MaxRetries int
-	BaseDelay  time.Duration
+	MaxRetries   int
+	BaseDelay    time.Duration
+	ConsumeSteer func() []ai.Message
+	RefreshTools func() ([]ReadTool, string, bool)
 }
 
 // Stream retains the one-turn event contract. Only the final model turn ends the message.
@@ -104,6 +107,15 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 			if len(compaction.incomplete) > 0 {
 				return failure("ArticleReadIncomplete")
 			}
+			if opts.ConsumeSteer != nil && turn+1 < maxTurns {
+				if steers := opts.ConsumeSteer(); len(steers) > 0 {
+					if reply.text != "" || reply.reasoning != nil {
+						request.Messages = append(request.Messages, ai.Message{Role: "assistant", Content: textContent(reply.text), ReasoningContent: reply.reasoning})
+					}
+					request.Messages = append(request.Messages, steers...)
+					continue
+				}
+			}
 			forward(ai.ModelEvent{Type: "message_end", FinishReason: reply.finish})
 			return nil
 		}
@@ -163,6 +175,31 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 				executed[call.ID] = record
 			}
 			request.Messages = append(request.Messages, ai.Message{Role: "tool", ToolCallID: call.ID, Content: textContent(record.result)})
+		}
+		if opts.RefreshTools != nil {
+			if nextTools, nextSystem, changed := opts.RefreshTools(); changed {
+				nextAllowed := make(map[string]ReadTool, len(nextTools))
+				nextDefs := make([]ai.ToolDefinition, 0, len(nextTools))
+				for _, tool := range nextTools {
+					name := tool.Definition.Name
+					if name == "" || tool.Read == nil || nextAllowed[name].Read != nil {
+						continue
+					}
+					nextAllowed[name] = tool
+					nextDefs = append(nextDefs, tool.Definition)
+				}
+				allowed = nextAllowed
+				request.Tools = nextDefs
+				if nextSystem != "" {
+					baseSystem = nextSystem
+					request.System = nextSystem
+				}
+			}
+		}
+		if opts.ConsumeSteer != nil {
+			if steers := opts.ConsumeSteer(); len(steers) > 0 {
+				request.Messages = append(request.Messages, steers...)
+			}
 		}
 	}
 	return failure("AgentLimitExceeded")

@@ -4,9 +4,10 @@ import "context"
 
 // Workspace is the directory scope resolved by the chat service for one run.
 type Workspace struct {
-	Roots     []string
-	OutputDir string
-	HomeDir   string
+	Roots         []string
+	OutputDir     string
+	HomeDir       string
+	ReadOnlyPaths []string
 }
 
 type workspaceKey struct{}

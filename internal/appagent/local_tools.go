@@ -77,6 +77,34 @@ func resolveFileTarget(ctx context.Context, name string) (fileTarget, error) {
 	return fileTarget{}, errors.New("PathNotAllowed")
 }
 
+func resolveReadTarget(ctx context.Context, name string) (fileTarget, error) {
+	if target, err := resolveFileTarget(ctx, name); err == nil {
+		return target, nil
+	}
+	if name == "" || strings.ContainsRune(name, 0) || !filepath.IsAbs(name) {
+		return fileTarget{}, errors.New("PathNotAllowed")
+	}
+	clean := filepath.Clean(name)
+	workspace := agentrun.WorkspaceFrom(ctx)
+	for _, allowed := range workspace.ReadOnlyPaths {
+		if allowed == "" {
+			continue
+		}
+		info, err := os.Stat(allowed)
+		if err != nil {
+			continue
+		}
+		if info.IsDir() {
+			if relative, ok := withinDirectory(allowed, clean); ok && relative != "." {
+				return fileTarget{root: allowed, relative: relative, path: clean}, nil
+			}
+		} else if clean == filepath.Clean(allowed) {
+			return fileTarget{root: filepath.Dir(clean), relative: filepath.Base(clean), path: clean}, nil
+		}
+	}
+	return fileTarget{}, errors.New("PathNotAllowed")
+}
+
 func (target fileTarget) open(create bool) (*os.Root, error) {
 	if target.home != "" {
 		return openOutputRoot(target.home, target.root, create)
@@ -173,9 +201,10 @@ func buildLocalTool[I any](a *Platform, conversationID string, tool Tool, invoke
 	schema, _ := json.Marshal(reflector.Reflect(new(I)))
 	principal := "会话 " + conversationID
 	return agentrun.ReadTool{
-		Definition:      ai.ToolDefinition{Name: tool.Name, Description: tool.Description, InputSchema: schema},
-		MaxResultBytes:  localReadBytes,
-		PrivateActivity: true,
+		Definition:       ai.ToolDefinition{Name: tool.Name, Description: tool.Description, InputSchema: schema},
+		MaxResultBytes:   localReadBytes,
+		PrivateActivity:  true,
+		RequiresApproval: tool.RequiresApproval,
 		Read: func(ctx context.Context, call ai.ToolCall) (result string, outErr error) {
 			start := time.Now()
 			var callErr error
@@ -243,7 +272,7 @@ func (a *Platform) localChatTools(conversationID string, run *skillRun) []agentr
 			if !run.allows("read") {
 				return nil, errors.New("ToolNotAllowed")
 			}
-			target, err := resolveFileTarget(ctx, input.Path)
+			target, err := resolveReadTarget(ctx, input.Path)
 			if err != nil {
 				return nil, err
 			}

@@ -58,6 +58,7 @@ type Registry struct {
 	mu        sync.Mutex
 	pending   map[string]approval
 	questions map[string]questionWait
+	plans     map[string]planWait
 	auditDir  string
 	auditMu   sync.Mutex
 	scopeDB   *sqlc.Queries
@@ -67,6 +68,7 @@ func NewRegistry() *Registry {
 	return &Registry{
 		pending:   make(map[string]approval),
 		questions: make(map[string]questionWait),
+		plans:     make(map[string]planWait),
 	}
 }
 
@@ -265,7 +267,8 @@ func (r *Registry) chatTool(conversationID, wire string, tool Tool) agentrun.Rea
 		}
 	}
 	read := agentrun.ReadTool{
-		Definition: ai.ToolDefinition{Name: wire, Description: description, InputSchema: schema},
+		Definition:       ai.ToolDefinition{Name: wire, Description: description, InputSchema: schema},
+		RequiresApproval: tool.RequiresApproval,
 		Read: func(ctx context.Context, call ai.ToolCall) (string, error) {
 			result, err := r.executeTool(ctx, "会话 "+conversationID, conversationID, tool, json.RawMessage(call.ArgumentsJSON))
 			if err != nil {
