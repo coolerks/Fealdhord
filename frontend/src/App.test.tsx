@@ -35,6 +35,7 @@ vi.mock('@/lib/reader-api',()=>({readerAPI:reader}))
 const chat = vi.hoisted(() => ({
   List: vi.fn(), Create: vi.fn(), Branch: vi.fn(), Messages: vi.fn(), Send: vi.fn(), Cancel: vi.fn(), Model: vi.fn(),
   Groups: vi.fn(), GroupConversations: vi.fn(), CreateInGroup: vi.fn(), CreateGroup: vi.fn(), PickGroupFolders: vi.fn(),
+  PickAttachments: vi.fn(), InspectClipboardFiles: vi.fn(), SaveMermaidImage: vi.fn(), Steer: vi.fn(),
   ContextStatus: vi.fn(), GenerateContextSummary: vi.fn(), SaveContext: vi.fn(), Rename: vi.fn(), SetPinned: vi.fn(), SetArchived: vi.fn(), Archived: vi.fn(), Delete: vi.fn(),
 }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/chat/api', () => chat)
@@ -86,7 +87,7 @@ const mcpGrants = vi.hoisted(() => ({
   RotateGrantToken: vi.fn(),
 }))
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/appagent/api', () => ({
-  PendingActions: pendingActions, DecideAction: decideAction, PendingQuestions: async () => [], AnswerQuestion: async () => true, ToolList: async () => [], Skills: listSkills,
+  PendingActions: pendingActions, DecideAction: decideAction, PendingQuestions: async () => [], AnswerQuestion: async () => true, PendingPlans: async () => [], ResolvePlan: async () => true, ToolList: async () => [], Skills: listSkills,
   ...mcpGrants,
   ...toolPermissions,
   ...mcpConnections,
@@ -102,6 +103,10 @@ beforeEach(() => {
   vi.clearAllMocks()
   chat.Groups.mockReset().mockResolvedValue([])
   chat.GroupConversations.mockReset().mockResolvedValue([])
+  chat.PickAttachments.mockReset().mockResolvedValue([])
+  chat.InspectClipboardFiles.mockReset().mockResolvedValue([])
+  chat.SaveMermaidImage.mockReset().mockResolvedValue(true)
+  chat.Steer.mockReset().mockResolvedValue(undefined)
   pendingActions.mockResolvedValue([])
   decideAction.mockResolvedValue(true)
   toolPermissions.ToolPermissions.mockResolvedValue([])

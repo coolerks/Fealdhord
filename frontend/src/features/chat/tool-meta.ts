@@ -31,6 +31,7 @@ export type ToolMeta = {
 
 const groups = {
   askUser: { summary: '向用户确认了需求', runningSummary: '向用户确认需求中', icon: 'circle-help', priority: 5, category: 'app' },
+  confirmPlan: { summary: '提交了执行计划', runningSummary: '等待用户确认计划', icon: 'file-text', priority: 6, category: 'app' },
   searchArticles: { summary: '搜索了文章', runningSummary: '搜索文章中', icon: 'search', priority: 10, category: 'articles' },
   listArticles: { summary: '查看了文章列表', runningSummary: '获取文章列表中', icon: 'layers', priority: 15, category: 'articles' },
   readArticles: { summary: '读取了文章', runningSummary: '读取文章中', icon: 'book-text', priority: 20, category: 'articles' },
@@ -67,8 +68,9 @@ const canonicalBuiltinTools: Record<string, BuiltinToolEntry> = {
   write: { label: '写入本地文件', group: groups.writeFiles },
   edit: { label: '编辑本地文件', group: groups.writeFiles },
   shell: { label: '运行命令', group: groups.runCommands },
-  // 用户澄清
+  // 用户澄清与计划确认
   AskUserQuestion: { label: '向用户提问', group: groups.askUser },
+  ConfirmPlan: { label: '确认执行计划', group: groups.confirmPlan },
   // 文章查询与阅读
   'article.search': { label: '搜索文章', group: groups.searchArticles },
   'library.search': { label: '搜索本地文章', group: groups.searchArticles },

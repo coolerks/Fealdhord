@@ -423,6 +423,20 @@ export function AISettings() {
                 </Button>
               </fieldset>
               <Field orientation="horizontal">
+                <FieldLabel htmlFor="ai-model-vision" className="font-normal">支持图片输入（多模态）</FieldLabel>
+                <Switch id="ai-model-vision" checked={Boolean(model.metadata?.modalities?.includes('image'))} disabled={busy}
+                  onCheckedChange={checked => {
+                    const current = model.metadata?.modalities ?? ['text']
+                    const next = checked
+                      ? Array.from(new Set([...current, 'text', 'image']))
+                      : current.filter(item => item !== 'image')
+                    setModel({
+                      ...model,
+                      metadata: { ...model.metadata, modalities: next, source: model.metadata?.source || '手动' },
+                    })
+                  }} />
+              </Field>
+              <Field orientation="horizontal">
                 <FieldLabel htmlFor="ai-model-enabled" className="font-normal">启用模型</FieldLabel>
                 <Switch id="ai-model-enabled" checked={model.enabled} disabled={busy} onCheckedChange={enabled => setModel({ ...model, enabled })} />
               </Field>

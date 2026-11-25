@@ -15,17 +15,16 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
+import type { ClipboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, useIsPresent } from 'motion/react'
-import { ArrowDown, ArrowUp, BookOpen, Box, Brain, CalendarClock, Check, Copy, FileText, Gauge, Paperclip, Pin, Plus, Settings, Sparkles, Square, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, Box, Brain, CalendarClock, Check, ClipboardList, Copy, CornerDownRight, File as FileIcon, Folder, Gauge, Image as ImageIcon, Pin, Plus, Settings, Sparkles, Square, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { SemanticButton } from '@/components/semantic-button'
 import { SidebarAction } from '@/components/sidebar-action'
-import { Input } from '@/components/ui/input'
-import { libraryAPI } from '@/lib/library-api'
-import type { Article } from '@/lib/library'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useWorkspace } from '@/stores/workspace'
 import { cn } from '@/lib/utils'
@@ -39,15 +38,21 @@ import { ReplyActions } from './ReplyActions'
 import { ReplyBody } from './ReplyProgress'
 import { ToolApproval, useInlineApproval } from './AIApprovals'
 import { UserQuestionPrompt, useInlineQuestion } from './UserQuestionPrompt'
+import { PlanConfirmPrompt, useInlinePlan } from './PlanConfirmPrompt'
+import { ChatQueueBar } from './ChatQueueBar'
+import type { QueuedChatMessage } from './ChatQueueBar'
+import { formatMessageTime, formatMessageTimeTitle } from './format-time'
 import { approvalModes } from './approval-options'
 import { ConversationConfirmation, ConversationMenu, RenameConversationDialog, archivedConversationsKey, conversationActionError } from './ConversationMenu'
 import type { ConversationAction } from './ConversationMenu'
 import { GroupDisclosure, NewConversationGroup, groupHistoryKey, groupKey, useConversationFolds } from './ConversationGroups'
 import { notify } from '@/lib/notifications'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/api'
-import type { Conversation } from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
+import type { Conversation, SendAttachment } from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
 import { List as listAIConfiguration } from '../../../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/api'
 import './chat-workspace.css'
+
+type ComposerAttachment = SendAttachment & { id: string; preview?: string }
 
 const globalTarget = { kind: 'global', id: '', label: 'AI 助手' }
 const defaultEffortOption = { value: ':default', label: '使用服务默认' }
@@ -94,6 +99,9 @@ const errorLabels: Record<string, string> = {
   ResponseLimit: '回复超过长度限制，已保留部分内容。',
   IncompleteResponse: '服务提前结束，已保留部分内容。',
   ProviderProtocolError: '服务返回的流式响应不完整或格式有误。',
+  ModelImageUnsupported: '当前模型不是多模态模型，不支持图片。',
+  AttachmentUnavailable: '有附加文件或文件夹无法读取，请重新选择。',
+  NoActiveRun: '当前回复已结束，请直接发送。',
   ValidationError: '请检查消息及附加内容的长度。',
 }
 
@@ -147,6 +155,7 @@ function ChatSession({ target, close, workspace }: {
   const rememberedModelID = useWorkspace(state => state.preferences?.chat_model_id)
   const defaultApprovalMode = useWorkspace(state => state.preferences?.chat_approval_mode) ?? 'ask'
   const approvalPresentation = useWorkspace(state => state.preferences?.chat_approval_presentation) ?? 'composer'
+  const busySendMode = useWorkspace(state => state.preferences?.chat_busy_send_mode) ?? 'queue'
   const patchPreferences = useWorkspace(state => state.patch)
   const [chosen, setChosen] = useState<string | null>(null)
   const [greeting, setGreeting] = useState(() => pickGreeting())
@@ -162,9 +171,10 @@ function ChatSession({ target, close, workspace }: {
   const [includeContext, setIncludeContext] = useState(false)
   const [allowArticleReads, setAllowArticleReads] = useState(false)
   const [selection, setSelection] = useState(target.selection ?? '')
-  const [sources, setSources] = useState<Article[]>([])
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([])
+  const [planMode, setPlanMode] = useState(false)
+  const [queues, setQueues] = useState<Record<string, QueuedChatMessage[]>>({})
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
-  const [picking, setPicking] = useState(false)
   const [effortChoices, setEffortChoices] = useState<Record<string, string>>({})
   const [following, setFollowing] = useState(true)
   const [conversationsScrolled, setConversationsScrolled] = useState(false)
@@ -213,11 +223,15 @@ function ChatSession({ target, close, workspace }: {
   const modelID = selectedModel?.value
   const modelReady = workspace ? Boolean(selectedModel) : Boolean(model.data)
   const selectedConfig = configuration.data?.models?.find(item => item.id === modelID)
+  const modelSupportsImage = Boolean(selectedConfig?.metadata?.modalities?.includes('image'))
+  const hasImageAttachment = attachments.some(item => item.kind === 'image')
+  const imageBlocked = Boolean(workspace && hasImageAttachment && !modelSupportsImage)
   const effortLevels = selectedConfig?.reasoningLevels ?? []
   const reasoningEffort = modelID ? effortChoices[modelID] : undefined
   const selectedEffortLabel = effortLevels.find(level => level.value === reasoningEffort)?.label
   const invalidEffort = Boolean(reasoningEffort && !effortLevels.some(option => option.value === reasoningEffort))
   const conversationId = chosen ?? history.data?.[0]?.id ?? ''
+  const currentQueue = queues[conversationId] ?? []
   const activeConversation = (draftGroup ? groupedLists[groupItems.findIndex(group => group.id === draftGroup)]?.data : history.data)
     ?.find(item => item.id === conversationId)
   const approvalMode = approvalChoices[conversationId] ?? defaultApprovalMode
@@ -226,13 +240,19 @@ function ChatSession({ target, close, workspace }: {
   const messages = useChatMessages(conversationId)
   const active = messages.data?.some(message => message.status === 'running') ?? false
   const inlineQuestion = useInlineQuestion(conversationId, !tasksOpen && (!workspace || workspace.present), active)
+  const inlinePlan = useInlinePlan(conversationId, !tasksOpen && (!workspace || workspace.present), active)
   const theme = useReaderCodeTheme(workspace?.theme ?? 'app', Boolean(workspace && messages.data?.some(message => message.role === 'assistant')))
   const send = useMutation({
-    mutationFn: async (override?: { text?: string; newConversation?: boolean }) => {
+    mutationFn: async (override?: { text?: string; attachments?: SendAttachment[]; planMode?: boolean; newConversation?: boolean }) => {
       const messageText = override?.text ?? draft
+      const sendAttachments: SendAttachment[] = override?.attachments ?? attachments.map(({ kind, name, path, mimeType, data }) => ({
+        kind, name, ...(path ? { path } : {}), ...(mimeType ? { mimeType } : {}), ...(data ? { data } : {}),
+      }))
+      const usePlanMode = override?.planMode ?? planMode
       let id = override?.newConversation ? '' : conversationId
       if (!id) {
-        const title = Array.from(messageText.trim()).slice(0, 64).join('')
+        const titleSource = messageText.trim() || sendAttachments[0]?.name || '新对话'
+        const title = Array.from(titleSource).slice(0, 64).join('')
         const group = override?.newConversation ? '' : draftGroup
         const conversation = group ? await api.CreateInGroup(group, title) : await api.Create(scope, title)
         id = conversation.id
@@ -247,10 +267,12 @@ function ChatSession({ target, close, workspace }: {
       }
       await api.Send({
         conversationId: id, text: messageText, includeContext, selection, allowArticleReads,
-        articleIds: sources.map(article => article.id), ...(workspace && modelID ? { modelId: modelID } : {}),
+        articleIds: [], ...(workspace && modelID ? { modelId: modelID } : {}),
         ...(workspace && selectedSkills.length ? { skills: selectedSkills } : {}),
         ...(workspace && reasoningEffort ? { reasoningEffort } : {}),
         ...(workspace ? { approvalMode } : {}),
+        ...(workspace && sendAttachments.length ? { attachments: sendAttachments } : {}),
+        ...(workspace && usePlanMode ? { planMode: true } : {}),
       })
       await Promise.all([
         cache.invalidateQueries({ queryKey: chatMessagesKey(id) }),
@@ -261,15 +283,32 @@ function ChatSession({ target, close, workspace }: {
     onError: () => {
       if (workspace) void cache.invalidateQueries({ queryKey: aiConfigurationKey })
     },
-    onSuccess: () => {
+    onSuccess: (_result, override) => {
       follow.current = true
       setFollowing(true)
-      setDraft('')
+      if (!override) {
+        setDraft('')
+        setAttachments([])
+      }
       setSelection('')
-      setSources([])
-      setPicking(false)
       setIncludeContext(false)
       setAllowArticleReads(false)
+    },
+  })
+  const steer = useMutation({
+    mutationFn: async (payload: { text: string; attachments?: SendAttachment[] }) => {
+      await api.Steer({
+        conversationId,
+        text: payload.text,
+        ...(payload.attachments?.length ? { attachments: payload.attachments } : {}),
+      })
+      await cache.invalidateQueries({ queryKey: chatMessagesKey(conversationId) })
+    },
+    onSuccess: () => {
+      void notify('已发送引导，AI 将在下一轮次接收')
+    },
+    onError: error => {
+      void notify(errorText(error), undefined, true)
     },
   })
   const cancel = useMutation({
@@ -334,7 +373,29 @@ function ChatSession({ target, close, workspace }: {
   useLayoutEffect(() => {
     const element = timeline.current
     if (element && follow.current) element.scrollTop = element.scrollHeight
-  }, [messages.data, conversationId, theme, following, tasksOpen, inlineApproval?.id, inlineQuestion?.id])
+  }, [messages.data, conversationId, theme, following, tasksOpen, inlineApproval?.id, inlineQuestion?.id, inlinePlan?.id])
+  const prevActive = useRef(false)
+  const drainQueue = useEffectEvent((item: QueuedChatMessage) => {
+    setQueues(current => {
+      const list = current[conversationId] ?? []
+      return { ...current, [conversationId]: list.filter(entry => entry.id !== item.id) }
+    })
+    send.mutate({ text: item.text, attachments: item.attachments, planMode: item.planMode })
+  })
+  useEffect(() => {
+    const wasActive = prevActive.current
+    prevActive.current = active
+    if (!workspace || !wasActive || active || send.isPending) return
+    const last = messages.data?.at(-1)
+    if (last?.role !== 'assistant' || last.status !== 'complete') return
+    const next = queues[conversationId]?.[0]
+    if (!next) return
+    if (next.attachments.some(att => att.kind === 'image') && !modelSupportsImage) {
+      void notify('当前模型不是多模态模型，不支持图片', '排队消息含图片，请切换模型或编辑队列。', true)
+      return
+    }
+    drainQueue(next)
+  }, [active, workspace, conversationId, messages.data, queues, send.isPending, modelSupportsImage])
   const inWorkspace = Boolean(workspace?.present)
   useLayoutEffect(() => {
     if (inWorkspace && !tasksOpen) composer.current?.focus({ preventScroll: true })
@@ -359,8 +420,8 @@ function ChatSession({ target, close, workspace }: {
       setSlashPage('actions')
       setHighlightedSlash('')
       setDraft('')
-      setSources([])
-      setPicking(false)
+      setAttachments([])
+      setPlanMode(false)
       setAllowArticleReads(false)
       send.reset()
       cancel.reset()
@@ -414,7 +475,7 @@ function ChatSession({ target, close, workspace }: {
   const actions: SlashItem[] = [
     { key: 'skills', label: '技能', icon: Sparkles, detail: '应用已启用的技能', aliases: ['skill'], page: 'skills' },
     { key: 'new', label: '新对话', icon: Plus, detail: '开启空白对话', aliases: ['new-chat'], action: 'new' },
-    { key: 'attach', label: '附加文章', icon: Paperclip, detail: '从本地文章中选择', aliases: ['article'], action: 'attach' },
+    { key: 'plan', label: '计划模式', icon: ClipboardList, detail: planMode ? '关闭计划模式' : '先澄清需求并确认计划后再执行', aliases: ['plan', '计划'], action: 'plan' },
     ...(modelOptions.length ? [{ key: 'model', label: '模型', icon: Box, page: 'models' } satisfies SlashItem] : []),
     ...(effortLevels.length ? [{ key: 'reasoning', label: '思考档位', icon: Brain, detail: selectedEffortLabel,
       aliases: ['effort', '推理'], page: 'effort' } satisfies SlashItem] : []),
@@ -453,7 +514,7 @@ function ChatSession({ target, close, workspace }: {
     setSlashPage('actions')
     switch (item.action) {
       case 'new': choose(''); break
-      case 'attach': setPicking(true); break
+      case 'plan': setPlanMode(current => !current); break
       case 'context': setContextOpen(true); break
       case 'settings': showSettings(item.key === 'manage-skills' ? 'skills' : 'ai'); break
       case 'tasks': openTasks(); break
@@ -465,10 +526,129 @@ function ChatSession({ target, close, workspace }: {
     }
   }
   const newConversationShortcut = native.isMac() ? 'Meta+Shift+N' : 'Control+Shift+N'
-  const canSend = !slashOpen && !active && Boolean(draft.trim()) && modelReady && !invalidEffort && !send.isPending && !history.isPending &&
+  const hasInput = Boolean(draft.trim()) || (Boolean(workspace) && attachments.length > 0)
+  const canSend = !slashOpen && !active && hasInput && modelReady && !invalidEffort && !imageBlocked && !send.isPending && !history.isPending &&
     !(conversationId && messages.isPending)
+  const canBusySend = Boolean(workspace && active && !slashOpen && hasInput && !imageBlocked && !steer.isPending)
   const isEmptyWorkspace = Boolean(workspace && !tasksOpen && (!conversationId || (!messages.isPending && !messages.isError && (messages.data?.length ?? 0) === 0)))
-  const hasComposerChips = Boolean(workspace && (selectedSkills.length > 0 || sources.length > 0))
+  const hasComposerChips = Boolean(workspace && (planMode || selectedSkills.length > 0 || attachments.length > 0))
+
+  function addAttachments(incoming: ComposerAttachment[]) {
+    if (incoming.length === 0) return
+    if (incoming.some(item => item.kind === 'image') && !modelSupportsImage) {
+      void notify('当前模型不是多模态模型，不支持图片', '请移除图片或切换至支持多模态的模型。', true)
+    }
+    setAttachments(current => {
+      const next = [...current]
+      for (const item of incoming) {
+        if (next.length >= 10) break
+        if (item.path && next.some(existing => existing.path === item.path)) continue
+        next.push(item)
+      }
+      return next
+    })
+  }
+
+  async function pickAttachments(kind: 'files' | 'folders') {
+    try {
+      const items = await api.PickAttachments(kind)
+      if (!items?.length) return
+      addAttachments(items.map((item, idx) => ({
+        id: `${item.path}-${Date.now()}-${idx}`,
+        kind: item.kind,
+        name: item.name,
+        path: item.path,
+        mimeType: item.mimeType,
+        preview: item.preview,
+      })))
+    } catch {
+      void notify('无法选择文件或文件夹', undefined, true)
+    }
+  }
+
+  async function handleComposerPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    if (!workspace) return
+    const items = Array.from(event.clipboardData?.items ?? [])
+    const imageFiles = items
+      .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+      .map(item => item.getAsFile())
+      .filter((file): file is File => Boolean(file))
+    const hasPlainText = Boolean(event.clipboardData?.getData('text/plain'))
+    if (imageFiles.length > 0) {
+      if (!hasPlainText) event.preventDefault()
+      const converted: ComposerAttachment[] = []
+      for (const file of imageFiles) {
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(String(reader.result ?? ''))
+          reader.onerror = () => reject(new Error('read'))
+          reader.readAsDataURL(file)
+        }).catch(() => '')
+        const comma = dataUrl.indexOf(',')
+        if (comma > 0) {
+          converted.push({
+            id: `paste-img-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            kind: 'image',
+            name: file.name || '粘贴的图片.png',
+            mimeType: file.type || 'image/png',
+            data: dataUrl.slice(comma + 1),
+            preview: dataUrl,
+          })
+        }
+      }
+      if (converted.length > 0) {
+        addAttachments(converted)
+        return
+      }
+    }
+    if (!hasPlainText && typeof api.InspectClipboardFiles === 'function') {
+      try {
+        const nativeFiles = await api.InspectClipboardFiles()
+        if (nativeFiles?.length) {
+          event.preventDefault()
+          addAttachments(nativeFiles.map((item, idx) => ({
+            id: `paste-path-${Date.now()}-${idx}`,
+            kind: item.kind,
+            name: item.name,
+            path: item.path,
+            mimeType: item.mimeType,
+            preview: item.preview,
+          })))
+        }
+      } catch {
+        /* 忽略非桌面环境剪贴板查询失败 */
+      }
+    }
+  }
+
+  function submitComposer() {
+    if (imageBlocked) {
+      void notify('当前模型不是多模态模型，不支持图片', '请移除图片或切换至支持多模态的模型。', true)
+      return
+    }
+    if (workspace && active) {
+      if (!canBusySend) return
+      const payloadAttachments: SendAttachment[] = attachments.map(({ kind, name, path, mimeType, data }) => ({
+        kind, name, ...(path ? { path } : {}), ...(mimeType ? { mimeType } : {}), ...(data ? { data } : {}),
+      }))
+      const trimmed = draft.trim()
+      if (busySendMode === 'steer') {
+        steer.mutate({ text: trimmed, attachments: payloadAttachments })
+      } else {
+        const queued: QueuedChatMessage = {
+          id: `q-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          text: trimmed,
+          attachments: payloadAttachments,
+          planMode,
+        }
+        setQueues(current => ({ ...current, [conversationId]: [...(current[conversationId] ?? []), queued] }))
+      }
+      setDraft('')
+      setAttachments([])
+      return
+    }
+    if (canSend) send.mutate()
+  }
   function conversationRows(items: Conversation[] | null | undefined) {
     return items?.map(item => {
       const current = !tasksOpen && item.id === conversationId
@@ -594,10 +774,25 @@ function ChatSession({ target, close, workspace }: {
         {message.role === 'assistant'
           ? <ReplyBody message={message} markdown={Boolean(workspace)}
             reveal={workspace?.motionMode === 'off' ? undefined : message.reveal} />
-          : message.text && (workspace
+          : (message.text || (message.attachments?.length ?? 0) > 0) && (workspace
             ? <div className="chat-user-stack">
-                <p className="whitespace-pre-wrap break-words">{message.text}</p>
-                <UserCopyButton text={message.text} />
+                {message.attachments && message.attachments.length > 0 && <div className="chat-user-attachments">
+                  {message.attachments.map((att, idx) => att.kind === 'image' && att.preview
+                    ? <img key={`${att.name}-${idx}`} src={att.preview} alt={att.name} className="chat-user-image" />
+                    : <span key={`${att.path ?? att.name}-${idx}`} className="chat-chip max-w-64 pr-2" title={att.path || att.name}>
+                        {att.kind === 'folder' ? <Folder className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+                          : att.kind === 'image' ? <ImageIcon className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+                            : <FileIcon className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />}
+                        <span className="truncate">{att.name}</span>
+                      </span>)}
+                </div>}
+                {message.text && <p className="whitespace-pre-wrap break-words">{message.text}</p>}
+                <div className="chat-user-meta">
+                  {formatMessageTime(message.createdAt) && <time className="text-xs tabular-nums text-muted-foreground/80" title={formatMessageTimeTitle(message.createdAt)}>
+                    {formatMessageTime(message.createdAt)}
+                  </time>}
+                  {message.text && <UserCopyButton text={message.text} />}
+                </div>
               </div>
             : <p className="whitespace-pre-wrap break-words">{message.text}</p>)}
         {statusLabels[message.status] && <p className={cn('mt-1 text-sm', message.status === 'failed' ? 'text-destructive' : 'text-muted-foreground')}>
@@ -615,15 +810,6 @@ function ChatSession({ target, close, workspace }: {
       setFollowing(true)
     }}><ArrowDown /></Button>}
     <div className={workspace ? 'chat-composer' : 'flex flex-col gap-3'}>
-      {workspace && <Dialog open={picking} onOpenChange={setPicking}>
-        {picking && <DialogContent aria-describedby={undefined}>
-          <DialogHeader><DialogTitle>附加文章</DialogTitle></DialogHeader>
-          <ArticlePicker selected={sources} disabled={send.isPending} onPick={article => {
-            setSources(items => items.length < 3 && !items.some(item => item.id === article.id) ? [...items, article] : items)
-            setAllowArticleReads(false)
-          }} />
-        </DialogContent>}
-      </Dialog>}
       {target.kind !== 'global' && <label htmlFor="chat-include-context" className="flex items-center gap-2 text-sm">
         <Checkbox id="chat-include-context" checked={includeContext} disabled={send.isPending} onCheckedChange={value => setIncludeContext(value === true)} />
         {target.kind === 'article' ? '附加订阅正文（最多 24 KiB）' : '附加当前分类最近 5 篇文章的摘要'}
@@ -638,7 +824,35 @@ function ChatSession({ target, close, workspace }: {
         <span className="truncate" title={selection}>选段 · {selection}</span>
         <Button size="sm" variant="ghost" disabled={send.isPending} onClick={() => setSelection('')}>移除</Button>
       </div>}
-      {inlineQuestion ? <section aria-label="AI 提问" className={cn('flex flex-col gap-3 px-4 py-3', workspace ? 'chat-composer-form chat-composer-approval' : 'rounded-xl border')}>
+      {workspace && currentQueue.length > 0 && <ChatQueueBar
+        items={currentQueue}
+        busySteer={!active || steer.isPending}
+        onSteer={item => {
+          if (item.attachments.some(att => att.kind === 'image') && !modelSupportsImage) {
+            void notify('当前模型不是多模态模型，不支持图片', '请切换模型或移除图片后再引导。', true)
+            return
+          }
+          setQueues(current => ({ ...current, [conversationId]: (current[conversationId] ?? []).filter(entry => entry.id !== item.id) }))
+          steer.mutate({ text: item.text, attachments: item.attachments })
+        }}
+        onEdit={(itemId, nextText) => {
+          setQueues(current => ({
+            ...current,
+            [conversationId]: (current[conversationId] ?? []).map(entry => entry.id === itemId ? { ...entry, text: nextText } : entry),
+          }))
+        }}
+        onDelete={itemId => {
+          setQueues(current => ({
+            ...current,
+            [conversationId]: (current[conversationId] ?? []).filter(entry => entry.id !== itemId),
+          }))
+        }}
+      />}
+      {inlinePlan ? <section aria-label="计划确认" className={cn('flex flex-col gap-3 px-4 py-3', workspace ? 'chat-composer-form chat-composer-approval' : 'rounded-xl border')}>
+        <PlanConfirmPrompt key={inlinePlan.id} pending={inlinePlan}
+          onDecision={decision => { if (decision === 'approve' || decision === 'reject') setPlanMode(false) }}
+          onStop={() => cancel.mutate(conversationId)} stopping={cancel.isPending} />
+      </section> : inlineQuestion ? <section aria-label="AI 提问" className={cn('flex flex-col gap-3 px-4 py-3', workspace ? 'chat-composer-form chat-composer-approval' : 'rounded-xl border')}>
         <UserQuestionPrompt key={inlineQuestion.id} pending={inlineQuestion}
           onStop={() => cancel.mutate(conversationId)} stopping={cancel.isPending} />
       </section> : inlineApproval ? <section aria-label="工具审批" className={cn('flex flex-col gap-3 px-4 py-3', workspace ? 'chat-composer-form chat-composer-approval' : 'rounded-xl border')}>
@@ -646,29 +860,39 @@ function ChatSession({ target, close, workspace }: {
           onStop={() => cancel.mutate(conversationId)} stopping={cancel.isPending} />
       </section> : <form className={workspace ? 'chat-composer-form' : 'flex items-end gap-2'} onSubmit={event => {
         event.preventDefault()
-        if (canSend) send.mutate()
+        submitComposer()
       }}>
         {slashOpen && <ChatSlashMenu composer={composer} label={slashLabel} active={slashActive} items={slashItems}
           onHighlight={setHighlightedSlash} onChoose={chooseSlash}
           onBack={slashPage !== 'actions' ? () => { setSlashPage('actions'); setHighlightedSlash(''); setDraft('/') } : undefined} />}
         {hasComposerChips && <div className="chat-composer-chips">
+          {planMode && <div className="chat-chip border-primary/40 bg-primary/10 text-primary">
+            <ClipboardList className="size-3 shrink-0" aria-hidden="true" />
+            <span>计划模式</span>
+            <Button type="button" size="icon-xs" variant="ghost" className="size-5 rounded-full" aria-label="关闭计划模式" disabled={send.isPending} onClick={() => setPlanMode(false)}><X /></Button>
+          </div>}
           {selectedSkills.map(name => <div key={name} className="chat-chip">
             <Sparkles className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
             <span className="truncate">{name}</span>
             <Button type="button" size="icon-xs" variant="ghost" className="size-5 rounded-full" aria-label={`移除技能 ${name}`} disabled={send.isPending} onClick={() => toggleSkill(name)}><X /></Button>
           </div>)}
-          {sources.map(article => <div key={article.id} className="chat-chip max-w-56">
-            <FileText className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span className="truncate" title={article.title}>{article.title}</span>
-            <Button type="button" size="icon-xs" variant="ghost" className="size-5 rounded-full" aria-label={`移除 ${article.title}`} disabled={send.isPending} onClick={() => { setSources(sources.filter(item => item.id !== article.id)); setAllowArticleReads(false) }}><X /></Button>
+          {attachments.map(item => <div key={item.id} className={cn('chat-chip max-w-56', item.kind === 'image' && !modelSupportsImage && 'border-destructive/60 text-destructive')}>
+            {item.kind === 'image' && item.preview
+              ? <img src={item.preview} alt="" className="chat-attachment-thumb" />
+              : item.kind === 'folder'
+                ? <Folder className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+                : item.kind === 'image'
+                  ? <ImageIcon className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  : <FileIcon className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />}
+            <span className="truncate" title={item.path || item.name}>{item.name}</span>
+            <Button type="button" size="icon-xs" variant="ghost" className="size-5 rounded-full" aria-label={`移除 ${item.name}`} disabled={send.isPending}
+              onClick={() => setAttachments(current => current.filter(entry => entry.id !== item.id))}><X /></Button>
           </div>)}
-          {sources.length > 0 && <label htmlFor="chat-allow-article-reads" className="chat-chip cursor-pointer pr-2.5">
-            <Checkbox id="chat-allow-article-reads" checked={allowArticleReads} disabled={send.isPending}
-              onCheckedChange={value => setAllowArticleReads(value === true)} />
-            <span>允许读取正文</span>
-          </label>}
         </div>}
-        <Textarea ref={composer} className={workspace ? 'chat-input' : 'max-h-40 resize-y'} aria-label="消息" placeholder="输入消息…（输入 / 打开命令）" value={draft}
+        <Textarea ref={composer} className={workspace ? 'chat-input' : 'max-h-40 resize-y'} aria-label="消息"
+          placeholder={active && workspace ? (busySendMode === 'steer' ? '输入引导消息，AI 将在下一轮次接收…' : '输入消息加入排队，当前完成后自动发送…') : '输入消息…（输入 / 打开命令，支持粘贴文件/文件夹/图片）'}
+          value={draft}
+          onPaste={workspace ? event => void handleComposerPaste(event) : undefined}
           onFocus={workspace ? () => setComposerFocused(true) : undefined}
           onBlur={workspace ? () => setComposerFocused(false) : undefined}
           onChange={event => {
@@ -703,17 +927,31 @@ function ChatSession({ target, close, workspace }: {
               event.preventDefault()
               if (slashOpen) {
                 if (slashActive) chooseSlash(slashActive)
-              } else if (canSend) send.mutate()
+              } else {
+                submitComposer()
+              }
             }
           } : undefined} />
         <div className={workspace ? 'chat-composer-toolbar' : undefined}>
           {workspace && <div className="flex min-w-0 items-center gap-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button size="icon-sm" type="button" variant="ghost" aria-label="附加文章" aria-expanded={picking} disabled={send.isPending} onClick={() => setPicking(!picking)}><Plus /></Button>
-              </TooltipTrigger>
-              <TooltipContent>附加文章</TooltipContent>
-            </Tooltip>
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="icon-sm" type="button" variant="ghost" aria-label="添加文件或图片" disabled={send.isPending}><Plus /></Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>添加文件、文件夹或图片</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="start" side="top">
+                <DropdownMenuItem onSelect={() => void pickAttachments('files')}>
+                  <FileIcon className="size-4" />添加文件或图片
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void pickAttachments('folders')}>
+                  <Folder className="size-4" />添加文件夹
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <SearchableSelect label="审批方式" className="chat-toolbar-select" value={approvalMode} options={approvalModes} variant="ghost"
               announceSelection disabled={active || send.isPending}
               onValueChange={value => setApprovalChoices(current => ({ ...current, [conversationId]: value }))} />
@@ -723,7 +961,7 @@ function ChatSession({ target, close, workspace }: {
               {draft.length.toLocaleString()} / 2,700
             </span>}
             {workspace && selectedConfig && modelID && <ChatContext id={conversationId} modelId={modelID} modelRevision={selectedConfig.revision}
-              disabled={active || send.isPending} attachments={sources} open={contextOpen} onOpenChange={setContextOpen} />}
+              disabled={active || send.isPending} attachments={[]} open={contextOpen} onOpenChange={setContextOpen} />}
             {workspace && (modelOptions.length ? <ChatModelMenu
               modelOptions={modelOptions}
               selectedModel={selectedModel}
@@ -741,12 +979,23 @@ function ChatSession({ target, close, workspace }: {
                 : configuration.isPending ? <span role="status" className="px-2 text-xs text-muted-foreground">正在读取模型…</span>
                   : <Button type="button" size="sm" variant="ghost" onClick={() => showSettings('ai')}>配置模型</Button>)}
             {workspace ? (active
-              ? <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button type="button" size="icon-sm" className="rounded-full" aria-label="停止回复" disabled={cancel.isPending} onClick={() => cancel.mutate(conversationId)}><Square className="size-2.5" fill="currentColor" /></Button>
-                  </TooltipTrigger>
-                  <TooltipContent>停止回复</TooltipContent>
-                </Tooltip>
+              ? <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button type="submit" size="icon-sm" variant="secondary" className="rounded-full"
+                        aria-label={busySendMode === 'steer' ? '发送引导' : '加入排队'} disabled={!canBusySend}>
+                        {busySendMode === 'steer' ? <CornerDownRight /> : <ArrowUp />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{busySendMode === 'steer' ? '发送引导（下一轮次接收）' : '加入排队（本次完成后发送）'}</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button type="button" size="icon-sm" className="rounded-full" aria-label="停止回复" disabled={cancel.isPending} onClick={() => cancel.mutate(conversationId)}><Square className="size-2.5" fill="currentColor" /></Button>
+                    </TooltipTrigger>
+                    <TooltipContent>停止回复</TooltipContent>
+                  </Tooltip>
+                </>
               : <Tooltip>
                   <TooltipTrigger asChild>
                     <Button type="submit" size="icon-sm" className="rounded-full" aria-label="发送" disabled={!canSend}><ArrowUp /></Button>
@@ -758,6 +1007,7 @@ function ChatSession({ target, close, workspace }: {
           </div>
         </div>
       </form>}
+      {workspace && imageBlocked && <p role="alert">{errorLabels.ModelImageUnsupported}</p>}
       {workspace && invalidEffort && !send.isError && <p role="alert">{errorLabels.ChatReasoningUnavailable}</p>}
       {(send.isError || cancel.isError) && <p role="alert">{errorText(send.error ?? cancel.error)}</p>}
     </div>
@@ -789,46 +1039,4 @@ function UserCopyButton({ text }: { text: string }) {
     </TooltipTrigger>
     <TooltipContent>{copied ? '已复制' : '复制'}</TooltipContent>
   </Tooltip>
-}
-
-function ArticlePicker({ selected, disabled, onPick }: { selected: Article[]; disabled: boolean; onPick: (article: Article) => void }) {
-  const [draft, setDraft] = useState('')
-  const [term, setTerm] = useState('')
-  useEffect(() => {
-    const value = draft.trim()
-    const timer = window.setTimeout(() => setTerm(value), 250)
-    return () => window.clearTimeout(timer)
-  }, [draft])
-  const results = useQuery({
-    queryKey: ['chat', 'articles', term],
-    queryFn: ({ signal }) => libraryAPI.list({ scope: { kind: 'all' }, search: term, sort: 'relevance', limit: 8 }, signal),
-    enabled: Boolean(term),
-    retry: false,
-  })
-  return <div className="space-y-3">
-    <form className="flex gap-2" onSubmit={event => {
-      event.preventDefault()
-      const value = draft.trim()
-      if (value && value === term) void results.refetch()
-      else setTerm(value)
-    }}>
-      <Input aria-label="搜索本地文章" placeholder="输入关键词搜索本地文章…" value={draft} maxLength={128} onChange={event => setDraft(event.target.value)} />
-      <Button size="sm" type="submit" variant="outline" disabled={!draft.trim() || disabled}>搜索</Button>
-    </form>
-    {term && results.isFetching && <p role="status" className="text-xs text-muted-foreground">正在搜索…</p>}
-    {results.isError && <p role="alert" className="text-sm text-destructive">无法搜索文章，请重试。</p>}
-    {term && results.data?.items.length === 0 && <p role="status" className="text-sm text-muted-foreground">没有匹配的文章。</p>}
-    <ul className="max-h-56 space-y-1 overflow-y-auto">
-      {results.data?.items.map(article => {
-        const picked = selected.some(item => item.id === article.id)
-        return <li className="flex items-center justify-between gap-2 rounded-md px-2 py-1 hover:bg-muted/60" key={article.id}>
-          <span className="truncate text-sm" title={article.title}>{article.title}</span>
-          <Button size="sm" variant="ghost" aria-label={`附加 ${article.title} 的摘要`} disabled={disabled || selected.length >= 3 || picked} onClick={() => onPick(article)}>
-            {picked ? '已附加' : '附加摘要'}
-          </Button>
-        </li>
-      })}
-    </ul>
-    {selected.length >= 3 && <p role="status" className="text-xs text-muted-foreground">最多附加 3 篇文章。</p>}
-  </div>
 }

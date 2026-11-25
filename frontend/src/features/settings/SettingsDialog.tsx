@@ -343,6 +343,16 @@ export function SettingsDialog({ sidebar, motionMode }: {
                 value={String(preferences.chat_max_retries ?? 5)}
                 onValueChange={value => set('chat_max_retries', Number(value))} />
             </SettingRow>
+            <SettingRow>
+              <FieldLabel htmlFor="chat-busy-send-mode" className="font-normal">执行中发送消息方式</FieldLabel>
+              <SearchableSelect id="chat-busy-send-mode" label="执行中发送消息方式" className="min-w-44"
+                options={[
+                  { value: 'queue', label: '排队（本次完成后自动发送）' },
+                  { value: 'steer', label: '引导（AI 下一轮次立即接收）' },
+                ]}
+                value={preferences.chat_busy_send_mode || 'queue'}
+                onValueChange={value => set('chat_busy_send_mode', value)} />
+            </SettingRow>
           </SettingCard>
         </SettingSection>
         <SettingSection title="工具审批">

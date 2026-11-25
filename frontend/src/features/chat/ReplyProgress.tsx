@@ -298,10 +298,23 @@ export function ReplyBody({ message, markdown, reveal }: {
     return () => { clearCollapsedSelection(panel) }
   }, [hasMultiStage, running, open])
 
+  const steers = work?.steers ?? []
+  const steerBanner = steers.length > 0 && (
+    <div className="space-y-1">
+      {steers.map((steer, index) => (
+        <div key={`${steer.at}-${index}`} className="flex items-start gap-1.5 rounded-lg border border-border/80 bg-muted/45 px-2.5 py-1.5 text-xs text-muted-foreground">
+          <span className="shrink-0 font-medium text-foreground">中途引导</span>
+          <span className="min-w-0 break-words">{steer.text}</span>
+        </div>
+      ))}
+    </div>
+  )
+
   if (!hasMultiStage) {
     const body = textBetween(0, message.text.length)
     return <div className="flex flex-col gap-2">
       <SingleStageProgress message={message} />
+      {steerBanner}
       {body}
     </div>
   }
@@ -337,6 +350,7 @@ export function ReplyBody({ message, markdown, reveal }: {
       {retrying
         ? <RetryIndicator attempt={work!.retryAttempt!} max={work!.retryMax!} />
         : showNextRoundThinking && <ThinkingIndicator />}
+      {steerBanner}
       {finalBody}
     </div>
   }
@@ -366,6 +380,7 @@ export function ReplyBody({ message, markdown, reveal }: {
         })}
       </div>
     </div>
+    {steerBanner}
     {finalBody}
   </div>
 }
