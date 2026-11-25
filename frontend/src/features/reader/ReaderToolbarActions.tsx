@@ -181,6 +181,15 @@ export function ReaderToolbarActions({
             </DropdownMenuContent>
           </DropdownMenu>
         }
+        if (value === 'summary') {
+          if (!summary) return null
+          return <SemanticButton key={value} icon={icon} meaning={summary.pending ? 'x' : meaning}
+            label={summary.pending ? '取消摘要' : label}
+            active={summary.pending}
+            aria-pressed={summary.pending || undefined}
+            disabled={!summary.pending && (summary.disabled || summary.resolved)}
+            onClick={summary.pending ? summary.onCancel : summary.onGenerate} />
+        }
         return <SemanticButton key={value} ref={value === 'categories' ? categoryTrigger : undefined} icon={icon} meaning={meaning} label={value === 'read' ? readLabel : label}
           disabled={isDisabled(value)}
           active={value === 'favorite' && isFavorite} aria-pressed={value === 'favorite' ? isFavorite : undefined}
@@ -227,6 +236,13 @@ export function ReaderToolbarActions({
                 </DropdownMenuPortal>
               </DropdownMenuSub>
             }
+            if (value === 'summary') {
+              if (!summary) return null
+              return <DropdownMenuItem key={value} disabled={!summary.pending && (summary.disabled || summary.resolved)}
+                onSelect={summary.pending ? summary.onCancel : summary.onGenerate}>
+                <AnimatedGlyph meaning={summary.pending ? 'x' : meaning} />{summary.pending ? '取消摘要' : label}
+              </DropdownMenuItem>
+            }
             if (value === 'favorite') {
               return <DropdownMenuCheckboxItem key={value} checked={isFavorite} onSelect={onFavorite}>
                 <AnimatedGlyph icon={icon} meaning={meaning} />{label}
@@ -237,16 +253,10 @@ export function ReaderToolbarActions({
             </DropdownMenuItem>
           })}
         </DropdownMenuGroup>
-        {summary && <DropdownMenuGroup>
-          <DropdownMenuItem disabled={summary.disabled || summary.resolved}
-            onSelect={summary.pending ? summary.onCancel : summary.onGenerate}>
-            <AnimatedGlyph meaning={summary.pending ? 'x' : 'book-text'} />{summary.pending ? '取消摘要' : '生成摘要'}
-          </DropdownMenuItem>
-        </DropdownMenuGroup>}
         {onShare && <DropdownMenuItem onSelect={() => {
           afterMenuClose.current = () => { if (moreTrigger.current) onShare(moreTrigger.current) }
         }}><AnimatedGlyph meaning="send" />发送到…</DropdownMenuItem>}
-        {(overflowOptions.length > 0 || onShare || summary) && <DropdownMenuSeparator />}
+        {(overflowOptions.length > 0 || onShare) && <DropdownMenuSeparator />}
         <DropdownMenuGroup>
           <DropdownMenuItem onSelect={() => { afterMenuClose.current = () => showSettings('reader') }}>
             <AnimatedGlyph meaning="settings" />工具栏设置…

@@ -8,7 +8,7 @@ function normalizeSnapshot(snapshot: NativeSnapshot): Snapshot {
   const preferences = snapshot.preferences
   return {
     ...snapshot,
-    preferences: { ...preferences, reader_toolbar_pinned: preferences.reader_toolbar_pinned ?? ['refresh', 'favorite', 'translate', 'ai'] },
+    preferences: { ...preferences, reader_toolbar_pinned: preferences.reader_toolbar_pinned ?? ['refresh', 'favorite', 'translate', 'summary', 'ai'] },
   }
 }
 

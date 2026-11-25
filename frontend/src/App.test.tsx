@@ -1923,7 +1923,7 @@ describe('Phase 1 阅读 Shell', () => {
     expect(pane.getByRole('button',{name:'归类'}).querySelector('[data-meaning=folder]')).toBeInTheDocument()
     expect(pane.queryByRole('button',{name:'收藏'})).not.toBeInTheDocument()
     await waitFor(() => expect(api.update).toHaveBeenLastCalledWith(expect.objectContaining({
-      reader_toolbar_pinned: ['refresh', 'translate', 'ai', 'categories'],
+      reader_toolbar_pinned: ['refresh', 'translate', 'summary', 'ai', 'categories'],
     }), expect.any(Number)))
   })
 

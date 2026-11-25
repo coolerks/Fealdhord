@@ -224,12 +224,12 @@ it('默认打开阅读模式时显示提取骨架屏，严格模式只发一次�
  expect(api.extract).toHaveBeenCalledTimes(1)
 })
 
-it('默认常驻四项，更多中的分类对话框关闭后回到触发器', async () => {
+it('默认常驻五项，更多中的分类对话框关闭后回到触发器', async () => {
  setup()
  await screen.findByText('订阅正文')
  const toolbar = document.querySelector('.reader-toolbar-actions')!
  expect(Array.from(toolbar.querySelectorAll('button'), button => button.getAttribute('aria-label'))).toEqual([
-  '重新提取正文', '收藏', '翻译', 'AI 助手', '更多',
+  '重新提取正文', '收藏', '翻译', '生成摘要', 'AI 助手', '更多',
  ])
  expect(screen.getByRole('button',{name:'翻译'})).toBeEnabled()
  await selectMoreItem('归类')
@@ -901,28 +901,49 @@ function summaryResponse(status: string, text = '') {
   return Object.assign(Promise.resolve({ status, text }), { cancel: vi.fn(async () => undefined) })
 }
 
-it('手动摘要等待阅读模式正文，允许键盘折叠结果', async () => {
+it('手动摘要等待阅读模式正文，生成中可取消并支持键盘折叠与复制', async () => {
+  const user = userEvent.setup()
+  let finishSummary!: (value: { status: string; text: string }) => void
+  const cancelSummary = vi.fn(async () => undefined)
   summaryMock.get.mockImplementation(() => summaryResponse('none'))
-  summaryMock.generate.mockImplementation(() => summaryResponse('generated', '下个月发布。'))
+  summaryMock.generate.mockImplementation(() => Object.assign(
+    new Promise<{ status: string; text: string }>(resolve => { finishSummary = resolve }),
+    { cancel: cancelSummary },
+  ))
+  const copy = vi.spyOn(native, 'copy').mockResolvedValue(undefined)
   const document = { ...extracted, source_version: 'web-v1' }
   api.extract.mockResolvedValue(document)
   api.get.mockImplementation(async (_id: string, mode: string) => mode === 'reader' ? document : feed)
-  setup({ reader_open_mode: 'feed' })
-  await screen.findByText('订阅正文')
-  expect(summaryMock.generate).not.toHaveBeenCalled()
+  try {
+    const { container } = setup({ reader_open_mode: 'feed' })
+    await screen.findByText('订阅正文')
+    expect(summaryMock.generate).not.toHaveBeenCalled()
 
-  await selectMoreItem('生成摘要')
-  await waitFor(() => expect(screen.getByText('提取后的正文')).toBeVisible())
-  await waitFor(() => expect(summaryMock.generate).toHaveBeenCalled())
-  expect(await screen.findByText('下个月发布。')).toBeVisible()
-  expect(summaryMock.generate).toHaveBeenCalledExactlyOnceWith({
-    source: { articleId: 'a-0', mode: 'reader', version: 'web-v1' }, automatic: false,
-  })
-  const toggle = screen.getByRole('button', { name: '摘要' })
-  toggle.focus()
-  await userEvent.keyboard('{Enter}')
-  expect(toggle).toHaveAttribute('aria-expanded', 'false')
-  expect(screen.getByText('下个月发布。')).not.toBeVisible()
+    await user.click(screen.getByRole('button', { name: '生成摘要' }))
+    await waitFor(() => expect(screen.getByText('提取后的正文')).toBeVisible())
+    await waitFor(() => expect(summaryMock.generate).toHaveBeenCalled())
+    expect(container.querySelector('.reader-summary[data-state="pending"]')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('正在生成文章摘要…')
+
+    await act(async () => finishSummary({ status: 'generated', text: '- 下个月发布。\n- 新增导读卡样式。' }))
+    expect(await screen.findByText('下个月发布。')).toBeVisible()
+    expect(screen.getByText('新增导读卡样式。').closest('li')).toBeInTheDocument()
+    expect(summaryMock.generate).toHaveBeenCalledExactlyOnceWith({
+      source: { articleId: 'a-0', mode: 'reader', version: 'web-v1' }, automatic: false,
+    })
+
+    await user.click(screen.getByRole('button', { name: '复制摘要' }))
+    expect(copy).toHaveBeenCalledExactlyOnceWith('- 下个月发布。\n- 新增导读卡样式。')
+    expect(await screen.findByRole('status')).toHaveTextContent('摘要已复制')
+
+    const toggle = screen.getByRole('button', { name: '摘要' })
+    toggle.focus()
+    await user.keyboard('{Enter}')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByText('下个月发布。')).not.toBeVisible()
+  } finally {
+    copy.mockRestore()
+  }
 })
 
 it('开启自动摘要后跳过订阅预览，重开同一正文复用已缓存摘要', async () => {

@@ -192,7 +192,7 @@ func TestReaderToolbarPreferences(t *testing.T) {
 	}
 	service := NewService(store)
 	got := service.Get(ctx)
-	if !got.OK || !slices.Equal(got.Data.Preferences.ReaderToolbarPinned, []string{"refresh", "favorite", "translate", "ai"}) {
+	if !got.OK || !slices.Equal(got.Data.Preferences.ReaderToolbarPinned, []string{"refresh", "favorite", "translate", "summary", "ai"}) {
 		t.Fatalf("旧设置未使用默认常驻操作：%+v", got)
 	}
 	prefs := got.Data.Preferences

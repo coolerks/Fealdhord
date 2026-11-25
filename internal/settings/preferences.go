@@ -71,7 +71,7 @@ func Defaults() Preferences {
 		Theme: "system", SettingsOpenMode: "full", ArticleViewMode: "masonry", ListDensity: "compact", ListThumbnail: "none",
 		MasonryImageMode: "original_ratio", Animation: "full", FollowSystemReduceMotion: true,
 		SidebarWidth: 248, SettingsSidebarWidth: 220, ListWidth: 360, ReaderOpen: false, SelectedScope: "all",
-		ReaderToolbarPinned: []string{"refresh", "favorite", "translate", "ai"},
+		ReaderToolbarPinned: []string{"refresh", "favorite", "translate", "summary", "ai"},
 		ScrollAnchors:       map[string]ScrollAnchor{}, ReaderFontSize: 17, ReaderLineHeight: 1.7, ReaderWidth: 720,
 		ReaderImageWheel: "zoom", ReaderImageBackdropClose: true, ReaderOutline: "ticks", ReaderCodeTheme: "app", ChatCodeTheme: "app",
 		ChatApprovalMode: agentrun.ApprovalAsk, ChatApprovalPresentation: "composer", ChatMaxRetries: DefaultChatMaxRetries,
@@ -101,12 +101,12 @@ const (
 )
 
 func validReaderToolbarPinned(actions []string) bool {
-	if len(actions) > 8 {
+	if len(actions) > 9 {
 		return false
 	}
 	seen := make(map[string]bool, len(actions))
 	for _, action := range actions {
-		if seen[action] || !oneOf(action, "refresh", "favorite", "translate", "ai", "categories", "read", "view", "original") {
+		if seen[action] || !oneOf(action, "refresh", "favorite", "translate", "summary", "ai", "categories", "read", "view", "original") {
 			return false
 		}
 		seen[action] = true

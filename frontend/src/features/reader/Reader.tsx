@@ -1,11 +1,11 @@
 import { openChat } from '@/features/chat/chat-scope'
 import { AnimatedGlyph } from '@/components/animated-glyph'
-import { BookOpen,CalendarDays,ChevronDown,ChevronLeft } from 'lucide-react'
+import { BookOpen,CalendarDays,ChevronLeft } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Tabs } from 'radix-ui'
 import { FeedIcon } from '@/features/feeds/FeedIcon'
-import { useCallback,useEffect,useEffectEvent,useId,useLayoutEffect,useRef,useState } from 'react'
+import { useCallback,useEffect,useEffectEvent,useLayoutEffect,useRef,useState } from 'react'
 import type { RefObject } from 'react'
 import type { Article } from '@/lib/library'
 import type { Preferences } from '@/lib/preferences'
@@ -17,6 +17,7 @@ import { useWorkspace } from '@/stores/workspace'
 import { useReaderContent } from './use-reader-content'
 import { useArticleTranslation } from './use-article-translation'
 import { useArticleSummary } from './use-article-summary'
+import { ReaderSummary } from './ReaderSummary'
 import { ReaderToolbarActions } from './ReaderToolbarActions'
 import { readerViews } from './toolbar-actions'
 import type { ArticleView } from './toolbar-actions'
@@ -69,7 +70,6 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
  })
  const [manualSummary, setManualSummary] = useState(false)
  const [collapsedSummaryVersion, setCollapsedSummaryVersion] = useState<string>()
- const summaryArea = useId()
  const summaryDetail = body.query.data
  const feedOnly = Boolean(summaryDetail?.has_full_feed_body && !summaryDetail.has_original)
  const canUseSummaryBody = view === 'reader' && !body.extracting &&
@@ -246,23 +246,17 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
      </>}
     </div>
    )}
-   {summary.pending && <span className="sr-only" role="status">正在生成文章摘要</span>}
-   {summary.error && <div className="reader-operation" data-tone="warning">
-    <p role="alert" className="min-w-0 flex-1 m-0">{summary.error}</p>
-    {summary.needsModel
-     ? <Button variant="outline" size="sm" onClick={() => showSettings('ai')}>配置模型</Button>
-     : <Button variant="ghost" size="sm" onClick={requestSummary}>重试摘要</Button>}
-   </div>}
-   {summaryVersion && summary.result?.status === 'generated' &&
-    <section aria-label="文章摘要" className="mb-5 rounded-md border bg-muted/35 px-3 py-2">
-     <Button type="button" variant="ghost" size="sm" className="w-full justify-between"
-      aria-expanded={collapsedSummaryVersion !== summaryVersion} aria-controls={summaryArea}
-      onClick={() => setCollapsedSummaryVersion(collapsedSummaryVersion === summaryVersion ? undefined : summaryVersion)}>
-      摘要 <ChevronDown data-icon="inline-end" className={collapsedSummaryVersion === summaryVersion ? '-rotate-90' : undefined} />
-     </Button>
-     <p id={summaryArea} hidden={collapsedSummaryVersion === summaryVersion}
-      className="m-0 whitespace-pre-line break-words px-2 pb-1">{summary.result.text}</p>
-    </section>}
+   <ReaderSummary
+    pending={summary.pending}
+    error={summary.error}
+    needsModel={summary.needsModel}
+    text={summaryVersion && summary.result?.status === 'generated' ? summary.result.text : undefined}
+    collapsed={Boolean(summaryVersion && collapsedSummaryVersion === summaryVersion)}
+    onToggle={() => setCollapsedSummaryVersion(collapsedSummaryVersion === summaryVersion ? undefined : summaryVersion)}
+    onCancel={summary.cancel}
+    onRetry={requestSummary}
+    onConfigureModel={() => showSettings('ai')}
+   />
    <div ref={prose} className="reader-prose" aria-busy={loading || undefined} data-images={imagesAllowed?'allowed':'blocked'} onClick={event=>{
     if(!(event.target instanceof Element))return
     if(event.target instanceof HTMLImageElement && viewImage(event.target)){event.preventDefault();return}

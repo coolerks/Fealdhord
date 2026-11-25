@@ -519,7 +519,7 @@ html[data-motion=subtle] *, html[data-motion=subtle] *::before, html[data-motion
 .window-controls button:not(.window-close):active { background: color-mix(in srgb, var(--foreground) 16%, transparent); }
 .window-controls .window-close:hover { background:#c42b1c; color:white; }
 .window-controls .window-close:active { background:#a42519; color:white; }
-.reader-content h1, .reader-byline, .reader-prose { -webkit-user-select:text; user-select:text; }
+.reader-content h1, .reader-byline, .reader-prose, .reader-summary-body { -webkit-user-select:text; user-select:text; }
 .reader-prose [role=alert], .reader-prose button { -webkit-user-select:none; user-select:none; }
 .system-nav { gap:3px;padding-bottom:4px; }
 [data-platform=mac] .nav-section:has(+ .nav-section) { margin-bottom: 10px; }
@@ -718,8 +718,8 @@ html[data-motion=subtle] [data-slot=menubar-content],html[data-motion=subtle] [d
 .text-selection { --prose-selection: #b3d7ff; position: fixed; inset: 0; z-index: 49; pointer-events: none; mix-blend-mode: darken; }
 .dark .text-selection { --prose-selection: #304e72; mix-blend-mode: lighten; }
 .text-selection > span { position: absolute; background: var(--prose-selection); }
-[data-text-selection-painted] :is(.chat-message, .reader-prose, .reader-content h1, .reader-byline)::selection,
-[data-text-selection-painted] :is(.chat-message, .reader-prose, .reader-content h1, .reader-byline) *::selection {
+[data-text-selection-painted] :is(.chat-message, .reader-prose, .reader-summary-body, .reader-content h1, .reader-byline)::selection,
+[data-text-selection-painted] :is(.chat-message, .reader-prose, .reader-summary-body, .reader-content h1, .reader-byline) *::selection {
   color: inherit;
   background: transparent;
 }
