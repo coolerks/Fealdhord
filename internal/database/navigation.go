@@ -150,6 +150,17 @@ func ValidIconName(icon string) bool {
 	return true
 }
 
+func ValidHexColor(color string) bool {
+	if color == "" {
+		return true
+	}
+	if (len(color) != 7 && len(color) != 9) || color[0] != '#' {
+		return false
+	}
+	_, err := hex.DecodeString(color[1:])
+	return err == nil
+}
+
 func validCategory(input CategoryInput) bool {
 	if strings.TrimSpace(input.Name) == "" || len(input.Name) > 256 || len(input.Description) > 2048 || len(input.ParentID) > 256 || len(input.ID) > 256 || input.SortPosition < -1000000 || input.SortPosition > 1000000 {
 		return false
@@ -157,13 +168,8 @@ func validCategory(input CategoryInput) bool {
 	if !ValidIconName(input.Icon) {
 		return false
 	}
-	if input.Color != "" {
-		if len(input.Color) != 7 || input.Color[0] != '#' {
-			return false
-		}
-		if _, err := hex.DecodeString(input.Color[1:]); err != nil {
-			return false
-		}
+	if !ValidHexColor(input.Color) {
+		return false
 	}
 	return true
 }

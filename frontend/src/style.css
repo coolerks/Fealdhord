@@ -185,7 +185,7 @@
 .system-nav { display: flex; flex-direction: column; gap: 4px; padding: 0 12px 20px; }
 .nav-item { position: relative; justify-content: start; width: 100%; gap: 12px; height: 36px; font-size: 13px; }
 .nav-item svg { color: var(--muted-foreground); transition: transform var(--duration-fast) var(--ease-standard); }
-.nav-item .category-glyph svg { color: currentColor; }
+.category-glyph svg { color: currentColor; }
 
 .nav-item.is-current { font-weight: 600; }
 .nav-item.is-current svg { color: var(--primary); }

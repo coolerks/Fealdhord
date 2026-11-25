@@ -33,7 +33,7 @@ const colorPresets = [
   { value: '#b25b88', label: '梅红' },
 ] as const
 
-const hexPattern = /^#[a-f0-9]{6}$/i
+const hexPattern = /^#([a-f0-9]{6}|[a-f0-9]{8})$/i
 
 type DropPosition = 'before' | 'inside' | 'after'
 type DropTarget = { id: string; position: DropPosition }

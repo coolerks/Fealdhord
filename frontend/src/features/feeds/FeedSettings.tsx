@@ -115,6 +115,7 @@ export function FeedSettings() {
   const [removing, setRemoving] = useState<Feed | null>(null)
   const [useDefaultIcon, setUseDefaultIcon] = useState(false)
   const [selectedIcon, setSelectedIcon] = useState('')
+  const [selectedIconColor, setSelectedIconColor] = useState('')
   const [customIconURL, setCustomIconURL] = useState<string>()
   const [readerOpenMode, setReaderOpenMode] = useState<FeedReaderOpenMode>('global')
   const [autoTranslateMode, setAutoTranslateMode] = useState<FeedAutoTranslateMode>('global')
@@ -216,7 +217,7 @@ export function FeedSettings() {
                   category_ids: ids,
                   reader_open_mode: readerOpenMode,
                   ...(autoTranslateMode !== 'global' ? { auto_translate_mode: autoTranslateMode } : {}),
-                  ...(allowIcons && customIconURL ? { custom_icon_url: customIconURL } : selectedIcon ? { icon: selectedIcon, use_default_icon: true } : useDefaultIcon ? { use_default_icon: true } : {}),
+                  ...(allowIcons && customIconURL ? { custom_icon_url: customIconURL } : (selectedIcon || selectedIconColor) ? { icon: selectedIcon || 'radio-tower', icon_color: selectedIconColor, use_default_icon: true } : useDefaultIcon ? { use_default_icon: true } : {}),
                 })
                 setURL('')
                 setCandidates([])
@@ -224,6 +225,7 @@ export function FeedSettings() {
                 setTitle('')
                 setIDs([])
                 setSelectedIcon('')
+                setSelectedIconColor('')
                 setReaderOpenMode('global')
                 setAutoTranslateMode('global')
               })
@@ -261,7 +263,7 @@ export function FeedSettings() {
               <FeedIconField
                 data={previewIcon}
                 useDefault={useDefaultIcon || !previewIcon}
-                onChange={value => { setCustomIconURL(undefined); setUseDefaultIcon(value); if (!value) setSelectedIcon('') }}
+                onChange={value => { setCustomIconURL(undefined); setUseDefaultIcon(value); if (!value) { setSelectedIcon(''); setSelectedIconColor('') } }}
                 disabled={busy}
                 siteAvailable={Boolean(previewIcon)}
                 customAllowed={allowIcons}
@@ -269,6 +271,8 @@ export function FeedSettings() {
                 onCustomURLChange={setCustomIconURL}
                 icon={selectedIcon}
                 onIconChange={icon => { setCustomIconURL(undefined); setUseDefaultIcon(true); setSelectedIcon(icon) }}
+                iconColor={selectedIconColor}
+                onIconColorChange={color => { setCustomIconURL(undefined); setUseDefaultIcon(true); setSelectedIconColor(color) }}
               />
             )}
             <FeedReaderOpenModeField value={readerOpenMode} onChange={setReaderOpenMode} disabled={busy} />
@@ -432,6 +436,7 @@ export function FeedSettings() {
                         <Button size="sm" variant="ghost" disabled={busy} aria-label={`编辑 ${feed.title}`} onClick={() => {
                           action.reset()
                           setInitialCategories(feed.category_ids ?? [])
+                          const builtinIcon = parseFeedBuiltinIcon(feed.icon_data)
                           setEditing({
                             apply_existing: true,
                             id: feed.id,
@@ -439,7 +444,8 @@ export function FeedSettings() {
                             url: feed.url,
                             title: feed.title,
                             custom_icon_url: feed.custom_icon_url,
-                            icon: parseFeedBuiltinIcon(feed.icon_data) ?? '',
+                            icon: builtinIcon?.icon ?? '',
+                            icon_color: builtinIcon?.color ?? '',
                             reader_open_mode: normalizeFeedReaderOpenMode(feed.reader_open_mode),
                             auto_translate_mode: normalizeFeedAutoTranslateMode(feed.auto_translate_mode),
                             category_ids: feed.category_ids ?? [],
@@ -504,13 +510,15 @@ export function FeedSettings() {
                 useDefault={!allowIcons || (editing.use_default_icon ?? !storedIcon)}
                 siteAvailable={allowIcons && Boolean(storedIcon || previewIcon || editURLChanged)}
                 disabled={busy}
-                onChange={use_default_icon => setEditing({ ...editing, use_default_icon, custom_icon_url: undefined, icon: use_default_icon ? editing.icon : '' })}
+                onChange={use_default_icon => setEditing({ ...editing, use_default_icon, custom_icon_url: undefined, icon: use_default_icon ? editing.icon : '', icon_color: use_default_icon ? editing.icon_color : '' })}
                 customAllowed={allowIcons}
                 customURL={editing.custom_icon_url}
                 customData={allowIcons && editing.custom_icon_url === originalFeed?.custom_icon_url && originalFeed?.custom_icon_url ? originalFeed.icon_data : undefined}
-                onCustomURLChange={custom_icon_url => setEditing({ ...editing, custom_icon_url, use_default_icon: undefined, icon: '' })}
+                onCustomURLChange={custom_icon_url => setEditing({ ...editing, custom_icon_url, use_default_icon: undefined, icon: '', icon_color: '' })}
                 icon={editing.icon ?? ''}
                 onIconChange={icon => setEditing({ ...editing, icon, use_default_icon: true, custom_icon_url: undefined })}
+                iconColor={editing.icon_color ?? ''}
+                onIconColorChange={icon_color => setEditing({ ...editing, icon_color, use_default_icon: true, custom_icon_url: undefined })}
               />
               <FeedReaderOpenModeField
                 value={normalizeFeedReaderOpenMode(editing.reader_open_mode)}

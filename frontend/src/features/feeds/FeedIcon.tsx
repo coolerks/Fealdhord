@@ -1,17 +1,23 @@
 import { useId, useState } from 'react'
 import { AnimatedGlyph } from '@/components/animated-glyph'
-import { CustomIcon, parseFeedBuiltinIcon } from '@/components/custom-icon'
+import { CustomIcon, hexColorRegex, parseFeedBuiltinIcon } from '@/components/custom-icon'
+import { ColorPicker } from '@/components/ui/color-picker'
 import { IconPicker } from '@/components/ui/icon-picker'
 import { Input } from '@/components/ui/input'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { ToggleGroupItem } from '@/components/ui/toggle-group'
+import { cn } from '@/lib/utils'
 
 export function FeedIcon({ data }: { data?: string }) {
   const [failed, setFailed] = useState<string>()
   const builtin = parseFeedBuiltinIcon(data)
   if (builtin) {
-    return <CustomIcon value={builtin} fallback="radio-tower" />
+    return (
+      <span className={cn('inline-flex shrink-0', builtin.color && 'category-glyph')} style={{ color: builtin.color }}>
+        <CustomIcon value={builtin.icon} fallback="radio-tower" />
+      </span>
+    )
   }
   if (!data || data === failed || !/^data:image\/(x-icon|png|jpeg|gif|webp);base64,/.test(data)) {
     return <AnimatedGlyph meaning="radio-tower" />
@@ -21,7 +27,7 @@ export function FeedIcon({ data }: { data?: string }) {
 }
 
 export function FeedIconField({
-  data, useDefault, onChange, disabled, siteAvailable, customAllowed, customURL, onCustomURLChange, customData, icon, onIconChange,
+  data, useDefault, onChange, disabled, siteAvailable, customAllowed, customURL, onCustomURLChange, customData, icon, onIconChange, iconColor, onIconColorChange,
 }: {
   data?: string
   useDefault: boolean
@@ -34,11 +40,15 @@ export function FeedIconField({
   customData?: string
   icon?: string
   onIconChange?: (icon: string) => void
+  iconColor?: string
+  onIconColorChange?: (color: string) => void
 }) {
   const label = useId()
   const inputID = useId()
   const pickerID = useId()
+  const colorID = useId()
   const mode = customURL !== undefined ? 'custom' : useDefault ? 'default' : 'site'
+  const validColor = iconColor && hexColorRegex.test(iconColor) ? iconColor : undefined
   return <Field>
     <FieldLabel id={label}>图标</FieldLabel>
     <SegmentedControl size="sm" aria-labelledby={label}
@@ -50,22 +60,39 @@ export function FeedIconField({
         {data ? <FeedIcon data={data} /> : <AnimatedGlyph meaning="external-link" />}网站图标
       </ToggleGroupItem>
       <ToggleGroupItem value="default" onClick={() => onChange(true)}>
-        <CustomIcon value={icon || 'radio-tower'} fallback="radio-tower" />内置图标
+        <span className={cn('inline-flex shrink-0', validColor && 'category-glyph')} style={{ color: validColor }}>
+          <CustomIcon value={icon || 'radio-tower'} fallback="radio-tower" />
+        </span>
+        内置图标
       </ToggleGroupItem>
       <ToggleGroupItem value="custom" disabled={!customAllowed}>
         {customData ? <FeedIcon data={customData} /> : <AnimatedGlyph meaning="settings" />}自定义图标
       </ToggleGroupItem>
     </SegmentedControl>
     {mode === 'default' && onIconChange && (
-      <IconPicker
-        id={pickerID}
-        label="订阅图标"
-        className="w-full"
-        disabled={disabled}
-        value={icon || 'radio-tower'}
-        fallback="radio-tower"
-        onChange={onIconChange}
-      />
+      <div className="space-y-2.5 pt-1">
+        <IconPicker
+          id={pickerID}
+          label="订阅图标"
+          className="w-full"
+          disabled={disabled}
+          value={icon || 'radio-tower'}
+          fallback="radio-tower"
+          onChange={onIconChange}
+        />
+        {onIconColorChange && (
+          <Field>
+            <FieldLabel htmlFor={colorID}>图标颜色</FieldLabel>
+            <ColorPicker
+              id={colorID}
+              label="图标颜色"
+              value={iconColor ?? ''}
+              disabled={disabled}
+              onChange={onIconColorChange}
+            />
+          </Field>
+        )}
+      </div>
     )}
     {customURL !== undefined && <Field>
       <FieldLabel htmlFor={inputID}>图标网址</FieldLabel>

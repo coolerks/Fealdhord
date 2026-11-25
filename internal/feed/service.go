@@ -79,6 +79,7 @@ type ReorderResult struct {
 type AddRequest struct {
 	CustomIconURL     string   `json:"custom_icon_url,omitempty"`
 	Icon              string   `json:"icon,omitempty"`
+	IconColor         string   `json:"icon_color,omitempty"`
 	UseDefaultIcon    bool     `json:"use_default_icon,omitempty"`
 	ReaderOpenMode    string   `json:"reader_open_mode,omitempty"`
 	AutoTranslateMode string   `json:"auto_translate_mode,omitempty"`
@@ -89,6 +90,7 @@ type AddRequest struct {
 type UpdateRequest struct {
 	CustomIconURL     string   `json:"custom_icon_url,omitempty"`
 	Icon              string   `json:"icon,omitempty"`
+	IconColor         string   `json:"icon_color,omitempty"`
 	UseDefaultIcon    *bool    `json:"use_default_icon,omitempty"`
 	ApplyExisting     *bool    `json:"apply_existing,omitempty"`
 	ReaderOpenMode    string   `json:"reader_open_mode,omitempty"`
@@ -294,11 +296,18 @@ func (s *Service) Add(ctx context.Context, request AddRequest) Result {
 		if err != nil {
 			return Result{RequestID: rand.Text(), Error: SafeError(err)}
 		}
-	} else if request.Icon != "" {
-		if !database.ValidIconName(request.Icon) {
+	} else if request.Icon != "" || request.IconColor != "" {
+		name := request.Icon
+		if name == "" {
+			name = "radio-tower"
+		}
+		if !database.ValidIconName(name) || !database.ValidHexColor(request.IconColor) {
 			return Result{RequestID: rand.Text(), Error: SafeError(database.ErrInvalidInput)}
 		}
-		icon = "icon:" + request.Icon
+		icon = "icon:" + name
+		if request.IconColor != "" {
+			icon += "|" + request.IconColor
+		}
 	} else if !request.UseDefaultIcon {
 		icon = s.favicon(ctx, document.SiteURL, response.URL)
 	}
@@ -362,11 +371,18 @@ func (s *Service) Update(ctx context.Context, request UpdateRequest) Result {
 			}
 			input.CustomIconURL, input.IconData = customURL, &icon
 		}
-	} else if request.Icon != "" {
-		if !database.ValidIconName(request.Icon) {
+	} else if request.Icon != "" || request.IconColor != "" {
+		name := request.Icon
+		if name == "" {
+			name = "radio-tower"
+		}
+		if !database.ValidIconName(name) || !database.ValidHexColor(request.IconColor) {
 			return Result{RequestID: rand.Text(), Error: SafeError(database.ErrInvalidInput)}
 		}
-		icon := "icon:" + request.Icon
+		icon := "icon:" + name
+		if request.IconColor != "" {
+			icon += "|" + request.IconColor
+		}
 		input.IconData = &icon
 	} else if request.UseDefaultIcon != nil || (input.URL != old.URL && old.CustomIconURL == "") {
 		icon := old.IconData

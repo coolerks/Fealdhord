@@ -28,8 +28,16 @@ export function resolveAnimatedIcon(value?: string): AnimatedIconName | null {
   return null
 }
 
-export function parseFeedBuiltinIcon(data?: string): string | undefined {
-  return data?.startsWith('icon:') ? data.slice(5) : undefined
+export const hexColorRegex = /^#([a-f0-9]{6}|[a-f0-9]{8})$/i
+
+export function parseFeedBuiltinIcon(data?: string): { icon: string; color?: string } | undefined {
+  if (!data?.startsWith('icon:')) return undefined
+  const body = data.slice(5)
+  const sep = body.indexOf('|')
+  if (sep === -1) return { icon: body }
+  const icon = body.slice(0, sep)
+  const rawColor = body.slice(sep + 1)
+  return { icon, color: hexColorRegex.test(rawColor) ? rawColor : undefined }
 }
 
 type LucideRegistry = Record<string, LucideIcon>
