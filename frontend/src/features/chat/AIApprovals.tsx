@@ -58,13 +58,17 @@ function ScheduleApproval({ args }: { args: string }) {
 }
 
 function ShellApproval({ args }: { args: string }) {
-  let request: { command?: unknown; workdir?: unknown }
+  let request: { command?: unknown; workdir?: unknown; shell?: unknown }
   try {
     request = JSON.parse(args)
   } catch {
     request = {}
   }
   return <dl className="space-y-2 text-sm">
+    {typeof request?.shell === 'string' && <>
+      <dt className="text-muted-foreground">Shell</dt>
+      <dd className="break-all font-mono">{request.shell}</dd>
+    </>}
     <dt className="text-muted-foreground">工作目录</dt>
     <dd className="break-all font-mono">{typeof request?.workdir === 'string' ? request.workdir : ''}</dd>
     <dt className="text-muted-foreground">命令</dt>

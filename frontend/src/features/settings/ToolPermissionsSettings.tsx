@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { FieldError } from '@/components/ui/field'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { ToggleGroupItem } from '@/components/ui/toggle-group'
 import { builtinToolCategories, getToolMeta } from '@/features/chat/tool-meta'
@@ -17,6 +18,52 @@ import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/a
 import type { ToolPermission, ToolPermissionChange } from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/models'
 
 export const toolPermissionsKey = ['ai-platform', 'tool-permissions'] as const
+const shellSettingsKey = ['ai-platform', 'shell-settings'] as const
+
+function DefaultShellSetting() {
+  const cache = useQueryClient()
+  const settings = useQuery({ queryKey: shellSettingsKey, queryFn: () => api.ShellSettings(), retry: false })
+  const save = useMutation({
+    mutationFn: (id: string) => api.SaveDefaultShell(id),
+    onSuccess: data => { cache.setQueryData(shellSettingsKey, data) },
+    onError: () => { void settings.refetch() },
+  })
+  const options = (settings.data?.options ?? []).map(option => {
+    const isDefault = option.id === 'auto'
+    const label = isDefault ? `应用默认（${option.label}）` : option.label
+    return {
+      value: option.id,
+      label: option.path ? label : `${label} · 不可用`,
+      keywords: [option.label, option.path ?? ''],
+      description: option.path,
+      disabled: !isDefault && !option.path,
+    }
+  })
+
+  return (
+    <SettingCard>
+      <SettingRow>
+        <div>
+          <label htmlFor="default-shell" className="text-sm font-medium">默认 Shell</label>
+          <p className="text-xs text-muted-foreground">用于全局 AI 的命令工具，保存后从下一轮对话起生效。</p>
+        </div>
+        {settings.isError ? (
+          <Button size="sm" variant="outline" onClick={() => void settings.refetch()}>重试读取 Shell 设置</Button>
+        ) : (
+          <SearchableSelect id="default-shell" label="默认 Shell" className="min-w-40"
+            options={options} value={settings.data?.defaultShell ?? ''}
+            placeholder="正在读取…" disabled={!settings.data || save.isPending} alwaysShowSearch announceSelection
+            onValueChange={value => { if (value !== settings.data?.defaultShell) save.mutate(value) }} />
+        )}
+      </SettingRow>
+      {settings.isError && <SettingRow><FieldError>无法读取 Shell 设置。</FieldError></SettingRow>}
+      {save.isError && (
+        <SettingRow><FieldError>{String(save.error).includes('ShellUnavailable')
+          ? '所选 Shell 已不可用，请选择其他 Shell。' : '保存默认 Shell 失败，请重试。'}</FieldError></SettingRow>
+      )}
+    </SettingCard>
+  )
+}
 
 type SourceFilter = 'all' | 'builtin' | 'external'
 type StatusFilter = 'all' | 'customized'
@@ -386,6 +433,7 @@ export function ToolPermissionsSettings() {
 
   return (
     <div className="space-y-5">
+      <DefaultShellSetting />
       {permissions.isError ? (
         <SettingSection
           title="工具权限"

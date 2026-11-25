@@ -225,6 +225,13 @@ func buildLocalTool[I any](a *Platform, conversationID string, tool Tool, invoke
 }
 
 func (a *Platform) localChatTools(conversationID string, run *skillRun) []agentrun.ReadTool {
+	shell, shellErr := a.resolveLocalShell()
+	shellTool := localTools[3]
+	if shellErr == nil {
+		shellTool.Description += " 当前命令解释器为 " + shell.Label + "。请使用该 Shell 的语法。"
+	} else {
+		shellTool.Description += " 当前 Shell 不可用，请让用户检查工具权限设置。"
+	}
 	return []agentrun.ReadTool{
 		buildLocalTool(a, conversationID, localTools[0], func(ctx context.Context, input localReadInput, authorize localApproval) (any, error) {
 			if err := authorize(ctx, nil); err != nil {
@@ -331,11 +338,14 @@ func (a *Platform) localChatTools(conversationID string, run *skillRun) []agentr
 			err = replaceLocalFile(ctx, root, target.relative, before, data)
 			return map[string]any{"path": target.path, "replacements": count}, err
 		}),
-		buildLocalTool(a, conversationID, localTools[3], func(ctx context.Context, input localShellInput, authorize localApproval) (any, error) {
+		buildLocalTool(a, conversationID, shellTool, func(ctx context.Context, input localShellInput, authorize localApproval) (any, error) {
 			if !run.allows("shell") {
 				return nil, errors.New("ToolNotAllowed")
 			}
-			return a.runLocalShell(ctx, run, input, authorize)
+			if shellErr != nil {
+				return nil, shellErr
+			}
+			return a.runLocalShell(ctx, run, shell, input, authorize)
 		}),
 	}
 }

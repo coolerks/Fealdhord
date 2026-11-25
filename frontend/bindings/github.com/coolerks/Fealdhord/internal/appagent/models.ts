@@ -100,6 +100,17 @@ export interface ServerStatus {
     "url": string;
 }
 
+export interface ShellOption {
+    "id": string;
+    "label": string;
+    "path"?: string;
+}
+
+export interface ShellSettings {
+    "defaultShell": string;
+    "options": ShellOption[] | null;
+}
+
 export interface Skill {
     "name": string;
     "description": string;

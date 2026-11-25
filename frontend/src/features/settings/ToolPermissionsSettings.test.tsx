@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { ToolPermissionsSettings } from './ToolPermissionsSettings'
 import type { ToolPermission, ToolPermissionChange } from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/models'
 
@@ -9,6 +10,8 @@ const apiMock = vi.hoisted(() => ({
   ToolPermissions: vi.fn(),
   SaveToolPermission: vi.fn(),
   SaveToolPermissions: vi.fn(),
+  ShellSettings: vi.fn(),
+  SaveDefaultShell: vi.fn(),
 }))
 
 vi.mock('../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/api', () => apiMock)
@@ -19,7 +22,7 @@ function renderSettings() {
   })
   return render(
     <QueryClientProvider client={client}>
-      <ToolPermissionsSettings />
+      <TooltipProvider><ToolPermissionsSettings /></TooltipProvider>
     </QueryClientProvider>,
   )
 }
@@ -29,6 +32,16 @@ describe('ToolPermissionsSettings', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    const shellSettings = {
+      defaultShell: 'auto',
+      options: [
+        { id: 'auto', label: 'sh', path: '/bin/sh' },
+        { id: 'bash', label: 'Bash', path: '/bin/bash' },
+        { id: 'fish', label: 'Fish' },
+      ],
+    }
+    apiMock.ShellSettings.mockResolvedValue(shellSettings)
+    apiMock.SaveDefaultShell.mockImplementation(async (defaultShell: string) => ({ ...shellSettings, defaultShell }))
     stored = [
       { id: 'builtin:article.search', name: 'article.search', description: '搜索本地文章', available: true, requiresApproval: false, mode: '' },
       { id: 'builtin:feed.add', name: 'feed.add', description: '添加新订阅源', available: true, requiresApproval: true, mode: '' },
@@ -53,6 +66,23 @@ describe('ToolPermissionsSettings', () => {
       }
       stored = stored.filter(item => item.available || Boolean(item.mode))
     })
+  })
+
+  it('可搜索并用键盘保存已安装的默认 Shell', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+
+    const shell = await screen.findByRole('button', { name: '默认 Shell' })
+    await waitFor(() => expect(shell).toHaveTextContent('应用默认（sh）'))
+    await user.click(shell)
+    const input = screen.getByRole('combobox', { name: '搜索默认 Shell' })
+    expect(input).toHaveFocus()
+    expect(screen.getByRole('option', { name: 'Fish · 不可用' })).toHaveAttribute('aria-disabled', 'true')
+    await user.type(input, '/bin/bash')
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(apiMock.SaveDefaultShell).toHaveBeenCalledWith('bash'))
+    await waitFor(() => expect(shell).toHaveTextContent('Bash'))
   })
 
   it('默认折叠分组，展开后通过四段切换修改单条工具权限', async () => {

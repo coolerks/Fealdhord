@@ -187,6 +187,26 @@ func TestLocalShellRequiresExactApprovalEvenInBypass(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		command = "Write-Output shell-result"
 	}
+	action, done := waitForShellApproval(t, platform, ctx, shell, command)
+	var approved localShellApproval
+	shellOption, err := platform.resolveLocalShell()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(action.Arguments), &approved); err != nil ||
+		approved.Command != command || approved.Workdir != dir || approved.Shell != shellOption.Path {
+		t.Fatalf("incorrect approval %+v %v", approved, err)
+	}
+	if !platform.DecideAction(action.ID, true) || platform.DecideAction(action.ID, true) {
+		t.Fatal("approval not single use")
+	}
+	if result := <-done; !strings.Contains(result, `"exitCode":0`) || !strings.Contains(result, "shell-result") {
+		t.Fatal(result)
+	}
+}
+
+func waitForShellApproval(t *testing.T, platform *Platform, ctx context.Context, shell agentrun.ReadTool, command string) (PendingAction, <-chan string) {
+	t.Helper()
 	input, _ := json.Marshal(localShellInput{Command: command, TimeoutMS: 4000})
 	done := make(chan string, 1)
 	go func() { result, _ := shell.Read(ctx, ai.ToolCall{ArgumentsJSON: string(input)}); done <- result }()
@@ -207,16 +227,7 @@ func TestLocalShellRequiresExactApprovalEvenInBypass(t *testing.T) {
 			}
 		}
 	}
-	var approved localShellInput
-	if err := json.Unmarshal([]byte(action.Arguments), &approved); err != nil || approved.Command != command || approved.Workdir != dir {
-		t.Fatalf("incorrect approval %+v %v", approved, err)
-	}
-	if !platform.DecideAction(action.ID, true) || platform.DecideAction(action.ID, true) {
-		t.Fatal("approval not single use")
-	}
-	if result := <-done; !strings.Contains(result, `"exitCode":0`) || !strings.Contains(result, "shell-result") {
-		t.Fatal(result)
-	}
+	return action, done
 }
 
 func TestLocalShellStopsAtDeadline(t *testing.T) {
@@ -230,7 +241,11 @@ func TestLocalShellStopsAtDeadline(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		command = "Start-Sleep -Seconds 3; Write-Output completed"
 	}
-	result, err := platform.runLocalShell(ctx, &skillRun{}, localShellInput{Command: command, TimeoutMS: 100},
+	shell, err := platform.resolveLocalShell()
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := platform.runLocalShell(ctx, &skillRun{}, shell, localShellInput{Command: command, TimeoutMS: 100},
 		func(context.Context, json.RawMessage) error { return nil })
 	if err != nil || !result.TimedOut || strings.Contains(result.Stdout, "completed") {
 		t.Fatalf("invalid timeout outcome: %+v %v", result, err)

@@ -74,7 +74,7 @@ function SelectOption({ option, checked, announceSelection, onSelect, submenu, e
 
 const panel = 'z-50 w-max rounded-xl border bg-popover p-1 shadow-md'
 
-function SelectList({ label, options, multiple, input, onExpand, onBack, children }: {
+function SelectList({ label, options, multiple, input, onExpand, onBack, children, alwaysShowSearch }: {
   label: string
   options: Option[]
   multiple?: boolean
@@ -82,9 +82,10 @@ function SelectList({ label, options, multiple, input, onExpand, onBack, childre
   onExpand?: (value: string) => void
   onBack?: () => void
   children: ReactNode
+  alwaysShowSearch?: boolean
 }) {
   const [search, setSearch] = useState('')
-  const showSearch = options.length >= 10 || search.length > 0
+  const showSearch = alwaysShowSearch || options.length >= 10 || search.length > 0
   return <Command label={`搜索${label}`} className={cn('gap-1 p-0',
     showSearch ? '[&_[data-slot=command-input-wrapper]]:p-0' : '[&_[data-slot=command-input-wrapper]]:sr-only')}
     onKeyDown={event => {
@@ -105,7 +106,7 @@ function SelectList({ label, options, multiple, input, onExpand, onBack, childre
 
 export function SearchableSelect({
   id, label, options, value, onValueChange, disabled, className, variant = 'outline',
-  announceSelection = false, placeholder = '请选择', multipleDisplay = 'tags', submenus, onSubValueChange,
+  announceSelection = false, placeholder = '请选择', multipleDisplay = 'tags', submenus, onSubValueChange, alwaysShowSearch,
 }: {
   id?: string
   label: string
@@ -120,6 +121,7 @@ export function SearchableSelect({
   multipleDisplay?: 'tags' | 'placeholder'
   submenus?: Record<string, Submenu>
   onSubValueChange?: (value: string, subValue: string) => void
+  alwaysShowSearch?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState<{ value: string; anchor: HTMLDivElement } | null>(null)
@@ -179,7 +181,7 @@ export function SearchableSelect({
             input.current.focus()
           }
         }}>
-        <SelectList label={label} options={options} multiple={multiple} input={input}
+        <SelectList label={label} options={options} multiple={multiple} input={input} alwaysShowSearch={alwaysShowSearch}
           onExpand={submenus && expand}>
           {options.map(option => <SelectOption key={option.value} option={option} checked={checked(option.value)}
             announceSelection={multiple || announceSelection} submenu={submenus?.[option.value]}

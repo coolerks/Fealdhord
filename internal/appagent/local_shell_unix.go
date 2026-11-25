@@ -10,8 +10,24 @@ import (
 	"syscall"
 )
 
-func localShellCommand(ctx context.Context, command string) *exec.Cmd {
-	return exec.CommandContext(ctx, "/bin/sh", "-c", command)
+func platformShells() []shellSpec {
+	return []shellSpec{
+		{id: automaticShell, label: "sh", paths: []string{"/bin/sh"}},
+		{id: "sh", label: "sh", paths: []string{"/bin/sh", "/usr/bin/sh"}, name: "sh"},
+		{id: "bash", label: "Bash", paths: []string{"/bin/bash", "/usr/bin/bash", "/opt/homebrew/bin/bash", "/usr/local/bin/bash"}, name: "bash"},
+		{id: "zsh", label: "Zsh", paths: []string{"/bin/zsh", "/usr/bin/zsh", "/opt/homebrew/bin/zsh", "/usr/local/bin/zsh"}, name: "zsh"},
+		{id: "fish", label: "Fish", paths: []string{"/usr/bin/fish", "/opt/homebrew/bin/fish", "/usr/local/bin/fish"}, name: "fish"},
+	}
+}
+
+func localShellCommand(ctx context.Context, shell ShellOption, command string) *exec.Cmd {
+	switch shell.ID {
+	case "zsh":
+		return exec.CommandContext(ctx, shell.Path, "-f", "-c", command)
+	case "fish":
+		return exec.CommandContext(ctx, shell.Path, "--no-config", "-c", command)
+	}
+	return exec.CommandContext(ctx, shell.Path, "-c", command)
 }
 
 func startLocalShell(cmd *exec.Cmd) (func(), error) {

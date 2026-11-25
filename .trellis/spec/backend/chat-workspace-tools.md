@@ -13,11 +13,11 @@
 - 默认输出是 `~/.Fealdhord/会话文件/YYYY-MM-DD/会话ID`，推导路径和发送纯文本不执行磁盘写入，首次写入才能创建缺失祖先。
 - `read(path, offset?, limit?, lineByteOffset?)` 受 2,000 行与序列化后 50 KiB 限制，提供续读位置。二进制标为 `binary`。专用结果额度经过普通工具循环和工具目录压缩。
 - `write(path, content)` 提交新文件或完整覆盖。`edit(path, oldText, newText, replaceAll?)` 默认只接受唯一匹配。访问基于实际文件根，已安装的 Skill 对文件工具只读。
-- `shell(command, workdir?, timeoutMs?)` 只在本机全局 AI 提供。待批准内容绑定原始命令和实际工作目录，批准一次才启动。主机命令的系统权限和工作目录的文件工具范围分别判断。
+- `shell(command, workdir?, timeoutMs?)` 只在本机全局 AI 提供。每轮读取本地默认 Shell ID 并解析出绝对路径，模型根据工具说明获知解释器名称。待批准内容绑定原始命令、实际工作目录和解释器路径，批准一次才启动。主机命令的系统权限和工作目录的文件工具范围分别判断。
 
 ## 4. 错误与边界
 
-路径越界返回 `PathNotAllowed`，目录无效返回 `DirectoryUnavailable`，写入冲突返回 `FileChanged`。替换未命中返回 `TextNotFound`，存在歧义返回 `TextNotUnique`。审批过期、取消或拒绝时不启动命令。已经启动的命令报告超时或退出结果。审计和聊天工具活动不记录命令、文件正文和原始输出。
+路径越界返回 `PathNotAllowed`，目录无效返回 `DirectoryUnavailable`，写入冲突返回 `FileChanged`。替换未命中返回 `TextNotFound`，存在歧义返回 `TextNotUnique`。审批过期、取消或拒绝时不启动命令。解释器在审批前无法使用时返回 `ShellUnavailable`，等待审批时解释器发生变化则返回 `ShellChanged`。已经启动的命令报告超时或退出结果。审计和聊天工具活动不记录命令、文件正文和原始输出。
 
 ## 5. 安装
 

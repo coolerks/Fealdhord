@@ -22,6 +22,10 @@ func (a *API) SaveToolPermission(id, mode string) error {
 func (a *API) SaveToolPermissions(changes []ToolPermissionChange) error {
 	return a.platform.SaveToolPermissions(changes)
 }
+func (a *API) ShellSettings() (ShellSettings, error) { return a.platform.ShellSettings() }
+func (a *API) SaveDefaultShell(id string) (ShellSettings, error) {
+	return a.platform.SaveDefaultShell(id)
+}
 func (a *API) PendingActions() []PendingAction         { return a.platform.PendingActions() }
 func (a *API) DecideAction(id string, allow bool) bool { return a.platform.DecideAction(id, allow) }
 func (a *API) PendingQuestions() []PendingQuestion     { return a.platform.PendingQuestions() }

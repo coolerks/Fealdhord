@@ -14,14 +14,31 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func localShellCommand(ctx context.Context, command string) *exec.Cmd {
-	shell := filepath.Join(os.Getenv("SystemRoot"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+func platformShells() []shellSpec {
+	system := filepath.Join(os.Getenv("SystemRoot"), "System32")
+	powershell := filepath.Join(system, "WindowsPowerShell", "v1.0", "powershell.exe")
+	return []shellSpec{
+		{id: automaticShell, label: "Windows PowerShell", paths: []string{powershell}},
+		{id: "powershell", label: "Windows PowerShell", paths: []string{powershell}},
+		{id: "pwsh", label: "PowerShell 7", paths: []string{filepath.Join(os.Getenv("ProgramFiles"), "PowerShell", "7", "pwsh.exe")}, name: "pwsh.exe"},
+		{id: "cmd", label: "命令提示符 (CMD)", paths: []string{filepath.Join(system, "cmd.exe")}},
+	}
+}
+
+func localShellCommand(ctx context.Context, shell ShellOption, command string) *exec.Cmd {
+	if shell.ID == "cmd" {
+		cmd := exec.CommandContext(ctx, shell.Path)
+		// CMD strips the first and last quotes with /s; Go's default
+		// argument quoting would change quotes inside the command.
+		cmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: `"` + shell.Path + `" /d /s /c "` + command + `"`}
+		return cmd
+	}
 	units := utf16.Encode([]rune(command))
 	data := make([]byte, 2*len(units))
 	for i, unit := range units {
 		binary.LittleEndian.PutUint16(data[2*i:], unit)
 	}
-	return exec.CommandContext(ctx, shell, "-NoProfile", "-NonInteractive", "-EncodedCommand", base64.StdEncoding.EncodeToString(data))
+	return exec.CommandContext(ctx, shell.Path, "-NoProfile", "-NonInteractive", "-EncodedCommand", base64.StdEncoding.EncodeToString(data))
 }
 
 func startLocalShell(cmd *exec.Cmd) (func(), error) {
@@ -35,7 +52,11 @@ func startLocalShell(cmd *exec.Cmd) (func(), error) {
 		windows.CloseHandle(job)
 		return nil, err
 	}
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_NO_WINDOW | windows.CREATE_SUSPENDED}
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.HideWindow = true
+	cmd.SysProcAttr.CreationFlags = windows.CREATE_NO_WINDOW | windows.CREATE_SUSPENDED
 	cmd.Cancel = func() error {
 		_ = windows.TerminateJobObject(job, 1)
 		return cmd.Process.Kill()

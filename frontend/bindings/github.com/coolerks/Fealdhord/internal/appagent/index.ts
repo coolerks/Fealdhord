@@ -18,6 +18,8 @@ export type {
     PendingQuestion,
     ServerConfig,
     ServerStatus,
+    ShellOption,
+    ShellSettings,
     Skill,
     SkillResource,
     Tool,

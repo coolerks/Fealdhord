@@ -73,7 +73,10 @@ const importSkill = vi.hoisted(() => vi.fn())
 const saveSkillPackage = vi.hoisted(() => vi.fn())
 const pendingActions = vi.hoisted(() => vi.fn())
 const decideAction = vi.hoisted(() => vi.fn())
-const toolPermissions = vi.hoisted(() => ({ ToolPermissions: vi.fn(), SaveToolPermission: vi.fn(), SaveToolPermissions: vi.fn() }))
+const toolPermissions = vi.hoisted(() => ({
+  ToolPermissions: vi.fn(), SaveToolPermission: vi.fn(), SaveToolPermissions: vi.fn(),
+  ShellSettings: vi.fn(), SaveDefaultShell: vi.fn(),
+}))
 const mcpConnections = vi.hoisted(() => ({ MCPClients: vi.fn(), ConnectMCP: vi.fn(), MCPClientLogs: vi.fn() }))
 const mcpGrants = vi.hoisted(() => ({
   Grants: vi.fn().mockResolvedValue([]),
@@ -104,6 +107,7 @@ beforeEach(() => {
   toolPermissions.ToolPermissions.mockResolvedValue([])
   toolPermissions.SaveToolPermission.mockResolvedValue(undefined)
   toolPermissions.SaveToolPermissions.mockResolvedValue(undefined)
+  toolPermissions.ShellSettings.mockResolvedValue({ defaultShell: 'auto', options: [{ id: 'auto', label: 'sh', path: '/bin/sh' }] })
   mcpConnections.MCPClients.mockReset().mockResolvedValue([])
   mcpConnections.ConnectMCP.mockReset().mockResolvedValue(undefined)
   mcpConnections.MCPClientLogs.mockReset().mockResolvedValue([])
@@ -1068,13 +1072,14 @@ describe('Phase 1 阅读 Shell', () => {
     expect(screen.getByRole('button', { name: '审批方式' })).toHaveTextContent('需要审批')
     const command = 'printf "%s" "保留完整命令"\nprintf "第二行"'
     const action = { id: 'action', principal: '会话 history', conversationId: 'history', tool: 'shell',
-      arguments: JSON.stringify({ command, workdir: '/work/session' }) }
+      arguments: JSON.stringify({ command, workdir: '/work/session', shell: '/bin/zsh' }) }
     act(() => client.setQueryData(['ai-platform', 'pending'], [action]))
     const prompt = presentation === 'composer'
       ? await screen.findByRole('region', { name: '工具审批' })
       : await screen.findByRole('dialog', { name: '允许 AI 调用工具？' })
     if (presentation === 'composer') expect(screen.queryByRole('textbox', { name: '消息' })).not.toBeInTheDocument()
     expect(within(prompt).getByText('/work/session')).toBeVisible()
+    expect(within(prompt).getByText('/bin/zsh')).toBeVisible()
     expect(prompt.querySelector('pre')?.textContent?.trim()).toBe(command)
     await user.click(within(prompt).getByRole('button', { name: '允许本次调用' }))
     expect(decideAction).toHaveBeenCalledWith('action', true)

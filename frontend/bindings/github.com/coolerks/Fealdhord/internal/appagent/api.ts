@@ -82,6 +82,10 @@ export function RotateMCPToken(): $CancellablePromise<string> {
     return $Call.ByID(2367635639);
 }
 
+export function SaveDefaultShell(id: string): $CancellablePromise<$models.ShellSettings> {
+    return $Call.ByID(1946494661, id);
+}
+
 export function SaveGrant(grant: $models.MCPGrant, revoke: boolean): $CancellablePromise<string> {
     return $Call.ByID(686283370, grant, revoke);
 }
@@ -108,6 +112,10 @@ export function SaveToolPermissions(changes: $models.ToolPermissionChange[] | nu
 
 export function SetSkillEnabled(name: string, enabled: boolean): $CancellablePromise<$models.Skill> {
     return $Call.ByID(3761599245, name, enabled);
+}
+
+export function ShellSettings(): $CancellablePromise<$models.ShellSettings> {
+    return $Call.ByID(3384543168);
 }
 
 export function SkillDetails(name: string): $CancellablePromise<$models.Skill> {

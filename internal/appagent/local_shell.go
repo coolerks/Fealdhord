@@ -20,6 +20,11 @@ type localShellInput struct {
 	TimeoutMS int    `json:"timeoutMs,omitempty"`
 }
 
+type localShellApproval struct {
+	localShellInput
+	Shell string `json:"shell"`
+}
+
 type localShellResult struct {
 	ExitCode  int    `json:"exitCode"`
 	Stdout    string `json:"stdout"`
@@ -139,7 +144,7 @@ func shellEnvironment() []string {
 	return env
 }
 
-func (a *Platform) runLocalShell(ctx context.Context, run *skillRun, input localShellInput, authorize localApproval) (localShellResult, error) {
+func (a *Platform) runLocalShell(ctx context.Context, run *skillRun, shell ShellOption, input localShellInput, authorize localApproval) (localShellResult, error) {
 	var result localShellResult
 	if strings.TrimSpace(input.Command) == "" || strings.ContainsRune(input.Command, 0) || input.TimeoutMS < 0 || input.TimeoutMS > 300000 {
 		return result, errors.New("ValidationError")
@@ -156,8 +161,14 @@ func (a *Platform) runLocalShell(ctx context.Context, run *skillRun, input local
 	if err != nil || !info.IsDir() {
 		return result, errors.New("DirectoryUnavailable")
 	}
-	display, _ := json.Marshal(localShellInput{Command: input.Command, Workdir: pathBefore, TimeoutMS: input.TimeoutMS})
-	if err := authorize(ctx, display); err != nil {
+	shellBefore, err := os.Stat(shell.Path)
+	if err != nil || !shellBefore.Mode().IsRegular() {
+		return result, errors.New("ShellUnavailable")
+	}
+	display := localShellApproval{localShellInput: input, Shell: shell.Path}
+	display.Workdir = pathBefore
+	args, _ := json.Marshal(display)
+	if err := authorize(ctx, args); err != nil {
 		return result, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -175,6 +186,11 @@ func (a *Platform) runLocalShell(ctx context.Context, run *skillRun, input local
 	if err != nil || !os.SameFile(info, after) {
 		return result, errors.New("DirectoryChanged")
 	}
+	shellAfter, err := os.Stat(shell.Path)
+	if err != nil || !os.SameFile(shellBefore, shellAfter) ||
+		!shellBefore.ModTime().Equal(shellAfter.ModTime()) || shellBefore.Size() != shellAfter.Size() {
+		return result, errors.New("ShellChanged")
+	}
 
 	timeout := 120 * time.Second
 	if input.TimeoutMS > 0 {
@@ -182,7 +198,7 @@ func (a *Platform) runLocalShell(ctx context.Context, run *skillRun, input local
 	}
 	callCtx, stop := context.WithTimeout(ctx, timeout)
 	defer stop()
-	cmd := localShellCommand(callCtx, input.Command)
+	cmd := localShellCommand(callCtx, shell, input.Command)
 	cmd.Dir, cmd.Env = pathAfter, shellEnvironment()
 	// Six JSON bytes may be needed per output byte.
 	capacity := (agentrun.LocalOutputBudget(ctx, localReadBytes) - 256) / 12

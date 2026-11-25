@@ -1,5 +1,7 @@
 # 当前状态
 
+- 「设置 → 工具权限」支持为全局 AI 的命令工具选择默认 Shell。选择从下一轮对话起生效，单次审批同时展示解释器路径、完整命令和实际工作目录。[修改记录](../08-handoffs/history/2026-11-25-default-shell.md)
+
 - 全局 AI 侧栏支持会话分组、多目录和三个独立的折叠层级。分组对话仅在本轮使用自己的目录。普通会话及空分组首次写文件时才创建 `~/.Fealdhord/会话文件/YYYY-MM-DD/会话ID`。
 
 - Skill ZIP 可导入 64 MiB 压缩包，保留随包的脚本和二进制资源。全局 AI 根据需要读取 Skill 说明和参考文件。新增 `read`、`write`、`edit`、`shell`。每次 `shell` 审批显示完整命令和实际目录。跨平台验证范围见[交付记录](../08-handoffs/history/2026-11-25-skill-workspace-tools.md)。
