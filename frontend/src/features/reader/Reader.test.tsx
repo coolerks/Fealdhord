@@ -369,6 +369,26 @@ it('订阅关闭覆盖全局打开时翻译', async () => {
  }
 })
 
+it('摘要与目标语言一致时打开正文不启动翻译，仍可手动翻译', async () => {
+ const user = userEvent.setup()
+ translationMock.get.mockResolvedValue({ status: 'skipped_same_lang', blocks: [], updatedAt: 1 })
+ translationPreferences.translateOnOpen = true
+ try {
+  setup()
+  await screen.findByText('订阅正文')
+  await user.click(screen.getByRole('button', { name: '翻译' }))
+  const manual = await screen.findByRole('menuitem', { name: '仍要翻译' })
+  expect(translationMock.translate).not.toHaveBeenCalled()
+  expect(screen.queryByText('正在生成首批译文…')).not.toBeInTheDocument()
+  await user.click(manual)
+  expect(translationMock.translate).toHaveBeenCalledExactlyOnceWith({
+   articleId: 'a-0', targetLang: 'zh-CN', sourceMode: 'feed', force: true,
+  })
+ } finally {
+  translationPreferences.translateOnOpen = false
+ }
+})
+
 it('长文优先发送阅读位置，旧版和乱序进度不会覆盖，已读位置随布局变化保持', async () => {
  const user = userEvent.setup()
  api.get.mockResolvedValue({ ...feed, source_version: 'current-source',

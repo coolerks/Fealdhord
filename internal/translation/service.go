@@ -196,8 +196,12 @@ func (s *Service) Get(ctx context.Context, articleID, targetLang, sourceMode str
 			rec.ErrorCode = "Cancelled"
 		}
 	}
-	if rec.TranslatedTitle == "" && sourceMode != "summary" {
-		if sumRow, sumErr := s.store.GetArticleTranslation(ctx, articleID, targetLang, "summary"); sumErr == nil && sumRow.ContentHash == rec.ContentHash {
+	if sourceMode != "summary" {
+		sumRow, sumErr := s.store.GetArticleTranslation(ctx, articleID, targetLang, "summary")
+		if rec.Status == "none" && sourceErr == nil && summaryMatchesTarget(source.Summary, source.ContentHash, targetLang, sumRow) {
+			rec.Status, rec.DetectedLang = "skipped_same_lang", targetLang
+			rec.UpdatedAt = max(rec.UpdatedAt, sumRow.UpdatedAt)
+		} else if rec.TranslatedTitle == "" && sumErr == nil && sumRow.ContentHash == rec.ContentHash {
 			rec.TranslatedTitle = sumRow.TranslatedTitle
 			rec.TranslatedSummary = sumRow.TranslatedSummary
 			if rec.DetectedLang == "" {
@@ -206,6 +210,22 @@ func (s *Service) Get(ctx context.Context, articleID, targetLang, sourceMode str
 		}
 	}
 	return s.normalizeCachedBody(ctx, rec), nil
+}
+
+func summaryMatchesTarget(summary, contentHash, target string, cached sqlc.ArticleTranslation) bool {
+	if strings.TrimSpace(summary) == "" {
+		return false
+	}
+	if cached.ContentHash == contentHash {
+		switch cached.Status {
+		case "skipped_same_lang":
+			return true
+		case "completed":
+			return false
+		}
+	}
+	detected, confident := DetectLocal(summary)
+	return MatchesTarget(detected, confident, target)
 }
 
 func (s *Service) normalizeCachedBody(ctx context.Context, rec Record) Record {
@@ -358,11 +378,36 @@ func (s *Service) Translate(ctx context.Context, req TranslateRequest) (Record, 
 		}
 	}
 
-	// 标题摘要的语言判断只适用于摘要，正文批次单独处理混合语种。
+	if req.SourceMode != "summary" && !req.Force {
+		summary, _ := s.store.GetArticleTranslation(runCtx, req.ArticleID, req.TargetLang, "summary")
+		if summaryMatchesTarget(article.Summary, article.ContentHash, req.TargetLang, summary) {
+			source, err := s.store.CurrentTranslationSource(runCtx, article.ID)
+			if err != nil {
+				return Record{}, &ai.ModelError{Code: "StorageError"}
+			}
+			version := source.ContentHash
+			if req.SourceMode == "reader" {
+				version = source.ReaderSourceVersion
+			}
+			if source.ContentHash != article.ContentHash || (req.SourceVersion != "" && req.SourceVersion != version) {
+				return Record{}, &ai.ModelError{Code: "Conflict"}
+			}
+			return Record{ArticleID: article.ID, TargetLang: req.TargetLang, SourceMode: req.SourceMode,
+				ContentHash: article.ContentHash, SourceVersion: version, DetectedLang: req.TargetLang,
+				Status: "skipped_same_lang", Blocks: []BlockTranslation{},
+				UpdatedAt: max(time.Now().UTC().UnixMilli(), existing.UpdatedAt+1)}, nil
+		}
+	}
+
+	// 有摘要时仅以摘要判断，避免译过的标题影响正文是否触发。
 	var detectedLang string
 	var confident bool
 	if req.SourceMode == "summary" {
-		detectedLang, confident = DetectLocal(article.Title + "\n" + article.Summary)
+		sample := article.Summary
+		if strings.TrimSpace(sample) == "" {
+			sample = article.Title
+		}
+		detectedLang, confident = DetectLocal(sample)
 	}
 	if !req.Force && MatchesTarget(detectedLang, confident, req.TargetLang) {
 		rec := Record{

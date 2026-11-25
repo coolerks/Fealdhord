@@ -108,6 +108,17 @@ func TestArticleTranslationStoreAndUpgrade(t *testing.T) {
 			t.Fatalf("full candidate = %q (%q), want %q, err=%v", id, scope, wantID, err)
 		}
 	}
+	fullCandidate("")
+	if _, err := store.db.ExecContext(ctx, "UPDATE articles SET summary='' WHERE id=?", articleID); err != nil {
+		t.Fatal(err)
+	}
+	fullCandidate(articleID)
+	if _, err := store.db.ExecContext(ctx, "UPDATE articles SET summary=? WHERE id=?", articleInput.Summary, articleID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx, "UPDATE article_translations SET status='completed' WHERE article_id=?", articleID); err != nil {
+		t.Fatal(err)
+	}
 	body := sqlc.SaveArticleTranslationParams{
 		ArticleID: articleID, TargetLang: "zh-CN", SourceMode: "feed", ContentHash: articleInput.ContentHash,
 		Status: "completed", TranslatedBlocks: 1, TotalBlocks: 1, BlocksJson: "[]", UpdatedAt: now,

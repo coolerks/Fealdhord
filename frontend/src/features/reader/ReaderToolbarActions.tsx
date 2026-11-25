@@ -63,6 +63,7 @@ function TranslationMenuItems({ translation, onChooseLanguage }: {
   onChooseLanguage: () => void
 }) {
   const completed = translation.bodyStatus === 'completed'
+  const skipped = translation.bodyStatus === 'skipped_same_lang'
   const hasPartial = translation.bodyStatus === 'partial'
   const languageLabel = languageOptions.find(item => item.value === translation.targetLang)?.label ?? translation.targetLang
   return <>
@@ -89,8 +90,8 @@ function TranslationMenuItems({ translation, onChooseLanguage }: {
         <AnimatedGlyph meaning="x" />取消翻译
       </DropdownMenuItem>
     ) : (
-      <DropdownMenuItem disabled={!translation.canTranslate} onSelect={() => translation.onTranslate(completed)}>
-        <AnimatedGlyph meaning="refresh" />{completed ? '重新翻译' : hasPartial ? '继续翻译' : '翻译正文'}
+      <DropdownMenuItem disabled={!translation.canTranslate} onSelect={() => translation.onTranslate(completed || skipped)}>
+        <AnimatedGlyph meaning="refresh" />{completed ? '重新翻译' : skipped ? '仍要翻译' : hasPartial ? '继续翻译' : '翻译正文'}
       </DropdownMenuItem>
     )}
   </>

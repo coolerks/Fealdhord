@@ -140,13 +140,14 @@ ORDER BY a.sort_at DESC, a.id DESC LIMIT 1`
 		return "", "", "", err
 	}
 
-	// 摘要同语种的文章仍可能有外语正文。全文阶段只接受原网页正文的完整译文。
+	// 有摘要且已判断为目标语言时，后台无需再提取并翻译正文。
 	if scope != "full" {
 		return "", "", targetLang, nil
 	}
 	queryFull := `SELECT a.id FROM articles a
 JOIN feeds f ON f.id=a.feed_id
-JOIN article_translations ts ON ts.article_id=a.id AND ts.target_lang=? AND ts.source_mode='summary' AND ts.content_hash=a.content_hash AND ts.status IN ('completed','skipped_same_lang')
+JOIN article_translations ts ON ts.article_id=a.id AND ts.target_lang=? AND ts.source_mode='summary' AND ts.content_hash=a.content_hash
+ AND (ts.status='completed' OR (ts.status='skipped_same_lang' AND trim(a.summary, char(9,10,13,32))=''))
 LEFT JOIN reader_contents r ON r.article_id=a.id AND r.content_hash=a.content_hash AND r.source_version<>''
 LEFT JOIN article_translations tf ON tf.article_id=a.id AND tf.target_lang=? AND tf.source_mode='reader' AND tf.content_hash=a.content_hash AND tf.source_version=r.source_version AND tf.status='completed' AND tf.translated_blocks=tf.total_blocks
 LEFT JOIN article_ai_deferrals d ON d.article_id=a.id AND d.task='translation_full' AND d.until_at>?

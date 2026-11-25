@@ -36,7 +36,7 @@ func TestTranslationResumesMissingBlocksAndContinuesAfterSameLanguageBatch(t *te
 		URL: "https://example.com/feed", Title: "订阅",
 	}, []database.ArticleInput{{
 		GUID: "mixed", URL: "https://example.com/article", Title: "这是一篇中英文混合文章",
-		Summary: "这段订阅摘要已经使用简体中文，后面的正文中仍包含其他语言。",
+		Summary: "This is a description of the article, and it covers multiple languages.",
 		HTML:    html, Text: "文章正文", FetchedAt: now,
 	}}, database.FeedCheck{At: now, Next: now + 60000})
 	if err != nil {
@@ -82,13 +82,9 @@ func TestTranslationResumesMissingBlocksAndContinuesAfterSameLanguageBatch(t *te
 		return &ai.ModelResponse{Message: ai.Message{Content: []ai.ContentBlock{{Type: "text", Text: string(raw)}}}}, nil
 	}}
 	svc := New(store, fakeResolver{model: model}, reader.NewService(store, nil, nil, nil), nil, nil)
-	summaryReq := TranslateRequest{ArticleID: articleID, TargetLang: "zh-CN", SourceMode: "summary"}
-	if summary, err := svc.Translate(ctx, summaryReq); err != nil || summary.Status != "skipped_same_lang" {
-		t.Fatalf("expected same-language summary: %+v, %v", summary, err)
-	}
 	req := TranslateRequest{ArticleID: articleID, TargetLang: "zh-CN", SourceMode: "feed"}
 	if before, err := svc.Get(ctx, articleID, req.TargetLang, req.SourceMode); err != nil || before.Status != "none" {
-		t.Fatalf("summary skip must not mark body skipped: %+v, %v", before, err)
+		t.Fatalf("a Chinese title must not override a foreign summary: %+v, %v", before, err)
 	}
 	readerReq := TranslateRequest{ArticleID: articleID, TargetLang: "zh-CN", SourceMode: "reader", Background: true}
 	if _, err := svc.Translate(ctx, readerReq); err == nil || model.calls.Load() != 0 {
@@ -291,6 +287,13 @@ func TestTranslationCacheSkipAndResume(t *testing.T) {
 		events = append(events, ev)
 	}, nil)
 
+	beforeSummary, err := svc.Get(ctx, zhID, "zh-CN", "feed")
+	if err != nil || beforeSummary.Status != "skipped_same_lang" || beforeSummary.SourceVersion == "" {
+		t.Fatalf("same-language summary before any model use: %+v, %v", beforeSummary, err)
+	}
+	if otherLanguage, err := svc.Get(ctx, zhID, "en", "feed"); err != nil || otherLanguage.Status != "none" {
+		t.Fatalf("the summary must not suppress another target language: %+v, %v", otherLanguage, err)
+	}
 	// 1. 中文文章目标语言 zh-CN：本地初筛直接跳过，0 模型调用。
 	zhRec, err := svc.Translate(ctx, TranslateRequest{ArticleID: zhID, TargetLang: "zh-CN", SourceMode: "summary"})
 	if err != nil {
@@ -298,6 +301,12 @@ func TestTranslationCacheSkipAndResume(t *testing.T) {
 	}
 	if zhRec.Status != "skipped_same_lang" || model.calls.Load() != 0 {
 		t.Fatalf("expected skipped_same_lang with 0 calls, got status=%q calls=%d", zhRec.Status, model.calls.Load())
+	}
+	progressBefore := len(events)
+	// 阅读模式尚无缓存。应在提取原网页前直接返回。
+	zhBody, err := svc.Translate(ctx, TranslateRequest{ArticleID: zhID, TargetLang: "zh-CN", SourceMode: "reader", Background: true})
+	if err != nil || zhBody.Status != "skipped_same_lang" || model.calls.Load() != 0 || len(events) != progressBefore {
+		t.Fatalf("same-language summary must skip body extraction and model progress: %+v, %v", zhBody, err)
 	}
 
 	// 2. 英文文章 summary 翻译：调用 1 次模型并落库。
@@ -332,5 +341,9 @@ func TestTranslationCacheSkipAndResume(t *testing.T) {
 	_, err = svc.Translate(ctx, TranslateRequest{ArticleID: enID, TargetLang: "zh-CN", SourceMode: "feed"})
 	if err != nil || model.calls.Load() != callsBefore {
 		t.Fatalf("expected body cache hit, calls went from %d to %d err=%v", callsBefore, model.calls.Load(), err)
+	}
+	forced, err := svc.Translate(ctx, TranslateRequest{ArticleID: zhID, TargetLang: "zh-CN", SourceMode: "feed", Force: true})
+	if err != nil || forced.Status != "completed" || model.calls.Load() != callsBefore+1 {
+		t.Fatalf("explicit translation should bypass the summary decision: %+v %v", forced, err)
 	}
 }
