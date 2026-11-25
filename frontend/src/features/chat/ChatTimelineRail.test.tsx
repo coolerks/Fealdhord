@@ -7,10 +7,10 @@ import { buildChatTurns, ChatTimelineRail } from './ChatTimelineRail'
 
 function makeMessages(): Message[] {
   return [
-    { id: 'u1', role: 'user', text: '第一轮提问：看看今天 V2EX 的讨论', status: 'complete', errorCode: '', modelName: '' },
-    { id: 'a1', role: 'assistant', text: '## 今日热点\n- 话题一\n- 话题二', status: 'complete', errorCode: '', modelName: '模型' },
-    { id: 'u2', role: 'user', text: '第二轮提问：最近美团发表过什么文章', status: 'complete', errorCode: '', modelName: '' },
-    { id: 'a2', role: 'assistant', text: '美团技术团队近期发布了两篇架构文章。', status: 'complete', errorCode: '', modelName: '模型' },
+    { id: 'u1', role: 'user', text: '第一轮提问：看看今天 V2EX 的讨论', status: 'complete', errorCode: '', modelName: '', createdAt: 0 },
+    { id: 'a1', role: 'assistant', text: '## 今日热点\n- 话题一\n- 话题二', status: 'complete', errorCode: '', modelName: '模型', createdAt: 0 },
+    { id: 'u2', role: 'user', text: '第二轮提问：最近美团发表过什么文章', status: 'complete', errorCode: '', modelName: '', createdAt: 0 },
+    { id: 'a2', role: 'assistant', text: '美团技术团队近期发布了两篇架构文章。', status: 'complete', errorCode: '', modelName: '模型', createdAt: 0 },
   ]
 }
 

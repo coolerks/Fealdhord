@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { native } from '@/lib/native'
 import { notify } from '@/lib/notifications'
 import { cn } from '@/lib/utils'
+import { formatMessageTime, formatMessageTimeTitle } from './format-time'
 import type { Message } from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
 
 const numbers = new Intl.NumberFormat('zh-CN')
@@ -53,6 +54,9 @@ export function ReplyActions({ message, branchDisabled, onBranch }: {
     }
   }
 
+  const timeLabel = formatMessageTime(message.createdAt)
+  const timeTitle = formatMessageTimeTitle(message.createdAt)
+
   return <div className="mt-2 flex items-center gap-1 text-muted-foreground" role="group" aria-label="回复操作">
     <Tooltip>
       <TooltipTrigger asChild>
@@ -93,5 +97,6 @@ export function ReplyActions({ message, branchDisabled, onBranch }: {
         </dl>
       </DialogContent>
     </Dialog>
+    {timeLabel && <time className="ml-1.5 text-xs tabular-nums text-muted-foreground/80" title={timeTitle}>{timeLabel}</time>}
   </div>
 }

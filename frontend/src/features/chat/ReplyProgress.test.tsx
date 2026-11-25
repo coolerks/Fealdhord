@@ -15,6 +15,7 @@ function makeMessage(patch: Partial<Message> = {}): Message {
     modelName: '测试模型',
     status: 'running',
     errorCode: '',
+    createdAt: 0,
     ...patch,
   }
 }

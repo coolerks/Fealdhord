@@ -744,7 +744,7 @@ describe('Phase 1 阅读 Shell', () => {
       id: 'old', role: 'assistant', text: '历史回复', modelName: '默认模型', status: 'complete',
     }])
     chat.Send.mockImplementation(async ({ modelId, text }: SendInput) => {
-      const base = { errorCode: '', tools: [] }
+      const base = { errorCode: '', createdAt: 0, tools: [] }
       rows.push({ ...base, id: text, role: 'user', text, modelName: '', status: 'complete' })
       rows.push({ ...base, id: `${text}-reply`, role: 'assistant', text: `${text}回复`, modelName: modelId ?? '', status: 'running' })
     })
@@ -990,7 +990,7 @@ describe('Phase 1 阅读 Shell', () => {
 
   it('流式回复在首字前显示思考和工具步骤，结束后折叠工作过程', async () => {
     const user = userEvent.setup()
-    const running: Message = { id: 'reply', role: 'assistant', text: '', modelName: '模型', status: 'running', errorCode: '' }
+    const running: Message = { id: 'reply', role: 'assistant', text: '', modelName: '模型', status: 'running', errorCode: '', createdAt: 0 }
     chat.List.mockResolvedValue([{ id: 'history', title: '历史会话' }])
     chat.Messages.mockResolvedValue([running])
     const { client } = setup()

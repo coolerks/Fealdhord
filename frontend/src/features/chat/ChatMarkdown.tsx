@@ -9,6 +9,7 @@ import { notify } from '@/lib/notifications'
 import type { highlightText } from '@/features/reader/highlight-code'
 import { animateReplyFragment, revealMarkdown } from './stream-reveal'
 import type { RevealBatch } from './stream-reveal'
+import { ChatMermaid } from './ChatMermaid'
 
 const Streaming = createContext(false)
 const remarkPlugins = [remarkGfm]
@@ -75,8 +76,14 @@ const components: Components = {
       ? className.join(' ').match(/(?:^|\s)language-([\w+-]+)/)?.[1].toLowerCase()
       : undefined
     const text = code.children.map(child => child.type === 'text' ? child.value : '').join('').replace(/\n$/, '')
+    if (hint === 'mermaid') return <MermaidFence code={text} />
     return <ChatCode text={text} hint={hint} />
   },
+}
+
+function MermaidFence({ code }: { code: string }) {
+  const streaming = useContext(Streaming)
+  return <ChatMermaid code={code} streaming={streaming} />
 }
 
 function RevealFragment({ at, offset, children }: { at: number; offset: number; children: React.ReactNode }) {

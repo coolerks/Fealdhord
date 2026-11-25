@@ -359,3 +359,95 @@ html[data-motion=off] .chat-rail-tick {
   font-size: 12px;
   color: var(--destructive);
 }
+
+.chat-mermaid-block {
+  margin-block: 0.65em;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.chat-mermaid-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--muted) 55%, transparent);
+}
+
+.chat-mermaid-canvas {
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+  padding: 16px;
+}
+
+.chat-mermaid-canvas svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.chat-mermaid-source {
+  padding: 12px;
+  overflow-x: auto;
+  font-size: 12px;
+}
+
+.chat-mermaid-source pre {
+  margin: 0;
+}
+
+.chat-user-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.chat-queue-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--muted) 50%, var(--card));
+}
+
+.chat-queue-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: var(--card);
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  font-size: 12px;
+}
+
+.chat-attachment-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.chat-user-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.chat-user-image {
+  max-width: 180px;
+  max-height: 140px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  object-fit: cover;
+}
