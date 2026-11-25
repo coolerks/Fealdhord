@@ -138,3 +138,44 @@ func TestFeedCategoryFutureOnlySurvivesRefresh(t *testing.T) {
 		t.Fatal("新文未继承新分类")
 	}
 }
+
+func TestReorderCategories(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	a, err := s.CreateCategory(ctx, "A", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := s.CreateCategory(ctx, "B", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := s.CreateCategory(ctx, "C", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ReorderCategories(ctx, []CategoryOrderItem{
+		{ID: c, ParentID: "", SortPosition: 0},
+		{ID: a, ParentID: "", SortPosition: 1},
+		{ID: b, ParentID: c, SortPosition: 0},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	nav, err := s.Navigation(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var roots []string
+	var bParent string
+	for _, cat := range nav.Categories {
+		if cat.ParentID == "" {
+			roots = append(roots, cat.ID)
+		}
+		if cat.ID == b {
+			bParent = cat.ParentID
+		}
+	}
+	if len(roots) != 2 || roots[0] != c || roots[1] != a || bParent != c {
+		t.Fatalf("分类排序与层级未生效: roots=%v bParent=%s", roots, bParent)
+	}
+}

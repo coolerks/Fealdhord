@@ -62,7 +62,7 @@ export function SettingRow({
   children: ReactNode
 }) {
   return (
-    <div className={cn('flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3.5 py-2.5', className)}>
+    <div className={cn('flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3.5 py-2.5 has-[[data-slot=switch]]:min-h-13', className)}>
       {children}
     </div>
   )

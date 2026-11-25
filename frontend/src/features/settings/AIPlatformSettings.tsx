@@ -244,6 +244,7 @@ export function MCPSettings() {
                 label="公开工具"
                 className="min-w-48"
                 value={config.tools ?? []}
+                multipleDisplay="placeholder"
                 placeholder={config.tools?.length ? `已选 ${config.tools.length} 项` : '选择工具'}
                 options={(tools.data ?? []).map(tool => toolOption(tool.name, tool))}
                 onValueChange={name => {
@@ -548,6 +549,7 @@ export function MCPSettings() {
                   label="允许的工具"
                   className="w-full"
                   placeholder={selectedGrantTools.length ? `已选 ${selectedGrantTools.length} 项` : '选择工具'}
+                  multipleDisplay="placeholder"
                   value={selectedGrantTools}
                   disabled={busy}
                   options={allowedGrantTools.map(name => toolOption(name, tools.data?.find(tool => tool.name === name)))}

@@ -9,6 +9,7 @@ export type {
     CategoryDeletion,
     CategoryInfo,
     CategoryInput,
+    CategoryOrderItem,
     CategorySummary,
     ImportOutline,
     ImportReport,

@@ -14,6 +14,7 @@ import (
 type Repository interface {
 	Navigation(context.Context) (database.Navigation, error)
 	SaveCategory(context.Context, database.CategoryInput) (string, error)
+	ReorderCategories(context.Context, []database.CategoryOrderItem) error
 	PreviewCategoryDeletion(context.Context, string) (database.CategoryDeletion, error)
 	DeleteCategoryChecked(context.Context, database.CategoryDeletion) error
 	ArticleMemberships(context.Context, string) ([]database.MembershipInfo, error)
@@ -66,6 +67,9 @@ type MembershipRequest struct {
 	ArticleID  string `json:"article_id"`
 	CategoryID string `json:"category_id"`
 	State      string `json:"state"`
+}
+type ReorderRequest struct {
+	Items []database.CategoryOrderItem `json:"items"`
 }
 
 func safeError(err error) *app.AppError {
@@ -124,6 +128,12 @@ func (s *Service) Save(ctx context.Context, input database.CategoryInput) Result
 	}
 	id, err := s.repository.SaveCategory(ctx, input)
 	return s.result(id, err)
+}
+func (s *Service) Reorder(ctx context.Context, input ReorderRequest) Result {
+	if s.repository == nil || len(input.Items) == 0 {
+		return s.result("", database.ErrInvalidInput)
+	}
+	return s.result("", s.repository.ReorderCategories(ctx, input.Items))
 }
 func (s *Service) PreviewDelete(ctx context.Context, input IDRequest) PreviewResult {
 	out := PreviewResult{RequestID: rand.Text()}

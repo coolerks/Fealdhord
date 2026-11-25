@@ -72,6 +72,16 @@ export interface Page {
     "categories": database$0.CategorySummary[] | null;
 }
 
+export interface ReorderRequest {
+    "ids": string[] | null;
+}
+
+export interface ReorderResult {
+    "ok": boolean;
+    "error"?: app$0.AppError | null;
+    "request_id": string;
+}
+
 export interface Result {
     "ok": boolean;
     "data"?: Feed | null;

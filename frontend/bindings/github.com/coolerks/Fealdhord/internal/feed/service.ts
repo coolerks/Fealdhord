@@ -36,6 +36,10 @@ export function Remove(request: $models.RevisionRequest): $CancellablePromise<$m
     return $Call.ByID(3500121592, request);
 }
 
+export function Reorder(request: $models.ReorderRequest): $CancellablePromise<$models.ReorderResult> {
+    return $Call.ByID(1742397579, request);
+}
+
 export function Restore(request: $models.RevisionRequest): $CancellablePromise<$models.Result> {
     return $Call.ByID(2694478898, request);
 }

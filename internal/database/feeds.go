@@ -357,3 +357,39 @@ func (s *Store) Categories(ctx context.Context) ([]CategorySummary, error) {
 	}
 	return out, nil
 }
+
+func (s *Store) ReorderFeeds(ctx context.Context, ids []string) error {
+	if len(ids) == 0 || len(ids) > 4096 {
+		return ErrInvalidInput
+	}
+	seen := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		if id == "" || len(id) > 256 {
+			return ErrInvalidInput
+		}
+		if _, dup := seen[id]; dup {
+			return ErrInvalidInput
+		}
+		seen[id] = struct{}{}
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	now := time.Now().UTC().UnixMilli()
+	for i, id := range ids {
+		res, err := tx.ExecContext(ctx, `UPDATE feeds SET sort_position=?,updated_at=?,revision=revision+1 WHERE id=?`, int64(i), now, id)
+		if err != nil {
+			return err
+		}
+		affected, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if affected != 1 {
+			return ErrNotFound
+		}
+	}
+	return tx.Commit()
+}

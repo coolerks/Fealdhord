@@ -19,6 +19,7 @@ type Repository interface {
 	UpdateSubscription(context.Context, string, int64, database.SubscriptionInput) error
 	ArchiveFeed(context.Context, string, int64) error
 	RestoreSubscription(context.Context, string, int64) error
+	ReorderFeeds(context.Context, []string) error
 	Categories(context.Context) ([]database.CategorySummary, error)
 }
 type Service struct {
@@ -66,6 +67,14 @@ type IDRequest struct {
 type RevisionRequest struct {
 	ID       string `json:"id"`
 	Revision int64  `json:"revision"`
+}
+type ReorderRequest struct {
+	IDs []string `json:"ids"`
+}
+type ReorderResult struct {
+	OK        bool          `json:"ok"`
+	Error     *app.AppError `json:"error,omitempty"`
+	RequestID string        `json:"request_id"`
 }
 type AddRequest struct {
 	CustomIconURL     string   `json:"custom_icon_url,omitempty"`
@@ -390,4 +399,20 @@ func (s *Service) archive(ctx context.Context, request RevisionRequest, restore 
 		s.onChange()
 	}
 	return s.Get(ctx, IDRequest{ID: request.ID})
+}
+func (s *Service) Reorder(ctx context.Context, request ReorderRequest) ReorderResult {
+	out := ReorderResult{RequestID: rand.Text()}
+	if s.repository == nil || len(request.IDs) == 0 {
+		out.Error = SafeError(database.ErrInvalidInput)
+		return out
+	}
+	if err := s.repository.ReorderFeeds(ctx, request.IDs); err != nil {
+		out.Error = DataError(err)
+		return out
+	}
+	out.OK = true
+	if s.onChange != nil {
+		s.onChange()
+	}
+	return out
 }

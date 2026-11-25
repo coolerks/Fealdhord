@@ -13,6 +13,7 @@ export type {
     MembershipRequest,
     MembershipResult,
     PreviewResult,
+    ReorderRequest,
     Result,
     Value
 } from "./models.js";

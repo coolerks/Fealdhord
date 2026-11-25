@@ -105,7 +105,7 @@ function SelectList({ label, options, multiple, input, onExpand, onBack, childre
 
 export function SearchableSelect({
   id, label, options, value, onValueChange, disabled, className, variant = 'outline',
-  announceSelection = false, placeholder = '请选择', submenus, onSubValueChange,
+  announceSelection = false, placeholder = '请选择', multipleDisplay = 'tags', submenus, onSubValueChange,
 }: {
   id?: string
   label: string
@@ -117,6 +117,7 @@ export function SearchableSelect({
   variant?: 'outline' | 'ghost'
   announceSelection?: boolean
   placeholder?: string
+  multipleDisplay?: 'tags' | 'placeholder'
   submenus?: Record<string, Submenu>
   onSubValueChange?: (value: string, subValue: string) => void
 }) {
@@ -127,7 +128,9 @@ export function SearchableSelect({
   const subInput = useRef<HTMLInputElement>(null)
   const anchors = useRef(new Map<string, HTMLDivElement>())
   const multiple = Array.isArray(value)
-  const selected = options.find(option => option.value === value)
+  const selected = multiple ? undefined : options.find(option => option.value === value)
+  const selectedOptions = multiple ? options.filter(option => value.includes(option.value)) : []
+  const showTags = multiple && multipleDisplay === 'tags' && selectedOptions.length > 0
   const summary = selected && submenus?.[selected.value]?.summary
   const submenu = expanded && submenus?.[expanded.value]
   const checked = (id: string) => Array.isArray(value) ? value.includes(id) : value === id
@@ -143,9 +146,26 @@ export function SearchableSelect({
     <Popover.Trigger asChild>
       <Button type="button" id={id} aria-label={label} variant={variant} disabled={disabled}
         aria-description={announceSelection && selected ? [selected.accessibleLabel ?? selected.label, summary].filter(Boolean).join(' · ') : undefined}
-        className={cn('min-w-0 justify-between font-normal', className)}>
+        className={cn('min-w-0 justify-between font-normal', showTags && 'h-auto min-h-8 py-1', className)}>
         {selected?.graphic}
-        <span className={cn('truncate', !selected && !multiple && 'text-muted-foreground')}>{selected?.label ?? placeholder}</span>
+        {showTags ? (
+          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+            {selectedOptions.slice(0, 4).map(option => (
+              <span key={option.value} className="inline-flex max-w-36 items-center truncate rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-foreground">
+                {option.label}
+              </span>
+            ))}
+            {selectedOptions.length > 4 && (
+              <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground tabular-nums">
+                +{selectedOptions.length - 4}
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className={cn('truncate', !selected && (!multiple || (multipleDisplay === 'tags' && selectedOptions.length === 0)) && 'text-muted-foreground')}>
+            {selected?.label ?? placeholder}
+          </span>
+        )}
         {summary && <span className="max-w-24 shrink-0 truncate text-muted-foreground">{summary}</span>}
         <AnimatedGlyph meaning="chevron-right" className="rotate-90 text-muted-foreground" />
       </Button>

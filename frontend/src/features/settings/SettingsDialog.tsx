@@ -277,6 +277,7 @@ export function SettingsDialog({ sidebar, motionMode }: {
               <SearchableSelect id="reader-toolbar-pinned" label="常驻工具栏按钮" className="min-w-44"
                 options={[...readerToolbarOptions]}
                 value={preferences.reader_toolbar_pinned}
+                multipleDisplay="placeholder"
                 placeholder={preferences.reader_toolbar_pinned.length ? `已常驻 ${preferences.reader_toolbar_pinned.length} 项` : '全部放入更多'}
                 onValueChange={id => {
                   const pinned = preferences.reader_toolbar_pinned

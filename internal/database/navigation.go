@@ -52,6 +52,11 @@ type CategoryInput struct {
 	Description  string `json:"description"`
 	SortPosition int64  `json:"sort_position"`
 }
+type CategoryOrderItem struct {
+	ID           string `json:"id"`
+	ParentID     string `json:"parent_id"`
+	SortPosition int64  `json:"sort_position"`
+}
 type CategoryDeletion struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
@@ -245,4 +250,40 @@ func (s *Store) ArticleMemberships(ctx context.Context, id string) ([]Membership
 		out = append(out, item)
 	}
 	return out, rows.Err()
+}
+
+func (s *Store) ReorderCategories(ctx context.Context, items []CategoryOrderItem) error {
+	if len(items) == 0 || len(items) > 2048 {
+		return ErrInvalidInput
+	}
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		if item.ID == "" || len(item.ID) > 256 || len(item.ParentID) > 256 || item.SortPosition < -1000000 || item.SortPosition > 1000000 {
+			return ErrInvalidInput
+		}
+		if _, dup := seen[item.ID]; dup {
+			return ErrInvalidInput
+		}
+		seen[item.ID] = struct{}{}
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	now := time.Now().UTC().UnixMilli()
+	for _, item := range items {
+		res, err := tx.ExecContext(ctx, `UPDATE categories SET parent_id=?,sort_position=?,updated_at=?,revision=revision+1 WHERE id=?`, nullString(item.ParentID), item.SortPosition, now, item.ID)
+		if err != nil {
+			return err
+		}
+		affected, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if affected != 1 {
+			return ErrNotFound
+		}
+	}
+	return tx.Commit()
 }

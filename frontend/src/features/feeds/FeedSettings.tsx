@@ -1,6 +1,8 @@
 import { useId, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { GripVertical } from 'lucide-react'
 import { AnimatedGlyph } from '@/components/animated-glyph'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
@@ -87,7 +89,7 @@ function Categories({ items, value, onChange, disabled }: {
         className="w-full"
         disabled={disabled}
         value={value}
-        placeholder={value.length ? `默认分类 · ${value.length}` : '默认分类'}
+        placeholder="选择默认分类"
         options={items.map(item => ({ value: item.id, label: item.name }))}
         onValueChange={id => onChange(value.includes(id) ? value.filter(item => item !== id) : [...value, id])}
       />
@@ -115,6 +117,8 @@ export function FeedSettings() {
   const [readerOpenMode, setReaderOpenMode] = useState<FeedReaderOpenMode>('global')
   const [autoTranslateMode, setAutoTranslateMode] = useState<FeedAutoTranslateMode>('global')
   const [editing, setEditing] = useState<UpdateRequest | null>(null)
+  const [dragFeedId, setDragFeedId] = useState<string | null>(null)
+  const [dropFeed, setDropFeed] = useState<{ id: string; position: 'before' | 'after' } | null>(null)
   const prefs = useWorkspace(state => state.preferences)!
   const originalFeed = query.data?.items?.find(feed => feed.id === editing?.id)
   const editURLChanged = Boolean(editing && originalFeed && editing.url !== originalFeed.url)
@@ -326,12 +330,73 @@ export function FeedSettings() {
             title={filter.trim() || statusFilter === 'error' ? '没有匹配的订阅' : '暂无订阅'}
           />
         )}
-        {visibleFeeds.length > 0 && (
+        {visibleFeeds.length > 0 && (() => {
+          const canReorder = !archived && statusFilter === 'all' && !filter.trim() && visibleFeeds.length > 1
+          function handleFeedDrop(targetId: string, position: 'before' | 'after') {
+            if (!dragFeedId || dragFeedId === targetId || busy) return
+            const activeIds = allItems.filter(item => !item.archived).map(item => item.id)
+            const fromIndex = activeIds.indexOf(dragFeedId)
+            const toIndex = activeIds.indexOf(targetId)
+            setDragFeedId(null)
+            setDropFeed(null)
+            if (fromIndex === -1 || toIndex === -1) return
+            const nextIds = [...activeIds]
+            nextIds.splice(fromIndex, 1)
+            const insertAt = nextIds.indexOf(targetId) + (position === 'after' ? 1 : 0)
+            nextIds.splice(insertAt, 0, dragFeedId)
+            if (nextIds.every((id, index) => id === activeIds[index])) return
+            action.reset()
+            action.mutate(() => rssAPI.reorder(nextIds))
+          }
+          return (
           <ul className="divide-y divide-border">
-            {visibleFeeds.map(feed => (
-              <li key={feed.id} className="px-3.5 py-2.5">
+            {visibleFeeds.map(feed => {
+              const isDragging = dragFeedId === feed.id
+              const indicator = dropFeed?.id === feed.id ? dropFeed.position : null
+              return (
+              <li
+                key={feed.id}
+                draggable={canReorder && !busy}
+                onDragStart={event => {
+                  if (!canReorder || busy) return
+                  setDragFeedId(feed.id)
+                  event.dataTransfer.effectAllowed = 'move'
+                  event.dataTransfer.setData('text/plain', feed.id)
+                }}
+                onDragOver={event => {
+                  if (!canReorder || !dragFeedId || dragFeedId === feed.id || busy) return
+                  const rect = event.currentTarget.getBoundingClientRect()
+                  const position: 'before' | 'after' = event.clientY - rect.top < rect.height / 2 ? 'before' : 'after'
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = 'move'
+                  setDropFeed(current => (current?.id === feed.id && current.position === position ? current : { id: feed.id, position }))
+                }}
+                onDragLeave={event => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    setDropFeed(current => (current?.id === feed.id ? null : current))
+                  }
+                }}
+                onDrop={event => {
+                  event.preventDefault()
+                  if (dropFeed?.id === feed.id) handleFeedDrop(feed.id, dropFeed.position)
+                  else { setDragFeedId(null); setDropFeed(null) }
+                }}
+                onDragEnd={() => { setDragFeedId(null); setDropFeed(null) }}
+                className={cn(
+                  'relative px-3.5 py-2.5 transition-colors',
+                  isDragging && 'opacity-40',
+                  indicator === 'before' && 'before:pointer-events-none before:absolute before:inset-x-3 before:top-0 before:h-0.5 before:rounded-full before:bg-primary',
+                  indicator === 'after' && 'after:pointer-events-none after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary',
+                )}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-                  <div className="min-w-0 flex-1 space-y-0.5" data-animated-trigger>
+                  <div className="flex min-w-0 flex-1 items-center gap-2" data-animated-trigger>
+                    {canReorder && (
+                      <span className="inline-flex shrink-0 cursor-grab text-muted-foreground/60 hover:text-muted-foreground active:cursor-grabbing" aria-hidden="true">
+                        <GripVertical className="size-4" />
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1 space-y-0.5">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <FeedIcon data={allowIcons ? feed.icon_data : undefined} />
                       <strong className="min-w-0 font-medium [overflow-wrap:anywhere]">{feed.title}</strong>
@@ -345,6 +410,7 @@ export function FeedSettings() {
                         {feed.next_check_at && ` · 下次尝试 ${new Date(feed.next_check_at).toLocaleString('zh-CN')}`}
                       </p>
                     )}
+                    </div>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-1">
                     {feed.archived ? (
@@ -382,9 +448,11 @@ export function FeedSettings() {
                   </div>
                 </div>
               </li>
-            ))}
+              )
+            })}
           </ul>
-        )}
+          )
+        })()}
       </SettingCard>
     </SettingSection>
 

@@ -121,3 +121,37 @@ func TestDueSubscriptionsUsesCurrentIntervalAndPreservesBackoff(t *testing.T) {
 	assertDue(399, 100, false)
 	assertDue(400, 1500, true)
 }
+
+func TestReorderFeeds(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	f1, err := s.AddSubscription(ctx, SubscriptionInput{URL: "https://example.test/1", Title: "Alpha"}, nil, FeedCheck{At: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f2, err := s.AddSubscription(ctx, SubscriptionInput{URL: "https://example.test/2", Title: "Beta"}, nil, FeedCheck{At: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f3, err := s.AddSubscription(ctx, SubscriptionInput{URL: "https://example.test/3", Title: "Gamma"}, nil, FeedCheck{At: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ReorderFeeds(ctx, []string{f3, f1, f2}); err != nil {
+		t.Fatal(err)
+	}
+	subs, err := s.Subscriptions(ctx, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(subs) != 3 || subs[0].ID != f3 || subs[1].ID != f1 || subs[2].ID != f2 {
+		t.Fatalf("订阅排序未生效: %+v", subs)
+	}
+	nav, err := s.Navigation(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nav.Feeds) != 3 || nav.Feeds[0].ID != f3 || nav.Feeds[1].ID != f1 || nav.Feeds[2].ID != f2 {
+		t.Fatalf("侧栏订阅排序未生效: %+v", nav.Feeds)
+	}
+}

@@ -24,6 +24,7 @@ import type { ArticleView } from './toolbar-actions'
 import { ReaderImageViewer } from './ReaderImageViewer'
 import type { ReaderImage } from './ReaderImageViewer'
 import { ReaderOutline } from './ReaderOutline'
+import { ReaderFindBar } from './ReaderFindBar'
 import { ArticleHTML } from './ArticleHTML'
 import { readingBlock } from './reading-block'
 import './reader-prose.css'
@@ -44,8 +45,11 @@ export function ReaderEmpty() {
 }
 
 function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiveOpenMode,overlay,onClose,onFavorite,onRead,onShare,onAnchor,markedRef}:ReaderProps&{effectiveOpenMode:'feed'|'full';markedRef:RefObject<string>}){
- const content=useRef<HTMLDivElement>(null),timer=useRef<ReturnType<typeof setTimeout>|null>(null),pending=useRef<number|null>(null),save=useRef(onAnchor),title=useRef<HTMLHeadingElement>(null)
+ const content=useRef<HTMLDivElement>(null),articleEl=useRef<HTMLElement>(null),timer=useRef<ReturnType<typeof setTimeout>|null>(null),pending=useRef<number|null>(null),save=useRef(onAnchor),title=useRef<HTMLHeadingElement>(null)
  const showSettings = useWorkspace(state => state.showSettings)
+ const findTrigger = useWorkspace(state => state.readerFindTrigger)
+ const [dismissedFindTrigger, setDismissedFindTrigger] = useState(findTrigger)
+ const findOpen = findTrigger > dismissedFindTrigger
  const articleID=article?.id
  const publicationDate=article?.publishedAt.slice(0,10)
  const body=useReaderContent(article,preferences)
@@ -210,11 +214,22 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
    'aria-labelledby': undefined, 'aria-label': readerViews.find(mode => mode.value === view)?.label,
   })}><div className="reader-stage" inert={Boolean(viewing)} aria-hidden={viewing ? true : undefined}>
    {!loading && <ReaderOutline mode={preferences.reader_outline} html={body.html} translationKey={`${translation.effectiveDisplayMode}:${translation.targetLang}:${translation.record?.updatedAt ?? 0}`} prose={prose} viewport={content} inert={Boolean(viewing)} />}
+   <ReaderFindBar
+    open={findOpen && !viewing}
+    focusTrigger={findTrigger}
+    containerRef={articleEl}
+    viewportRef={content}
+    contentKey={`${articleID}:${view}:${body.html.length}:${translation.effectiveDisplayMode}:${translation.record?.updatedAt ?? 0}:${summary.result?.text?.length ?? 0}`}
+    onClose={() => {
+     setDismissedFindTrigger(findTrigger)
+     title.current?.focus({ preventScroll: true })
+    }}
+   />
    <div ref={content} className="reader-content" onScroll={event=>{
    if(!articleID||!hasContent||loading)return
    const offset=event.currentTarget.scrollTop;pending.current=offset;if(timer.current)clearTimeout(timer.current)
    timer.current=setTimeout(()=>{pending.current=null;save.current(`reader|${articleID}`,{article_id:articleID,offset})},180)
-  }}><article style={{maxWidth:preferences.reader_width,fontSize:preferences.reader_font_size,lineHeight:preferences.reader_line_height,fontFamily:preferences.reader_font_family==='serif'?'ui-serif, Georgia, "Songti SC", serif':preferences.reader_font_family==='monospace'?'ui-monospace, SFMono-Regular, monospace':undefined}}><p className="reader-byline">
+  }}><article ref={articleEl} style={{maxWidth:preferences.reader_width,fontSize:preferences.reader_font_size,lineHeight:preferences.reader_line_height,fontFamily:preferences.reader_font_family==='serif'?'ui-serif, Georgia, "Songti SC", serif':preferences.reader_font_family==='monospace'?'ui-monospace, SFMono-Regular, monospace':undefined}}><p className="reader-byline">
     <span><FeedIcon data={preferences.remote_images==='never' ? undefined : feedIcon}/>{article.feedTitle}</span>
     {publicationDate && <time dateTime={publicationDate}><CalendarDays aria-hidden="true"/>{publicationDate}</time>}
    </p><h1 ref={title} tabIndex={-1}>{headingTitle}</h1>

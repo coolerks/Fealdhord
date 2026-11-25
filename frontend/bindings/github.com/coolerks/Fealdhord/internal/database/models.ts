@@ -63,6 +63,12 @@ export interface CategoryInput {
     "sort_position": number;
 }
 
+export interface CategoryOrderItem {
+    "id": string;
+    "parent_id": string;
+    "sort_position": number;
+}
+
 export interface CategorySummary {
     "id": string;
     "name": string;

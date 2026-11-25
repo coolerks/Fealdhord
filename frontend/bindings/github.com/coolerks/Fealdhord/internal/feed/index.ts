@@ -16,6 +16,8 @@ export type {
     ListRequest,
     ListResult,
     Page,
+    ReorderRequest,
+    ReorderResult,
     Result,
     RevisionRequest,
     URLRequest,

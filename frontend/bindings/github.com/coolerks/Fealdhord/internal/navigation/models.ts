@@ -43,6 +43,10 @@ export interface PreviewResult {
     "request_id": string;
 }
 
+export interface ReorderRequest {
+    "items": database$0.CategoryOrderItem[] | null;
+}
+
 export interface Result {
     "ok": boolean;
     "data"?: Value | null;

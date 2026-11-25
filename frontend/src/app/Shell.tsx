@@ -212,6 +212,11 @@ export function Shell() {
         }
         return
       }
+      if (native.isMac() && event.metaKey && !event.ctrlKey && !event.altKey && event.key.toLowerCase() === 'f' && readerVisible) {
+        event.preventDefault()
+        useWorkspace.setState(current => ({ readerFindTrigger: current.readerFindTrigger + 1 }))
+        return
+      }
       if ((event.metaKey||event.ctrlKey) && !native.isMac()) {
         const id=event.key===','?'settings':event.key.toLowerCase()==='f'?'search':event.key==='1'?'all':event.key==='2'?'unread':event.key==='3'?'favorites':null
         if(id){event.preventDefault();runCommand(id,client);return}

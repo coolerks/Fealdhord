@@ -29,6 +29,10 @@ export function Remove(input: database$0.CategoryDeletion): $CancellablePromise<
     return $Call.ByID(1867135174, input);
 }
 
+export function Reorder(input: $models.ReorderRequest): $CancellablePromise<$models.Result> {
+    return $Call.ByID(2441377345, input);
+}
+
 export function Save(input: database$0.CategoryInput): $CancellablePromise<$models.Result> {
     return $Call.ByID(592077039, input);
 }

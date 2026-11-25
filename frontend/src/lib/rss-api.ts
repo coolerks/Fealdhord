@@ -28,6 +28,10 @@ export const rssAPI = {
   },
   async archive(request:RevisionRequest) { return unwrap(await FeedService.Remove(request)) },
   async restore(request:RevisionRequest) { return unwrap(await FeedService.Restore(request)) },
+  async reorder(ids:string[]) {
+    const result = await FeedService.Reorder({ids})
+    if (!result.ok) throw new APIError(result.error ?? {code:'DatabaseError',message:'调整订阅顺序失败。',retryable:true})
+  },
   async start(feed_ids:string[] = []) { return unwrap(await RefreshService.Start({feed_ids})) },
   async get(operation_id:string) { return unwrap(await RefreshService.Get({operation_id})) },
   async current() { return unwrap(await RefreshService.Current()) },
