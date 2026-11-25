@@ -1900,3 +1900,33 @@ QQ 配对、测试和投递选择同一环境，补齐沙箱。READY 后等待�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 75: 修复 Linux 桌面图标和窗口栏
+<!-- trellis-session: v=2 fp=2474ce7b4c6474fb -->
+
+**Date**: 2026-11-25
+**Task**: 修复 Linux 桌面图标和窗口栏
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+Linux 复用 Windows 单行窗口栏，DEB 使用 hicolor 标准尺寸并对齐应用标识。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `54d42a3` | fix(linux): 修复桌面图标并统一窗口栏 |
+
+### Testing
+
+- [OK] 前端 App 回归 82 项、生产构建、Go 桌面检查、Windows 交叉编译和打包配置核对通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 实际 DEB 构建与 Linux GNOME 桌面验证待执行。
