@@ -1,6 +1,7 @@
 package database
 
 import (
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -16,7 +17,7 @@ func dropArticleSummarySchema() []string {
 		"ALTER TABLE article_ai_settings DROP COLUMN summary_english_limit",
 		"ALTER TABLE article_ai_settings DROP COLUMN summary_han_limit",
 		"ALTER TABLE article_ai_settings DROP COLUMN summarize_on_open",
-		"DELETE FROM goose_db_version WHERE version_id IN (28,31)",
+		"DELETE FROM goose_db_version WHERE version_id IN (28,31,32)",
 	}
 }
 
@@ -51,7 +52,7 @@ func TestArticleSummaryUpgradeAndPersistence(t *testing.T) {
 		t.Fatalf("升级备份：%v %v", backup, err)
 	}
 	settings, err := store.ArticleAISettings(ctx)
-	if err != nil || settings.SummarizeOnOpen != 0 || settings.SummaryHanLimit != 600 || settings.SummaryEnglishLimit != 350 {
+	if err != nil || settings.SummarizeOnOpen != 1 || settings.SummaryHanLimit != 600 || settings.SummaryEnglishLimit != 350 {
 		t.Fatalf("摘要默认设置：%+v %v", settings, err)
 	}
 	translation, err := store.GetArticleTranslation(ctx, "old", "en", "summary")
@@ -90,6 +91,53 @@ func TestArticleSummaryUpgradeAndPersistence(t *testing.T) {
 	if err := reopened.SaveCurrentArticleSummary(ctx, record); !errors.Is(err, ErrConflict) {
 		t.Fatalf("允许旧结果写入：%v", err)
 	}
+}
+
+func TestArticleAIOpenDefaults(t *testing.T) {
+	t.Run("新库", func(t *testing.T) {
+		ctx := t.Context()
+		store, err := Open(ctx, filepath.Join(t.TempDir(), "library.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer store.Close()
+		settings, err := store.ArticleAISettings(ctx)
+		if err != nil || settings.TranslateOnOpen != 0 || settings.SummarizeOnOpen != 1 {
+			t.Fatalf("新库打开文章默认设置：%+v %v", settings, err)
+		}
+	})
+
+	t.Run("升级保留已保存设置", func(t *testing.T) {
+		ctx := t.Context()
+		filename := filepath.Join(t.TempDir(), "library.db")
+		old, err := openWithMigrations(ctx, filename, sqlMigrationsBefore(t, "00032"), goose.WithGoMigrations(
+			goose.NewGoMigration(21, &goose.GoFunc{RunTx: repairNotificationSchema}, nil),
+			goose.NewGoMigration(22, &goose.GoFunc{RunTx: repairAISchema}, nil),
+		))
+		if err != nil {
+			t.Fatal(err)
+		}
+		saved, err := old.SaveArticleAISettings(ctx, sqlc.SaveArticleAISettingsParams{
+			Revision: 1, TranslateOnOpen: 1, RequestsPerHour: 60, TokensPerHour: 10000,
+			SummarizeOnOpen: sql.NullInt64{Valid: true},
+		})
+		if closeErr := old.Close(); err != nil || closeErr != nil {
+			t.Fatalf("保存旧库设置：%v %v", err, closeErr)
+		}
+		upgraded, err := Open(ctx, filename)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer upgraded.Close()
+		settings, err := upgraded.ArticleAISettings(ctx)
+		if err != nil || settings != saved {
+			t.Fatalf("升级后设置：%+v %v，预期 %+v", settings, err, saved)
+		}
+		backups, err := filepath.Glob(filepath.Join(filename+".backups", "before-v31-*.db"))
+		if err != nil || len(backups) != 1 {
+			t.Fatalf("升级前备份：%v %v", backups, err)
+		}
+	})
 }
 
 func TestSummaryLanguageMigrationKeepsOldTextAndRejectsStaleLanguage(t *testing.T) {

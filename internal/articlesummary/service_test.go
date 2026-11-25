@@ -71,6 +71,15 @@ func summaryFixture(t *testing.T, body string, explicit bool) (string, *database
 func TestSummaryRespectsSettingsAndCachesBothOutcomes(t *testing.T) {
 	filename, store, _, source := summaryFixture(t, strings.Repeat("这段正文介绍维护窗口和完整的背景说明。", 12), true)
 	ctx := t.Context()
+	configuration := articleai.New(store, nil, nil)
+	settings, err := configuration.Settings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings.Summary.OnOpen = false
+	if _, err = configuration.Save(ctx, settings); err != nil {
+		t.Fatal(err)
+	}
 	var calls int
 	resolver := testResolver{testModel(func(context.Context, *ai.ModelRequest) (*ai.ModelResponse, error) {
 		calls++
@@ -79,7 +88,7 @@ func TestSummaryRespectsSettingsAndCachesBothOutcomes(t *testing.T) {
 	service := New(store, resolver, reader.NewService(store, nil, nil, nil))
 	result, err := service.Generate(ctx, Request{Source: source, Automatic: true})
 	if err != nil || result.Status != "none" || calls != 0 {
-		t.Fatalf("自动默认关闭：%+v %d %v", result, calls, err)
+		t.Fatalf("关闭自动摘要后仍尝试生成：%+v %d %v", result, calls, err)
 	}
 	result, err = service.Generate(ctx, Request{Source: source})
 	if err != nil || result.Status != "skipped" || calls != 0 {
@@ -98,8 +107,8 @@ func TestSummaryRespectsSettingsAndCachesBothOutcomes(t *testing.T) {
 	if err != nil || result.Status != "skipped" {
 		t.Fatalf("未复用短文判断：%+v %v", result, err)
 	}
-	configuration := articleai.New(reopened, nil, nil)
-	settings, err := configuration.Settings(ctx)
+	configuration = articleai.New(reopened, nil, nil)
+	settings, err = configuration.Settings(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

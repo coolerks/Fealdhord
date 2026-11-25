@@ -207,7 +207,7 @@ func TestArticleTranslationStoreAndUpgrade(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read upgraded settings: %v", err)
 	}
-	if settingsRow.AutoTranslate != 0 || settingsRow.AutoTranslateScope != "summary" || settingsRow.TranslateOnOpen != 1 || settingsRow.TranslationTargetLang != "zh-CN" {
+	if settingsRow.AutoTranslate != 0 || settingsRow.AutoTranslateScope != "summary" || settingsRow.TranslateOnOpen != 0 || settingsRow.TranslationTargetLang != "zh-CN" {
 		t.Fatalf("unexpected upgraded defaults: %+v", settingsRow)
 	}
 	upgradedSub, err := upgraded.GetSubscription(ctx, feedID)
