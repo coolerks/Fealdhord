@@ -200,7 +200,10 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
       <AnimatedGlyph meaning="badge-alert" className="reader-operation-icon" />
       <p role="alert" className="min-w-0 flex-1 m-0">{translation.error}</p>
       <div className="flex shrink-0 items-center gap-1.5">
-       {translation.error.includes('用途分配') && <Button variant="outline" size="sm" onClick={() => showSettings('ai')}>前往设置</Button>}
+       {translation.error.includes('用途分配') && <>
+        <Button variant="outline" size="sm" onClick={() => showSettings('ai')}>配置模型</Button>
+        <Button variant="ghost" size="sm" onClick={() => showSettings('article-ai')}>文章 AI 设置</Button>
+       </>}
        <Button variant="ghost" size="sm" onClick={() => { void translation.translate(false) }}>{translation.bodyStatus === 'partial' ? '继续翻译' : '重试'}</Button>
       </div>
      </>}

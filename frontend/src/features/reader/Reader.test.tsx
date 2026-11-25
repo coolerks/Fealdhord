@@ -339,6 +339,23 @@ it('订阅开启可独立于全局触发打开时翻译，并保留仅原文偏�
  expect(await screen.findByRole('menuitemradio', { name: '仅看原文', checked: true })).toBeInTheDocument()
 })
 
+it('未配置翻译模型时提示可关闭打开时自动翻译并提供对应设置入口', async () => {
+ const user = userEvent.setup()
+ translationMock.translate.mockRejectedValueOnce(new Error('ConfigurationError'))
+ translationPreferences.translateOnOpen = true
+ try {
+  setup()
+  const alert = await screen.findByRole('alert')
+  expect(alert).toHaveTextContent('请先在「设置 → 服务与模型」的用途分配中为「翻译」选择已启用的模型；若不想看到此提示，可在「设置 → 文章 AI」关闭「打开文章时自动翻译正文」。')
+  await user.click(screen.getByRole('button', { name: '配置模型' }))
+  expect(useWorkspace.getState().settingsTab).toBe('ai')
+  await user.click(screen.getByRole('button', { name: '文章 AI 设置' }))
+  expect(useWorkspace.getState().settingsTab).toBe('article-ai')
+ } finally {
+  translationPreferences.translateOnOpen = false
+ }
+})
+
 it('订阅关闭覆盖全局打开时翻译', async () => {
  translationPreferences.translateOnOpen = true
  try {

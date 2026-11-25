@@ -22,7 +22,7 @@ export const defaultTranslationLanguages: LanguageOption[] = [
 const errorMessages: Record<string, string> = {
   Busy: '该文章正在翻译中，请稍候。',
   BudgetExceeded: '已达到每小时文章 AI 预算上限。',
-  ConfigurationError: '请先在「设置 → 服务与模型」的用途分配中为「翻译」选择已启用的模型。',
+  ConfigurationError: '请先在「设置 → 服务与模型」的用途分配中为「翻译」选择已启用的模型；若不想看到此提示，可在「设置 → 文章 AI」关闭「打开文章时自动翻译正文」。',
   InvalidModelOutput: '模型返回的翻译格式无效，请重试。',
   NotFound: '文章不存在或所属订阅已归档。',
   RateLimitError: '模型服务限流，请稍后重试。',
