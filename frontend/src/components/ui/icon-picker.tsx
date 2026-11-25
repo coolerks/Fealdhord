@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Popover } from 'radix-ui'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import type { IconMeaning } from '@/components/animated-glyph'
@@ -11,7 +11,7 @@ import { SegmentedControl } from '@/components/ui/segmented-control'
 import { ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 
-const animatedMeta: Record<AnimatedIconName, string> = {
+const animatedMeta: Partial<Record<AnimatedIconName, string>> = {
   'activity': '动态 脉冲 趋势',
   'arrow-down-0-1': '排序 升序 数字',
   'arrow-down-1-0': '排序 降序 数字',
@@ -136,6 +136,8 @@ export function IconPicker({
   const [query, setQuery] = useState('')
   const [limit, setLimit] = useState(PAGE_SIZE)
   const searchRef = useRef<HTMLInputElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const sentinelRef = useRef<HTMLDivElement>(null)
 
   const lucideRegistry = useLucideRegistry(open && tab === 'static')
 
@@ -163,6 +165,26 @@ export function IconPicker({
     if (!term) return staticList
     return staticList.filter(item => item.search.includes(term))
   }, [staticList, term])
+
+  const totalInTab = tab === 'animated' ? filteredAnimated.length : filteredStatic.length
+  const hasMore = totalInTab > limit
+
+  useEffect(() => {
+    if (!open || !hasMore) return
+    const sentinel = sentinelRef.current
+    const root = scrollRef.current
+    if (!sentinel || !root || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries.some(entry => entry.isIntersecting)) {
+          setLimit(current => current + PAGE_SIZE)
+        }
+      },
+      { root, rootMargin: '120px' },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [open, hasMore, tab, term, limit])
 
   const activeAnimated = resolveAnimatedIcon(value)
   const displayName = value.startsWith('lucide:')
@@ -240,13 +262,23 @@ export function IconPicker({
             className="h-8 text-xs"
           />
 
-          <div className="max-h-60 overflow-y-auto pr-0.5">
+          <div
+            ref={scrollRef}
+            className="max-h-60 overflow-y-auto pr-0.5"
+            onScroll={event => {
+              if (!hasMore) return
+              const el = event.currentTarget
+              if (el.scrollTop + el.clientHeight >= el.scrollHeight - 120) {
+                setLimit(current => current + PAGE_SIZE)
+              }
+            }}
+          >
             {tab === 'animated' ? (
               filteredAnimated.length === 0 ? (
                 <p className="py-6 text-center text-xs text-muted-foreground">没有匹配的动态图标</p>
               ) : (
                 <div className="grid grid-cols-6 gap-1">
-                  {filteredAnimated.map(item => {
+                  {filteredAnimated.slice(0, limit).map(item => {
                     const selected = activeAnimated === item.name
                     return (
                       <button
@@ -275,45 +307,33 @@ export function IconPicker({
             ) : filteredStatic.length === 0 ? (
               <p className="py-6 text-center text-xs text-muted-foreground">没有匹配的静态图标</p>
             ) : (
-              <div className="space-y-2">
-                <div className="grid grid-cols-6 gap-1">
-                  {filteredStatic.slice(0, limit).map(item => {
-                    const IconComponent = lucideRegistry[item.name]
-                    const selected = value === item.value
-                    return (
-                      <button
-                        key={item.name}
-                        type="button"
-                        title={item.kebab}
-                        aria-label={item.kebab}
-                        aria-pressed={selected}
-                        onClick={() => {
-                          onChange(item.value)
-                          setOpen(false)
-                        }}
-                        className={cn(
-                          'flex h-10 items-center justify-center rounded-lg border border-transparent text-foreground transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-                          selected && 'border-ring bg-accent text-accent-foreground',
-                        )}
-                      >
-                        <IconComponent className="size-4" strokeWidth={1.7} aria-hidden="true" />
-                      </button>
-                    )
-                  })}
-                </div>
-                {filteredStatic.length > limit && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="w-full text-xs text-muted-foreground"
-                    onClick={() => setLimit(current => current + PAGE_SIZE)}
-                  >
-                    加载更多（剩余 {filteredStatic.length - limit} 个）
-                  </Button>
-                )}
+              <div className="grid grid-cols-6 gap-1">
+                {filteredStatic.slice(0, limit).map(item => {
+                  const IconComponent = lucideRegistry[item.name]
+                  const selected = value === item.value
+                  return (
+                    <button
+                      key={item.name}
+                      type="button"
+                      title={item.kebab}
+                      aria-label={item.kebab}
+                      aria-pressed={selected}
+                      onClick={() => {
+                        onChange(item.value)
+                        setOpen(false)
+                      }}
+                      className={cn(
+                        'flex h-10 items-center justify-center rounded-lg border border-transparent text-foreground transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                        selected && 'border-ring bg-accent text-accent-foreground',
+                      )}
+                    >
+                      <IconComponent className="size-4" strokeWidth={1.7} aria-hidden="true" />
+                    </button>
+                  )
+                })}
               </div>
             )}
+            {hasMore && <div ref={sentinelRef} className="h-4" aria-hidden="true" />}
           </div>
         </Popover.Content>
       </Popover.Portal>

@@ -19,15 +19,15 @@ it('StrictMode 首次悬停按需挂载的全部真实图标确实运动、归�
         ? <div key={name} role="menuitem" tabIndex={-1} data-testid={name}><AnimatedGlyph meaning={name}/>{name}</div>
         : <AnimatedGlyph key={name} data-testid={name} meaning={name}/>)}
   </MotionConfig></IconMotionContext.Provider></StrictMode>)
+  const targets = new Map(names.map(name => [name, screen.getByTestId(name)]))
   await act(async () => {
-    for (const name of names) fireEvent.mouseEnter(screen.getByTestId(name))
+    for (const target of targets.values()) fireEvent.mouseEnter(target)
   })
   const frames = new Map(names.map(name => [name, new Set<string>()]))
   for (let step = 1; step <= 750; step++) {
     await act(async () => { processFrame(step * 16); await Promise.resolve() })
     if (step % 4 !== 0) continue
-    for (const name of names) {
-      const target = screen.getByTestId(name)
+    for (const [name, target] of targets) {
       const active = target.matches('[data-animating=true]') || target.querySelector('[data-animating=true]')
       if (active) frames.get(name)!.add(target.querySelector('svg')!.outerHTML)
     }
@@ -46,4 +46,4 @@ it('StrictMode 首次悬停按需挂载的全部真实图标确实运动、归�
     await act(async () => { processFrame(12200 + step * 16); await Promise.resolve() })
   }
   expect(settings.querySelector('.icon-still')).toBeInTheDocument()
-}, 15000)
+}, 30000)

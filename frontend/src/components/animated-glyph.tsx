@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import type { HTMLAttributes } from 'react'
+import type { ForwardRefExoticComponent, HTMLAttributes, RefAttributes } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { animatedIcons } from './icon-catalog'
 import type { AnimatedIconName } from './icon-catalog'
@@ -7,7 +7,7 @@ import stills from './icon-stills.json'
 import { cn } from '@/lib/utils'
 
 export const IconMotionContext = createContext<'full' | 'subtle' | 'off'>('off')
-export type IconHandle = { cancelAnimation: () => void; startAnimation: () => Promise<unknown>; stopAnimation: () => Promise<unknown> }
+export type IconHandle = { cancelAnimation?: () => void; startAnimation: () => unknown; stopAnimation: () => unknown }
 const aliases = { favorite: 'bookmark', folder: 'folder-open', grid: 'layout-grid', ai: 'sparkles', collapse: 'panel-left-close', expand: 'panel-left-open', read: 'check-check', book: 'book-text', list: 'layers', refresh: 'refresh-cw', add: 'plus', unread: 'circle-dashed' } as const
 export type IconMeaning = AnimatedIconName | keyof typeof aliases
 const triggerSelector = 'button,[role=radio],[role=tab],[role=menuitem],[role=menuitemradio],[role=menuitemcheckbox],[role=option],[data-animated-trigger]'
@@ -25,7 +25,7 @@ function GlyphPlayback({ mode, icon: Fallback, meaning = 'book', className, ...p
   const busy = useRef(false)
   const [playing, setPlaying] = useState(false)
   const name: AnimatedIconName = Object.hasOwn(aliases, meaning) ? aliases[meaning as keyof typeof aliases] : meaning as AnimatedIconName
-  const Component = animatedIcons[name]
+  const Component = animatedIcons[name] as ForwardRefExoticComponent<{ size?: number } & RefAttributes<IconHandle>>
 
   useEffect(() => {
     const element = holder.current
@@ -68,7 +68,12 @@ function GlyphPlayback({ mode, icon: Fallback, meaning = 'book', className, ...p
       if (!current) return
       void (async () => {
         try {
-          await animation.startAnimation()
+          const started = animation.startAnimation()
+          if (started && typeof (started as PromiseLike<unknown>).then === 'function') {
+            await started
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 500))
+          }
           if (current) await animation.stopAnimation()
         } catch {
           // 装饰动画失败时归回静态图标，不影响原操作。
@@ -77,7 +82,7 @@ function GlyphPlayback({ mode, icon: Fallback, meaning = 'book', className, ...p
         }
       })()
     })
-    return () => { current = false; animation.cancelAnimation() }
+    return () => { current = false; animation.cancelAnimation?.() }
   }, [playing, mode, Component])
 
   return <span {...props} ref={holder} className={cn('animated-glyph', className)} data-icon="inline-start" data-meaning={meaning} data-animating={playing && mode === 'full'} aria-hidden="true">
