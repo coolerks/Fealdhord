@@ -12,6 +12,7 @@ const apiMock = vi.hoisted(() => ({
   SaveToolPermissions: vi.fn(),
   ShellSettings: vi.fn(),
   SaveDefaultShell: vi.fn(),
+  SaveCustomShell: vi.fn(),
 }))
 
 vi.mock('../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/api', () => apiMock)
@@ -42,6 +43,10 @@ describe('ToolPermissionsSettings', () => {
     }
     apiMock.ShellSettings.mockResolvedValue(shellSettings)
     apiMock.SaveDefaultShell.mockImplementation(async (defaultShell: string) => ({ ...shellSettings, defaultShell }))
+    apiMock.SaveCustomShell.mockImplementation(async (customPath: string) => {
+      if (!customPath.startsWith('/')) throw new Error('InvalidShellPath')
+      return { ...shellSettings, defaultShell: 'custom', customPath, customAvailable: true }
+    })
     stored = [
       { id: 'builtin:article.search', name: 'article.search', description: '搜索本地文章', available: true, requiresApproval: false, mode: '' },
       { id: 'builtin:feed.add', name: 'feed.add', description: '添加新订阅源', available: true, requiresApproval: true, mode: '' },
@@ -83,6 +88,38 @@ describe('ToolPermissionsSettings', () => {
 
     await waitFor(() => expect(apiMock.SaveDefaultShell).toHaveBeenCalledWith('bash'))
     await waitFor(() => expect(shell).toHaveTextContent('Bash'))
+  })
+
+  it('可输入自定义 Shell 路径，校验失败后保留输入，保存后可再次编辑', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+
+    const shell = await screen.findByRole('button', { name: '默认 Shell' })
+    await waitFor(() => expect(shell).toBeEnabled())
+    await user.click(shell)
+    await user.click(await screen.findByRole('option', { name: '自定义路径' }))
+
+    const dialog = await screen.findByRole('dialog', { name: '自定义 Shell 路径' })
+    const path = within(dialog).getByRole('textbox', { name: '可执行文件路径' })
+    expect(path).toHaveFocus()
+    const save = within(dialog).getByRole('button', { name: '保存' })
+    expect(save).toBeDisabled()
+    await user.type(path, 'bash{Enter}')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('请输入 Shell 可执行文件的绝对路径。')
+    expect(path).toHaveValue('bash')
+
+    const executable = '/opt/my shells/bash'
+    await user.clear(path)
+    await user.type(path, executable)
+    await user.click(save)
+    expect(await screen.findByText(executable)).toBeVisible()
+    expect(screen.queryByRole('dialog', { name: '自定义 Shell 路径' })).not.toBeInTheDocument()
+    expect(apiMock.SaveCustomShell).toHaveBeenLastCalledWith(executable)
+    expect(apiMock.SaveDefaultShell).not.toHaveBeenCalled()
+
+    await user.click(shell)
+    await user.click(await screen.findByRole('option', { name: '自定义路径' }))
+    expect(await screen.findByRole('textbox', { name: '可执行文件路径' })).toHaveValue(executable)
   })
 
   it('默认折叠分组，展开后通过四段切换修改单条工具权限', async () => {

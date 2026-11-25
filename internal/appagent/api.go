@@ -26,6 +26,9 @@ func (a *API) ShellSettings() (ShellSettings, error) { return a.platform.ShellSe
 func (a *API) SaveDefaultShell(id string) (ShellSettings, error) {
 	return a.platform.SaveDefaultShell(id)
 }
+func (a *API) SaveCustomShell(path string) (ShellSettings, error) {
+	return a.platform.SaveCustomShell(path)
+}
 func (a *API) PendingActions() []PendingAction         { return a.platform.PendingActions() }
 func (a *API) DecideAction(id string, allow bool) bool { return a.platform.DecideAction(id, allow) }
 func (a *API) PendingQuestions() []PendingQuestion     { return a.platform.PendingQuestions() }

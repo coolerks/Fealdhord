@@ -82,6 +82,10 @@ export function RotateMCPToken(): $CancellablePromise<string> {
     return $Call.ByID(2367635639);
 }
 
+export function SaveCustomShell(path: string): $CancellablePromise<$models.ShellSettings> {
+    return $Call.ByID(287315539, path);
+}
+
 export function SaveDefaultShell(id: string): $CancellablePromise<$models.ShellSettings> {
     return $Call.ByID(1946494661, id);
 }

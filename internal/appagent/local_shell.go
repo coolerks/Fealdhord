@@ -3,6 +3,8 @@ package appagent
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"os"
@@ -10,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf16"
 
 	"github.com/coolerks/Fealdhord/internal/agentrun"
 )
@@ -31,6 +34,25 @@ type localShellResult struct {
 	Stderr    string `json:"stderr"`
 	Truncated bool   `json:"truncated"`
 	TimedOut  bool   `json:"timedOut,omitempty"`
+}
+
+func dashCShellCommand(ctx context.Context, shell ShellOption, command string) *exec.Cmd {
+	switch shell.ID {
+	case "zsh":
+		return exec.CommandContext(ctx, shell.Path, "-f", "-c", command)
+	case "fish":
+		return exec.CommandContext(ctx, shell.Path, "--no-config", "-c", command)
+	}
+	return exec.CommandContext(ctx, shell.Path, "-c", command)
+}
+
+func powerShellCommand(ctx context.Context, path, command string) *exec.Cmd {
+	units := utf16.Encode([]rune(command))
+	data := make([]byte, 2*len(units))
+	for i, unit := range units {
+		binary.LittleEndian.PutUint16(data[2*i:], unit)
+	}
+	return exec.CommandContext(ctx, path, "-NoProfile", "-NonInteractive", "-EncodedCommand", base64.StdEncoding.EncodeToString(data))
 }
 
 type shellBuffer struct {

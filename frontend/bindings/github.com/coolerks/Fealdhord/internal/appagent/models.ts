@@ -109,6 +109,8 @@ export interface ShellOption {
 export interface ShellSettings {
     "defaultShell": string;
     "options": ShellOption[] | null;
+    "customPath"?: string;
+    "customAvailable"?: boolean;
 }
 
 export interface Skill {

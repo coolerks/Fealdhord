@@ -93,6 +93,7 @@ type Platform struct {
 	skillEdit      sync.Mutex
 	skillImports   map[string]skillImport
 	localFileEdit  sync.Mutex
+	shellEdit      sync.Mutex
 	dir            string
 	mu             sync.Mutex
 	state          serverSettings

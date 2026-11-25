@@ -2,6 +2,7 @@ package appagent
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -90,4 +91,68 @@ func TestUnavailableSavedShellDoesNotFallBack(t *testing.T) {
 		return
 	}
 	t.Fatal("shell tool was absent")
+}
+
+func TestCustomShellPathPersistsAndRunsOnlyAfterApproval(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "shell with spaces")
+	enteredPath := "~/shell with spaces"
+	command := "printf result"
+	wantOutput := "custom shell: result"
+	if runtime.GOOS == "windows" {
+		path = filepath.Join(os.Getenv("SystemRoot"), "System32", "cmd.exe")
+		enteredPath = path
+		command = `echo "custom shell result"`
+		wantOutput = "custom shell result"
+	} else {
+		t.Setenv("HOME", dir)
+		if err := os.WriteFile(path, []byte("#!/bin/sh\nprintf 'custom shell: '\nexec /bin/sh \"$@\"\n"), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	platform := NewPlatform(NewRegistry(), dir)
+	saved, err := platform.SaveCustomShell(enteredPath)
+	if err != nil || saved.DefaultShell != customShell || saved.CustomPath != path || !saved.CustomAvailable {
+		t.Fatalf("failed to save custom shell: %+v %v", saved, err)
+	}
+	reopened := NewPlatform(NewRegistry(), dir)
+	if _, err := reopened.SaveCustomShell("relative/path"); err == nil || err.Error() != "InvalidShellPath" {
+		t.Fatalf("expected relative path to be rejected, got %v", err)
+	}
+	if _, err := reopened.SaveCustomShell(filepath.Join(dir, "missing.exe")); err == nil || err.Error() != "ShellUnavailable" {
+		t.Fatalf("expected missing file to be rejected, got %v", err)
+	}
+	if runtime.GOOS != "windows" {
+		notExecutable := filepath.Join(dir, "not-executable")
+		if err := os.WriteFile(notExecutable, []byte("#!/bin/sh\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := reopened.SaveCustomShell(notExecutable); err == nil || err.Error() != "ShellUnavailable" {
+			t.Fatalf("expected nonexecutable file to be rejected, got %v", err)
+		}
+	}
+	tools := reopened.localChatTools("test", &skillRun{})
+	index := slices.IndexFunc(tools, func(tool agentrun.ReadTool) bool { return tool.Definition.Name == "shell" })
+	if index < 0 || !strings.Contains(tools[index].Definition.Description, filepath.Base(path)) {
+		t.Fatal("tool definition did not identify the custom shell")
+	}
+	preset, err := reopened.SaveDefaultShell(automaticShell)
+	if err != nil || preset.DefaultShell != automaticShell || preset.CustomPath != path {
+		t.Fatalf("switching to a preset lost the saved custom path: %+v %v", preset, err)
+	}
+	ctx := agentrun.WithWorkspace(t.Context(), agentrun.Workspace{Roots: []string{dir}})
+	action, done := waitForShellApproval(t, reopened, ctx, tools[index], command)
+	var request localShellApproval
+	if err := json.Unmarshal([]byte(action.Arguments), &request); err != nil || request.Shell != path || request.Workdir != dir || request.Command != command {
+		t.Fatalf("approval did not show the custom shell, directory and exact command: %+v %v", request, err)
+	}
+	if !reopened.DecideAction(action.ID, true) {
+		t.Fatal("could not approve command in custom shell")
+	}
+	if result := <-done; !strings.Contains(result, `"exitCode":0`) || !strings.Contains(result, wantOutput) {
+		t.Fatalf("custom shell did not run its command: %s", result)
+	}
 }

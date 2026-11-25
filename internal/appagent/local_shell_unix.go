@@ -21,13 +21,10 @@ func platformShells() []shellSpec {
 }
 
 func localShellCommand(ctx context.Context, shell ShellOption, command string) *exec.Cmd {
-	switch shell.ID {
-	case "zsh":
-		return exec.CommandContext(ctx, shell.Path, "-f", "-c", command)
-	case "fish":
-		return exec.CommandContext(ctx, shell.Path, "--no-config", "-c", command)
+	if shell.ID == "pwsh" || shell.ID == "powershell" {
+		return powerShellCommand(ctx, shell.Path, command)
 	}
-	return exec.CommandContext(ctx, shell.Path, "-c", command)
+	return dashCShellCommand(ctx, shell, command)
 }
 
 func startLocalShell(cmd *exec.Cmd) (func(), error) {

@@ -18,7 +18,7 @@
 
 `API.ImportSkill()` 通过本地文件选择器返回预览。ZIP 预览携带 `importId` 和不含文件正文的资源清单。确认时 `API.SaveSkillPackage(input)` 使用预览标识、编辑后的声明和启用状态。`API.CancelSkillImport(id)` 取消暂存。`API.Skills()` 返回元数据，`API.SkillDetails(name)` 加载说明及清单，`API.SetSkillEnabled(name, enabled)` 更新启用状态。支持 UTF-8 BOM 和 CRLF。压缩包、解包总量、单文件和条目超限分别返回 `SkillArchiveTooLarge`、`SkillArchiveExpandedTooLarge`、`SkillArchiveFileTooLarge`、`SkillArchiveEntriesExceeded`。预览失效返回 `SkillImportExpired`。旧版本变化返回 `SkillChanged`。ZIP 路径或结构异常返回 `InvalidSkillPackage`。声明错误沿用 `SkillEncodingInvalid`、`SkillFrontMatterInvalid`、`SkillNameInvalid`、`SkillDescriptionInvalid`、`SkillBodyRequired` 和 `SkillTextTooLarge`。
 
-`API.ShellSettings()` 与 `API.SaveDefaultShell(id)` 返回 `defaultShell` 和平台选项 `options`。每项包含 `id`、`label` 及检测到时的可执行文件 `path`。`auto` 恢复应用默认解释器。保存未知 ID 返回 `ValidationError`，保存未安装的解释器返回 `ShellUnavailable`，读写偏好失败返回 `StorageError`。
+`API.ShellSettings()`、`API.SaveDefaultShell(id)` 与 `API.SaveCustomShell(path)` 返回 `defaultShell` 和平台选项 `options`。每项包含 `id`、`label` 及检测到时的可执行文件 `path`。`auto` 恢复应用默认解释器。保存自定义路径后 `defaultShell` 为 `custom`，并返回 `customPath`。已记住的路径可用时还返回 `customAvailable: true`。Windows 自定义路径使用 `.exe` 或 `.com` 文件。未知预设返回 `ValidationError`，自定义路径格式无效返回 `InvalidShellPath`，解释器不可用返回 `ShellUnavailable`，读写偏好失败返回 `StorageError`。
 
 本机 `shell` 的 `PendingAction.arguments` 提供完整 `command`、解析后的 `workdir` 和应用选定的解释器路径 `shell`。审批类型沿用现有会话匹配，`builtin:shell` 支持审批和拒绝规则。
 

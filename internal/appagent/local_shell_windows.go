@@ -2,13 +2,10 @@ package appagent
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/binary"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
-	"unicode/utf16"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -26,19 +23,17 @@ func platformShells() []shellSpec {
 }
 
 func localShellCommand(ctx context.Context, shell ShellOption, command string) *exec.Cmd {
-	if shell.ID == "cmd" {
+	switch shell.ID {
+	case automaticShell, "powershell", "pwsh":
+		return powerShellCommand(ctx, shell.Path, command)
+	case "cmd":
 		cmd := exec.CommandContext(ctx, shell.Path)
 		// CMD strips the first and last quotes with /s; Go's default
 		// argument quoting would change quotes inside the command.
 		cmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: `"` + shell.Path + `" /d /s /c "` + command + `"`}
 		return cmd
 	}
-	units := utf16.Encode([]rune(command))
-	data := make([]byte, 2*len(units))
-	for i, unit := range units {
-		binary.LittleEndian.PutUint16(data[2*i:], unit)
-	}
-	return exec.CommandContext(ctx, shell.Path, "-NoProfile", "-NonInteractive", "-EncodedCommand", base64.StdEncoding.EncodeToString(data))
+	return dashCShellCommand(ctx, shell, command)
 }
 
 func startLocalShell(cmd *exec.Cmd) (func(), error) {

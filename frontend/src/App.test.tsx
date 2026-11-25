@@ -75,7 +75,7 @@ const pendingActions = vi.hoisted(() => vi.fn())
 const decideAction = vi.hoisted(() => vi.fn())
 const toolPermissions = vi.hoisted(() => ({
   ToolPermissions: vi.fn(), SaveToolPermission: vi.fn(), SaveToolPermissions: vi.fn(),
-  ShellSettings: vi.fn(), SaveDefaultShell: vi.fn(),
+  ShellSettings: vi.fn(), SaveDefaultShell: vi.fn(), SaveCustomShell: vi.fn(),
 }))
 const mcpConnections = vi.hoisted(() => ({ MCPClients: vi.fn(), ConnectMCP: vi.fn(), MCPClientLogs: vi.fn() }))
 const mcpGrants = vi.hoisted(() => ({
