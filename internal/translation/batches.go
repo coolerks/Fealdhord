@@ -182,17 +182,9 @@ func protectCode(raw string) (string, []protectedCode) {
 			out.WriteString(markup)
 			continue
 		}
-		var original strings.Builder
-		original.WriteString(markup)
-		for next := z.Next(); next != xhtml.ErrorToken; next = z.Next() {
-			original.Write(z.Raw())
-			end := z.Token()
-			if next == xhtml.EndTagToken && end.Data == token.Data {
-				break
-			}
-		}
+		original := takeInlineAtom(z, markup, token.Data)
 		marker := fmt.Sprintf("%s%d]]", stem, len(protected))
-		protected = append(protected, protectedCode{marker, original.String()})
+		protected = append(protected, protectedCode{marker, original})
 		out.WriteString("<" + token.Data + ">" + marker + "</" + token.Data + ">")
 	}
 	return out.String(), protected
@@ -242,13 +234,7 @@ func splitInline(raw, id string, textLimit int, fits func(translationUnit) bool)
 		switch kind {
 		case xhtml.StartTagToken:
 			if token.Data == "code" || token.Data == "kbd" {
-				for next := z.Next(); next != xhtml.ErrorToken; next = z.Next() {
-					markup += string(z.Raw())
-					end := z.Token()
-					if next == xhtml.EndTagToken && end.Data == token.Data {
-						break
-					}
-				}
+				markup = takeInlineAtom(z, markup, token.Data)
 				if hasText && !fits(translationUnit{ID: nextID(), HTML: body.String() + markup + suffix()}) {
 					if err := finish(); err != nil {
 						return nil, err

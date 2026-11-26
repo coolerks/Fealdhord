@@ -87,6 +87,8 @@ func (s *Service) runBodyBatch(ctx context.Context, work *bodyWork, adapter ai.M
 	changed := false
 	titleMissing := title
 	firstRecord := true
+	rejected := make(map[string]string)
+	malformedRecords := 0
 	flush := func() error {
 		if !changed {
 			return nil
@@ -99,26 +101,39 @@ func (s *Service) runBodyBatch(ctx context.Context, work *bodyWork, adapter ai.M
 	}
 	target := work.record.TargetLang
 	accept := func(line string) {
+		if strings.TrimSpace(line) == "" {
+			return
+		}
 		var item translationItem
-		if len(strings.TrimSpace(line)) == 0 || json.Unmarshal([]byte(line), &item) != nil || strings.TrimSpace(item.Text) == "" {
+		if json.Unmarshal([]byte(line), &item) != nil {
+			malformedRecords++
 			return
 		}
 		if titleMissing && item.ID == "title" {
-			work.record.TranslatedTitle = strings.TrimSpace(item.Text)
-			titleMissing, changed = false, true
+			if titleText := strings.TrimSpace(item.Text); titleText != "" {
+				work.record.TranslatedTitle = titleText
+				titleMissing, changed = false, true
+			}
 			return
 		}
 		unit, ok := expected[item.ID]
 		if !ok {
 			return
 		}
-		if strings.TrimSpace(item.Text) == strings.TrimSpace(unit.wireText()) {
+		text := strings.TrimSpace(item.Text)
+		if text == "" {
+			rejected[item.ID] = "empty_text"
+			return
+		}
+		if text == strings.TrimSpace(unit.wireText()) {
 			if language, confident := DetectLocal(item.Text); confident && !MatchesTarget(language, true, target) {
+				rejected[item.ID] = "unchanged_source"
 				return
 			}
 		}
 		result, ok := validateUnit(unit, item.Text)
 		if !ok {
+			rejected[item.ID] = "inline_format"
 			return
 		}
 		work.accept(unit, result)
@@ -166,9 +181,6 @@ readStream:
 				finishReason = event.FinishReason
 				switch finishReason {
 				case "stop", "length":
-					if !lines.discard {
-						accept(lines.line.String())
-					}
 				case "refusal", "content_filter":
 					err = &ai.ModelError{Code: "TranslationRefused"}
 				default:
@@ -183,6 +195,10 @@ readStream:
 				break readStream
 			}
 		}
+	}
+	// A complete JSON object can arrive just before a disconnect, without its line ending.
+	if ctx.Err() == nil && !lines.discard && (finishReason == "stop" || finishReason == "length" || canSkipFailedBatch(err)) {
+		accept(lines.line.String())
 	}
 	if usage != nil && usage.InputTokens != nil {
 		work.input += int64(*usage.InputTokens)
@@ -210,8 +226,17 @@ readStream:
 		if err != nil {
 			code = modelErrorCode(err)
 		}
+		var missingDetails []string
+		for _, unit := range missing[:min(len(missing), 8)] {
+			reason := rejected[unit.ID]
+			if reason == "" {
+				reason = "missing_record"
+			}
+			missingDetails = append(missingDetails, unit.ID+":"+reason)
+		}
 		slog.WarnContext(ctx, "正文翻译批次未齐", "code", code, "finish", finishReason,
 			"repair", repair, "items", len(batch), "missing", len(missing), "title_missing", titleMissing,
+			"missing_details", missingDetails, "malformed_records", malformedRecords,
 			"duration_ms", time.Since(start).Milliseconds())
 	}
 	return missing, titleMissing, err

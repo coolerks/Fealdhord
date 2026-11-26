@@ -243,7 +243,7 @@ it('支持段落行内双语对照、仅看译文和仅看原文切换，且不�
  const user = userEvent.setup()
  api.get.mockResolvedValue({
   ...feed,
-  html: `<h2 data-tr-block="b0">Overview</h2><p data-tr-block="b1">Hello English paragraph.<img src="/media/inline/${imageIDs[0]}" alt="插图"></p><ul><li data-tr-block="b2"><em>List item</em></li></ul><table><tbody><tr><td data-tr-block="b3">Cell</td></tr></tbody></table><p data-tr-block="b4">Untranslated paragraph</p><pre><code>const keep = true;</code></pre>`,
+  html: `<h2 data-tr-block="b0">Overview</h2><p data-tr-block="b1">Hello English paragraph.<img src="/media/inline/${imageIDs[0]}" alt="插图"></p><ul><li data-tr-block="b2"><em>List item</em></li></ul><table><tbody><tr><td data-tr-block="b3">Cell</td><td data-tr-block="b5"><code>/plan</code></td></tr></tbody></table><p data-tr-block="b4">Untranslated paragraph</p><pre><code>const keep = true;</code></pre>`,
  })
  translationMock.get.mockResolvedValue({
   articleId: 'a-0',
@@ -259,9 +259,10 @@ it('支持段落行内双语对照、仅看译文和仅看原文切换，且不�
    { id: 'b1', sourceHash: 's1', translatedHtml: '你好英文段落。' },
    { id: 'b2', sourceHash: 's2', translatedHtml: '<em>列表项</em>' },
    { id: 'b3', sourceHash: 's3', translatedHtml: '单元格' },
+   { id: 'b5', sourceHash: 's5', translatedHtml: '<code>/plan</code>' },
   ],
-  translatedBlocks: 4,
-  totalBlocks: 5,
+  translatedBlocks: 5,
+  totalBlocks: 6,
   modelId: 'm1',
   errorCode: '',
   updatedAt: 1,
@@ -270,6 +271,7 @@ it('支持段落行内双语对照、仅看译文和仅看原文切换，且不�
 
  expect(await screen.findByText('你好英文段落。')).toBeInTheDocument()
  expect(screen.getByText('Hello English paragraph.')).toBeInTheDocument()
+ expect(screen.getAllByText('/plan')).toHaveLength(1)
  expect(screen.getByText('中文译文标题')).toBeInTheDocument()
  expect(document.querySelector('pre code')?.textContent).toContain('const keep = true;')
  expect(document.querySelectorAll('.reader-outline-panel li')).toHaveLength(1)
@@ -285,6 +287,7 @@ it('支持段落行内双语对照、仅看译文和仅看原文切换，且不�
  expect(screen.getByText('Cell')).not.toBeVisible()
  expect(screen.getByText('列表项').closest('li')).toBeVisible()
  expect(screen.getByRole('cell', { name: '单元格' })).toBeVisible()
+ expect(screen.getByText('/plan')).toBeVisible()
  expect(screen.getByText('Untranslated paragraph')).toBeVisible()
  expect(screen.getByRole('button', { name: '查看图片：插图' })).toBe(image)
 

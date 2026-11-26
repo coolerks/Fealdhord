@@ -126,6 +126,7 @@ export function ArticleHTML({
       translatedNode.dataset.trTag = tag.toLowerCase()
       translatedNode.dataset.trMode = translationMode
       translatedNode.innerHTML = translatedHTML
+      if (source.innerHTML === translatedNode.innerHTML) continue
 
       if (translationMode === 'translated') {
         hideOriginalText(source, restore)

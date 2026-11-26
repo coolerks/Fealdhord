@@ -76,3 +76,33 @@ func TestTranslationRepairRejectsInvalidMarkers(t *testing.T) {
 		}
 	}
 }
+
+func TestTranslationMovesWholeCodeMarkersWithinTheirGroup(t *testing.T) {
+	planner := batchPlanner{model: "test", system: "Translate.", budget: ai.ContextBudget(ai.Metadata{})}
+	source := SourceBlock{ID: "b0", InnerHTML: `I added a <code>PreToolUse</code> hook in <code>.agents/hooks.json</code>.`}
+	plan, err := planner.split(source)
+	if err != nil || len(plan.units) != 1 {
+		t.Fatalf("plan for inline code: %+v %v", plan, err)
+	}
+	unit := plan.units[0]
+	if got := unit.wireText(); got != "I added a [[CODE0]] hook in [[CODE1]]." {
+		t.Fatalf("inline code must use one opaque marker per span: %q", got)
+	}
+	want := `我在 <code>.agents/hooks.json</code> 中添加了一个 <code>PreToolUse</code> 钩子。`
+	if got, ok := validateUnit(unit, "我在 [[CODE1]] 中添加了一个 [[CODE0]] 钩子。"); !ok || got != want {
+		t.Fatalf("natural Chinese order should survive: %q %v", got, ok)
+	}
+	for _, bad := range []string{"[[CODE1]] [[CODE1]]", "[[CODE1]] [[CODE2]]", "[[CODE0]]"} {
+		if _, ok := validateUnit(unit, bad); ok {
+			t.Fatalf("accepted missing or replaced code: %q", bad)
+		}
+	}
+	protected := `A <code>first</code> value and <strong>a <code>second</code> value</strong>.`
+	plan, err = planner.split(SourceBlock{ID: "b1", InnerHTML: protected})
+	if err != nil || len(plan.units) != 1 {
+		t.Fatalf("plan for nested code: %+v %v", plan, err)
+	}
+	if _, ok := validateUnit(plan.units[0], "[[CODE1]] 和 [[FT1]][[CODE0]][[FT3]]"); ok {
+		t.Fatal("code must stay within its surrounding formatting markers")
+	}
+}

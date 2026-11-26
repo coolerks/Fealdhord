@@ -109,36 +109,91 @@ func restoreInline(source, translated string) (string, bool) {
 	return out.String(), nextTag == len(sourceTags)
 }
 
+type inlineMarker struct {
+	html  string
+	group int
+}
+
 type inlineFormat struct {
 	text    string
-	markers []string
-	tags    []string
+	markers []inlineMarker
+	indices map[string]int
 	pattern *regexp.Regexp
 }
 
-// encodeInline keeps the original HTML and resource attributes local.
+// takeInlineAtom consumes a code or keyboard span, including any nested spans of the same type.
+func takeInlineAtom(tokens *xhtml.Tokenizer, markup, tag string) string {
+	var out strings.Builder
+	out.WriteString(markup)
+	depth := 1
+	for kind := tokens.Next(); kind != xhtml.ErrorToken; kind = tokens.Next() {
+		out.Write(tokens.Raw())
+		if tokens.Token().Data != tag {
+			continue
+		}
+		if kind == xhtml.StartTagToken {
+			depth++
+		}
+		if kind == xhtml.EndTagToken {
+			depth--
+			if depth == 0 {
+				break
+			}
+		}
+	}
+	return out.String()
+}
+
+// encodeInline keeps resource attributes local and exposes each inline code span as one marker.
 func encodeInline(raw string) *inlineFormat {
-	stem := "FT"
+	stem, codeStem := "FT", "CODE"
 	plain := stdhtml.UnescapeString(raw)
 	for strings.Contains(plain, "[["+stem) {
 		stem += "T"
 	}
+	for strings.Contains(plain, "[["+codeStem) {
+		codeStem += "E"
+	}
 	format := &inlineFormat{}
 	var out strings.Builder
+	var previousAtom string
+	codeCount := 0
 	tokens := xhtml.NewTokenizer(strings.NewReader(raw))
 	for kind := tokens.Next(); kind != xhtml.ErrorToken; kind = tokens.Next() {
-		if isInlineTag(kind) {
-			marker := fmt.Sprintf("[[%s%d]]", stem, len(format.tags))
-			format.tags = append(format.tags, string(tokens.Raw()))
-			format.markers = append(format.markers, marker)
-			out.WriteString(marker)
-		} else if kind == xhtml.TextToken {
-			out.Write(tokens.Text())
+		if !isInlineTag(kind) {
+			if kind == xhtml.TextToken {
+				out.Write(tokens.Text())
+			}
+			continue
 		}
+		markup := string(tokens.Raw())
+		tag := tokens.Token().Data
+		index := len(format.markers)
+		group, atom := index, ""
+		var marker string
+		if kind == xhtml.StartTagToken && (tag == "code" || tag == "kbd") {
+			markup = takeInlineAtom(tokens, markup, tag)
+			marker = fmt.Sprintf("[[%s%d]]", codeStem, codeCount)
+			codeCount++
+			atom = tag
+			// Only adjacent atoms of the same type can trade places. HTML pairs stay in order.
+			if previousAtom == atom {
+				group = format.markers[index-1].group
+			}
+		} else {
+			marker = fmt.Sprintf("[[%s%d]]", stem, index)
+		}
+		previousAtom = atom
+		if format.indices == nil {
+			format.indices = make(map[string]int)
+		}
+		format.indices[marker] = index
+		format.markers = append(format.markers, inlineMarker{html: markup, group: group})
+		out.WriteString(marker)
 	}
 	format.text = out.String()
-	if len(format.tags) > 0 {
-		format.pattern = regexp.MustCompile(`\[\[` + stem + `[0-9]+\]\]`)
+	if len(format.markers) > 0 {
+		format.pattern = regexp.MustCompile(`\[\[(?:` + stem + "|" + codeStem + `)[0-9]+\]\]`)
 	}
 	return format
 }
@@ -148,17 +203,20 @@ func (f *inlineFormat) restore(plain string) (string, bool) {
 		return stdhtml.EscapeString(plain), true
 	}
 	found := f.pattern.FindAllStringIndex(plain, -1)
-	if len(found) != len(f.tags) {
+	if len(found) != len(f.markers) {
 		return "", false
 	}
 	var out strings.Builder
+	seen := make([]bool, len(f.markers))
 	start := 0
 	for i, part := range found {
-		if plain[part[0]:part[1]] != f.markers[i] {
+		index, ok := f.indices[plain[part[0]:part[1]]]
+		if !ok || seen[index] || f.markers[index].group != f.markers[i].group {
 			return "", false
 		}
+		seen[index] = true
 		out.WriteString(stdhtml.EscapeString(plain[start:part[0]]))
-		out.WriteString(f.tags[i])
+		out.WriteString(f.markers[index].html)
 		start = part[1]
 	}
 	out.WriteString(stdhtml.EscapeString(plain[start:]))

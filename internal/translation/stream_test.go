@@ -79,6 +79,46 @@ func TestTranslationCommitsBeforeStreamEndsAndResumesMissingIDs(t *testing.T) {
 	}
 }
 
+func TestTranslationSavesCompleteLastRecordWhenProviderDisconnects(t *testing.T) {
+	_, store, id := phase1Article(t, "<p>Opening paragraph.</p><p>Closing paragraph.</p>")
+	calls := 0
+	model := &fakeModel{stream: func(_ context.Context, _ *ai.ModelRequest) (<-chan ai.ModelEvent, error) {
+		calls++
+		events := make(chan ai.ModelEvent, 2)
+		events <- ai.ModelEvent{Type: "text_delta", Text: "{\"id\":\"title\",\"text\":\"标题\"}\n{\"id\":\"b0\",\"text\":\"开头一段。\"}\n{\"id\":\"b1\",\"text\":\"结尾一段。\"}"}
+		events <- ai.ModelEvent{Type: "error", Error: &ai.ModelError{Code: "ProviderProtocolError"}}
+		close(events)
+		return events, nil
+	}}
+	svc := New(store, fakeResolver{model: model}, reader.NewService(store, nil, nil, nil), nil, nil)
+	req := TranslateRequest{ArticleID: id, SourceMode: "feed"}
+	result, err := svc.Translate(t.Context(), req)
+	if err != nil || result.Status != "completed" || len(result.Blocks) != 2 || calls != 1 {
+		t.Fatalf("complete final record should need no retry: %s %d calls=%d err=%v", result.Status, len(result.Blocks), calls, err)
+	}
+	saved, err := svc.Get(t.Context(), id, "zh-CN", "feed")
+	if err != nil || len(saved.Blocks) != 2 || saved.Blocks[1].TranslatedHTML != "结尾一段。" {
+		t.Fatalf("last record was not saved: %+v %v", saved, err)
+	}
+}
+
+func TestTranslationRetainsCodeOnlyBlocksWithoutSendingThem(t *testing.T) {
+	_, store, id := phase1Article(t, `<table><tr><td><code>/plan</code></td><td>An ordinary label.</td></tr></table>`)
+	model := &fakeModel{fn: func(_ context.Context, request *ai.ModelRequest, _ int32) (*ai.ModelResponse, error) {
+		payload := readPhase1Payload(t, request)
+		if len(payload.Items) != 1 || payload.Items[0].ID != "b1" || strings.Contains(payload.Items[0].Text, "/plan") {
+			t.Fatalf("only the prose cell should reach the model: %+v", payload.Items)
+		}
+		payload.Items[0].Text = "普通说明。"
+		return phase1ModelReply(t, payload, "stop"), nil
+	}}
+	svc := New(store, fakeResolver{model: model}, reader.NewService(store, nil, nil, nil), nil, nil)
+	result, err := svc.Translate(t.Context(), TranslateRequest{ArticleID: id, SourceMode: "feed"})
+	if err != nil || result.Status != "completed" || len(result.Blocks) != 2 || result.Blocks[0].TranslatedHTML != "<code>/plan</code>" || model.calls.Load() != 1 {
+		t.Fatalf("protected content should be retained and counted: %+v %v", result, err)
+	}
+}
+
 func TestTranslationBatchLimitAndGraphemeBoundaries(t *testing.T) {
 	p := batchPlanner{model: "test", system: "Translate.", budget: ai.ContextBudget(ai.Metadata{
 		Context: 65536, OutputLimit: 10000,
