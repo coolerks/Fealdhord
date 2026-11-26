@@ -7,8 +7,8 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-1.md`
-- **Total Sessions**: 77
+- **Active File**: `journal-2.md`
+- **Total Sessions**: 78
 - **Last Active**: 2026-11-26
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1986 | Active |
+| `journal-2.md` | ~37 | Active |
+| `journal-1.md` | ~1986 | Archived |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 78 | 2026-11-26 | 文章正文流式翻译 | `e448eac` | `codex/interface-clarity` |
 | 77 | 2026-11-26 | 修复聊天交互可靠性 | `53475ad` | `codex/interface-clarity` |
 | 76 | 2026-11-26 | 全局 AI 会话组织与工具体验 | `da5b5b4`, `428db27`, `f101103` | `codex/interface-clarity` |
 | 75 | 2026-11-25 | 修复 Linux 桌面图标和窗口栏 | `54d42a3` | `codex/interface-clarity` |
