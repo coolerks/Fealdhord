@@ -652,14 +652,13 @@ function ChatSession({ target, close, workspace }: {
   function conversationRows(items: Conversation[] | null | undefined) {
     return items?.map(item => {
       const current = !tasksOpen && item.id === conversationId
-      return <li key={item.id}>
+      return <li key={item.id} className="chat-sidebar-row">
         <ConversationMenu item={item} active={item.id === conversationId && active} busy={send.isPending || manageConversation.isPending}
           onAction={openConversationAction}>
-          <Button data-navigation={item.id} variant={current ? 'secondary' : 'ghost'} className={cn('nav-item', current && 'is-current')}
+          <Button type="button" data-navigation={item.id} variant={current ? 'secondary' : 'ghost'} className={cn('nav-item', current && 'is-current')}
             title={item.title} aria-description={item.pinned ? '已置顶' : undefined} aria-current={current ? 'page' : undefined} disabled={send.isPending}
             onClick={() => choose(item.id, item.groupId)}>
-            {current && <span className="nav-selected-surface" />}
-            <AnimatedGlyph meaning="message-square" /><span className="nav-node-label">{item.title}</span>
+            <span className="nav-node-label">{item.title}</span>
             {item.pinned && <Pin className="ml-auto" aria-hidden="true" />}
           </Button>
         </ConversationMenu>
@@ -683,24 +682,24 @@ function ChatSession({ target, close, workspace }: {
         <div className="sidebar-organize-wrap" data-scrolled={conversationsScrolled}>
         <nav className="sidebar-organize" aria-label="会话" onKeyDown={moveSidebarFocus}
           onScroll={event => setConversationsScrolled(event.currentTarget.scrollTop > 0)}>
-          <div className="nav-section-heading flex items-center justify-between">
+          <div className="chat-sidebar-row">
             <GroupDisclosure label="分组" open={!closed.groups} controls="chat-groups" onToggle={() => toggle('groups')} />
             <Button type="button" variant="ghost" size="icon-sm" aria-label="新建分组" title="新建分组"
               onClick={() => setCreatingGroup(true)}><Plus aria-hidden="true" /></Button>
           </div>
           <ul id="chat-groups" hidden={closed.groups} inert={closed.groups}>
             {!closed.groups && groupItems.map((group, index) => <li key={group.id}>
-              <div className="flex items-center justify-between">
+              <div className="chat-sidebar-row">
                 <GroupDisclosure label={group.name} folder open={!closed[group.id]} controls={`chat-group-${group.id}`} onToggle={() => toggle(group.id)} />
                 <Button type="button" variant="ghost" size="icon-sm" aria-label={`在${group.name}中新建对话`} disabled={send.isPending}
                   onClick={() => choose('', group.id)}><Plus aria-hidden="true" /></Button>
               </div>
-              <ul id={`chat-group-${group.id}`} className="feed-nav pl-3" hidden={closed[group.id]} inert={closed[group.id]}>
+              <ul id={`chat-group-${group.id}`} className="feed-nav chat-group-conversations" hidden={closed[group.id]} inert={closed[group.id]}>
                 {!closed[group.id] && conversationRows(groupedLists[index]?.data)}
               </ul>
             </li>)}
           </ul>
-          <div className="nav-section-heading"><GroupDisclosure label="会话" open={!closed.history} controls="chat-history" onToggle={() => toggle('history')} /></div>
+          <div className="chat-sidebar-row"><GroupDisclosure label="会话" open={!closed.history} controls="chat-history" onToggle={() => toggle('history')} /></div>
           <div id="chat-history" hidden={closed.history} inert={closed.history}>
             {!closed.history && history.isPending && <p role="status">正在读取会话…</p>}
             {!closed.history && !history.isPending && !history.isError && history.data?.length === 0 && <p className="px-2 py-1.5 text-xs text-muted-foreground">暂无会话</p>}

@@ -627,6 +627,8 @@ describe('Phase 1 阅读 Shell', () => {
       return group
     })
     chat.GroupConversations.mockResolvedValue([{ id: 'grouped', groupId: 'work', title: '组内会话' }])
+    chat.List.mockResolvedValue([{ id: 'ungrouped', title: '普通会话' }])
+    chat.Messages.mockResolvedValue([])
     await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
     await user.click(await screen.findByRole('button', { name: '新建分组' }))
     const dialog = within(await screen.findByRole('dialog', { name: '新建会话分组' }))
@@ -636,14 +638,24 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(dialog.getByRole('button', { name: '创建分组' }))
     expect(chat.CreateGroup).toHaveBeenCalledWith('工作', ['/work/one', '/work/two'])
     const group = await screen.findByRole('button', { name: '工作' })
-    expect(await screen.findByRole('button', { name: '组内会话' })).toBeVisible()
-    await user.click(group)
+    expect(group.querySelectorAll('svg')).toHaveLength(1)
+    expect(group.querySelector('svg')).toHaveClass('lucide-folder')
+    const grouped = await screen.findByRole('button', { name: '组内会话' })
+    const ungrouped = await screen.findByRole('button', { name: '普通会话' })
+    expect(grouped.querySelector('svg')).toBeNull()
+    expect(ungrouped.querySelector('svg')).toBeNull()
+    const groups = screen.getByRole('button', { name: '分组' })
+    expect(groups.lastElementChild).toHaveClass('lucide-chevron-right')
+    await user.click(grouped)
+    await user.keyboard('{ArrowUp}')
+    expect(group).toHaveFocus()
+    await user.keyboard('{Enter}')
     expect(group).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('button', { name: '组内会话' })).not.toBeInTheDocument()
     const history = screen.getByRole('button', { name: '会话' })
+    expect(history.lastElementChild).toHaveClass('lucide-chevron-right')
     await user.click(history)
     expect(history).toHaveAttribute('aria-expanded', 'false')
-    const groups = screen.getByRole('button', { name: '分组' })
     await user.click(groups)
     expect(screen.queryByRole('button', { name: '工作' })).not.toBeInTheDocument()
     await user.click(history)
@@ -888,7 +900,7 @@ describe('Phase 1 阅读 Shell', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: '展开侧栏' })).toHaveFocus())
   })
 
-  it('阅读和 AI 双向切换时两栏同步淡入淡出，会话图标悬停有中间帧', async () => {
+  it('阅读和 AI 双向切换时两栏同步淡入淡出', async () => {
     api.get.mockResolvedValue({ preferences: preferencesFixture({ animation: 'full' }), revision: 0 })
     chat.List.mockResolvedValue([{ id: 'history', title: '已有会话' }])
     chat.Messages.mockResolvedValue([])
@@ -908,13 +920,7 @@ describe('Phase 1 阅读 Shell', () => {
     expect(readingMain.closest('main')).toHaveAttribute('inert')
     await waitFor(() => expect(sidebar.style.opacity).toBe('1'))
 
-    const row = await within(sidebar).findByRole('button', { name: '已有会话' })
-    const glyph = row.querySelector('[data-meaning="message-square"]')
-    fireEvent.mouseEnter(row)
-    await waitFor(() => {
-      const angle = glyph?.querySelector('svg')?.style.transform.match(/rotate\((-?[0-9.]+)deg\)/)?.[1]
-      expect(Math.abs(Number(angle))).toBeGreaterThan(0.05)
-    }, { interval: 10 })
+    expect(await within(sidebar).findByRole('button', { name: '已有会话' })).toBeVisible()
 
     fireEvent.click(within(sidebar).getByRole('button', { name: '阅读' }))
     expect(main).toHaveAttribute('inert')

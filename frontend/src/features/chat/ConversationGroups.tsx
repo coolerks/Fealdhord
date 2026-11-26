@@ -29,10 +29,10 @@ export function GroupDisclosure({ label, open, controls, onToggle, folder = fals
   folder?: boolean
 }) {
   return <Button type="button" variant="ghost" size="sm" data-navigation={controls}
-    className="min-w-0 justify-start px-1.5" aria-expanded={open} aria-controls={controls} onClick={onToggle}>
-    <ChevronRight className={cn('size-3 shrink-0', open && 'rotate-90')} aria-hidden="true" />
+    className="min-w-0 flex-1 justify-start px-2.5" aria-expanded={open} aria-controls={controls} onClick={onToggle}>
     {folder && <Folder className="size-4 shrink-0" aria-hidden="true" />}
     <span className="truncate" title={label}>{label}</span>
+    {!folder && <ChevronRight className={cn('size-3 shrink-0', open && 'rotate-90')} aria-hidden="true" />}
   </Button>
 }
 

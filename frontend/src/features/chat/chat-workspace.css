@@ -12,6 +12,35 @@
   pointer-events: auto;
 }
 
+.chat-sidebar-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-radius: 8px;
+}
+
+.glass-sidebar.chat-sidebar .chat-sidebar-row > button[data-slot=button][data-variant] {
+  background: transparent;
+}
+
+@media (hover: hover) {
+  .chat-sidebar-row:hover:where(:has(> button:not(:disabled))) {
+    background: var(--sidebar-hover, var(--sidebar-accent));
+  }
+}
+
+.chat-sidebar-row:has(> button[aria-current=page]) {
+  background: var(--sidebar-selection, var(--secondary));
+}
+
+.chat-sidebar-row:has(> button:not(:disabled):active) {
+  background: var(--sidebar-press, var(--accent));
+}
+
+.chat-sidebar.glass-sidebar .chat-group-conversations .nav-item {
+  padding-inline-start: 22px;
+}
+
 .chat-sidebar .sidebar-organize [role=status] {
   padding: 6px 8px;
   color: var(--muted-foreground);
