@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 75
-- **Last Active**: 2026-11-25
+- **Total Sessions**: 76
+- **Last Active**: 2026-11-26
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1932 | Active |
+| `journal-1.md` | ~1964 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 76 | 2026-11-26 | 全局 AI 会话组织与工具体验 | `da5b5b4`, `428db27`, `f101103` | `codex/interface-clarity` |
 | 75 | 2026-11-25 | 修复 Linux 桌面图标和窗口栏 | `54d42a3` | `codex/interface-clarity` |
 | 74 | 2026-11-25 | 实现会话分组、Skill 按需读取和本地工具 | `22bb806` | `codex/interface-clarity` |
 | 73 | 2026-11-25 | 修复文章摘要超时与模型断连 | `71d284d` | `codex/interface-clarity` |

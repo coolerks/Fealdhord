@@ -1930,3 +1930,35 @@ Linux 复用 Windows 单行窗口栏，DEB 使用 hicolor 标准尺寸并对齐�
 ### Next Steps
 
 - 实际 DEB 构建与 Linux GNOME 桌面验证待执行。
+
+
+## Session 76: 全局 AI 会话组织与工具体验
+<!-- trellis-session: v=2 fp=d7949fd1ffd0c110 -->
+
+**Date**: 2026-11-26
+**Task**: 全局 AI 会话组织与工具体验
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+完成会话分组与归档、技能外观和消息记录、MCP 按需连接及两项聊天上限。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `da5b5b4` | feat(chat): 管理会话分组和新对话归属 |
+| `428db27` | feat(chat): 设置技能外观并随消息保存技能选择 |
+| `f101103` | feat(ai): 按需连接 MCP 并配置聊天运行上限 |
+
+### Testing
+
+- [OK] Go 全量测试及 vet、专项竞态、前端 230 项回归、lint、生产构建通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 桌面实机观察分组条与图标，使用实际 MCP 服务复核。
