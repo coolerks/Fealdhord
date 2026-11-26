@@ -1962,3 +1962,25 @@ Linux 复用 Windows 单行窗口栏，DEB 使用 hicolor 标准尺寸并对齐�
 ### Next Steps
 
 - 桌面实机观察分组条与图标，使用实际 MCP 服务复核。
+
+
+## Session 77: 修复聊天交互可靠性
+<!-- trellis-session: v=2 fp=86206c037a8557c1 -->
+
+**Date**: 2026-11-26
+**Task**: 修复聊天交互可靠性
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+移除整轮聊天时限及聊天交互自动过期，保留单次请求超时与重试进度，统一命令审批策略并修复停止后残留卡片。Go、前端与 Windows 工具交叉编译验证见任务归档。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `53475ad` | fix(chat): 修复长任务、模型重试和工具审批 |
+
+### Status
+
+[OK] **Completed**
