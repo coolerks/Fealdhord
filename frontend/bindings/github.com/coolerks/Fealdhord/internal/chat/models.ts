@@ -3,6 +3,9 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as agentrun$0 from "../agentrun/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as ai$0 from "../ai/models.js";
 
 export interface ArchivedPage {
@@ -72,6 +75,7 @@ export interface Message {
     "modelName": string;
     "createdAt": number;
     "attachments"?: MessageAttachment[] | null;
+    "skills"?: agentrun$0.SkillReference[] | null;
     "details"?: ReplyDetails | null;
     "tools"?: ToolActivity[] | null;
 }
@@ -103,6 +107,7 @@ export interface ReplySteer {
     "text": string;
     "offset": number;
     "at": number;
+    "skills"?: agentrun$0.SkillReference[] | null;
 }
 
 export interface ReplyToolStep {
@@ -179,6 +184,7 @@ export interface SteerInput {
     "conversationId": string;
     "text": string;
     "attachments"?: SendAttachment[] | null;
+    "skills"?: string[] | null;
 }
 
 export interface ToolActivity {

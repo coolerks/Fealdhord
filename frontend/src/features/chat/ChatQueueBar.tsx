@@ -9,6 +9,7 @@ export type QueuedChatMessage = {
   id: string
   text: string
   attachments: SendAttachment[]
+  skills?: string[]
   planMode: boolean
 }
 

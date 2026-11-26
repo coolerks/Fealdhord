@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coolerks/Fealdhord/internal/agentrun"
 	"github.com/coolerks/Fealdhord/internal/ai"
 	"github.com/coolerks/Fealdhord/internal/aiconfig"
 	"github.com/coolerks/Fealdhord/internal/database/sqlc"
@@ -42,9 +43,10 @@ type ReplyWork struct {
 }
 
 type ReplySteer struct {
-	Text   string `json:"text"`
-	Offset int    `json:"offset"`
-	At     int64  `json:"at"`
+	Text   string                    `json:"text"`
+	Offset int                       `json:"offset"`
+	At     int64                     `json:"at"`
+	Skills []agentrun.SkillReference `json:"skills,omitempty"`
 }
 
 // All string offsets use UTF-16 code units to match the frontend's source text.
@@ -150,12 +152,13 @@ func (w *replyWork) restore(cp replyWorkCheckpoint) {
 	w.activity = cp.activity
 }
 
-func (w *replyWork) addSteer(text string, now time.Time) {
+func (w *replyWork) addSteer(text string, skills []agentrun.SkillReference, now time.Time) {
 	w.lastActivity = now
 	w.steers = append(w.steers, ReplySteer{
 		Text:   text,
 		Offset: w.textOffset,
 		At:     now.UnixMilli(),
+		Skills: skills,
 	})
 }
 

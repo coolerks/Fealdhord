@@ -1,3 +1,5 @@
+import { IconAppearanceFields } from '@/components/icon-appearance-fields'
+import { SkillIcon } from '@/components/skill-mark'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatedGlyph } from '@/components/animated-glyph'
@@ -36,7 +38,7 @@ const auditStatuses: Record<string, { label: string; tone: 'active' | 'muted' | 
 }
 
 const newClient: ClientConfig = { name: '', endpoint: '', command: '', args: [] }
-function newSkillDraft(skills: Skill[]): Pick<Skill, 'markdown' | 'enabled' | 'resources' | 'importId' | 'revision'> {
+function newSkillDraft(skills: Skill[]): Pick<Skill, 'markdown' | 'enabled' | 'resources' | 'importId' | 'revision' | 'icon' | 'color'> {
   const names = new Set(skills.map(skill => skill.name))
   let name = 'my-skill'
   for (let suffix = 2; names.has(name); suffix++) name = `my-skill-${suffix}`
@@ -655,13 +657,14 @@ const skillErrorMessages: Partial<Record<string, string>> = {
   SkillFrontMatterInvalid: '请在 SKILL.md 开头用两行独立的 --- 包住有效的 YAML 配置。',
   SkillNameInvalid: '请填写有效的 name。最多 64 个字符，只使用小写英文字母、数字和连字符，首尾使用字母或数字。',
   SkillDescriptionInvalid: '请填写 description，最多 1024 个字符。',
+  InvalidSkillAppearance: '请检查技能图标和颜色。',
   SkillBodyRequired: '请在第二条 --- 下方填写 Skill 的正文。',
 }
 
 export function SkillsSettings() {
   const cache = useQueryClient()
   const skills = useQuery({ queryKey: skillsKey, queryFn: () => api.Skills(), retry: false })
-  const [skill, setSkill] = useState<Pick<Skill, 'markdown' | 'enabled' | 'resources' | 'importId' | 'revision'> | null>(null)
+  const [skill, setSkill] = useState<Pick<Skill, 'markdown' | 'enabled' | 'resources' | 'importId' | 'revision' | 'icon' | 'color'> | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
 
   const mutation = useMutation({
@@ -703,7 +706,7 @@ export function SkillsSettings() {
           <SettingRow key={item.name}>
             <div className="min-w-0 flex-1 space-y-0.5">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="truncate font-medium">{item.name}</span>
+                <SkillIcon icon={item.icon} color={item.color} /><span className="truncate font-medium">{item.name}</span>
                 {!item.enabled && <StatusBadge tone="muted">已停用</StatusBadge>}
               </div>
               {item.description && <p className="truncate text-xs text-muted-foreground">{item.description}</p>}
@@ -733,12 +736,14 @@ export function SkillsSettings() {
           <form onSubmit={event => {
             event.preventDefault()
             mutation.mutate(async () => {
-              const { markdown, enabled, importId, revision } = skill
-              await api.SaveSkillPackage({ name: '', description: '', tools: [], markdown, enabled, importId, revision })
+              const { markdown, enabled, importId, revision, icon, color } = skill
+              await api.SaveSkillPackage({ name: '', description: '', tools: [], markdown, enabled, importId, revision, icon, color })
               setSkill(null)
             })
           }}>
             <FieldGroup>
+              <IconAppearanceFields icon={skill.icon ?? ''} color={skill.color ?? ''} fallback="blocks" disabled={busy}
+                onIconChange={icon => setSkill({ ...skill, icon })} onColorChange={color => setSkill({ ...skill, color })} />
               <Field>
                 <FieldLabel htmlFor="ai-skill-markdown">SKILL.md</FieldLabel>
                 <Textarea

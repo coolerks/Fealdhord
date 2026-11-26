@@ -64,16 +64,17 @@ type ToolActivity struct {
 }
 
 type Message struct {
-	ID          string              `json:"id"`
-	Role        string              `json:"role"`
-	Text        string              `json:"text"`
-	Status      string              `json:"status"`
-	ErrorCode   string              `json:"errorCode"`
-	ModelName   string              `json:"modelName"`
-	CreatedAt   int64               `json:"createdAt"`
-	Attachments []MessageAttachment `json:"attachments,omitempty"`
-	Details     *ReplyDetails       `json:"details,omitempty"`
-	Tools       []ToolActivity      `json:"tools,omitempty"`
+	ID          string                    `json:"id"`
+	Role        string                    `json:"role"`
+	Text        string                    `json:"text"`
+	Status      string                    `json:"status"`
+	ErrorCode   string                    `json:"errorCode"`
+	ModelName   string                    `json:"modelName"`
+	CreatedAt   int64                     `json:"createdAt"`
+	Attachments []MessageAttachment       `json:"attachments,omitempty"`
+	Skills      []agentrun.SkillReference `json:"skills,omitempty"`
+	Details     *ReplyDetails             `json:"details,omitempty"`
+	Tools       []ToolActivity            `json:"tools,omitempty"`
 }
 
 const UpdateEventName = "fealdhord:chat-update"
@@ -91,6 +92,7 @@ type UpdateEvent struct {
 type queuedSteer struct {
 	displayText string
 	message     ai.Message
+	skills      []agentrun.SkillReference
 }
 
 type run struct {
@@ -104,6 +106,8 @@ type run struct {
 	pendingSteers      []queuedSteer
 	planApproved       bool
 	planSwitched       bool
+	allowSkills        bool
+	disableTools       bool
 }
 
 type ToolSource func(string, []string, bool) ([]agentrun.ReadTool, string, error)
@@ -115,6 +119,7 @@ type toolPermissionSource interface {
 
 type Service struct {
 	toolSource      ToolSource
+	skillReferences func([]string) ([]agentrun.SkillReference, error)
 	toolPermissions toolPermissionSource
 	store           *database.Store
 	config          *aiconfig.Service
@@ -136,6 +141,9 @@ func New(ctx context.Context, store *database.Store, config *aiconfig.Service, p
 
 func (s *Service) SetToolSource(source ToolSource)                { s.toolSource = source }
 func (s *Service) SetToolPermissions(source toolPermissionSource) { s.toolPermissions = source }
+func (s *Service) SetSkillReferences(source func([]string) ([]agentrun.SkillReference, error)) {
+	s.skillReferences = source
+}
 
 func (s *Service) Close() {
 	s.mu.Lock()
@@ -214,6 +222,9 @@ func (s *Service) Messages(ctx context.Context, id string) ([]Message, error) {
 		message := Message{
 			ID: row.ID, Role: row.Role, Text: row.Content, Status: row.Status, ErrorCode: row.ErrorCode,
 			ModelName: row.ModelName, CreatedAt: row.CreatedAt, Attachments: unmarshalAttachments(row.Attachments), Tools: tools[row.ID],
+		}
+		if row.SelectedSkills.Valid {
+			_ = json.Unmarshal([]byte(row.SelectedSkills.String), &message.Skills)
 		}
 		if row.Role == "assistant" && row.ReplyDetails != "" {
 			var details ReplyDetails
@@ -379,6 +390,23 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 	request := ai.ModelRequest{Budget: ai.ContextBudget(model.Metadata), Model: model.Name, Messages: history,
 		ReasoningEffort: input.ReasoningEffort, IncludeReasoningSummary: true}
 	var tools []agentrun.ReadTool
+	var selectedSkills sql.NullString
+	if len(input.Skills) > 0 {
+		if conversation.ScopeType != "global" || s.toolSource == nil {
+			return modelError("InvalidSkill")
+		}
+		if s.skillReferences != nil {
+			refs, err := s.skillReferences(input.Skills)
+			if err != nil {
+				return modelError("InvalidSkill")
+			}
+			data, err := json.Marshal(refs)
+			if err != nil {
+				return modelError("StorageError")
+			}
+			selectedSkills = sql.NullString{String: string(data), Valid: true}
+		}
+	}
 	var permissions map[string]string
 	if input.ApprovalMode == agentrun.ApprovalCustom {
 		if conversation.ScopeType != "global" {
@@ -411,7 +439,7 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 	now := time.Now().UnixMilli()
 	user := sqlc.AppendChatMessageParams{
 		ID: rand.Text(), ConversationID: conversation.ID, Role: "user", Status: "complete",
-		Content: question, CreatedAt: now, Attachments: marshalAttachments(persistedAttachments),
+		Content: question, CreatedAt: now, Attachments: marshalAttachments(persistedAttachments), SelectedSkills: selectedSkills,
 	}
 	reply := sqlc.AppendChatMessageParams{
 		ID: rand.Text(), ConversationID: conversation.ID, Role: "assistant", Status: "running",
@@ -467,7 +495,8 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 		return modelError("StorageError")
 	}
 	runCtx, cancel := context.WithCancel(s.root)
-	current := &run{cancel: cancel, id: reply.ID, started: time.Now(), modelSupportsImage: model.Metadata.SupportsImage()}
+	current := &run{cancel: cancel, id: reply.ID, started: time.Now(), modelSupportsImage: model.Metadata.SupportsImage(),
+		allowSkills: conversation.ScopeType == "global", disableTools: input.DisableTools}
 	s.active[conversation.ID] = current
 	s.workers.Add(1)
 	executionCtx := agentrun.WithApprovalMode(runCtx, input.ApprovalMode)
@@ -517,6 +546,26 @@ func (s *Service) Steer(_ context.Context, input SteerInput) error {
 	if attachmentPrompt != "" {
 		body += attachmentPrompt
 	}
+	var skills []agentrun.SkillReference
+	if len(input.Skills) > 0 {
+		if !current.allowSkills || s.skillReferences == nil || s.toolSource == nil {
+			return modelError("InvalidSkill")
+		}
+		skills, err = s.skillReferences(input.Skills)
+		if err != nil {
+			return modelError("InvalidSkill")
+		}
+		if current.disableTools {
+			_, instructions, err := s.toolSource(input.ConversationID, input.Skills, true)
+			if err != nil {
+				return modelError("InvalidSkill")
+			}
+			body = instructions + "\n" + body
+		} else {
+			selected, _ := json.Marshal(input.Skills)
+			body = "用户为此条引导指定了以下技能，可用时通过 read 读取：" + string(selected) + "\n" + body
+		}
+	}
 	blocks := make([]ai.ContentBlock, 0, 1+len(imageBlocks))
 	if body != "" {
 		blocks = append(blocks, ai.ContentBlock{Type: "text", Text: "[用户中途引导]\n" + body})
@@ -531,6 +580,7 @@ func (s *Service) Steer(_ context.Context, input SteerInput) error {
 	current.pendingSteers = append(current.pendingSteers, queuedSteer{
 		displayText: display,
 		message:     ai.Message{Role: "user", Content: blocks},
+		skills:      skills,
 	})
 	return nil
 }
@@ -607,7 +657,7 @@ func (s *Service) execute(ctx context.Context, id string, current *run, adapter 
 			now := time.Now()
 			out := make([]ai.Message, 0, len(steers))
 			for _, item := range steers {
-				current.work.addSteer(item.displayText, now)
+				current.work.addSteer(item.displayText, item.skills, now)
 				out = append(out, item.message)
 			}
 			s.mu.Unlock()

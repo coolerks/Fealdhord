@@ -132,6 +132,7 @@ func TestManagedSkillZipPreservesBinaryAndDisclosesOnlyRequestedFiles(t *testing
 		t.Fatal(err)
 	}
 	preview.Enabled = true
+	preview.Icon, preview.Color = "lucide:BookOpen", "#12345680"
 	installed, err := platform.saveSkillInput(preview)
 	if err != nil {
 		t.Fatal(err)
@@ -145,6 +146,10 @@ func TestManagedSkillZipPreservesBinaryAndDisclosesOnlyRequestedFiles(t *testing
 		t.Fatal("binary asset did not survive installation", err)
 	}
 	reopened := NewPlatform(NewRegistry(), dataDir)
+	refs, err := reopened.SkillReferences([]string{"fixture"})
+	if err != nil || len(refs) != 1 || refs[0].Icon != preview.Icon || refs[0].Color != preview.Color {
+		t.Fatalf("imported skill appearance %+v %v", refs, err)
+	}
 	tools, prompt, err := reopened.RunTools("id", nil, false)
 	if err != nil || !strings.Contains(prompt, "skill://fixture/SKILL.md") || strings.Contains(prompt, "unique instructions") || strings.Contains(prompt, "reference-private") {
 		t.Fatalf("eager content %q %v", prompt, err)

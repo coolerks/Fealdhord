@@ -19,7 +19,7 @@ const (
 )
 
 type SendAttachment struct {
-	Kind     string `json:"kind"`               // "image" | "file" | "folder"
+	Kind     string `json:"kind"` // "image" | "file" | "folder"
 	Name     string `json:"name"`
 	Path     string `json:"path,omitempty"`
 	MIMEType string `json:"mimeType,omitempty"`
@@ -27,7 +27,7 @@ type SendAttachment struct {
 }
 
 type MessageAttachment struct {
-	Kind     string `json:"kind"`               // "image" | "file" | "folder"
+	Kind     string `json:"kind"` // "image" | "file" | "folder"
 	Name     string `json:"name"`
 	Path     string `json:"path,omitempty"`
 	MIMEType string `json:"mimeType,omitempty"`
@@ -46,6 +46,7 @@ type SteerInput struct {
 	ConversationID string           `json:"conversationId"`
 	Text           string           `json:"text"`
 	Attachments    []SendAttachment `json:"attachments,omitempty"`
+	Skills         []string         `json:"skills,omitempty"`
 }
 
 func supportedImageMIME(mimeType string) bool {

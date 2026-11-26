@@ -130,6 +130,8 @@ export interface Skill {
     "resources"?: SkillResource[] | null;
     "revision"?: string;
     "importId"?: string;
+    "icon"?: string;
+    "color"?: string;
 }
 
 export interface SkillResource {

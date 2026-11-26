@@ -301,17 +301,18 @@ type FeedCategory struct {
 }
 
 type Message struct {
-	ID             string `json:"id"`
-	ConversationID string `json:"conversation_id"`
-	Position       int64  `json:"position"`
-	Role           string `json:"role"`
-	Content        string `json:"content"`
-	Status         string `json:"status"`
-	ErrorCode      string `json:"error_code"`
-	ModelName      string `json:"model_name"`
-	ReplyDetails   string `json:"reply_details"`
-	CreatedAt      int64  `json:"created_at"`
-	Attachments    string `json:"attachments"`
+	ID             string         `json:"id"`
+	ConversationID string         `json:"conversation_id"`
+	Position       int64          `json:"position"`
+	Role           string         `json:"role"`
+	Content        string         `json:"content"`
+	Status         string         `json:"status"`
+	ErrorCode      string         `json:"error_code"`
+	ModelName      string         `json:"model_name"`
+	ReplyDetails   string         `json:"reply_details"`
+	CreatedAt      int64          `json:"created_at"`
+	Attachments    string         `json:"attachments"`
+	SelectedSkills sql.NullString `json:"selected_skills"`
 }
 
 type ModelAssignment struct {

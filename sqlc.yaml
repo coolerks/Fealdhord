@@ -32,6 +32,7 @@ sql:
       - migrations/00031_article_summary_language.sql
       - migrations/00032_article_ai_open_defaults.sql
       - migrations/00033_chat_group_metadata.sql
+      - migrations/00034_chat_message_skills.sql
     queries: internal/database/queries
     gen:
       go:

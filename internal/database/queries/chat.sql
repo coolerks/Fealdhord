@@ -77,10 +77,10 @@ SELECT * FROM conversations WHERE id=?;
 SELECT * FROM (SELECT * FROM messages WHERE conversation_id=? ORDER BY position DESC LIMIT 100) ORDER BY position;
 
 -- name: AppendChatMessage :one
-INSERT INTO messages (id,conversation_id,position,role,content,status,model_name,created_at,attachments)
+INSERT INTO messages (id,conversation_id,position,role,content,status,model_name,created_at,attachments,selected_skills)
 VALUES (sqlc.arg(id),sqlc.arg(conversation_id),
  (SELECT COALESCE(MAX(position),0)+1 FROM messages WHERE conversation_id=sqlc.arg(conversation_id)),
- sqlc.arg(role),sqlc.arg(content),sqlc.arg(status),sqlc.arg(model_name),sqlc.arg(created_at),sqlc.arg(attachments)) RETURNING *;
+ sqlc.arg(role),sqlc.arg(content),sqlc.arg(status),sqlc.arg(model_name),sqlc.arg(created_at),sqlc.arg(attachments),sqlc.narg(selected_skills)) RETURNING *;
 
 -- name: FinishChatMessage :execrows
 UPDATE messages SET status=?, content=?, error_code=?, reply_details=? WHERE id=? AND status='running';
@@ -165,8 +165,8 @@ AND (c.group_id IS NULL OR EXISTS (SELECT 1 FROM chat_groups g WHERE g.id=c.grou
 RETURNING *;
 
 -- name: CopyChatBranchMessages :exec
-INSERT INTO messages (id, conversation_id, position, role, content, status, error_code, model_name, reply_details, created_at, attachments)
-SELECT lower(hex(randomblob(16))), sqlc.arg(new_id), source.position, source.role, source.content, source.status, source.error_code, source.model_name, source.reply_details, source.created_at, source.attachments
+INSERT INTO messages (id, conversation_id, position, role, content, status, error_code, model_name, reply_details, created_at, attachments, selected_skills)
+SELECT lower(hex(randomblob(16))), sqlc.arg(new_id), source.position, source.role, source.content, source.status, source.error_code, source.model_name, source.reply_details, source.created_at, source.attachments, source.selected_skills
 FROM messages source
 WHERE source.conversation_id=sqlc.arg(source_id) AND source.position <= (
  SELECT branch_point.position FROM messages branch_point WHERE branch_point.id=sqlc.arg(message_id)

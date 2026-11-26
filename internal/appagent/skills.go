@@ -13,6 +13,7 @@ import (
 
 	"github.com/coolerks/Fealdhord/internal/agentrun"
 	"github.com/coolerks/Fealdhord/internal/ai"
+	"github.com/coolerks/Fealdhord/internal/database"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -25,6 +26,8 @@ type Skill struct {
 	Resources   []SkillResource `json:"resources,omitempty"`
 	Revision    string          `json:"revision,omitempty"`
 	ImportID    string          `json:"importId,omitempty"`
+	Icon        string          `json:"icon,omitempty"`
+	Color       string          `json:"color,omitempty"`
 }
 
 // JSON can expand each input byte and also stores the parsed front matter.
@@ -90,6 +93,9 @@ func (a *Platform) saveSkill(markdown string, enabled bool) (Skill, error) {
 }
 
 func (a *Platform) saveSkillInput(input Skill) (Skill, error) {
+	if !database.ValidIconName(input.Icon) || !database.ValidHexColor(input.Color) {
+		return Skill{}, errors.New("InvalidSkillAppearance")
+	}
 	a.skillEdit.Lock()
 	defer a.skillEdit.Unlock()
 	if input.ImportID != "" {
@@ -107,6 +113,7 @@ func (a *Platform) saveSkillInput(input Skill) (Skill, error) {
 	if input.Revision != "" && input.Revision != prior.Revision {
 		return Skill{}, errors.New("SkillChanged")
 	}
+	value.Icon, value.Color = input.Icon, input.Color
 	if prior.Revision != "" && prior.Markdown == value.Markdown {
 		value.Revision = prior.Revision
 		return a.storeSkill(value)
@@ -280,5 +287,26 @@ func readSkillMetadata(path string) (Skill, error) {
 		return Skill{}, errors.New("InvalidSkill")
 	}
 	value.Resources = stored.Resources
+	value.Icon, value.Color = stored.Icon, stored.Color
 	return value, nil
+}
+
+func (a *Platform) SkillReferences(names []string) ([]agentrun.SkillReference, error) {
+	if len(names) > 3 {
+		return nil, errors.New("InvalidSkill")
+	}
+	seen := make(map[string]bool, len(names))
+	refs := make([]agentrun.SkillReference, 0, len(names))
+	for _, name := range names {
+		if !skillName.MatchString(name) || seen[name] {
+			return nil, errors.New("InvalidSkill")
+		}
+		skill, err := readSkillMetadata(filepath.Join(a.dir, "skills", name+".json"))
+		if err != nil || skill.Name != name || !skill.Enabled {
+			return nil, errors.New("InvalidSkill")
+		}
+		seen[name] = true
+		refs = append(refs, agentrun.SkillReference{Name: name, Icon: skill.Icon, Color: skill.Color})
+	}
+	return refs, nil
 }

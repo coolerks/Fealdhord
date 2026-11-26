@@ -302,3 +302,67 @@ func waitMessage(t *testing.T, service *Service, id string, count int, status st
 	t.Fatalf("timed out waiting for %s", status)
 	return Message{}
 }
+
+func TestSelectedSkillStoredOnItsOwnMessageAndCopiedToBranch(t *testing.T) {
+	ctx := t.Context()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"OK\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+	}))
+	defer server.Close()
+	db, err := database.Open(ctx, filepath.Join(t.TempDir(), "chat.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	config := aiconfig.New(db.AIProviderQueries(), nil)
+	provider, err := config.SaveProvider(ctx, aiconfig.ProviderInput{Provider: aiconfig.Provider{
+		Name: "Mock", Protocol: "chat_completions", BaseURL: server.URL, Enabled: true,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model, err := config.SaveModel(ctx, aiconfig.Model{ProviderID: provider.ID, Name: "mock", Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := New(ctx, db, config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	platform := appagent.NewPlatform(appagent.NewRegistry(), t.TempDir())
+	platformAPI := appagent.NewAPI(platform, nil)
+	skill, err := platformAPI.SaveSkillPackage(appagent.Skill{
+		Markdown: "---\nname: review\ndescription: Review notes\n---\nReview the notes.", Enabled: true,
+		Icon: "book-text", Color: "#112233",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.SetToolSource(platform.RunTools)
+	service.SetSkillReferences(platform.SkillReferences)
+	conversation, err := service.Create(ctx, Scope{Kind: "global"}, "selected skills")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, names := range [][]string{{skill.Name}, nil} {
+		if err := service.Send(ctx, SendInput{ConversationID: conversation.ID, ModelID: model.ID, Text: "Ask", Skills: names, DisableTools: true}); err != nil {
+			t.Fatal(err)
+		}
+		waitMessage(t, service, conversation.ID, (i+1)*2, "complete")
+	}
+	history, err := service.Messages(ctx, conversation.ID)
+	if err != nil || len(history) != 4 || len(history[0].Skills) != 1 || history[0].Skills[0].Icon != skill.Icon ||
+		history[0].Skills[0].Color != skill.Color || len(history[2].Skills) != 0 {
+		t.Fatalf("selected skills leaked or were lost: %+v %v", history, err)
+	}
+	branch, err := service.Branch(ctx, conversation.ID, history[1].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	messages, err := service.Messages(ctx, branch.ID)
+	if err != nil || len(messages) != 2 || !reflect.DeepEqual(messages[0].Skills, history[0].Skills) {
+		t.Fatalf("branch lost selected skills: %+v %v", messages, err)
+	}
+}

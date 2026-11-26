@@ -323,6 +323,7 @@ func (a *Platform) finishSkillImport(input Skill) (Skill, error) {
 		}
 	}
 	value.Revision, value.Resources = rand.Text(), pending.skill.Resources
+	value.Icon, value.Color = input.Icon, input.Color
 	destination := a.skillDirectory(value)
 	if err := os.Rename(pending.dir, destination); err != nil {
 		return Skill{}, errors.New("StorageError")

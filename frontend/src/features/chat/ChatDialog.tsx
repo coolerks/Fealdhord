@@ -1,3 +1,4 @@
+import { SkillIcon, SkillMarks } from '@/components/skill-mark'
 import { clearSelectionWithin } from '@/app/TextSelection'
 import { ChatSlashMenu } from './ChatSlashMenu'
 import type { SlashItem, SlashPage } from './ChatSlashMenu'
@@ -19,7 +20,7 @@ import type { ClipboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, useIsPresent } from 'motion/react'
-import { ArrowDown, ArrowUp, BookOpen, Box, Brain, CalendarClock, Check, ClipboardList, Copy, CornerDownRight, File as FileIcon, Folder, Gauge, Image as ImageIcon, Pin, Plus, Settings, Sparkles, Square, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, CalendarClock, Check, ClipboardList, Copy, CornerDownRight, File as FileIcon, Folder, Image as ImageIcon, Pin, Plus, Settings, Square, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { SemanticButton } from '@/components/semantic-button'
@@ -95,6 +96,7 @@ const errorLabels: Record<string, string> = {
   StorageError: '无法保存对话。',
   Timeout: '模型回复超时。',
   ArticleReadIncomplete: '正文尚未读完。可在工具记录中查看已读范围，或要求继续读取。',
+  InvalidSkill: '所选技能已不可用，请重新选择。',
   AgentLimitExceeded: '已达到本轮工具调用上限，已保留部分回复。',
   ToolNotAllowed: '模型请求了未授权的工具。',
   ToolPermissionsUnavailable: '无法读取自定义工具权限，请检查「设置 → 工具权限」。',
@@ -265,12 +267,13 @@ function ChatSession({ target, close, workspace }: {
   const inlinePlan = useInlinePlan(conversationId, !tasksOpen && (!workspace || workspace.present), active)
   const theme = useReaderCodeTheme(workspace?.theme ?? 'app', Boolean(workspace && messages.data?.some(message => message.role === 'assistant')))
   const send = useMutation({
-    mutationFn: async (override?: { text?: string; attachments?: SendAttachment[]; planMode?: boolean; newConversation?: boolean }) => {
+    mutationFn: async (override?: { text?: string; attachments?: SendAttachment[]; planMode?: boolean; newConversation?: boolean; skills?: string[]; queued?: QueuedChatMessage }) => {
       const messageText = override?.text ?? draft
       const sendAttachments: SendAttachment[] = override?.attachments ?? attachments.map(({ kind, name, path, mimeType, data }) => ({
         kind, name, ...(path ? { path } : {}), ...(mimeType ? { mimeType } : {}), ...(data ? { data } : {}),
       }))
       const usePlanMode = override?.planMode ?? planMode
+      const sendSkills = override?.skills ?? (override?.newConversation ? [] : selectedSkills)
       let id = override?.newConversation ? '' : conversationId
       if (!id) {
         const titleSource = messageText.trim() || sendAttachments[0]?.name || '新对话'
@@ -290,7 +293,7 @@ function ChatSession({ target, close, workspace }: {
       await api.Send({
         conversationId: id, text: messageText, includeContext, selection, allowArticleReads,
         articleIds: [], ...(workspace && modelID ? { modelId: modelID } : {}),
-        ...(workspace && selectedSkills.length ? { skills: selectedSkills } : {}),
+        ...(workspace && sendSkills.length ? { skills: sendSkills } : {}),
         ...(workspace && reasoningEffort ? { reasoningEffort } : {}),
         ...(workspace ? { approvalMode } : {}),
         ...(workspace && sendAttachments.length ? { attachments: sendAttachments } : {}),
@@ -301,32 +304,43 @@ function ChatSession({ target, close, workspace }: {
         workspace && cache.invalidateQueries({ queryKey: listKey }),
         workspace && cache.invalidateQueries({ queryKey: groupHistoryKey }),
       ])
+      return id
     },
     onError: () => {
       if (workspace) void cache.invalidateQueries({ queryKey: aiConfigurationKey })
     },
-    onSuccess: (_result, override) => {
+    onSuccess: (id, override) => {
       follow.current = true
       setFollowing(true)
       if (!override) {
         setDraft('')
         setAttachments([])
+        setSelectedSkills([])
       }
+      if (override?.queued) removeQueueItem(id, override.queued.id)
       setSelection('')
       setIncludeContext(false)
       setAllowArticleReads(false)
     },
   })
   const steer = useMutation({
-    mutationFn: async (payload: { text: string; attachments?: SendAttachment[] }) => {
+    mutationFn: async (payload: { conversationId: string; text: string; attachments?: SendAttachment[]; skills?: string[]; queued?: QueuedChatMessage; composerDraft?: { text: string; attachments: ComposerAttachment[]; skills: string[] } }) => {
       await api.Steer({
-        conversationId,
+        conversationId: payload.conversationId,
         text: payload.text,
         ...(payload.attachments?.length ? { attachments: payload.attachments } : {}),
+        ...(payload.skills?.length ? { skills: payload.skills } : {}),
       })
-      await cache.invalidateQueries({ queryKey: chatMessagesKey(conversationId) })
+      await cache.invalidateQueries({ queryKey: chatMessagesKey(payload.conversationId) })
     },
-    onSuccess: () => {
+    onSuccess: (_result, payload) => {
+      if (payload.queued) removeQueueItem(payload.conversationId, payload.queued.id)
+      const sent = payload.composerDraft
+      if (sent) {
+        setDraft(current => current === sent.text ? '' : current)
+        setAttachments(current => current === sent.attachments ? [] : current)
+        setSelectedSkills(current => current === sent.skills ? [] : current)
+      }
       void notify('已发送引导，AI 将在下一轮次接收')
     },
     onError: error => {
@@ -397,12 +411,11 @@ function ChatSession({ target, close, workspace }: {
     if (element && follow.current) element.scrollTop = element.scrollHeight
   }, [messages.data, conversationId, theme, following, tasksOpen, inlineApproval?.id, inlineQuestion?.id, inlinePlan?.id])
   const prevActive = useRef(false)
+  function removeQueueItem(id: string, itemID: string) {
+    setQueues(current => ({ ...current, [id]: (current[id] ?? []).filter(item => item.id !== itemID) }))
+  }
   const drainQueue = useEffectEvent((item: QueuedChatMessage) => {
-    setQueues(current => {
-      const list = current[conversationId] ?? []
-      return { ...current, [conversationId]: list.filter(entry => entry.id !== item.id) }
-    })
-    send.mutate({ text: item.text, attachments: item.attachments, planMode: item.planMode })
+    send.mutate({ text: item.text, attachments: item.attachments, planMode: item.planMode, skills: item.skills ?? [], queued: item })
   })
   useEffect(() => {
     const wasActive = prevActive.current
@@ -439,6 +452,7 @@ function ChatSession({ target, close, workspace }: {
       return existing
     })
     if (workspace && (id !== conversationId || group !== draftGroup)) {
+      setSelectedSkills([])
       setSlashPage('actions')
       setHighlightedSlash('')
       setDraft('')
@@ -499,30 +513,30 @@ function ChatSession({ target, close, workspace }: {
   const skillCommands: SlashItem[] = (skills.data ?? []).filter(skill => skill.enabled)
     .filter(skill => selectedSkills.length < 3 || selectedSkills.includes(skill.name))
     .map(skill => ({
-      key: `skill:${skill.name}`, label: skill.name, icon: Sparkles,
+      key: `skill:${skill.name}`, label: skill.name, icon: 'blocks', graphic: <SkillIcon {...skill} />,
       detail: selectedSkills.includes(skill.name) ? '移除此技能' : skill.description,
       action: 'skill', value: skill.name,
     }))
   const actions: SlashItem[] = [
-    { key: 'skills', label: '技能', icon: Sparkles, detail: '应用已启用的技能', aliases: ['skill'], page: 'skills' },
-    { key: 'new', label: '新对话', icon: Plus, detail: '开启空白对话', aliases: ['new-chat'], action: 'new' },
-    { key: 'plan', label: '计划模式', icon: ClipboardList, detail: planMode ? '关闭计划模式' : '先澄清需求并确认计划后再执行', aliases: ['plan', '计划'], action: 'plan' },
-    ...(modelOptions.length ? [{ key: 'model', label: '模型', icon: Box, page: 'models' } satisfies SlashItem] : []),
-    ...(effortLevels.length ? [{ key: 'reasoning', label: '思考档位', icon: Brain, detail: selectedEffortLabel,
+    { key: 'skills', label: '技能', icon: 'blocks', detail: '应用已启用的技能', aliases: ['skill'], page: 'skills' },
+    { key: 'new', label: '新对话', icon: 'plus', detail: '开启空白对话', aliases: ['new-chat'], action: 'new' },
+    { key: 'plan', label: '计划模式', icon: 'clipboard-check', detail: planMode ? '关闭计划模式' : '先澄清需求并确认计划后再执行', aliases: ['plan', '计划'], action: 'plan' },
+    ...(modelOptions.length ? [{ key: 'model', label: '模型', icon: 'box', page: 'models' } satisfies SlashItem] : []),
+    ...(effortLevels.length ? [{ key: 'reasoning', label: '思考档位', icon: 'brain', detail: selectedEffortLabel,
       aliases: ['effort', '推理'], page: 'effort' } satisfies SlashItem] : []),
-    ...(modelReady ? [{ key: 'context', label: '上下文', icon: Gauge, detail: '查看用量、整理或重置上下文',
+    ...(modelReady ? [{ key: 'context', label: '上下文', icon: 'gauge', detail: '查看用量、整理或重置上下文',
       aliases: ['status', 'compact', '压缩', '整理'], action: 'context' } satisfies SlashItem] : []),
-    { key: 'tasks', label: '定时任务', icon: CalendarClock, detail: '查看或修改计划', aliases: ['schedule'], action: 'tasks' },
-    { key: 'settings', label: 'AI 设置', icon: Settings, action: 'settings' },
+    { key: 'tasks', label: '定时任务', icon: 'calendar-days', detail: '查看或修改计划', aliases: ['schedule'], action: 'tasks' },
+    { key: 'settings', label: 'AI 设置', icon: 'settings', action: 'settings' },
     ...skillCommands,
   ]
   const pages: Record<SlashPage, SlashItem[]> = {
     actions,
-    skills: [...skillCommands, { key: 'manage-skills', label: '管理技能', icon: Settings, action: 'settings' }],
-    models: modelOptions.map(option => ({ key: option.value, label: option.label, aliases: option.keywords, icon: Box,
+    skills: [...skillCommands, { key: 'manage-skills', label: '管理技能', icon: 'settings', action: 'settings' }],
+    models: modelOptions.map(option => ({ key: option.value, label: option.label, aliases: option.keywords, icon: 'box',
       detail: option.value === modelID ? '当前模型' : undefined, action: 'model', value: option.value })),
     effort: modelID ? [defaultEffortOption, ...effortLevels].map(level => ({
-      key: level.value, label: level.label, icon: Brain,
+      key: level.value, label: level.label, icon: 'brain',
       detail: (reasoningEffort || defaultEffortOption.value) === level.value ? '当前档位' : undefined,
       action: 'effort', value: level.value,
     })) : [],
@@ -664,18 +678,22 @@ function ChatSession({ target, close, workspace }: {
       }))
       const trimmed = draft.trim()
       if (busySendMode === 'steer') {
-        steer.mutate({ text: trimmed, attachments: payloadAttachments })
+        steer.mutate({ conversationId, text: trimmed, attachments: payloadAttachments, skills: selectedSkills,
+          composerDraft: { text: draft, attachments, skills: selectedSkills } })
+        return
       } else {
         const queued: QueuedChatMessage = {
           id: `q-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           text: trimmed,
           attachments: payloadAttachments,
+          skills: selectedSkills,
           planMode,
         }
         setQueues(current => ({ ...current, [conversationId]: [...(current[conversationId] ?? []), queued] }))
       }
       setDraft('')
       setAttachments([])
+      setSelectedSkills([])
       return
     }
     if (canSend) send.mutate()
@@ -816,6 +834,7 @@ function ChatSession({ target, close, workspace }: {
             reveal={workspace?.motionMode === 'off' ? undefined : message.reveal} />
           : (message.text || (message.attachments?.length ?? 0) > 0) && (workspace
             ? <div className="chat-user-stack">
+                <SkillMarks skills={message.skills} />
                 {message.attachments && message.attachments.length > 0 && <div className="chat-user-attachments">
                   {message.attachments.map((att, idx) => att.kind === 'image' && att.preview
                     ? <img key={`${att.name}-${idx}`} src={att.preview} alt={att.name} className="chat-user-image" />
@@ -872,8 +891,7 @@ function ChatSession({ target, close, workspace }: {
             void notify('当前模型不是多模态模型，不支持图片', '请切换模型或移除图片后再引导。', true)
             return
           }
-          setQueues(current => ({ ...current, [conversationId]: (current[conversationId] ?? []).filter(entry => entry.id !== item.id) }))
-          steer.mutate({ text: item.text, attachments: item.attachments })
+          steer.mutate({ conversationId, text: item.text, attachments: item.attachments, skills: item.skills, queued: item })
         }}
         onEdit={(itemId, nextText) => {
           setQueues(current => ({
@@ -881,12 +899,7 @@ function ChatSession({ target, close, workspace }: {
             [conversationId]: (current[conversationId] ?? []).map(entry => entry.id === itemId ? { ...entry, text: nextText } : entry),
           }))
         }}
-        onDelete={itemId => {
-          setQueues(current => ({
-            ...current,
-            [conversationId]: (current[conversationId] ?? []).filter(entry => entry.id !== itemId),
-          }))
-        }}
+        onDelete={itemId => removeQueueItem(conversationId, itemId)}
       />}
       {inlinePlan ? <section aria-label="计划确认" className={cn('flex flex-col gap-3 px-4 py-3', workspace ? 'chat-composer-form chat-composer-approval' : 'rounded-xl border')}>
         <PlanConfirmPrompt key={inlinePlan.id} pending={inlinePlan}
@@ -912,7 +925,7 @@ function ChatSession({ target, close, workspace }: {
             <Button type="button" size="icon-xs" variant="ghost" className="size-5 rounded-full" aria-label="关闭计划模式" disabled={send.isPending} onClick={() => setPlanMode(false)}><X /></Button>
           </div>}
           {selectedSkills.map(name => <div key={name} className="chat-chip">
-            <Sparkles className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <SkillIcon {...skills.data?.find(skill => skill.name === name)} />
             <span className="truncate">{name}</span>
             <Button type="button" size="icon-xs" variant="ghost" className="size-5 rounded-full" aria-label={`移除技能 ${name}`} disabled={send.isPending} onClick={() => toggleSkill(name)}><X /></Button>
           </div>)}

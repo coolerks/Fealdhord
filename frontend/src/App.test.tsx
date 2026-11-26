@@ -590,6 +590,8 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
     const input = await screen.findByRole('textbox', { name: '消息' })
     await user.type(input, '/')
+    expect(screen.getByRole('option', { name: '技能' }).querySelector('[data-meaning="blocks"]')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '计划模式' }).querySelector('[data-meaning="clipboard-check"]')).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: '关闭工具调用' })).not.toBeInTheDocument()
     await user.type(input, 'skills')
     expect(screen.getByRole('option', { name: '技能' })).toBeInTheDocument()
@@ -611,10 +613,19 @@ describe('Phase 1 阅读 Shell', () => {
     expect(screen.getByRole('button', { name: '聊天模型' })).toHaveTextContent('备用模型')
     await user.type(input, '/tmp/article.txt')
     expect(screen.queryByRole('listbox', { name: '斜杠命令' })).not.toBeInTheDocument()
+    chat.Send.mockImplementationOnce(async () => {
+      chat.Messages.mockResolvedValue([{ id: 'user-first', role: 'user', text: '/tmp/article.txt', status: 'complete',
+        skills: [{ name: 'reading-notes', icon: 'book-text', color: '#112233' }] }])
+    })
     await user.keyboard('{Enter}')
     await waitFor(() => expect(chat.Send).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
       conversationId: 'slash-chat', modelId: 'second', text: '/tmp/article.txt', skills: ['reading-notes'],
     })))
+    expect(await screen.findByRole('list', { name: '已应用技能' })).toHaveTextContent('reading-notes')
+    await waitFor(() => expect(screen.queryByRole('button', { name: '移除技能 reading-notes' })).not.toBeInTheDocument())
+    await user.type(input, '下一条消息{Enter}')
+    await waitFor(() => expect(chat.Send).toHaveBeenCalledTimes(2))
+    expect(chat.Send.mock.calls[1][0]).not.toHaveProperty('skills')
   })
 
   it('新建会话分组可关联多个目录并独立收起侧栏层级', async () => {

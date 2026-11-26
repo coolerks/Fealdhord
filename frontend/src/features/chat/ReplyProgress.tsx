@@ -1,3 +1,4 @@
+import { SkillMarks } from '@/components/skill-mark'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { clearSelectionWithin } from '@/app/TextSelection'
@@ -304,7 +305,7 @@ export function ReplyBody({ message, markdown, reveal }: {
       {steers.map((steer, index) => (
         <div key={`${steer.at}-${index}`} className="flex items-start gap-1.5 rounded-lg border border-border/80 bg-muted/45 px-2.5 py-1.5 text-xs text-muted-foreground">
           <span className="shrink-0 font-medium text-foreground">中途引导</span>
-          <span className="min-w-0 break-words">{steer.text}</span>
+          <div className="min-w-0 break-words"><SkillMarks skills={steer.skills} />{steer.text}</div>
         </div>
       ))}
     </div>
