@@ -45,6 +45,7 @@ type Settings struct {
 	TranslateOnOpen       bool             `json:"translateOnOpen"`
 	TranslationTargetLang string           `json:"translationTargetLang"`
 	TranslationPrompt     string           `json:"translationPrompt"`
+	TranslationBatchKiB   *int64           `json:"translationBatchKiB,omitempty"`
 	Summary               *SummarySettings `json:"summary,omitempty"`
 }
 
@@ -80,8 +81,8 @@ func publicSettings(row sqlc.ArticleAiSetting) Settings {
 		MinimumImportance: row.MinimumImportance, MinimumRelevance: row.MinimumRelevance,
 		AutoTranslate: row.AutoTranslate == 1, AutoTranslateScope: scope,
 		TranslateOnOpen: row.TranslateOnOpen == 1, TranslationTargetLang: targetLang,
-		TranslationPrompt: row.TranslationPrompt,
-		Summary:           &SummarySettings{OnOpen: row.SummarizeOnOpen == 1, HanLimit: row.SummaryHanLimit, EnglishLimit: row.SummaryEnglishLimit}}
+		TranslationPrompt: row.TranslationPrompt, TranslationBatchKiB: &row.TranslationBatchKib,
+		Summary: &SummarySettings{OnOpen: row.SummarizeOnOpen == 1, HanLimit: row.SummaryHanLimit, EnglishLimit: row.SummaryEnglishLimit}}
 }
 
 func (s *Service) Settings(ctx context.Context) (Settings, error) {
@@ -108,6 +109,12 @@ func (s *Service) Save(ctx context.Context, input Settings) (Settings, error) {
 		return Settings{}, code("ValidationError")
 	}
 	var p sqlc.SaveArticleAISettingsParams
+	if size := input.TranslationBatchKiB; size != nil {
+		if *size < 0 || *size > 1024 {
+			return Settings{}, code("ValidationError")
+		}
+		p.TranslationBatchKib = sql.NullInt64{Int64: *size, Valid: true}
+	}
 	if summary := input.Summary; summary != nil {
 		const maxSafeInteger = 1<<53 - 1
 		if summary.HanLimit < 1 || summary.HanLimit > maxSafeInteger || summary.EnglishLimit < 1 || summary.EnglishLimit > maxSafeInteger {

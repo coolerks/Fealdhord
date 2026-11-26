@@ -1,5 +1,7 @@
 # 最近交接
 
+2026-11-26 完成阅读器正文流式翻译。模型按预算串行接收正文，完整译段随流提交。部分完成时可定位未译段落并继续。「文章 AI」新增单批正文上限，留空为自动 50 KiB。Go 与前端检查通过，用户网关的真实长文耗时待复测。[验证范围](history/2026-11-26-article-stream-translation.md)
+
 2026-11-26 修复全局 AI 的停止回复、模型超时重试、命令绕过审批和等待用户。移除整轮总时限，聊天审批、提问及计划确认持续等待。Go 全量测试、相关包竞态、vet、Windows x64 工具测试交叉编译、前端类型检查、lint 和构建通过。前端全量复跑启用一次失败重试，231 项通过。Windows 原生桌面和实际模型服务待实测。[本轮验证](../../.trellis/tasks/archive/2026-11/11-26-chat-interaction-reliability/validation.md)
 
 2026-11-26 完成 MCP 按需连接及全局聊天两项独立限额。Go 全量测试、vet、本机 MCP 同轮加载和相关竞态、旧库升级、前端 230 项回归、lint 与生产构建通过。桌面样式及用户实际 MCP 服务待实测。[本轮联验](../../.trellis/tasks/archive/2026-11/11-26-chat-workspace-tool-experience/validation.md) · [MCP 按需连接契约](../04-specs/mcp.md#全局聊天按需连接)

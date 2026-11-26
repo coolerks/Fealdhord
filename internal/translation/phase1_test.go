@@ -51,42 +51,60 @@ func readPhase1Payload(t *testing.T, request *ai.ModelRequest) translationPayloa
 
 func phase1ModelReply(t *testing.T, payload translationPayload, finish string) *ai.ModelResponse {
 	t.Helper()
-	jsonBody, err := json.Marshal(map[string]any{"title": "示例标题", "items": payload.Items})
-	if err != nil {
-		t.Fatal(err)
+	var output strings.Builder
+	write := func(item translationItem) {
+		line, err := json.Marshal(item)
+		if err != nil {
+			t.Fatal(err)
+		}
+		output.Write(line)
+		output.WriteByte('\n')
 	}
-	return &ai.ModelResponse{FinishReason: finish, Message: ai.Message{Content: []ai.ContentBlock{{Type: "text", Text: string(jsonBody)}}}}
+	if payload.Title != "" {
+		write(translationItem{ID: "title", Text: "示例标题"})
+	}
+	for _, item := range payload.Items {
+		write(item)
+	}
+	if finish == "length" {
+		output.WriteString(`{"id":"unfinished","text":"未完`)
+	}
+	return &ai.ModelResponse{FinishReason: finish, Message: ai.Message{Content: []ai.ContentBlock{{Type: "text", Text: output.String()}}}}
 }
 
-func TestLongArticleFirstBatchUsesReadingPosition(t *testing.T) {
-	_, store, id := phase1Article(t, strings.Repeat("<p>A short example paragraph with some words.</p>", 66))
+func TestLongArticleThatFitsUsesOneStream(t *testing.T) {
+	paragraph := "This example paragraph contains about one hundred characters and stands in for a section of the article."
+	_, store, id := phase1Article(t, strings.Repeat("<p>"+paragraph+"</p>", 429))
 	var batches [][]string
 	adapter := &fakeModel{fn: func(_ context.Context, request *ai.ModelRequest, _ int32) (*ai.ModelResponse, error) {
 		payload := readPhase1Payload(t, request)
 		var ids []string
-		for _, item := range payload.Items {
+		for i, item := range payload.Items {
 			ids = append(ids, item.ID)
+			payload.Items[i].Text = "一段简短的测试译文。"
 		}
 		batches = append(batches, ids)
 		return phase1ModelReply(t, payload, "stop"), nil
 	}}
 	first := 0
-	svc := New(store, fakeResolver{model: adapter}, reader.NewService(store, nil, nil, nil), func(event ProgressEvent) {
+	metadata := ai.Metadata{Context: 131072, OutputLimit: 32768}
+	svc := New(store, fakeResolver{model: adapter, metadata: metadata}, reader.NewService(store, nil, nil, nil), func(event ProgressEvent) {
 		if first == 0 && event.Record.TranslatedBlocks > 0 {
 			first = event.Record.TranslatedBlocks
 		}
 	}, nil)
 	out, err := svc.Translate(context.Background(), TranslateRequest{ArticleID: id, SourceMode: "feed", StartBlockID: "b30"})
-	if err != nil || out.Status != "completed" || out.TranslatedBlocks != 66 || first != 3 {
+	if err != nil || out.Status != "completed" || out.TranslatedBlocks != 429 || first != 429 {
 		t.Fatalf("translation status=%s, blocks=%d, first=%d, err=%v", out.Status, out.TranslatedBlocks, first, err)
 	}
-	if !slices.Equal(batches[0], []string{"b30", "b31", "b32"}) || len(batches) != 8 {
+	if len(batches) != 1 || len(batches[0]) != 429 || batches[0][0] != "b0" || batches[0][428] != "b428" {
 		t.Fatalf("unexpected batch plan: %v", batches)
 	}
 }
 
 func TestTranslationRestartsAtMissingFragmentsAndPreservesMarkup(t *testing.T) {
 	link := strings.Repeat("a", 64)
+	metadata := ai.Metadata{Context: 4096, OutputLimit: 1024}
 	original := `<a href="#reader-link" data-reader-link="` + link + `"><strong>` +
 		strings.Repeat("This is a sentence with &amp; characters and several words. ", 300) +
 		`</strong></a> <code>&lt;escaped&gt; &amp; marker()</code>`
@@ -95,16 +113,17 @@ func TestTranslationRestartsAtMissingFragmentsAndPreservesMarkup(t *testing.T) {
 	seen := make(map[string]bool)
 	adapter := &fakeModel{fn: func(_ context.Context, request *ai.ModelRequest, call int32) (*ai.ModelResponse, error) {
 		payload := readPhase1Payload(t, request)
-		if call > 1 {
+		if len(seen) > 0 {
 			return nil, &ai.ModelError{Code: "RateLimitError"}
 		}
-		for _, item := range payload.Items {
+		for i, item := range payload.Items {
+			payload.Items[i].Text = strings.ReplaceAll(item.Text, "This is", "译 This is")
 			seen[item.ID] = true
 		}
 		return phase1ModelReply(t, payload, "stop"), nil
 	}}
 	req := TranslateRequest{ArticleID: id, SourceMode: "feed", TargetLang: "zh-CN"}
-	svc := New(store, fakeResolver{model: adapter}, reader.NewService(store, nil, nil, nil), nil, nil)
+	svc := New(store, fakeResolver{model: adapter, metadata: metadata}, reader.NewService(store, nil, nil, nil), nil, nil)
 	first, err := svc.Translate(ctx, req)
 	if modelErrorCode(err) != "RateLimitError" || first.Status != "partial" || first.TotalBlocks != 1 || first.TranslatedBlocks != 0 || len(seen) == 0 {
 		t.Fatalf("fragment checkpoint: %+v %v sent=%v", first, err, seen)
@@ -119,14 +138,15 @@ func TestTranslationRestartsAtMissingFragmentsAndPreservesMarkup(t *testing.T) {
 	defer reopened.Close()
 	adapter = &fakeModel{fn: func(_ context.Context, request *ai.ModelRequest, _ int32) (*ai.ModelResponse, error) {
 		payload := readPhase1Payload(t, request)
-		for _, item := range payload.Items {
+		for i, item := range payload.Items {
+			payload.Items[i].Text = strings.ReplaceAll(item.Text, "This is", "译 This is")
 			if seen[item.ID] {
 				t.Errorf("previously committed fragment sent again: %s", item.ID)
 			}
 		}
 		return phase1ModelReply(t, payload, "stop"), nil
 	}}
-	svc = New(reopened, fakeResolver{model: adapter}, reader.NewService(reopened, nil, nil, nil), nil, nil)
+	svc = New(reopened, fakeResolver{model: adapter, metadata: metadata}, reader.NewService(reopened, nil, nil, nil), nil, nil)
 	out, err := svc.Translate(ctx, req)
 	if err != nil || out.Status != "completed" || out.TranslatedBlocks != 1 {
 		t.Fatalf("resume status=%s, blocks=%d, error=%v", out.Status, out.TranslatedBlocks, err)
@@ -198,6 +218,7 @@ func TestTranslationTruncatedResponseRetriesOnlyUnverifiedTail(t *testing.T) {
 		batches = append(batches, ids)
 		if call == 1 {
 			firstOutputLimit = *request.MaxOutputTokens
+			payload.Items = payload.Items[:1]
 			return phase1ModelReply(t, payload, "length"), nil
 		}
 		if *request.MaxOutputTokens <= firstOutputLimit {
@@ -216,14 +237,21 @@ func TestTranslationCancelDiscardsLateReply(t *testing.T) {
 	_, store, id := phase1Article(t, strings.Repeat("<p>Original paragraph.</p>", 12))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	model := &fakeModel{fn: func(_ context.Context, request *ai.ModelRequest, call int32) (*ai.ModelResponse, error) {
-		payload := readPhase1Payload(t, request)
-		if call == 2 {
+	model := &fakeModel{stream: func(streamCtx context.Context, _ *ai.ModelRequest) (<-chan ai.ModelEvent, error) {
+		events := make(chan ai.ModelEvent, 2)
+		events <- ai.ModelEvent{Type: "text_delta", Text: "{\"id\":\"b0\",\"text\":\"第一段\"}\n{\"id\":\"b1\",\"text\":\"第二段\"}\n{\"id\":\"b2\",\"text\":\"第三段\"}\n"}
+		go func() {
+			defer close(events)
+			<-streamCtx.Done()
+			events <- ai.ModelEvent{Type: "text_delta", Text: "{\"id\":\"b3\",\"text\":\"迟到\"}\n"}
+		}()
+		return events, nil
+	}}
+	svc := New(store, fakeResolver{model: model}, reader.NewService(store, nil, nil, nil), func(event ProgressEvent) {
+		if event.Record.TranslatedBlocks == 3 {
 			cancel()
 		}
-		return phase1ModelReply(t, payload, "stop"), nil
-	}}
-	svc := New(store, fakeResolver{model: model}, reader.NewService(store, nil, nil, nil), nil, nil)
+	}, nil)
 	req := TranslateRequest{ArticleID: id, SourceMode: "feed", TargetLang: "zh-CN"}
 	out, err := svc.Translate(ctx, req)
 	if modelErrorCode(err) != "Cancelled" || out.Status != "partial" || out.TranslatedBlocks != 3 {

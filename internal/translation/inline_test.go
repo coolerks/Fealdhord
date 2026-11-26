@@ -36,14 +36,14 @@ func TestTranslationRepairsRejectedFormattingWithoutRepeatingGoodBlocks(t *testi
 			if len(payload.Items) != 2 {
 				t.Fatalf("first request: %+v", payload.Items)
 			}
-			payload.Items[0].HTML = "**章节标题。** 阅读说明。"
-			payload.Items[1].HTML = "普通段落。"
+			payload.Items[0].Text = "**章节标题。** 阅读说明。"
+			payload.Items[1].Text = "普通段落。"
 		case 2:
 			if len(payload.Items) != 1 || payload.Items[0].ID != "b0" ||
-				!strings.Contains(payload.Items[0].HTML, "[[FT0]]") || !strings.Contains(request.System, "方括号标记") {
+				!strings.Contains(payload.Items[0].Text, "[[FT0]]") || !strings.Contains(request.System, "方括号标记") {
 				t.Fatalf("repair request: %+v", payload.Items)
 			}
-			payload.Items[0].HTML = "[[FT0]]章节标题。[[FT1]] &amp;#x6839;据说明。"
+			payload.Items[0].Text = "[[FT0]]章节标题。[[FT1]] &#x6839;据说明。"
 		default:
 			t.Fatal("unexpected extra retries")
 		}
@@ -68,7 +68,8 @@ func TestTranslationRepairsRejectedFormattingWithoutRepeatingGoodBlocks(t *testi
 }
 
 func TestTranslationRepairRejectsInvalidMarkers(t *testing.T) {
-	unit := useInlineRetry(translationUnit{HTML: "<strong>Title.</strong>"})
+	unit := translationUnit{HTML: "<strong>Title.</strong>"}
+	unit.format = encodeInline(unit.HTML)
 	for _, bad := range []string{"[[FT0]]标题。", "[[FT1]]标题。[[FT0]]", "[[FT0]]标题。[[FT0]][[FT1]]", "[[FT0]]标题。[[FT2]][[FT1]]"} {
 		if _, ok := validateUnit(unit, bad); ok {
 			t.Errorf("malformed markers were accepted: %q", bad)

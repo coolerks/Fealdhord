@@ -3,8 +3,6 @@ package translation
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
-	"errors"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -19,8 +17,9 @@ import (
 )
 
 type fakeModel struct {
-	calls atomic.Int32
-	fn    func(ctx context.Context, req *ai.ModelRequest, call int32) (*ai.ModelResponse, error)
+	calls  atomic.Int32
+	stream func(context.Context, *ai.ModelRequest) (<-chan ai.ModelEvent, error)
+	fn     func(ctx context.Context, req *ai.ModelRequest, call int32) (*ai.ModelResponse, error)
 }
 
 func TestTranslationResumesMissingBlocksAndContinuesAfterSameLanguageBatch(t *testing.T) {
@@ -50,36 +49,25 @@ func TestTranslationResumesMissingBlocksAndContinuesAfterSameLanguageBatch(t *te
 	var attemptedIDs [][]string
 	blockLast := true
 	model := &fakeModel{fn: func(_ context.Context, req *ai.ModelRequest, call int32) (*ai.ModelResponse, error) {
-		var payload struct {
-			Items []struct {
-				ID   string `json:"id"`
-				HTML string `json:"html"`
-			} `json:"items"`
-		}
-		if err := json.Unmarshal([]byte(req.Messages[0].Content[0].Text), &payload); err != nil {
-			t.Fatal(err)
-		}
+		payload := readPhase1Payload(t, req)
 		var ids []string
-		items := make([]map[string]string, 0, len(payload.Items))
+		items := make([]translationItem, 0, len(payload.Items))
 		for _, item := range payload.Items {
 			ids = append(ids, item.ID)
 			if blockLast && item.ID == "b11" {
 				continue
 			}
-			html := item.HTML
-			if item.ID == "b11" {
-				html = "最后一段的译文。"
+			if item.ID == "b10" {
+				item.Text = "模型已翻译英语段落。"
 			}
-			items = append(items, map[string]string{"id": item.ID, "html": html})
+			if item.ID == "b11" {
+				item.Text = "最后一段的译文。"
+			}
+			items = append(items, item)
 		}
 		attemptedIDs = append(attemptedIDs, ids)
-		raw, err := json.Marshal(map[string]any{
-			"detected_lang": "zh-CN", "already_target": call == 1, "title": "这是一篇中英文混合文章", "items": items,
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return &ai.ModelResponse{Message: ai.Message{Content: []ai.ContentBlock{{Type: "text", Text: string(raw)}}}}, nil
+		payload.Items = items
+		return phase1ModelReply(t, payload, "stop"), nil
 	}}
 	svc := New(store, fakeResolver{model: model}, reader.NewService(store, nil, nil, nil), nil, nil)
 	req := TranslateRequest{ArticleID: articleID, TargetLang: "zh-CN", SourceMode: "feed"}
@@ -112,7 +100,7 @@ func TestTranslationResumesMissingBlocksAndContinuesAfterSameLanguageBatch(t *te
 	if err != nil || complete.Status != "completed" || complete.TranslatedBlocks != 12 || complete.Blocks[11].TranslatedHTML != "最后一段的译文。" {
 		t.Fatalf("expected a complete resumed translation: %+v, %v", complete, err)
 	}
-	if len(attemptedIDs) != 4 || strings.Join(attemptedIDs[2], ",") != "b11" || strings.Join(attemptedIDs[3], ",") != "b11" {
+	if len(attemptedIDs) != 3 || strings.Join(attemptedIDs[1], ",") != "b11" || strings.Join(attemptedIDs[2], ",") != "b11" {
 		t.Fatalf("retry should send only the missing block: %v", attemptedIDs)
 	}
 	if err := store.SaveArticleTranslation(ctx, sqlc.SaveArticleTranslationParams{
@@ -132,16 +120,32 @@ func (f *fakeModel) Generate(ctx context.Context, req *ai.ModelRequest) (*ai.Mod
 	return f.fn(ctx, req, n)
 }
 
-func (f *fakeModel) Stream(context.Context, *ai.ModelRequest) (<-chan ai.ModelEvent, error) {
-	return nil, errors.New("not implemented")
+func (f *fakeModel) Stream(ctx context.Context, request *ai.ModelRequest) (<-chan ai.ModelEvent, error) {
+	if f.stream != nil {
+		return f.stream(ctx, request)
+	}
+	response, err := f.Generate(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	events := make(chan ai.ModelEvent, 2)
+	events <- ai.ModelEvent{Type: "text_delta", Text: responseText(response)}
+	finish := response.FinishReason
+	if finish == "" {
+		finish = "stop"
+	}
+	events <- ai.ModelEvent{Type: "message_end", FinishReason: finish}
+	close(events)
+	return events, nil
 }
 
 type fakeResolver struct {
-	model ai.Model
+	model    ai.Model
+	metadata ai.Metadata
 }
 
 func (r fakeResolver) Resolve(context.Context, string) (aiconfig.Model, ai.Model, error) {
-	return aiconfig.Model{ID: "tr-model", Name: "gpt-test"}, r.model, nil
+	return aiconfig.Model{ID: "tr-model", Name: "gpt-test", Metadata: r.metadata}, r.model, nil
 }
 
 func TestDetectLocal(t *testing.T) {
@@ -306,30 +310,11 @@ func TestTranslationCacheSkipAndResume(t *testing.T) {
 					Message: ai.Message{Role: "assistant", Content: []ai.ContentBlock{{Type: "text", Text: `{"detected_lang":"en","already_target":false,"title":"理解 Go 并发模式","summary":"本文介绍 goroutine 和 channel 如何在生产系统中协同工作。"}`}}},
 				}, nil
 			}
-			var bodyReq struct {
-				Title string `json:"title"`
-				Items []struct {
-					ID   string `json:"id"`
-					HTML string `json:"html"`
-				} `json:"items"`
+			payload := readPhase1Payload(t, req)
+			for i := range payload.Items {
+				payload.Items[i].Text = "译文：" + payload.Items[i].Text
 			}
-			_ = json.Unmarshal([]byte(inText), &bodyReq)
-			outItems := make([]map[string]string, 0, len(bodyReq.Items))
-			for _, it := range bodyReq.Items {
-				outItems = append(outItems, map[string]string{
-					"id":   it.ID,
-					"html": "译文：" + it.HTML,
-				})
-			}
-			raw, _ := json.Marshal(map[string]any{
-				"detected_lang":  "en",
-				"already_target": false,
-				"title":          "理解 Go 并发模式",
-				"items":          outItems,
-			})
-			return &ai.ModelResponse{
-				Message: ai.Message{Role: "assistant", Content: []ai.ContentBlock{{Type: "text", Text: string(raw)}}},
-			}, nil
+			return phase1ModelReply(t, payload, "stop"), nil
 		},
 	}
 

@@ -18,6 +18,7 @@ require (
 	github.com/openai/openai-go/v3 v3.61.0
 	github.com/openilink/openilink-sdk-go v0.6.0
 	github.com/pressly/goose/v3 v3.28.0
+	github.com/rivo/uniseg v0.4.7
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/wailsapp/wails/v3 v3.0.0
 	github.com/zalando/go-keyring v0.2.6

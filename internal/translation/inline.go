@@ -109,63 +109,56 @@ func restoreInline(source, translated string) (string, bool) {
 	return out.String(), nextTag == len(sourceTags)
 }
 
-type inlineRetry struct {
-	original string
-	markers  []string
-	tags     []string
-	pattern  *regexp.Regexp
+type inlineFormat struct {
+	text    string
+	markers []string
+	tags    []string
+	pattern *regexp.Regexp
 }
 
-// useInlineRetry substitutes text markers for HTML tags in the existing bounded repair round.
-func useInlineRetry(unit translationUnit) translationUnit {
+// encodeInline keeps the original HTML and resource attributes local.
+func encodeInline(raw string) *inlineFormat {
 	stem := "FT"
-	plain := stdhtml.UnescapeString(unit.HTML)
+	plain := stdhtml.UnescapeString(raw)
 	for strings.Contains(plain, "[["+stem) {
 		stem += "T"
 	}
-	retry := &inlineRetry{original: unit.HTML}
+	format := &inlineFormat{}
 	var out strings.Builder
-	tokens := xhtml.NewTokenizer(strings.NewReader(unit.HTML))
+	tokens := xhtml.NewTokenizer(strings.NewReader(raw))
 	for kind := tokens.Next(); kind != xhtml.ErrorToken; kind = tokens.Next() {
 		if isInlineTag(kind) {
-			marker := fmt.Sprintf("[[%s%d]]", stem, len(retry.tags))
-			retry.tags = append(retry.tags, string(tokens.Raw()))
-			retry.markers = append(retry.markers, marker)
+			marker := fmt.Sprintf("[[%s%d]]", stem, len(format.tags))
+			format.tags = append(format.tags, string(tokens.Raw()))
+			format.markers = append(format.markers, marker)
 			out.WriteString(marker)
-		} else {
-			out.Write(tokens.Raw())
+		} else if kind == xhtml.TextToken {
+			out.Write(tokens.Text())
 		}
 	}
-	if len(retry.tags) == 0 {
-		return unit
+	format.text = out.String()
+	if len(format.tags) > 0 {
+		format.pattern = regexp.MustCompile(`\[\[` + stem + `[0-9]+\]\]`)
 	}
-	retry.pattern = regexp.MustCompile(`\[\[` + stem + `[0-9]+\]\]`)
-	unit.HTML, unit.retry = out.String(), retry
-	return unit
+	return format
 }
 
-func (r *inlineRetry) restore(translated string) (string, bool) {
-	var text strings.Builder
-	tokens := xhtml.NewTokenizer(strings.NewReader(translated))
-	for kind := tokens.Next(); kind != xhtml.ErrorToken; kind = tokens.Next() {
-		if kind != xhtml.TextToken {
-			return "", false
-		}
-		text.Write(tokens.Text())
+func (f *inlineFormat) restore(plain string) (string, bool) {
+	if f.pattern == nil {
+		return stdhtml.EscapeString(plain), true
 	}
-	plain := text.String()
-	found := r.pattern.FindAllStringIndex(plain, -1)
-	if len(found) != len(r.tags) {
+	found := f.pattern.FindAllStringIndex(plain, -1)
+	if len(found) != len(f.tags) {
 		return "", false
 	}
 	var out strings.Builder
 	start := 0
 	for i, part := range found {
-		if plain[part[0]:part[1]] != r.markers[i] {
+		if plain[part[0]:part[1]] != f.markers[i] {
 			return "", false
 		}
 		out.WriteString(stdhtml.EscapeString(plain[start:part[0]]))
-		out.WriteString(r.tags[i])
+		out.WriteString(f.tags[i])
 		start = part[1]
 	}
 	out.WriteString(stdhtml.EscapeString(plain[start:]))

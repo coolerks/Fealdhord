@@ -435,7 +435,11 @@ it('长文优先发送阅读位置，旧版和乱序进度不会覆盖，已读�
  expect(screen.getByText('第一段译文')).toBe(existingTranslation)
  await act(async () => finish({ ...progress, status: 'partial', errorCode: 'InvalidModelOutput', updatedAt: 6 }))
  expect(screen.getByText('第一段译文')).toBe(existingTranslation)
- expect(screen.getByRole('alert')).toHaveTextContent('翻译格式无效')
+ expect(screen.getByRole('alert')).toHaveTextContent('已译 1/66 段。仍有内容待译')
+ const scrollToMissing = vi.fn()
+ Object.defineProperty(current, 'scrollIntoView', { value: scrollToMissing })
+ await user.click(screen.getByRole('button', { name: '定位未译段落' }))
+ expect(scrollToMissing).toHaveBeenCalledWith({ block: 'center' })
  expect(screen.getByRole('button', { name: '继续翻译' })).toBeVisible()
 })
 

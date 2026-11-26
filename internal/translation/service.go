@@ -446,7 +446,7 @@ func (s *Service) Translate(ctx context.Context, req TranslateRequest) (Record, 
 		}
 		return s.translateSummary(runCtx, article, req, detectedLang, customPrompt, modelCfg, adapter)
 	}
-	return s.translateBody(runCtx, article, req, customPrompt, existing)
+	return s.translateBody(runCtx, article, req, customPrompt, int(settings.TranslationBatchKib), existing)
 }
 
 func (s *Service) resolveModel(ctx context.Context) (aiconfig.Model, ai.Model, error) {

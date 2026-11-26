@@ -113,6 +113,7 @@ type ArticleAiSetting struct {
 	SummarizeOnOpen       int64   `json:"summarize_on_open"`
 	SummaryHanLimit       int64   `json:"summary_han_limit"`
 	SummaryEnglishLimit   int64   `json:"summary_english_limit"`
+	TranslationBatchKib   int64   `json:"translation_batch_kib"`
 }
 
 type ArticleCategory struct {

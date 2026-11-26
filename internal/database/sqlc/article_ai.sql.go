@@ -140,7 +140,7 @@ func (q *Queries) GetArticleAIResult(ctx context.Context, arg GetArticleAIResult
 }
 
 const getArticleAISettings = `-- name: GetArticleAISettings :one
-SELECT id, classification, featured, prompt, revision, requests_per_hour, tokens_per_hour, minimum_importance, minimum_relevance, profile_revision, auto_translate, auto_translate_scope, translate_on_open, translation_target_lang, translation_prompt, summarize_on_open, summary_han_limit, summary_english_limit FROM article_ai_settings WHERE id=1
+SELECT id, classification, featured, prompt, revision, requests_per_hour, tokens_per_hour, minimum_importance, minimum_relevance, profile_revision, auto_translate, auto_translate_scope, translate_on_open, translation_target_lang, translation_prompt, summarize_on_open, summary_han_limit, summary_english_limit, translation_batch_kib FROM article_ai_settings WHERE id=1
 `
 
 func (q *Queries) GetArticleAISettings(ctx context.Context) (ArticleAiSetting, error) {
@@ -165,6 +165,7 @@ func (q *Queries) GetArticleAISettings(ctx context.Context) (ArticleAiSetting, e
 		&i.SummarizeOnOpen,
 		&i.SummaryHanLimit,
 		&i.SummaryEnglishLimit,
+		&i.TranslationBatchKib,
 	)
 	return i, err
 }
@@ -282,11 +283,12 @@ UPDATE article_ai_settings SET
  auto_translate=?8,auto_translate_scope=?9,
  translate_on_open=?10,translation_target_lang=?11,
  translation_prompt=?12,
- summarize_on_open=COALESCE(?13,summarize_on_open),
- summary_han_limit=COALESCE(?14,summary_han_limit),
- summary_english_limit=COALESCE(?15,summary_english_limit),
+ translation_batch_kib=COALESCE(?13,translation_batch_kib),
+ summarize_on_open=COALESCE(?14,summarize_on_open),
+ summary_han_limit=COALESCE(?15,summary_han_limit),
+ summary_english_limit=COALESCE(?16,summary_english_limit),
  revision=revision+1
-WHERE id=1 AND revision=?16 RETURNING id, classification, featured, prompt, revision, requests_per_hour, tokens_per_hour, minimum_importance, minimum_relevance, profile_revision, auto_translate, auto_translate_scope, translate_on_open, translation_target_lang, translation_prompt, summarize_on_open, summary_han_limit, summary_english_limit
+WHERE id=1 AND revision=?17 RETURNING id, classification, featured, prompt, revision, requests_per_hour, tokens_per_hour, minimum_importance, minimum_relevance, profile_revision, auto_translate, auto_translate_scope, translate_on_open, translation_target_lang, translation_prompt, summarize_on_open, summary_han_limit, summary_english_limit, translation_batch_kib
 `
 
 type SaveArticleAISettingsParams struct {
@@ -302,6 +304,7 @@ type SaveArticleAISettingsParams struct {
 	TranslateOnOpen       int64         `json:"translate_on_open"`
 	TranslationTargetLang string        `json:"translation_target_lang"`
 	TranslationPrompt     string        `json:"translation_prompt"`
+	TranslationBatchKib   sql.NullInt64 `json:"translation_batch_kib"`
 	SummarizeOnOpen       sql.NullInt64 `json:"summarize_on_open"`
 	SummaryHanLimit       sql.NullInt64 `json:"summary_han_limit"`
 	SummaryEnglishLimit   sql.NullInt64 `json:"summary_english_limit"`
@@ -322,6 +325,7 @@ func (q *Queries) SaveArticleAISettings(ctx context.Context, arg SaveArticleAISe
 		arg.TranslateOnOpen,
 		arg.TranslationTargetLang,
 		arg.TranslationPrompt,
+		arg.TranslationBatchKib,
 		arg.SummarizeOnOpen,
 		arg.SummaryHanLimit,
 		arg.SummaryEnglishLimit,
@@ -347,6 +351,7 @@ func (q *Queries) SaveArticleAISettings(ctx context.Context, arg SaveArticleAISe
 		&i.SummarizeOnOpen,
 		&i.SummaryHanLimit,
 		&i.SummaryEnglishLimit,
+		&i.TranslationBatchKib,
 	)
 	return i, err
 }

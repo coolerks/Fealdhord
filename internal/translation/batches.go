@@ -13,14 +13,12 @@ import (
 	"unicode"
 
 	"github.com/coolerks/Fealdhord/internal/ai"
+	"github.com/rivo/uniseg"
 	xhtml "golang.org/x/net/html"
 )
 
 const (
-	firstBatchTokens = 350
-	bodyBatchTokens  = 1200
-	maxBatchItems    = 10
-	maxBodyOutput    = 4096
+	defaultBatchKiB = 50
 )
 
 var errTranslationBudget = &ai.ModelError{Code: "ContextWindowExceeded"}
@@ -29,7 +27,7 @@ type translationUnit struct {
 	ID, HTML                          string
 	prefix, suffix, leading, trailing string
 	code                              []protectedCode
-	retry                             *inlineRetry
+	format                            *inlineFormat
 }
 
 type protectedCode struct{ marker, original string }
@@ -42,7 +40,7 @@ type plannedBlock struct {
 
 type translationItem struct {
 	ID   string `json:"id"`
-	HTML string `json:"html"`
+	Text string `json:"text"`
 }
 
 type translationPayload struct {
@@ -55,69 +53,79 @@ type translationPayload struct {
 type batchPlanner struct {
 	model, modelVersion, system, title string
 	budget                             ai.Budget
+	batchBytes                         int
+}
+
+func (p batchPlanner) byteLimit() int {
+	if p.batchBytes > 0 {
+		return p.batchBytes
+	}
+	return defaultBatchKiB << 10
 }
 
 func (p batchPlanner) request(units []translationUnit, title bool, section string) (*ai.ModelRequest, bool) {
-	items := make([]translationItem, 0, len(units))
-	payload := translationPayload{ArticleTitle: truncateRunes(p.title, 256), Context: section, Items: items}
-	output := 64
-	hasInlineRetry := false
+	payload := translationPayload{ArticleTitle: truncateRunes(p.title, 256), Context: section, Items: make([]translationItem, 0, len(units))}
+	output := 32
+	bytes := 0
 	for _, unit := range units {
-		hasInlineRetry = hasInlineRetry || unit.retry != nil
-		payload.Items = append(payload.Items, translationItem{ID: unit.ID, HTML: unit.HTML})
-		output += (ai.EstimateTokens(unit.HTML)*3+1)/2 + 24
+		text := unit.wireText()
+		payload.Items = append(payload.Items, translationItem{ID: unit.ID, Text: text})
+		bytes += len(text)
+		output += (ai.EstimateTokens(text)*3+1)/2 + 14
+		if bytes > p.byteLimit() || output > p.budget.OutputReserve {
+			return nil, false
+		}
 	}
 	if title {
 		payload.Title = truncateRunes(p.title, 512)
-		output += (ai.EstimateTokens(payload.Title)*3+1)/2 + 24
+		bytes += len(payload.Title)
+		output += (ai.EstimateTokens(payload.Title)*3+1)/2 + 14
 	}
-	maximumOutput := min(maxBodyOutput, p.budget.OutputReserve)
-	output = max(min(256, maximumOutput), output)
-	if output > maximumOutput {
+	if bytes > p.byteLimit() || output > p.budget.OutputReserve {
 		return nil, false
 	}
 	body, _ := json.Marshal(payload)
-	system := p.system
-	if hasInlineRetry {
-		system += " 带 [[FT0]] 形式标记的段落请保持所有方括号标记和代码占位符的原样及顺序，只翻译文字，不添加 HTML 或 Markdown 格式。"
-	}
+	output = max(min(256, p.budget.OutputReserve), output)
 	req := &ai.ModelRequest{
-		Model: p.model, System: system, Budget: p.budget, MaxOutputTokens: &output,
+		Model: p.model, System: p.system, Budget: p.budget, MaxOutputTokens: &output,
 		Messages: []ai.Message{{Role: "user", Content: []ai.ContentBlock{{Type: "text", Text: string(body)}}}},
 	}
 	return req, ai.EstimateRequest(*req) <= p.budget.InputLimit
 }
 
-func (p batchPlanner) fits(units []translationUnit, title bool, section string, tokenTarget, maxItems int) bool {
-	if len(units) > maxItems {
-		return false
-	}
-	var tokens int
-	for _, unit := range units {
-		tokens += ai.EstimateTokens(unit.HTML)
-	}
-	if tokens > tokenTarget {
-		return false
-	}
-	_, fits := p.request(units, title, section)
-	return fits
-}
-
-func (p batchPlanner) group(units []translationUnit, needTitle bool, contextFor func(translationUnit) string) [][]translationUnit {
+func (p batchPlanner) group(units []translationUnit, needTitle bool, contextFor func(translationUnit) string, startsSection func(translationUnit) bool) [][]translationUnit {
 	var batches [][]translationUnit
 	for len(units) > 0 {
-		n := 0
 		title := needTitle && len(batches) == 0
-		for n < len(units) && p.fits(units[:n+1], title, contextFor(units[0]), bodyBatchTokens, maxBatchItems) {
-			n++
+		hint := contextFor(units[0])
+		fits := func(n int) bool {
+			_, ok := p.request(units[:n], title, hint)
+			return ok
 		}
+		// Search within the byte and token budgets without repeatedly serializing every prefix.
+		low, high := 0, len(units)
+		for low < high {
+			middle := low + (high-low+1)/2
+			if fits(middle) {
+				low = middle
+			} else {
+				high = middle - 1
+			}
+		}
+		n := low
 		if n == 0 && title {
 			batches = append(batches, nil)
 			continue
 		}
-		if n == 0 {
-			// A single unit was already fitted without optional reading context.
-			n = 1
+		// Units were checked without optional context during splitting.
+		n = max(1, n)
+		if n < len(units) {
+			for boundary := n; boundary > n/2; boundary-- {
+				if startsSection(units[boundary]) {
+					n = boundary
+					break
+				}
+			}
 		}
 		batches = append(batches, units[:n])
 		units = units[n:]
@@ -128,41 +136,16 @@ func (p batchPlanner) group(units []translationUnit, needTitle bool, contextFor 
 	return batches
 }
 
-func (p batchPlanner) firstBatch(units []translationUnit, start string, needsTitle bool, contextFor func(translationUnit) string) ([]translationUnit, []translationUnit) {
-	index := 0
-	for i, unit := range units {
-		if unit.ID == start || strings.HasPrefix(unit.ID, start+".") {
-			index = i
-			break
-		}
-	}
-	var first, remainder []translationUnit
-	seenBlocks := 0
-	lastBlock := ""
-	for i, unit := range units {
-		block, _, fragment := strings.Cut(unit.ID, ".")
-		if i >= index && block != lastBlock {
-			seenBlocks++
-			lastBlock = block
-		}
-		if i >= index && seenBlocks <= maxBatchItems && !fragment &&
-			p.fits(append(first, unit), needsTitle, contextFor(unit), firstBatchTokens, 3) {
-			first = append(first, unit)
-		} else {
-			remainder = append(remainder, unit)
-		}
-	}
-	return first, remainder
-}
-
 func (p batchPlanner) split(block SourceBlock) (plannedBlock, error) {
-	raw, code := protectCode(SanitizeTranslatedHTML(block.InnerHTML), block.SourceHash)
+	raw, code := protectCode(SanitizeTranslatedHTML(block.InnerHTML))
 	whole := translationUnit{ID: block.ID, HTML: raw, code: code}
 	units := []translationUnit{whole}
-	if !p.fits(units, false, "", bodyBatchTokens, 1) {
+	if _, fits := p.request(units, false, ""); !fits {
 		var err error
-		units, err = splitInline(raw, block.ID, func(unit translationUnit) bool {
-			return p.fits([]translationUnit{unit}, false, "", bodyBatchTokens, 1)
+		limit := min(p.byteLimit(), p.budget.InputLimit*3, p.budget.OutputReserve*2)
+		units, err = splitInline(raw, block.ID, limit, func(unit translationUnit) bool {
+			_, fits := p.request([]translationUnit{unit}, false, "")
+			return fits
 		})
 		if err != nil {
 			return plannedBlock{}, err
@@ -176,17 +159,18 @@ func (p batchPlanner) split(block SourceBlock) (plannedBlock, error) {
 		}
 	}
 	hash := sha256.New()
-	fmt.Fprintf(hash, "v1\x00%s\x00%s\x00%s\x00%s", block.SourceHash, p.model, p.modelVersion, p.system)
-	for _, unit := range units {
-		fmt.Fprintf(hash, "\x00%s", unit.HTML)
+	fmt.Fprintf(hash, "v2\x00%s\x00%s\x00%s\x00%s", block.SourceHash, p.model, p.modelVersion, p.system)
+	for i := range units {
+		units[i].format = encodeInline(units[i].HTML)
+		fmt.Fprintf(hash, "\x00%s", units[i].HTML)
 	}
 	return plannedBlock{source: block, units: units, key: hex.EncodeToString(hash.Sum(nil))}, nil
 }
 
-func protectCode(raw, hash string) (string, []protectedCode) {
+func protectCode(raw string) (string, []protectedCode) {
 	var protected []protectedCode
-	stem := "FealdhordCode" + hash + "x"
-	for strings.Contains(raw, stem) {
+	stem := "[[FC"
+	for strings.Contains(stdhtml.UnescapeString(raw), stem) {
 		stem += "x"
 	}
 	z := xhtml.NewTokenizer(strings.NewReader(raw))
@@ -207,7 +191,7 @@ func protectCode(raw, hash string) (string, []protectedCode) {
 				break
 			}
 		}
-		marker := fmt.Sprintf("%s%dZ", stem, len(protected))
+		marker := fmt.Sprintf("%s%d]]", stem, len(protected))
 		protected = append(protected, protectedCode{marker, original.String()})
 		out.WriteString("<" + token.Data + ">" + marker + "</" + token.Data + ">")
 	}
@@ -217,7 +201,7 @@ func protectCode(raw, hash string) (string, []protectedCode) {
 type openInline struct{ start, end string }
 
 // splitInline closes and reopens inline tags at each split so every unit can be validated separately.
-func splitInline(raw, id string, fits func(translationUnit) bool) ([]translationUnit, error) {
+func splitInline(raw, id string, textLimit int, fits func(translationUnit) bool) ([]translationUnit, error) {
 	var units []translationUnit
 	var body strings.Builder
 	var open []openInline
@@ -287,41 +271,37 @@ func splitInline(raw, id string, fits func(translationUnit) bool) ([]translation
 		case xhtml.SelfClosingTagToken:
 			body.WriteString(markup)
 		case xhtml.TextToken:
-			for text := []rune(token.Data); len(text) > 0; {
-				n := min(len(text), 96)
-				for j := 0; j < n; j++ {
-					if strings.ContainsRune("。！？.!?；;\n", text[j]) &&
-						(j+1 == len(text) || text[j] > 127 || unicode.IsSpace(text[j+1])) {
-						n = j + 1
+			remaining := token.Data
+			state := -1
+			for remaining != "" {
+				sentence, rest, next := uniseg.FirstSentenceInString(remaining, state)
+				state, remaining = next, rest
+				fitsText := func(text string) bool {
+					return len(text) <= textLimit && fits(translationUnit{ID: nextID(), HTML: body.String() + stdhtml.EscapeString(text) + suffix()})
+				}
+				for sentence != "" {
+					if fitsText(sentence) {
+						body.WriteString(stdhtml.EscapeString(sentence))
+						hasText = hasText || strings.TrimSpace(sentence) != ""
 						break
 					}
-				}
-				if n == 96 && len(text) > n && !unicode.IsSpace(text[n]) {
-					for j := n - 1; j >= n/2; j-- {
-						if unicode.IsSpace(text[j]) {
-							n = j + 1
-							break
-						}
-					}
-				}
-				for n > 0 && !fits(translationUnit{ID: nextID(), HTML: body.String() + stdhtml.EscapeString(string(text[:n])) + suffix()}) {
 					if hasText {
 						if err := finish(); err != nil {
 							return nil, err
 						}
-						break
+						continue
 					}
-					n /= 2
+					n := fittedTextBoundary(sentence, textLimit, fitsText)
+					if n == 0 {
+						return nil, errTranslationBudget
+					}
+					body.WriteString(stdhtml.EscapeString(sentence[:n]))
+					hasText = true
+					sentence = sentence[n:]
+					if err := finish(); err != nil {
+						return nil, err
+					}
 				}
-				if n == 0 {
-					return nil, errTranslationBudget
-				}
-				if !fits(translationUnit{ID: nextID(), HTML: body.String() + stdhtml.EscapeString(string(text[:n])) + suffix()}) {
-					continue
-				}
-				body.WriteString(stdhtml.EscapeString(string(text[:n])))
-				hasText = hasText || strings.TrimSpace(string(text[:n])) != ""
-				text = text[n:]
 			}
 		}
 	}
@@ -331,24 +311,75 @@ func splitInline(raw, id string, fits func(translationUnit) bool) ([]translation
 	if len(open) != 0 {
 		return nil, errors.New("unbalanced source inline HTML")
 	}
-	if err := finish(); err != nil {
-		return nil, err
+	if hasText || len(units) == 0 || body.String() != prefix {
+		if err := finish(); err != nil {
+			return nil, err
+		}
 	}
 	return units, nil
+}
+
+// fittedTextBoundary prefers a clause, then a word, then a complete grapheme.
+func fittedTextBoundary(text string, ceiling int, fits func(string) bool) int {
+	graphemes := uniseg.NewGraphemes(text)
+	var ends []int
+	var words, clauses []int
+	for graphemes.Next() {
+		_, end := graphemes.Positions()
+		if end > ceiling {
+			break
+		}
+		ends = append(ends, end)
+		if graphemes.IsWordBoundary() {
+			words = append(words, end)
+		}
+		if strings.ContainsAny(graphemes.Str(), ",;，；、،؛") {
+			clauses = append(clauses, end)
+		}
+	}
+	i, j := 0, len(ends)
+	for i < j {
+		middle := i + (j-i)/2
+		if fits(text[:ends[middle]]) {
+			i = middle + 1
+		} else {
+			j = middle
+		}
+	}
+	if i == 0 {
+		return 0
+	}
+	limit := ends[i-1]
+	for _, candidates := range [][]int{clauses, words} {
+		for k := len(candidates) - 1; k >= 0; k-- {
+			if candidates[k] <= limit && candidates[k] > limit/2 {
+				return candidates[k]
+			}
+		}
+	}
+	return limit
+}
+
+func (unit translationUnit) wireText() string {
+	if unit.format != nil {
+		return unit.format.text
+	}
+	return encodeInline(unit.HTML).text
 }
 
 var codeMarkup = regexp.MustCompile(`<(?:code|kbd)>[^<]+</(?:code|kbd)>`)
 
 func validateUnit(unit translationUnit, raw string) (string, bool) {
 	source := unit.HTML
-	clean := SanitizeTranslatedHTML(raw)
-	if unit.retry != nil {
+	var clean string
+	if unit.format != nil {
 		var ok bool
-		clean, ok = unit.retry.restore(clean)
+		clean, ok = unit.format.restore(raw)
 		if !ok {
 			return "", false
 		}
-		source = unit.retry.original
+	} else {
+		clean = SanitizeTranslatedHTML(raw)
 	}
 	clean, matches := restoreInline(source, clean)
 	if clean == "" || !matches ||

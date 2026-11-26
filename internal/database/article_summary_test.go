@@ -1,7 +1,6 @@
 package database
 
 import (
-	"database/sql"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -117,10 +116,8 @@ func TestArticleAIOpenDefaults(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		saved, err := old.SaveArticleAISettings(ctx, sqlc.SaveArticleAISettingsParams{
-			Revision: 1, TranslateOnOpen: 1, RequestsPerHour: 60, TokensPerHour: 10000,
-			SummarizeOnOpen: sql.NullInt64{Valid: true},
-		})
+		_, err = old.db.ExecContext(ctx, `UPDATE article_ai_settings SET revision=2, translate_on_open=1,
+ summarize_on_open=0, requests_per_hour=60, tokens_per_hour=10000 WHERE id=1`)
 		if closeErr := old.Close(); err != nil || closeErr != nil {
 			t.Fatalf("保存旧库设置：%v %v", err, closeErr)
 		}
@@ -130,8 +127,9 @@ func TestArticleAIOpenDefaults(t *testing.T) {
 		}
 		defer upgraded.Close()
 		settings, err := upgraded.ArticleAISettings(ctx)
-		if err != nil || settings != saved {
-			t.Fatalf("升级后设置：%+v %v，预期 %+v", settings, err, saved)
+		if err != nil || settings.Revision != 2 || settings.TranslateOnOpen != 1 || settings.SummarizeOnOpen != 0 ||
+			settings.RequestsPerHour != 60 || settings.TokensPerHour != 10000 || settings.TranslationBatchKib != 0 {
+			t.Fatalf("升级后设置：%+v %v", settings, err)
 		}
 		backups, err := filepath.Glob(filepath.Join(filename+".backups", "before-v31-*.db"))
 		if err != nil || len(backups) != 1 {

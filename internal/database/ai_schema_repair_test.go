@@ -59,6 +59,7 @@ func TestAIRepairRestoresChatAndArticleEvaluationOnVersion21Database(t *testing.
 		ALTER TABLE article_ai_settings DROP COLUMN translate_on_open;
 		ALTER TABLE article_ai_settings DROP COLUMN translation_target_lang;
 		ALTER TABLE article_ai_settings DROP COLUMN translation_prompt;
+		ALTER TABLE article_ai_settings DROP COLUMN translation_batch_kib;
 		DROP INDEX conversations_active_order;
 		DROP INDEX conversations_archive_order;
 		DROP INDEX conversations_group;

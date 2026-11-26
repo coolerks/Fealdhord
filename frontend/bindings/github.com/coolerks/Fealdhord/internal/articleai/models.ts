@@ -31,6 +31,7 @@ export interface Settings {
     "translateOnOpen": boolean;
     "translationTargetLang": string;
     "translationPrompt": string;
+    "translationBatchKiB"?: number | null;
     "summary"?: SummarySettings | null;
 }
 

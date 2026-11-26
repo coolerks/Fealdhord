@@ -120,6 +120,8 @@ export function ArticleAISettings() {
   const busy = save.isPending || testing
   const summary = value.summary ?? { onOpen: false, hanLimit: 600, englishLimit: 350 }
   const validSummaryThresholds = [summary.hanLimit, summary.englishLimit].every(limit => Number.isSafeInteger(limit) && limit > 0)
+  const translationBatchKiB = value.translationBatchKiB ?? 0
+  const validBatchSize = Number.isSafeInteger(translationBatchKiB) && translationBatchKiB >= 0 && translationBatchKiB <= 1024
   const enabled = task === 'classification' ? settings.data?.classification : settings.data?.featured
   const showRules = value.classification || value.featured || value.autoTranslate || value.translateOnOpen || Boolean(draft)
   const targetLangOptions = defaultTranslationLanguages.map(item => ({
@@ -129,13 +131,13 @@ export function ArticleAISettings() {
   }))
 
   return <div className="space-y-6">
-    <form className="space-y-6" onSubmit={event => { event.preventDefault(); if (!busy && draft && validSummaryThresholds) save.mutate(draft) }}>
+    <form className="space-y-6" onSubmit={event => { event.preventDefault(); if (!busy && draft && validSummaryThresholds && validBatchSize) save.mutate(draft) }}>
       <SettingSection
         title="自动评估"
         actions={draft && (
           <>
             <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => setDraft(undefined)}>放弃更改</Button>
-            <Button type="submit" size="sm" disabled={busy || !validSummaryThresholds}>保存文章 AI 设置</Button>
+            <Button type="submit" size="sm" disabled={busy || !validSummaryThresholds || !validBatchSize}>保存文章 AI 设置</Button>
           </>
         )}
       >
@@ -215,6 +217,16 @@ export function ArticleAISettings() {
             <FieldLabel htmlFor="translate-on-open" className="font-normal">打开文章时自动翻译正文</FieldLabel>
             <Switch id="translate-on-open" disabled={busy} checked={value.translateOnOpen}
               onCheckedChange={translateOnOpen => setDraft({ ...value, translateOnOpen })} />
+          </SettingRow>
+          <SettingRow>
+            <div>
+              <FieldLabel htmlFor="translation-batch-kib" className="font-normal">单批正文上限（KiB）</FieldLabel>
+              <p id="translation-batch-hint" className="text-xs text-muted-foreground">留空使用自动上限 50 KiB，实际大小随模型预算调整。</p>
+            </div>
+            <Input id="translation-batch-kib" type="number" min={1} max={1024} step={1} className="w-28"
+              disabled={busy} aria-invalid={!validBatchSize || undefined} aria-describedby="translation-batch-hint"
+              placeholder="自动" value={translationBatchKiB === 0 || Number.isNaN(translationBatchKiB) ? '' : translationBatchKiB}
+              onChange={event => setDraft({ ...value, translationBatchKiB: event.target.value === '' ? 0 : event.target.valueAsNumber })} />
           </SettingRow>
           <div className="p-3.5">
             <Field>
