@@ -34,7 +34,7 @@ const reader=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
 vi.mock('@/lib/reader-api',()=>({readerAPI:reader}))
 const chat = vi.hoisted(() => ({
   List: vi.fn(), Create: vi.fn(), Branch: vi.fn(), Messages: vi.fn(), Send: vi.fn(), Cancel: vi.fn(), Model: vi.fn(),
-  Groups: vi.fn(), GroupConversations: vi.fn(), CreateInGroup: vi.fn(), SaveGroup: vi.fn(), PickGroupFolders: vi.fn(), SetGroupArchived: vi.fn(),
+  Groups: vi.fn(), GroupConversations: vi.fn(), CreateInGroup: vi.fn(), SaveGroup: vi.fn(), PickGroupFolders: vi.fn(), SetGroupArchived: vi.fn(), ArchivedGroups: vi.fn(),
   PickAttachments: vi.fn(), InspectClipboardFiles: vi.fn(), SaveMermaidImage: vi.fn(), Steer: vi.fn(),
   ContextStatus: vi.fn(), GenerateContextSummary: vi.fn(), SaveContext: vi.fn(), Rename: vi.fn(), SetPinned: vi.fn(), SetArchived: vi.fn(), Archived: vi.fn(), Delete: vi.fn(),
 }))
@@ -682,11 +682,40 @@ describe('Phase 1 阅读 Shell', () => {
     expect(groupContext).not.toBeInTheDocument()
     expect(composer).toHaveValue('保留草稿')
     expect(composer).toHaveFocus()
-    chat.SetGroupArchived.mockImplementation(async () => { chat.Groups.mockResolvedValue([]) })
+    chat.SetGroupArchived.mockImplementation(async (_id: string, archived: boolean) => {
+      const work = { id: 'work', name: '工作' }
+      chat.Groups.mockResolvedValue(archived ? [] : [work])
+      chat.ArchivedGroups.mockResolvedValue(archived ? [work] : [])
+    })
     fireEvent.contextMenu(screen.getByRole('button', { name: '工作' }))
     await user.click(await screen.findByRole('menuitem', { name: '归档分组' }))
     await waitFor(() => expect(screen.queryByRole('button', { name: '工作' })).not.toBeInTheDocument())
     expect(chat.SetGroupArchived).toHaveBeenCalledWith('work', true)
+    await user.click(screen.getByRole('button', { name: 'AI 设置' }))
+    await user.click(await screen.findByRole('button', { name: '已归档分组' }))
+    await user.click(await screen.findByRole('button', { name: '恢复分组 工作' }))
+    expect(await screen.findByText('暂无已归档分组')).toBeInTheDocument()
+    expect(chat.SetGroupArchived).toHaveBeenLastCalledWith('work', false)
+  })
+
+  it('显示本轮生效的工具上限，并从提示打开独立的聊天限额设置', async () => {
+    const user = userEvent.setup()
+    setup()
+    chat.List.mockResolvedValue([{ id: 'limited', title: '上限测试' }])
+    chat.Messages.mockResolvedValue([{ id: 'limited-reply', role: 'assistant', text: '已有回复', status: 'failed', modelName: '测试模型',
+      errorCode: 'AgentLimitExceeded', details: { durationMs: 100, rounds: 1, limit: { kind: 'tool_calls', value: 42 } } }])
+    await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    expect(await screen.findByText(/工具调用上限（42 次）/)).toBeVisible()
+    expect(screen.getByText('已有回复')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: '在设置中修改上限' }))
+    const rounds = await screen.findByRole('spinbutton', { name: '模型轮次上限' })
+    expect(rounds).toHaveValue(200)
+    expect(screen.getByRole('spinbutton', { name: '工具调用次数上限' })).toHaveValue(300)
+    await user.clear(rounds)
+    await user.type(rounds, '125{Enter}')
+    await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({
+      chat_max_model_rounds: 125, chat_max_tool_calls: 300,
+    }), expect.any(Number)))
   })
 
   it('会话列表读取失败时不添加提示或触发再次读取', async () => {

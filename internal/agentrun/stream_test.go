@@ -2,6 +2,8 @@ package agentrun
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -191,5 +193,58 @@ func TestStreamWithOptionsDoesNotRetryAuthErrors(t *testing.T) {
 	}
 	if attempts != 1 || got != "AuthenticationError" {
 		t.Fatalf("expected 1 attempt with AuthenticationError, got %d (%q)", attempts, got)
+	}
+}
+
+func TestConfiguredLimitsDistinguishRoundsAndCalls(t *testing.T) {
+	for _, tc := range []struct {
+		name, kind                string
+		options                   StreamOptions
+		perRound, reads, expected int
+	}{
+		{"rounds", "model_rounds", StreamOptions{MaxTurns: 200, MaxCalls: 300}, 1, 199, 200},
+		{"calls", "tool_calls", StreamOptions{MaxTurns: 200, MaxCalls: 300}, 2, 300, 300},
+		{"within limit", "", StreamOptions{MaxTurns: 3, MaxCalls: 2}, 2, 2, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			turn, reads := 0, 0
+			tool := ReadTool{Definition: ai.ToolDefinition{Name: "read"}, Read: func(context.Context, ai.ToolCall) (string, error) {
+				reads++
+				return "ok", nil
+			}}
+			model := streamModel(func(_ context.Context, _ *ai.ModelRequest) (<-chan ai.ModelEvent, error) {
+				turn++
+				events := []ai.ModelEvent{{Type: "text_delta", Text: "partial"}}
+				if tc.kind == "" && turn == 2 {
+					return modelEvents(append(events, ai.ModelEvent{Type: "message_end", FinishReason: "stop"})...), nil
+				}
+				for n := range tc.perRound {
+					call := ai.ToolCall{ID: fmt.Sprintf("%d-%d", turn, n), Name: "read"}
+					events = append(events, ai.ModelEvent{Type: "tool_call_end", ToolCall: &call})
+				}
+				return modelEvents(append(events, ai.ModelEvent{Type: "message_end", FinishReason: "tool_calls"})...), nil
+			})
+			var limit *LimitError
+			var text string
+			var finished bool
+			for event := range StreamWithOptions(t.Context(), model, ai.ModelRequest{}, []ReadTool{tool}, tc.options) {
+				switch event.Type {
+				case "error":
+					if !errors.As(event.Error, &limit) {
+						t.Fatalf("unexpected error: %v", event.Error)
+					}
+				case "text_delta":
+					text += event.Text
+				case "message_end":
+					finished = true
+				}
+			}
+			if reads != tc.reads || text == "" || finished != (tc.kind == "") {
+				t.Fatalf("reads=%d, finished=%t, text length=%d", reads, finished, len(text))
+			}
+			if tc.kind != "" && (limit == nil || limit.Limit != (RunLimit{Kind: tc.kind, Value: tc.expected})) {
+				t.Fatalf("unexpected limit: %+v", limit)
+			}
+		})
 	}
 }

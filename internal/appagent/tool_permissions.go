@@ -119,6 +119,7 @@ func (a *Platform) availableToolPermissions() map[string]ToolPermission {
 		add(tool.Name, "", tool)
 	}
 	add(agentrun.AuthorizedArticleTool, "", Tool{Name: agentrun.AuthorizedArticleTool})
+	add(loadMCPName, "", Tool{Name: loadMCPName, Description: loadMCPDescription})
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for _, conn := range a.clients {

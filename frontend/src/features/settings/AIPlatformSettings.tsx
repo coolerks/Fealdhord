@@ -394,7 +394,7 @@ export function MCPSettings() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate font-medium">{item.name}</span>
                     <StatusBadge tone={item.connected ? 'active' : 'muted'}>
-                      {item.connected ? '已连接' : '已断开'}
+                      {item.connected ? '已连接' : item.config.paused ? '已手动断开' : '已断开'}
                     </StatusBadge>
                     {hasDetails && (
                       <Button

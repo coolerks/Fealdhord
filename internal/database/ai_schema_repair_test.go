@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coolerks/Fealdhord/internal/ai"
 	"github.com/coolerks/Fealdhord/internal/aiconfig"
 	"github.com/coolerks/Fealdhord/internal/appagent"
 	"github.com/coolerks/Fealdhord/internal/chat"
@@ -70,6 +71,7 @@ func TestAIRepairRestoresChatAndArticleEvaluationOnVersion21Database(t *testing.
 		ALTER TABLE feeds DROP COLUMN reader_open_mode;
 		ALTER TABLE messages DROP COLUMN attachments;
 		ALTER TABLE messages DROP COLUMN created_at;
+		ALTER TABLE messages DROP COLUMN selected_skills;
 		ALTER TABLE messages DROP COLUMN reply_details;
 		ALTER TABLE conversations DROP COLUMN auto_compact;
 		ALTER TABLE article_ai_results DROP COLUMN profile_key;
@@ -133,7 +135,8 @@ data: [DONE]
 	if err != nil {
 		t.Fatal(err)
 	}
-	model, err := config.SaveModel(ctx, aiconfig.Model{ProviderID: provider.ID, Name: "test", Enabled: true})
+	model, err := config.SaveModel(ctx, aiconfig.Model{ProviderID: provider.ID, Name: "test", Enabled: true,
+		Metadata: ai.Metadata{Context: 128000}})
 	if err != nil {
 		t.Fatal(err)
 	}

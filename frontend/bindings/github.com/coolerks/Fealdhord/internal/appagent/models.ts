@@ -10,6 +10,8 @@ export interface AuditEntry {
 }
 
 export interface ClientConfig {
+    "paused"?: boolean;
+    "toolHints"?: string[] | null;
     "id"?: string;
     "name": string;
     "endpoint": string;

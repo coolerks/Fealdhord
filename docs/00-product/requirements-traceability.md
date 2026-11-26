@@ -29,14 +29,14 @@
 | REQ-021 | 二十一 | Tool Execution History | [规格](../04-specs/tools.md) | TOOL-01 | Phase 7／8 |
 | REQ-022 | 二十二 | MCP | [规格](../04-specs/mcp.md) | MCP-01 | Phase 10／11 |
 | REQ-023 | 二十三 | MCP Client | [规格](../04-specs/mcp.md) | MCP-01 | Phase 10／11 |
-| REQ-024 | 二十四 | MCP Tool Integration | [规格](../04-specs/mcp.md) | MCP-01 | Phase 10／11 |
+| REQ-024 | 二十四 | MCP Tool Integration | [规格及按需连接](../04-specs/mcp.md#全局聊天按需连接) | MCP-01 | Phase 10／11 |
 | REQ-025 | 二十五 | MCP 权限 | [规格](../04-specs/mcp.md) | MCP-01 | Phase 10／11 |
 | REQ-026 | 二十六 | MCP Server | [规格](../04-specs/mcp.md) | MCP-03 | Phase 10／11 |
 | REQ-027 | 二十七 | Skill 系统 | [规格](../04-specs/skills.md) | SKILL-01 | Phase 9 |
 | REQ-028 | 二十八 | Skill 目录 | [规格](../04-specs/skills.md) | SKILL-01 | Phase 9 |
 | REQ-029 | 二十九 | Skill 安全 | [规格](../04-specs/skills.md) | SKILL-02 | Phase 9 |
 | REQ-030 | 三十 | Skill UI | [规格](../04-specs/skills.md) | SKILL-01 | Phase 9 |
-| REQ-031 | 三十一 | AI Chat | [规格](../04-specs/chat.md) | CHAT-01 | Phase 5／7 |
+| REQ-031 | 三十一 | AI Chat | [规格、会话分组、技能及运行限额](../04-specs/chat.md) | CHAT-01 | Phase 5／7 |
 | REQ-032 | 三十二 | Reader AI Panel | [规格](../04-specs/chat.md) | CHAT-01 | Phase 5／7 |
 | REQ-033 | 三十三 | Context Builder | [规格](../04-specs/chat.md) | CHAT-01 | Phase 5／7 |
 | REQ-034 | 三十四 | RSS 数据结构 | [规格](../03-architecture/database.md) | DB-01 | Phase 2／3 |

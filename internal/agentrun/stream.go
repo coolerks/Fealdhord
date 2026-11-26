@@ -29,9 +29,25 @@ type ReadTool struct {
 
 type StreamOptions struct {
 	MaxRetries   int
+	MaxTurns     int
+	MaxCalls     int
 	BaseDelay    time.Duration
 	ConsumeSteer func() []ai.Message
 	RefreshTools func() ([]ReadTool, string, bool)
+}
+
+type RunLimit struct {
+	Kind  string `json:"kind"`
+	Value int    `json:"value"`
+}
+
+type LimitError struct{ Limit RunLimit }
+
+func (e *LimitError) Error() string { return "AgentLimitExceeded" }
+func (e *LimitError) Unwrap() error { return failure(e.Error()) }
+
+func limitExceeded(kind string, value int) error {
+	return &LimitError{Limit: RunLimit{Kind: kind, Value: value}}
 }
 
 // Stream retains the one-turn event contract. Only the final model turn ends the message.
@@ -79,6 +95,12 @@ type previousCall struct {
 }
 
 func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []ReadTool, opts StreamOptions, forward func(ai.ModelEvent) bool) error {
+	if opts.MaxTurns <= 0 {
+		opts.MaxTurns = maxTurns
+	}
+	if opts.MaxCalls <= 0 {
+		opts.MaxCalls = maxCalls
+	}
 	allowed := make(map[string]ReadTool, len(tools))
 	request.Tools = nil
 	for _, tool := range tools {
@@ -95,7 +117,7 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 	baseSystem := request.System
 	var toolSummary string
 	compaction := &runCompaction{model: model, opts: opts, forward: forward}
-	for turn := 0; turn < maxTurns; turn++ {
+	for turn := 0; turn < opts.MaxTurns; turn++ {
 		if err := compaction.fitToolHistory(ctx, &request, baseSystem, &toolSummary); err != nil {
 			return err
 		}
@@ -107,7 +129,7 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 			if len(compaction.incomplete) > 0 {
 				return failure("ArticleReadIncomplete")
 			}
-			if opts.ConsumeSteer != nil && turn+1 < maxTurns {
+			if opts.ConsumeSteer != nil && turn+1 < opts.MaxTurns {
 				if steers := opts.ConsumeSteer(); len(steers) > 0 {
 					if reply.text != "" || reply.reasoning != nil {
 						request.Messages = append(request.Messages, ai.Message{Role: "assistant", Content: textContent(reply.text), ReasoningContent: reply.reasoning})
@@ -119,13 +141,22 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 			forward(ai.ModelEvent{Type: "message_end", FinishReason: reply.finish})
 			return nil
 		}
-		if turn+1 == maxTurns || len(reply.calls) > maxCalls-attempts {
-			return failure("AgentLimitExceeded")
+		if turn+1 == opts.MaxTurns {
+			return limitExceeded("model_rounds", opts.MaxTurns)
 		}
 		if err := validateCalls(reply.calls, allowed, executed); err != nil {
 			return err
 		}
-		attempts += len(reply.calls)
+		var newCalls int
+		for _, call := range reply.calls {
+			if _, replay := executed[call.ID]; !replay {
+				newCalls++
+			}
+		}
+		if newCalls > opts.MaxCalls-attempts {
+			return limitExceeded("tool_calls", opts.MaxCalls)
+		}
+		attempts += newCalls
 		request.Messages = append(request.Messages, ai.Message{Role: "assistant", Content: textContent(reply.text), ToolCalls: reply.calls, ReasoningContent: reply.reasoning})
 		for _, call := range reply.calls {
 			if err := ctx.Err(); err != nil {
@@ -202,7 +233,7 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 			}
 		}
 	}
-	return failure("AgentLimitExceeded")
+	return limitExceeded("model_rounds", opts.MaxTurns)
 }
 
 func toolWorkStatus(output string, err error) string {
@@ -269,7 +300,11 @@ func retryBackoff(attempt int, base, hint time.Duration) time.Duration {
 func collectWithRetry(ctx context.Context, model ai.Model, request *ai.ModelRequest, forward func(ai.ModelEvent) bool, opts StreamOptions, validate func(turnReply) error) (turnReply, error) {
 	maxRetries := max(0, opts.MaxRetries)
 	for attempt := 0; ; attempt++ {
-		reply, err := collect(ctx, model, request, forward)
+		callLimit := opts.MaxCalls
+		if callLimit <= 0 {
+			callLimit = maxCalls
+		}
+		reply, err := collect(ctx, model, request, callLimit, forward)
 		if err == nil {
 			if validate == nil {
 				return reply, nil
@@ -306,7 +341,7 @@ func collectWithRetry(ctx context.Context, model ai.Model, request *ai.ModelRequ
 	}
 }
 
-func collect(ctx context.Context, model ai.Model, request *ai.ModelRequest, forward func(ai.ModelEvent) bool) (turnReply, error) {
+func collect(ctx context.Context, model ai.Model, request *ai.ModelRequest, callLimit int, forward func(ai.ModelEvent) bool) (turnReply, error) {
 	var reply turnReply
 	if err := ctx.Err(); err != nil {
 		return reply, err
@@ -343,8 +378,11 @@ func collect(ctx context.Context, model ai.Model, request *ai.ModelRequest, forw
 					return reply, ctx.Err()
 				}
 			case "tool_call_end":
-				if event.ToolCall == nil || len(reply.calls) >= maxCalls {
+				if event.ToolCall == nil {
 					return reply, failure("ProviderProtocolError")
+				}
+				if len(reply.calls) >= callLimit {
+					return reply, limitExceeded("tool_calls", callLimit)
 				}
 				reply.calls = append(reply.calls, *event.ToolCall)
 			case "message_start", "usage", "reasoning_text_delta", "reasoning_summary_delta":

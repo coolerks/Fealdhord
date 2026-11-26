@@ -13,12 +13,14 @@ export type QueuedChatMessage = {
   planMode: boolean
 }
 
-export function ChatQueueBar({ items, busySteer, onSteer, onEdit, onDelete }: {
+export function ChatQueueBar({ items, busySteer, onSteer, onEdit, onDelete, failedID, onRetry }: {
   items: QueuedChatMessage[]
   busySteer: boolean
   onSteer: (item: QueuedChatMessage) => void
   onEdit: (id: string, text: string) => void
   onDelete: (id: string) => void
+  failedID?: string
+  onRetry?: (item: QueuedChatMessage) => void
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
@@ -82,6 +84,8 @@ export function ChatQueueBar({ items, busySteer, onSteer, onEdit, onDelete }: {
               </span>
             )}
             <div className="flex shrink-0 items-center gap-0.5">
+              {item.id === failedID && onRetry && <Button type="button" size="xs" variant="ghost"
+                onClick={() => onRetry(item)}>重试发送</Button>}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button type="button" size="xs" variant="ghost" className="h-6 gap-1 px-1.5 text-[11px]"

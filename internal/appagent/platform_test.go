@@ -35,8 +35,8 @@ import (
 func TestBuiltinToolsHaveDistinctWireNames(t *testing.T) {
 	r := Builtins(Services{})
 	tools := r.ChatTools("check")
-	if len(tools) != 44 {
-		t.Fatalf("expected 44 tools, got %d", len(tools))
+	if len(tools) != 45 {
+		t.Fatalf("expected 45 tools, got %d", len(tools))
 	}
 	names := map[string]bool{}
 	for _, tool := range tools {

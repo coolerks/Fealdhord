@@ -34,8 +34,8 @@ export function DeleteSkill(name: string): $CancellablePromise<void> {
     return $Call.ByID(3617098527, name);
 }
 
-export function DisconnectMCP(name: string): $CancellablePromise<void> {
-    return $Call.ByID(1650854645, name);
+export function DisconnectMCP(id: string): $CancellablePromise<void> {
+    return $Call.ByID(1650854645, id);
 }
 
 export function ForgetMCP(name: string): $CancellablePromise<void> {

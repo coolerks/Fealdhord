@@ -92,6 +92,7 @@ export interface MessageAttachment {
 }
 
 export interface ReplyDetails {
+    "limit"?: agentrun$0.RunLimit | null;
     "durationMs": number;
     "rounds": number;
     "reasoningEffort": string;

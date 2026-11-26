@@ -46,7 +46,7 @@ func (a *API) ConnectMCP(ctx context.Context, config ClientConfig) (ClientStatus
 	return a.platform.ConnectMCP(ctx, config)
 }
 func (a *API) MCPClients() ([]ClientStatus, error) { return a.platform.MCPClients() }
-func (a *API) DisconnectMCP(name string)           { a.platform.DisconnectMCP(name) }
+func (a *API) DisconnectMCP(id string) error       { return a.platform.DisconnectMCP(id) }
 func (a *API) Skills() []Skill {
 	skills := a.platform.Skills()
 	for i := range skills {

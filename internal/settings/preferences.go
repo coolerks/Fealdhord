@@ -62,6 +62,8 @@ type Preferences struct {
 	ChatApprovalPresentation    string                  `json:"chat_approval_presentation"`
 	ChatBusySendMode            string                  `json:"chat_busy_send_mode"`
 	ChatMaxRetries              int                     `json:"chat_max_retries"`
+	ChatMaxModelRounds          int                     `json:"chat_max_model_rounds"`
+	ChatMaxToolCalls            int                     `json:"chat_max_tool_calls"`
 	ReaderOutline               string                  `json:"reader_outline"`
 	ReaderTranslationDisplay    string                  `json:"reader_translation_display"`
 	ListShowTranslated          bool                    `json:"list_show_translated"`
@@ -76,6 +78,7 @@ func Defaults() Preferences {
 		ScrollAnchors:       map[string]ScrollAnchor{}, ReaderFontSize: 17, ReaderLineHeight: 1.7, ReaderWidth: 720,
 		ReaderImageWheel: "zoom", ReaderImageBackdropClose: true, ReaderOutline: "ticks", ReaderCodeTheme: "app", ChatCodeTheme: "app",
 		ChatApprovalMode: agentrun.ApprovalAsk, ChatApprovalPresentation: "composer", ChatBusySendMode: "queue", ChatMaxRetries: DefaultChatMaxRetries,
+		ChatMaxModelRounds: DefaultChatMaxModelRounds, ChatMaxToolCalls: DefaultChatMaxToolCalls,
 		ReaderTranslationDisplay: "bilingual", ListShowTranslated: true,
 	}
 }
@@ -99,6 +102,8 @@ const (
 	MaxArticleShareSummaryLimit     = 500
 	DefaultChatMaxRetries           = 5
 	MaxChatMaxRetries               = 10
+	DefaultChatMaxModelRounds       = 200
+	DefaultChatMaxToolCalls         = 300
 )
 
 func validReaderToolbarPinned(actions []string) bool {
@@ -124,6 +129,9 @@ func (p Preferences) Validate() error {
 	}
 	if p.ChatMaxRetries < 0 || p.ChatMaxRetries > MaxChatMaxRetries {
 		return errors.New("聊天失败重试次数须为 0 至 10 次。")
+	}
+	if p.ChatMaxModelRounds < 1 || p.ChatMaxToolCalls < 1 {
+		return errors.New("聊天模型轮次与工具调用上限须为正整数。")
 	}
 	if !codeThemeID.MatchString(p.ReaderCodeTheme) || !codeThemeID.MatchString(p.ChatCodeTheme) {
 		return errors.New("代码块主题选项无效。")
@@ -197,6 +205,12 @@ func (p *Preferences) normalize() {
 	}
 	if p.ChatMaxRetries < 0 || p.ChatMaxRetries > MaxChatMaxRetries {
 		p.ChatMaxRetries = d.ChatMaxRetries
+	}
+	if p.ChatMaxModelRounds < 1 {
+		p.ChatMaxModelRounds = d.ChatMaxModelRounds
+	}
+	if p.ChatMaxToolCalls < 1 {
+		p.ChatMaxToolCalls = d.ChatMaxToolCalls
 	}
 	if !codeThemeID.MatchString(p.ReaderCodeTheme) {
 		p.ReaderCodeTheme = d.ReaderCodeTheme

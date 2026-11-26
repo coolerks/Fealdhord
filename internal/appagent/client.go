@@ -49,6 +49,7 @@ type clientConnection struct {
 func (a *Platform) ConnectMCP(ctx context.Context, config ClientConfig) (ClientStatus, error) {
 	a.clientEdit.Lock()
 	defer a.clientEdit.Unlock()
+	config.Paused = false
 	return a.connectMCP(ctx, config)
 }
 
@@ -88,13 +89,30 @@ func (a *Platform) connectMCP(ctx context.Context, config ClientConfig) (ClientS
 			return ClientStatus{}, errors.New("MCPClientNameExists")
 		}
 	}
-	secrets, err := a.resolveClientSecrets(config, previous)
+	conn, log, secrets, err := a.openConfiguredClient(ctx, config, previous)
 	if err != nil {
 		return ClientStatus{}, err
 	}
+	config.ToolHints = mcpToolHints(conn.status.Tools)
+	if err := a.persistClientSecrets(config, values, secrets); err != nil {
+		_ = conn.session.Close()
+		if log != nil {
+			log.finish()
+			log.add("client", "error", err.Error())
+		}
+		return ClientStatus{}, err
+	}
+	return a.installClient(values[config.ID], conn, log), nil
+}
+
+func (a *Platform) openConfiguredClient(ctx context.Context, config, previous ClientConfig) (*clientConnection, *clientLogBuffer, clientSecrets, error) {
+	secrets, err := a.resolveClientSecrets(config, previous)
+	if err != nil {
+		return nil, nil, clientSecrets{}, err
+	}
 	effective, expanded, err := expandClientConfig(config, secrets)
 	if err != nil {
-		return ClientStatus{}, err
+		return nil, nil, clientSecrets{}, err
 	}
 	var log *clientLogBuffer
 	if config.Command != "" {
@@ -107,17 +125,13 @@ func (a *Platform) connectMCP(ctx context.Context, config ClientConfig) (ClientS
 			log.finish()
 			log.add("client", "error", err.Error())
 		}
-		return ClientStatus{}, err
+		return nil, nil, clientSecrets{}, err
 	}
-	if err := a.persistClientSecrets(config, values, secrets); err != nil {
-		_ = conn.session.Close()
-		if log != nil {
-			log.finish()
-			log.add("client", "error", err.Error())
-		}
-		return ClientStatus{}, err
-	}
-	conn.status.Config = values[config.ID].public()
+	return conn, log, secrets, nil
+}
+
+func (a *Platform) installClient(config ClientConfig, conn *clientConnection, log *clientLogBuffer) ClientStatus {
+	conn.status.Config = config.public()
 	a.mu.Lock()
 	online := a.clients[config.ID]
 	a.clients[config.ID] = conn
@@ -144,7 +158,7 @@ func (a *Platform) connectMCP(ctx context.Context, config ClientConfig) (ClientS
 			delete(a.clients, config.ID)
 		}
 	}()
-	return conn.status, nil
+	return conn.status
 }
 
 func (a *Platform) MCPClients() ([]ClientStatus, error) {
@@ -338,10 +352,31 @@ func (a *Platform) ForgetMCP(id string) error {
 	return nil
 }
 
-func (a *Platform) DisconnectMCP(id string) {
+func (a *Platform) DisconnectMCP(id string) error {
 	a.clientEdit.Lock()
 	defer a.clientEdit.Unlock()
+	values, err := a.savedClients()
+	if err != nil {
+		return err
+	}
+	if _, ok := values[id]; !ok {
+		for key, config := range values {
+			if config.Name == id {
+				id = key
+				break
+			}
+		}
+	}
+	if config, ok := values[id]; ok && !config.Paused {
+		config.Paused = true
+		values[id] = config
+		data, err := json.Marshal(values)
+		if err != nil || len(data) > maxMCPClientSettings || atomicFile(a.dir, "mcp-clients.json", data) != nil {
+			return errors.New("StorageError")
+		}
+	}
 	a.disconnectMCP(id)
+	return nil
 }
 
 func (a *Platform) disconnectMCP(id string) {

@@ -28,6 +28,8 @@ type ClientValue struct {
 }
 
 type ClientConfig struct {
+	Paused            bool          `json:"paused,omitempty"`
+	ToolHints         []string      `json:"toolHints,omitempty"`
 	ID                string        `json:"id,omitempty"`
 	Name              string        `json:"name"`
 	Endpoint          string        `json:"endpoint"`

@@ -299,3 +299,49 @@ func TestMCPAuthenticatedProxyAndToolTimeoutDoNotReplay(t *testing.T) {
 		t.Fatalf("timeout result or call count: %q %v (%d)", result, err, calls.Load())
 	}
 }
+
+func TestManuallyDisconnectedMCPCannotBeLoadedByChat(t *testing.T) {
+	ctx := t.Context()
+	m := mcp.NewServer(&mcp.Implementation{Name: "fixture", Version: "1"}, nil)
+	server := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return m }, nil))
+	defer server.Close()
+	dir := t.TempDir()
+	platform := NewPlatform(NewRegistry(), dir)
+	defer platform.Shutdown()
+	status, err := platform.ConnectMCP(ctx, ClientConfig{Name: "Fixture", Endpoint: server.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err := platform.RunToolSession("chat", nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var loader agentrun.ReadTool
+	for _, tool := range session.Tools {
+		if tool.Definition.Name == loadMCPName {
+			loader = tool
+		}
+	}
+	if loader.Read == nil {
+		t.Fatal("expected a loader")
+	}
+	untrusted, _ := json.Marshal(map[string]string{"id": "unconfigured-service"})
+	if value, err := loader.Read(ctx, ai.ToolCall{ArgumentsJSON: string(untrusted)}); err != nil || !strings.Contains(value, "PermissionDenied") {
+		t.Fatalf("unconfigured MCP accepted: %q %v", value, err)
+	}
+	if err := platform.DisconnectMCP(status.ID); err != nil {
+		t.Fatal(err)
+	}
+	args, _ := json.Marshal(map[string]string{"id": status.ID})
+	if value, err := loader.Read(ctx, ai.ToolCall{ArgumentsJSON: string(args)}); err != nil || !strings.Contains(value, "MCPClientUnavailable") {
+		t.Fatalf("MCP was loaded after explicit disconnect: %q %v", value, err)
+	}
+	reopened := NewPlatform(NewRegistry(), dir)
+	defer reopened.Shutdown()
+	if len(reopened.mcpCatalog()) != 0 {
+		t.Fatal("manually paused MCP reappeared after restart")
+	}
+	if _, err := reopened.ConnectMCP(ctx, status.Config); err != nil || len(reopened.mcpCatalog()) != 1 {
+		t.Fatalf("manual reconnect did not restore discovery: %v", err)
+	}
+}

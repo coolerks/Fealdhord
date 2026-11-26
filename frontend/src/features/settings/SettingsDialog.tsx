@@ -314,9 +314,9 @@ export function SettingsDialog({ sidebar, motionMode }: {
         />
         <SettingSection title="文章发送">
           <SettingCard>
-            <ArticleSharePreference id="article-share-default-count" label="默认发送条数"
+            <IntegerPreference id="article-share-default-count" label="默认发送条数"
               value={preferences.article_share_count} max={maxArticleShareCount} onChange={value => set('article_share_count', value)} />
-            <ArticleSharePreference id="article-share-summary-limit" label="默认摘要字数"
+            <IntegerPreference id="article-share-summary-limit" label="默认摘要字数"
               value={preferences.article_share_summary_limit} max={maxArticleShareSummaryLimit} onChange={value => set('article_share_summary_limit', value)} />
           </SettingCard>
         </SettingSection>
@@ -355,6 +355,16 @@ export function SettingsDialog({ sidebar, motionMode }: {
                 value={preferences.chat_busy_send_mode || 'queue'}
                 onValueChange={value => set('chat_busy_send_mode', value)} />
             </SettingRow>
+          </SettingCard>
+        </SettingSection>
+        <SettingSection title="聊天运行限制">
+          <SettingCard>
+            <IntegerPreference id="chat-max-model-rounds" label="模型轮次上限"
+              value={preferences.chat_max_model_rounds ?? 200} max={Number.MAX_SAFE_INTEGER}
+              onChange={value => set('chat_max_model_rounds', value)} />
+            <IntegerPreference id="chat-max-tool-calls" label="工具调用次数上限"
+              value={preferences.chat_max_tool_calls ?? 300} max={Number.MAX_SAFE_INTEGER}
+              onChange={value => set('chat_max_tool_calls', value)} />
           </SettingCard>
         </SettingSection>
         <SettingSection title="工具审批">
@@ -467,7 +477,7 @@ export function SettingsDialog({ sidebar, motionMode }: {
   </>
 }
 
-function ArticleSharePreference({ id, label, value, max, onChange }: {
+function IntegerPreference({ id, label, value, max, onChange }: {
   id: string; label: string; value: number; max: number; onChange: (value: number) => void
 }) {
   const [draft, setDraft] = useState<string | null>(null)

@@ -18,6 +18,7 @@ import (
 	"github.com/coolerks/Fealdhord/internal/aiconfig"
 	"github.com/coolerks/Fealdhord/internal/database"
 	"github.com/coolerks/Fealdhord/internal/database/sqlc"
+	"github.com/coolerks/Fealdhord/internal/settings"
 )
 
 const (
@@ -112,13 +113,15 @@ type run struct {
 
 type ToolSource func(string, []string, bool) ([]agentrun.ReadTool, string, error)
 
+type ToolSessionSource func(string, []string, bool) (agentrun.ToolSession, error)
+
 type toolPermissionSource interface {
 	LoadToolPermissions() (map[string]string, error)
 	AuthorizeArticleRead(context.Context, string, json.RawMessage) error
 }
 
 type Service struct {
-	toolSource      ToolSource
+	toolSource      ToolSessionSource
 	skillReferences func([]string) ([]agentrun.SkillReference, error)
 	toolPermissions toolPermissionSource
 	store           *database.Store
@@ -139,7 +142,18 @@ func New(ctx context.Context, store *database.Store, config *aiconfig.Service, p
 	return &Service{store: store, config: config, root: root, stop: cancel, publish: publish, active: make(map[string]*run)}, nil
 }
 
-func (s *Service) SetToolSource(source ToolSource)                { s.toolSource = source }
+func (s *Service) SetToolSource(source ToolSource) {
+	if source == nil {
+		s.toolSource = nil
+		return
+	}
+	s.toolSource = func(id string, skills []string, disabled bool) (agentrun.ToolSession, error) {
+		tools, instructions, err := source(id, skills, disabled)
+		return agentrun.ToolSession{Tools: tools, Instructions: instructions}, err
+	}
+}
+
+func (s *Service) SetToolSessionSource(source ToolSessionSource)  { s.toolSource = source }
 func (s *Service) SetToolPermissions(source toolPermissionSource) { s.toolPermissions = source }
 func (s *Service) SetSkillReferences(source func([]string) ([]agentrun.SkillReference, error)) {
 	s.skillReferences = source
@@ -420,13 +434,15 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 			return modelError("ToolPermissionsUnavailable")
 		}
 	}
+	var toolSession agentrun.ToolSession
 	if s.toolSource != nil && conversation.ScopeType == "global" {
-		available, instructions, toolErr := s.toolSource(conversation.ID, input.Skills, input.DisableTools)
+		var toolErr error
+		toolSession, toolErr = s.toolSource(conversation.ID, input.Skills, input.DisableTools)
 		if toolErr != nil {
 			return modelError("InvalidSkill")
 		}
-		request.System = instructions
-		tools = available
+		request.System = toolSession.Instructions
+		tools = toolSession.Tools
 	}
 	workspace, workspacePrompt, err := s.conversationWorkspace(ctx, conversation)
 	if err != nil {
@@ -464,19 +480,20 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 	fullSystem := request.System
 	activeTools := fullTools
 	if input.PlanMode && conversation.ScopeType == "global" {
-		planTools := make([]agentrun.ReadTool, 0, len(fullTools))
-		for _, tool := range fullTools {
+		planTools := make([]agentrun.ReadTool, 0, len(tools))
+		for _, tool := range tools {
 			if !tool.RequiresApproval {
 				planTools = append(planTools, tool)
 			}
 		}
-		activeTools = planTools
+		activeTools = agentrun.CompactToolCatalog(request, planTools)
 		request.System = "【当前处于计划模式】\n" +
 			"1. 在用户确认计划前，禁止执行任何写入、修改、删除或运行命令等副作用操作（写工具已暂时隐藏）。\n" +
 			"2. 先根据需要只读调研上下文，并使用 AskUserQuestion 工具或对话向用户多轮澄清不明确的需求、范围和偏好。\n" +
 			"3. 需求明确后，整理清晰、结构化的执行计划，并调用 ConfirmPlan 工具提交给用户确认。\n" +
 			"4. 只有当 ConfirmPlan 返回 approved=true 后，系统才会解锁完整工具，此时再按确认的计划开始执行；若返回 rejected=true，礼貌结束且不执行任何操作；若返回 feedback，则根据反馈继续完善计划并再次调用 ConfirmPlan。\n\n" + request.System
 	}
+	additionalTools := tools[len(toolSession.Tools):]
 	tools = activeTools
 	for _, tool := range tools {
 		request.Tools = append(request.Tools, tool.Definition)
@@ -518,7 +535,17 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 			system: fullSystem + summaryContext(conversation.ContextSummary),
 		}
 	}
-	go s.execute(executionCtx, conversation.ID, current, adapter, request, tools, model.DisplayName, effortLabel(model, input.ReasoningEffort), compact, planUpgrade)
+	runOptions := s.chatRunOptions(ctx, conversation.ScopeType == "global")
+	if toolSession.Refresh != nil {
+		runOptions.RefreshTools = func() ([]agentrun.ReadTool, string, bool) {
+			refreshed, changed := toolSession.Refresh()
+			if !changed {
+				return nil, "", false
+			}
+			return agentrun.CompactToolCatalog(request, slices.Concat(refreshed, additionalTools)), "", true
+		}
+	}
+	go s.execute(executionCtx, conversation.ID, current, adapter, request, tools, model.DisplayName, effortLabel(model, input.ReasoningEffort), compact, planUpgrade, runOptions)
 	return nil
 }
 
@@ -556,11 +583,11 @@ func (s *Service) Steer(_ context.Context, input SteerInput) error {
 			return modelError("InvalidSkill")
 		}
 		if current.disableTools {
-			_, instructions, err := s.toolSource(input.ConversationID, input.Skills, true)
+			session, err := s.toolSource(input.ConversationID, input.Skills, true)
 			if err != nil {
 				return modelError("InvalidSkill")
 			}
-			body = instructions + "\n" + body
+			body = session.Instructions + "\n" + body
 		} else {
 			selected, _ := json.Marshal(input.Skills)
 			body = "用户为此条引导指定了以下技能，可用时通过 read 读取：" + string(selected) + "\n" + body
@@ -605,32 +632,36 @@ func (s *Service) Cancel(_ context.Context, id string) error {
 	return nil
 }
 
-const (
-	defaultChatMaxRetries = 5
-	maxChatMaxRetries     = 10
-)
-
-func (s *Service) chatMaxRetries(ctx context.Context) int {
-	if s.store == nil {
-		return defaultChatMaxRetries
+func (s *Service) chatRunOptions(ctx context.Context, global bool) agentrun.StreamOptions {
+	opts := agentrun.StreamOptions{MaxRetries: settings.DefaultChatMaxRetries}
+	if global {
+		opts.MaxTurns, opts.MaxCalls = settings.DefaultChatMaxModelRounds, settings.DefaultChatMaxToolCalls
 	}
 	record, err := s.store.LoadPreferences(ctx)
 	if err != nil {
-		return defaultChatMaxRetries
+		return opts
 	}
 	var raw struct {
-		ChatMaxRetries *int `json:"chat_max_retries"`
+		MaxRetries *int `json:"chat_max_retries"`
+		MaxTurns   int  `json:"chat_max_model_rounds"`
+		MaxCalls   int  `json:"chat_max_tool_calls"`
 	}
-	if json.Unmarshal([]byte(record.JSON), &raw) != nil || raw.ChatMaxRetries == nil {
-		return defaultChatMaxRetries
+	if json.Unmarshal([]byte(record.JSON), &raw) != nil {
+		return opts
 	}
-	if *raw.ChatMaxRetries < 0 || *raw.ChatMaxRetries > maxChatMaxRetries {
-		return defaultChatMaxRetries
+	if raw.MaxRetries != nil && *raw.MaxRetries >= 0 && *raw.MaxRetries <= settings.MaxChatMaxRetries {
+		opts.MaxRetries = *raw.MaxRetries
 	}
-	return *raw.ChatMaxRetries
+	if global && raw.MaxTurns > 0 {
+		opts.MaxTurns = raw.MaxTurns
+	}
+	if global && raw.MaxCalls > 0 {
+		opts.MaxCalls = raw.MaxCalls
+	}
+	return opts
 }
 
-func (s *Service) execute(ctx context.Context, id string, current *run, adapter ai.Model, request ai.ModelRequest, tools []agentrun.ReadTool, modelName, effort string, compact *compaction, planUpgrade *planExecutionUpgrade) {
+func (s *Service) execute(ctx context.Context, id string, current *run, adapter ai.Model, request ai.ModelRequest, tools []agentrun.ReadTool, modelName, effort string, compact *compaction, planUpgrade *planExecutionUpgrade, streamOpts agentrun.StreamOptions) {
 	var usage replyUsage
 	defer s.workers.Done()
 	defer current.cancel()
@@ -644,38 +675,45 @@ func (s *Service) execute(ctx context.Context, id string, current *run, adapter 
 	status, code := "failed", "ProviderProtocolError"
 	var lastInput int64
 	s.compact(ctx, id, adapter, &request, compact)
-	streamOpts := agentrun.StreamOptions{
-		MaxRetries: s.chatMaxRetries(ctx),
-		ConsumeSteer: func() []ai.Message {
-			s.mu.Lock()
-			if len(current.pendingSteers) == 0 {
-				s.mu.Unlock()
-				return nil
-			}
-			steers := current.pendingSteers
-			current.pendingSteers = nil
-			now := time.Now()
-			out := make([]ai.Message, 0, len(steers))
-			for _, item := range steers {
-				current.work.addSteer(item.displayText, item.skills, now)
-				out = append(out, item.message)
-			}
+	streamOpts.ConsumeSteer = func() []ai.Message {
+		s.mu.Lock()
+		if len(current.pendingSteers) == 0 {
 			s.mu.Unlock()
-			if s.publish != nil {
-				s.publish(UpdateEvent{ConversationID: id, MessageID: current.id, WorkChanged: true})
-			}
-			return out
-		},
+			return nil
+		}
+		steers := current.pendingSteers
+		current.pendingSteers = nil
+		now := time.Now()
+		out := make([]ai.Message, 0, len(steers))
+		for _, item := range steers {
+			current.work.addSteer(item.displayText, item.skills, now)
+			out = append(out, item.message)
+		}
+		s.mu.Unlock()
+		if s.publish != nil {
+			s.publish(UpdateEvent{ConversationID: id, MessageID: current.id, WorkChanged: true})
+		}
+		return out
 	}
 	if planUpgrade != nil {
+		refresh := streamOpts.RefreshTools
 		streamOpts.RefreshTools = func() ([]agentrun.ReadTool, string, bool) {
 			s.mu.Lock()
-			defer s.mu.Unlock()
-			if !current.planApproved || current.planSwitched {
+			approved, switched := current.planApproved, current.planSwitched
+			if approved {
+				current.planSwitched = true
+			}
+			s.mu.Unlock()
+			if !approved {
 				return nil, "", false
 			}
-			current.planSwitched = true
-			return planUpgrade.tools, planUpgrade.system, true
+			if !switched {
+				return planUpgrade.tools, planUpgrade.system, true
+			}
+			if refresh != nil {
+				return refresh()
+			}
+			return nil, "", false
 		}
 	}
 	events := agentrun.StreamWithOptions(ctx, adapter, request, tools, streamOpts)
@@ -823,6 +861,10 @@ stream:
 				s.mu.Unlock()
 				if code != "ResponseLimit" {
 					status, code = "failed", errorCode(event.Error)
+					var limit *agentrun.LimitError
+					if errors.As(event.Error, &limit) {
+						usage.limit = &limit.Limit
+					}
 				}
 			}
 		}

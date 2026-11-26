@@ -50,10 +50,10 @@ export function GroupIcon({ group }: { group: Group }) {
 
 export type GroupAction = 'edit' | 'archive' | 'remove'
 
-export function GroupMenu({ children, onAction }: { children: ReactElement; onAction: (action: GroupAction) => void }) {
+export function GroupMenu({ children, onAction, disabled }: { children: ReactElement; onAction: (action: GroupAction) => void; disabled: boolean }) {
   return <ContextMenu>
-    <ContextMenuTrigger asChild data-conversation-menu onKeyDown={event => {
-      if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return
+    <ContextMenuTrigger asChild disabled={disabled} data-conversation-menu onKeyDown={event => {
+      if (disabled || (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10'))) return
       event.preventDefault()
       event.stopPropagation()
       const { left, bottom } = (document.activeElement ?? event.currentTarget).getBoundingClientRect()
@@ -62,9 +62,9 @@ export function GroupMenu({ children, onAction }: { children: ReactElement; onAc
       }))
     }}>{children}</ContextMenuTrigger>
     <ContextMenuContent aria-label="分组操作" className="action-menu">
-      <ContextMenuItem onSelect={() => onAction('edit')}><Pencil />编辑分组</ContextMenuItem>
-      <ContextMenuItem onSelect={() => onAction('archive')}><Archive />归档分组</ContextMenuItem>
-      <ContextMenuItem variant="destructive" onSelect={() => onAction('remove')}><Trash2 />移除分组</ContextMenuItem>
+      <ContextMenuItem disabled={disabled} onSelect={() => onAction('edit')}><Pencil />编辑分组</ContextMenuItem>
+      <ContextMenuItem disabled={disabled} onSelect={() => onAction('archive')}><Archive />归档分组</ContextMenuItem>
+      <ContextMenuItem disabled={disabled} variant="destructive" onSelect={() => onAction('remove')}><Trash2 />移除分组</ContextMenuItem>
     </ContextMenuContent>
   </ContextMenu>
 }

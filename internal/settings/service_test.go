@@ -418,3 +418,24 @@ func TestChatBusySendModeDefaultsAndPersists(t *testing.T) {
 		t.Fatalf("非法执行中发送模式未被拒绝：%+v", rejected)
 	}
 }
+
+func TestChatRuntimeLimitsDefaultAndPersistIndependently(t *testing.T) {
+	ctx := t.Context()
+	store := openTestStore(t, filepath.Join(t.TempDir(), "chat-limits.db"))
+	service := NewService(store)
+	initial := service.Get(ctx)
+	prefs := initial.Data.Preferences
+	if !initial.OK || prefs.ChatMaxModelRounds != 200 || prefs.ChatMaxToolCalls != 300 {
+		t.Fatalf("默认限额：%+v", initial)
+	}
+	prefs.ChatMaxModelRounds, prefs.ChatMaxToolCalls = 25, 420
+	saved := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: initial.Data.Revision})
+	reloaded := NewService(store).Get(ctx)
+	if !saved.OK || !reloaded.OK || reloaded.Data.Preferences.ChatMaxModelRounds != 25 || reloaded.Data.Preferences.ChatMaxToolCalls != 420 {
+		t.Fatalf("保存限额失败：%+v", reloaded)
+	}
+	prefs.ChatMaxToolCalls = -1
+	if result := service.Update(ctx, UpdateRequest{Preferences: prefs, Revision: reloaded.Data.Revision}); result.OK || result.Error.Code != "ValidationError" {
+		t.Fatalf("无效限额应被拒绝：%+v", result)
+	}
+}

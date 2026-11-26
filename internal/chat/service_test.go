@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/coolerks/Fealdhord/internal/appagent"
 	"github.com/coolerks/Fealdhord/internal/database"
 	"github.com/coolerks/Fealdhord/internal/database/sqlc"
+	"github.com/coolerks/Fealdhord/internal/settings"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestChatSendsStreamsCancelsAndRestores(t *testing.T) {
@@ -364,5 +367,120 @@ func TestSelectedSkillStoredOnItsOwnMessageAndCopiedToBranch(t *testing.T) {
 	messages, err := service.Messages(ctx, branch.ID)
 	if err != nil || len(messages) != 2 || !reflect.DeepEqual(messages[0].Skills, history[0].Skills) {
 		t.Fatalf("branch lost selected skills: %+v %v", messages, err)
+	}
+}
+
+func TestGlobalChatLoadsSavedMCPAndCallsToolInTheSameRun(t *testing.T) {
+	ctx := t.Context()
+	external := mcp.NewServer(&mcp.Implementation{Name: "fixture", Version: "1"}, nil)
+	var calls atomic.Int32
+	mcp.AddTool(external, &mcp.Tool{Name: "lookup", Description: "Look up a fixture"}, func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, any, error) {
+		calls.Add(1)
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "unique-mcp-result"}}}, nil, nil
+	})
+	mcpServer := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return external }, nil))
+	defer mcpServer.Close()
+	dir := t.TempDir()
+	initial := appagent.NewPlatform(appagent.NewRegistry(), dir)
+	t.Cleanup(initial.Shutdown)
+	connected, err := initial.ConnectMCP(ctx, appagent.ClientConfig{Name: "Fixture", Endpoint: mcpServer.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	definitions := initial.ChatTools("initial")
+	if len(definitions) != 1 {
+		t.Fatalf("expected one MCP tool, got %d", len(definitions))
+	}
+	wire := definitions[0].Definition.Name
+	initial.Shutdown()
+	platform := appagent.NewPlatform(appagent.NewRegistry(), dir)
+	defer platform.Shutdown()
+
+	var turns atomic.Int32
+	modelServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var raw json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+			t.Error(err)
+		}
+		request := string(raw)
+		w.Header().Set("Content-Type", "text/event-stream")
+		var id, name, args string
+		switch turns.Add(1) {
+		case 1:
+			if !strings.Contains(request, connected.ID) || !strings.Contains(request, `"name":"load_mcp"`) ||
+				strings.Contains(request, `"name":"`+wire+`"`) || strings.Contains(request, mcpServer.URL) {
+				t.Error("initial request did not expose a safe, disconnected MCP catalog")
+			}
+			argsJSON, _ := json.Marshal(map[string]string{"id": connected.ID})
+			id, name, args = "load", "load_mcp", string(argsJSON)
+		case 2:
+			if !strings.Contains(request, `"name":"`+wire+`"`) {
+				t.Error("new MCP tool was not advertised to the model")
+			}
+			id, name, args = "invoke", wire, "{}"
+		case 3:
+			if !strings.Contains(request, "unique-mcp-result") {
+				t.Error("MCP result did not reach the model")
+			}
+			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Done\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+			return
+		case 4:
+			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Partial\"}}]}\n\n")
+			id, name, args = "over-limit", wire, "{}"
+		default:
+			t.Error("unexpected model retry")
+			return
+		}
+		delta, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"index": 0, "delta": map[string]any{
+			"tool_calls": []any{map[string]any{"index": 0, "id": id, "type": "function", "function": map[string]string{"name": name, "arguments": args}}},
+		}}}})
+		fmt.Fprintf(w, "data: %s\n\ndata: {\"choices\":[{\"index\":0,\"finish_reason\":\"tool_calls\"}]}\n\ndata: [DONE]\n\n", delta)
+	}))
+	defer modelServer.Close()
+	db, err := database.Open(ctx, filepath.Join(t.TempDir(), "chat.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	config := aiconfig.New(db.AIProviderQueries(), nil)
+	provider, err := config.SaveProvider(ctx, aiconfig.ProviderInput{Provider: aiconfig.Provider{
+		Name: "Mock", Protocol: "chat_completions", BaseURL: modelServer.URL, Enabled: true,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model, err := config.SaveModel(ctx, aiconfig.Model{ProviderID: provider.ID, Name: "mock", Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := New(ctx, db, config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	service.SetToolSessionSource(platform.RunToolSession)
+	conversation, err := service.Create(ctx, Scope{Kind: "global"}, "MCP")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Send(ctx, SendInput{ConversationID: conversation.ID, ModelID: model.ID, Text: "Use Fixture", ApprovalMode: "bypass"}); err != nil {
+		t.Fatal(err)
+	}
+	if message := waitMessage(t, service, conversation.ID, 2, "complete"); message.Text != "Done" || calls.Load() != 1 {
+		t.Fatalf("reply=%+v; MCP calls=%d", message, calls.Load())
+	}
+	prefs := settings.NewService(db)
+	preference := prefs.Get(ctx)
+	preference.Data.Preferences.ChatMaxModelRounds = 1
+	if updated := prefs.Update(ctx, settings.UpdateRequest{Preferences: preference.Data.Preferences, Revision: preference.Data.Revision}); !updated.OK {
+		t.Fatalf("update limits: %+v", updated)
+	}
+	if err := service.Send(ctx, SendInput{ConversationID: conversation.ID, ModelID: model.ID, Text: "Use Fixture again", ApprovalMode: "bypass"}); err != nil {
+		t.Fatal(err)
+	}
+	limited := waitMessage(t, service, conversation.ID, 4, "failed")
+	if limited.Text != "Partial" || limited.ErrorCode != "AgentLimitExceeded" || limited.Details == nil || limited.Details.Limit == nil ||
+		limited.Details.Limit.Kind != "model_rounds" || limited.Details.Limit.Value != 1 || calls.Load() != 1 {
+		t.Fatalf("effective limit or partial response lost: %+v", limited)
 	}
 }

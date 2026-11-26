@@ -12,7 +12,11 @@
 
 `API.ConnectMCP(config)` 验证并连接 STDIO 或 Streamable HTTP。编辑须提交 `MCPClients()` 返回的稳定 `id`，添加表单使用 `newConnection=true`。保存成功后返回 `ClientStatus` 和工具、资源及提示词目录；状态不会回传字面凭据。请求头和环境变量条目包含 `name`、`value?`、`stored?`，已保存条目在 `stored=true` 且 `value` 为空时保留原值，移除条目可清除。代理密码通过 `proxyPasswordSet` 区分保留与清除。`API.DisconnectMCP(id)` 和 `API.ForgetMCP(id)` 使用连接标识。
 
-`API.MCPClientLogs(id, attempt)` 返回 STDIO 的近期日志，条目含 `time`、`source`、`level?` 和 `message`。查询失败启动时使用实际提交过的临时 `attemptId` 且令 `attempt=true`，其他情况使用稳定连接 ID。日志保留在内存中。
+`API.MCPClientLogs(id, attempt)` 返回 STDIO 的近期日志，条目含 `time`、`source`、`level?` 和 `message`。查询失败启动时使用实际提交过的临时 `attemptId` 且令 `attempt=true`，其他情况使用稳定连接 ID。日志保留在内存中。`MCPClients` 的配置可含已知工具名 `toolHints` 和手动断开标记 `paused`。显式断开保存暂停标记，手动连接成功后清除。
+
+全局聊天可使用内部工具 `load_mcp`。参数 `id` 来自本轮可用连接目录，支持 `builtin:load_mcp` 权限规则。成功后更新本轮工具集合。新外部工具调用沿用原审批。加载结果的连接失败码为 `MCPConnectionFailed`，连接暂停或移除后返回 `MCPClientUnavailable`。
+
+全局聊天偏好 `chat_max_model_rounds` 与 `chat_max_tool_calls` 独立保存，默认值分别为 200 和 300。因这两项上限结束的助手消息返回 `AgentLimitExceeded`，并带 `details.limit`。其中 `kind` 为 `model_rounds` 或 `tool_calls`，`value` 是该次运行的上限快照。
 
 `Chat.Groups()` 返回未归档分组。`Chat.ArchivedGroups()` 返回已归档分组及 `archivedAt`。分组 DTO 含 `id`、`name`、可选的 `icon` 和 `color`。`Chat.GroupDetails(id)` 附带 `folders`。`Chat.PickGroupFolders()` 打开原生目录选择器。`Chat.SaveGroup(input)` 新建或编辑活跃分组，输入含可选 `id` 以及 `name`、`folders`、`icon`、`color`。现有 `Chat.CreateGroup(name, folders)` 仍可创建默认外观分组。目录接受空列表，无效路径返回 `ChatFolderUnavailable`。`Chat.SetGroupArchived(id, archived)` 归档或恢复分组。`Chat.DeleteGroup(id, archived)` 要求当前归档状态一致，解除会话关联并保留磁盘目录与消息。组内仍有运行时，归档或删除返回 `Conflict`。`Chat.CreateInGroup(id, title)` 和 `Chat.GroupConversations(id)` 使用可用分组，普通 `Chat.List` 只列出未分组会话。
 

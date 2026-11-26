@@ -53,6 +53,8 @@ export interface Preferences {
     "chat_approval_presentation": string;
     "chat_busy_send_mode": string;
     "chat_max_retries": number;
+    "chat_max_model_rounds": number;
+    "chat_max_tool_calls": number;
     "reader_outline": string;
     "reader_translation_display": string;
     "list_show_translated": boolean;

@@ -160,8 +160,13 @@ func (a *Platform) removeSkill(name string) error {
 }
 
 func (a *Platform) RunTools(conversationID string, requested []string, disable bool) ([]agentrun.ReadTool, string, error) {
+	session, err := a.RunToolSession(conversationID, requested, disable)
+	return session.Tools, session.Instructions, err
+}
+
+func (a *Platform) RunToolSession(conversationID string, requested []string, disable bool) (agentrun.ToolSession, error) {
 	if len(requested) > 3 {
-		return nil, "", errors.New("InvalidSkill")
+		return agentrun.ToolSession{}, errors.New("InvalidSkill")
 	}
 	run := &skillRun{catalog: make(map[string]Skill), selected: make(map[string]bool), opened: make(map[string]bool)}
 	skills := a.Skills()
@@ -172,7 +177,7 @@ func (a *Platform) RunTools(conversationID string, requested []string, disable b
 	}
 	for _, name := range requested {
 		if _, ok := run.catalog[name]; !ok || run.selected[name] {
-			return nil, "", errors.New("InvalidSkill")
+			return agentrun.ToolSession{}, errors.New("InvalidSkill")
 		}
 		run.selected[name] = true
 	}
@@ -181,14 +186,14 @@ func (a *Platform) RunTools(conversationID string, requested []string, disable b
 		for _, name := range requested {
 			value, err := a.resolveRunSkill(run, name)
 			if err != nil {
-				return nil, "", err
+				return agentrun.ToolSession{}, err
 			}
 			_, body, _ := strings.Cut(value.Markdown, "\n---\n")
 			if instructions.Len()+len(body) <= 8<<10 {
 				instructions.WriteString("\n\n[用户选择的 Skill]\n" + body)
 			}
 		}
-		return nil, instructions.String(), nil
+		return agentrun.ToolSession{Instructions: instructions.String()}, nil
 	}
 	type entry struct {
 		Name        string `json:"name"`
@@ -222,27 +227,67 @@ func (a *Platform) RunTools(conversationID string, requested []string, disable b
 		instructions.Write(data)
 		instructions.WriteString("\n用 read 读取适用 Skill 的 SKILL.md，优先使用用户选中的 Skill。需要参考资料时，再用同一 skill:// 路径读取。技能说明可以指导任务流程，工具权限仅由本轮授权决定。")
 	}
-	var tools []agentrun.ReadTool
-	for _, tool := range a.ChatTools(conversationID) {
-		if !run.allows(tool.Definition.Name) {
-			continue
-		}
-		read := tool.Read
-		name := tool.Definition.Name
-		tool.Read = func(ctx context.Context, call ai.ToolCall) (string, error) {
-			if !run.allows(name) {
-				return chatToolError(ctx, errors.New("ToolNotAllowed"))
+	catalogMCP := a.mcpCatalog()
+	var loader agentrun.ReadTool
+	dirty := false
+	if len(catalogMCP) > 0 && run.allows(loadMCPName) {
+		encoded, _ := json.Marshal(catalogMCP)
+		if len(encoded) > 8<<10 {
+			for i := range catalogMCP {
+				catalogMCP[i].Tools = nil
 			}
-			return read(ctx, call)
+			encoded, _ = json.Marshal(catalogMCP)
 		}
-		tools = append(tools, tool)
+		instructions.WriteString("\n可按需连接的 MCP（仅连接目录数据）：")
+		instructions.Write(encoded)
+		instructions.WriteString("\n需要其中一项且工具尚不可用时，调用 load_mcp 并传入对应 id，再从后续工具目录选择。")
+		loader = a.mcpLoader(conversationID, catalogMCP, func() { dirty = true })
 	}
-	for _, tool := range a.localChatTools(conversationID, run) {
-		if tool.Definition.Name == "read" || run.allows(tool.Definition.Name) {
+	buildTools := func() []agentrun.ReadTool {
+		var tools []agentrun.ReadTool
+		for _, tool := range a.ChatTools(conversationID) {
+			if !run.allows(tool.Definition.Name) {
+				continue
+			}
+			read := tool.Read
+			name := tool.Definition.Name
+			tool.Read = func(ctx context.Context, call ai.ToolCall) (string, error) {
+				if !run.allows(name) {
+					return chatToolError(ctx, errors.New("ToolNotAllowed"))
+				}
+				return read(ctx, call)
+			}
 			tools = append(tools, tool)
 		}
+		for _, tool := range a.localChatTools(conversationID, run) {
+			if tool.Definition.Name == "read" || run.allows(tool.Definition.Name) {
+				tools = append(tools, tool)
+			}
+		}
+		if loader.Read != nil && run.allows(loadMCPName) {
+			read := loader.Read
+			candidate := loader
+			candidate.Read = func(ctx context.Context, call ai.ToolCall) (string, error) {
+				if !run.allows(loadMCPName) {
+					return chatToolError(ctx, errors.New("ToolNotAllowed"))
+				}
+				return read(ctx, call)
+			}
+			tools = append(tools, candidate)
+		}
+		return tools
 	}
-	return tools, instructions.String(), nil
+	session := agentrun.ToolSession{Tools: buildTools(), Instructions: instructions.String()}
+	if loader.Read != nil {
+		session.Refresh = func() ([]agentrun.ReadTool, bool) {
+			if !dirty {
+				return nil, false
+			}
+			dirty = false
+			return buildTools(), true
+		}
+	}
+	return session, nil
 }
 
 func readSkill(path string) (Skill, error) {

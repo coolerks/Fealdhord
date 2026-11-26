@@ -180,7 +180,7 @@ func TestEveryBuiltinHasAReviewedResultPath(t *testing.T) {
 		app.get_settings app.update_reading_settings app.get_refresh_settings app.update_refresh_settings app.get_version app.get_diagnostics
 		article_ai.preview article_ai.evaluate opml.preview_import opml.import opml.export
 		notification.channel.list notification.rule.list notification.send
-		schedule.list schedule.get schedule.create schedule.update schedule.pause schedule.resume schedule.delete AskUserQuestion`)
+		schedule.list schedule.get schedule.create schedule.update schedule.pause schedule.resume schedule.delete AskUserQuestion ConfirmPlan`)
 	remaining := make(map[string]bool, len(reviewed))
 	for _, name := range reviewed {
 		remaining[name] = true

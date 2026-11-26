@@ -8,6 +8,8 @@ Phase 1 提前引入最小 SQLite 设置表，以满足主题、双视图和布�
 
 Settings Service：Get(context.Context) Result；Update(context.Context, UpdateRequest) Result。UpdateRequest={preferences,revision}，Result 成功 data={preferences,revision}，失败安全 AppError。
 
+全局聊天的 `chat_max_model_rounds` 和 `chat_max_tool_calls` 分别默认 200 和 300，接受正整数。历史设置缺失这些字段时读取默认值。保存后的值用于下一次发送，不改变正在运行的对话预算。
+
 ## 3. 契约
 
 migrations/00001_ui_preferences.sql 通过 goose 创建 app_settings，sqlc v1.30.0 生成读取与 CAS 更新。modernc SQLite v1.61.1、goose v3.28.0。数据文件在 os.UserConfigDir()/Fealdhord/fealdhord.db，单写连接，foreign_keys、WAL、busy_timeout=5000。启动失败不假装偏好已保存，Get 返回中文 DatabaseError。

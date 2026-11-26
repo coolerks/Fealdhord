@@ -97,7 +97,7 @@ const errorLabels: Record<string, string> = {
   Timeout: '模型回复超时。',
   ArticleReadIncomplete: '正文尚未读完。可在工具记录中查看已读范围，或要求继续读取。',
   InvalidSkill: '所选技能已不可用，请重新选择。',
-  AgentLimitExceeded: '已达到本轮工具调用上限，已保留部分回复。',
+  AgentLimitExceeded: '已达到本轮处理上限，已保留部分回复。',
   ToolNotAllowed: '模型请求了未授权的工具。',
   ToolPermissionsUnavailable: '无法读取自定义工具权限，请检查「设置 → 工具权限」。',
   ToolCallConflict: '模型重复使用了工具调用编号。',
@@ -414,9 +414,10 @@ function ChatSession({ target, close, workspace }: {
   function removeQueueItem(id: string, itemID: string) {
     setQueues(current => ({ ...current, [id]: (current[id] ?? []).filter(item => item.id !== itemID) }))
   }
-  const drainQueue = useEffectEvent((item: QueuedChatMessage) => {
+  function sendQueuedMessage(item: QueuedChatMessage) {
     send.mutate({ text: item.text, attachments: item.attachments, planMode: item.planMode, skills: item.skills ?? [], queued: item })
-  })
+  }
+  const drainQueue = useEffectEvent(sendQueuedMessage)
   useEffect(() => {
     const wasActive = prevActive.current
     prevActive.current = active
@@ -738,7 +739,7 @@ function ChatSession({ target, close, workspace }: {
           </div>
           <ul id="chat-groups" hidden={closed.groups} inert={closed.groups}>
             {!closed.groups && groupItems.map((group, index) => <li key={group.id}>
-              <GroupMenu onAction={action => { if (!groupChange.isPending && !send.isPending) manageGroup(group, action) }}>
+              <GroupMenu disabled={groupChange.isPending || send.isPending} onAction={action => manageGroup(group, action)}>
                 <div className="chat-sidebar-row">
                   <GroupDisclosure label={group.name} group={group} open={!closed[group.id]} controls={`chat-group-${group.id}`} onToggle={() => toggle(group.id)} />
                   <Button type="button" variant="ghost" size="icon-sm" aria-label={`在${group.name}中新建对话`} disabled={send.isPending}
@@ -771,6 +772,7 @@ function ChatSession({ target, close, workspace }: {
       cache.setQueryData<Group[]>(groupKey, current => groupEditor.id
         ? (current ?? []).map(existing => existing.id === item.id ? item : existing)
         : [item, ...(current ?? [])])
+      void cache.invalidateQueries({ queryKey: groupKey, exact: true })
     }} />}
     {workspace && removingGroup && <ConfirmDialog open title={`移除“${removingGroup.name}”？`}
       description="磁盘目录和会话记录将保留。组内未归档的会话将移到普通会话列表。" confirmLabel="移除分组"
@@ -855,7 +857,11 @@ function ChatSession({ target, close, workspace }: {
               </div>
             : <p className="whitespace-pre-wrap break-words">{message.text}</p>)}
         {statusLabels[message.status] && <p className={cn('mt-1 text-sm', message.status === 'failed' ? 'text-destructive' : 'text-muted-foreground')}>
-          {statusLabels[message.status]}{errorLabels[message.errorCode] && ` · ${errorLabels[message.errorCode]}`}
+          {statusLabels[message.status]}{message.details?.limit
+            ? ` · 已达到${message.details.limit.kind === 'model_rounds' ? '模型轮次' : '工具调用'}上限（${message.details.limit.value}${message.details.limit.kind === 'model_rounds' ? ' 轮' : ' 次'}），已保留部分回复。`
+            : errorLabels[message.errorCode] && ` · ${errorLabels[message.errorCode]}`}
+          {workspace && message.details?.limit && <Button type="button" size="xs" variant="link"
+            onClick={() => showSettings('ai')}>在设置中修改上限</Button>}
           {message.status === 'failed' && Boolean(message.details?.work?.retryCount) && ` · 已自动重试 ${message.details?.work?.retryCount} 次`}
         </p>}
         {message.role === 'assistant' && message.status !== 'running' && <ReplyActions message={message} branchDisabled={branch.isPending || send.isPending}
@@ -886,6 +892,8 @@ function ChatSession({ target, close, workspace }: {
       {workspace && currentQueue.length > 0 && <ChatQueueBar
         items={currentQueue}
         busySteer={!active || steer.isPending}
+        failedID={!active && send.isError ? send.variables?.queued?.id : undefined}
+        onRetry={sendQueuedMessage}
         onSteer={item => {
           if (item.attachments.some(att => att.kind === 'image') && !modelSupportsImage) {
             void notify('当前模型不是多模态模型，不支持图片', '请切换模型或移除图片后再引导。', true)

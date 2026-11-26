@@ -243,7 +243,7 @@ func main() {
 	})
 	platform := appagent.NewPlatform(toolRegistry, platformDirectory)
 	if chatService != nil {
-		chatService.SetToolSource(platform.RunTools)
+		chatService.SetToolSessionSource(platform.RunToolSession)
 		chatService.SetSkillReferences(platform.SkillReferences)
 		chatService.SetToolPermissions(platform)
 	}

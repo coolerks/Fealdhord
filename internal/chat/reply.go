@@ -17,15 +17,16 @@ import (
 )
 
 type ReplyDetails struct {
-	DurationMS            int64      `json:"durationMs"`
-	Rounds                int        `json:"rounds"`
-	ReasoningEffort       string     `json:"reasoningEffort"`
-	InputTokens           *int       `json:"inputTokens,omitempty"`
-	CachedInputTokens     *int       `json:"cachedInputTokens,omitempty"`
-	OutputTokens          *int       `json:"outputTokens,omitempty"`
-	FirstTokenMS          *int64     `json:"firstTokenMs,omitempty"`
-	OutputTokensPerSecond *float64   `json:"outputTokensPerSecond,omitempty"`
-	Work                  *ReplyWork `json:"work,omitempty"`
+	Limit                 *agentrun.RunLimit `json:"limit,omitempty"`
+	DurationMS            int64              `json:"durationMs"`
+	Rounds                int                `json:"rounds"`
+	ReasoningEffort       string             `json:"reasoningEffort"`
+	InputTokens           *int               `json:"inputTokens,omitempty"`
+	CachedInputTokens     *int               `json:"cachedInputTokens,omitempty"`
+	OutputTokens          *int               `json:"outputTokens,omitempty"`
+	FirstTokenMS          *int64             `json:"firstTokenMs,omitempty"`
+	OutputTokensPerSecond *float64           `json:"outputTokensPerSecond,omitempty"`
+	Work                  *ReplyWork         `json:"work,omitempty"`
 }
 
 type ReplyWork struct {
@@ -359,6 +360,7 @@ func effortLabel(model aiconfig.Model, effort string) string {
 }
 
 type replyUsage struct {
+	limit  *agentrun.RunLimit
 	rounds []ai.Usage
 }
 
@@ -404,6 +406,9 @@ func (u replyUsage) details(started, ended time.Time, effort string, work *reply
 		CachedInputTokens: u.total(func(round ai.Usage) *int { return round.CachedInputTokens }),
 		OutputTokens:      u.total(func(round ai.Usage) *int { return round.OutputTokens }),
 		Work:              work.snapshot(started, ended, status),
+	}
+	if status == "failed" {
+		details.Limit = u.limit
 	}
 	if !work.firstText.IsZero() {
 		first := work.firstText.Sub(started).Milliseconds()
