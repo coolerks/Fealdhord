@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Tabs } from 'radix-ui'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { SemanticButton } from '@/components/semantic-button'
+import { ReaderFindPresentation } from '@/components/command-presentation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -11,6 +12,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { ArticleCategories } from '@/features/categories/ArticleCategories'
+import { readerFindShortcut } from '@/lib/command-presentation'
+import { native } from '@/lib/native'
+import { requestReaderFind } from '@/lib/reader-find'
 import { defaultTranslationLanguages } from '@/lib/translation-api'
 import type { TranslationDisplayMode } from '@/lib/translation-api'
 import { useWorkspace } from '@/stores/workspace'
@@ -252,11 +256,15 @@ export function ReaderToolbarActions({
               <AnimatedGlyph icon={icon} meaning={meaning} />{value === 'read' ? readLabel : label}
             </DropdownMenuItem>
           })}
+          <DropdownMenuItem aria-keyshortcuts={readerFindShortcut(native.isMac()).keys} onSelect={() => {
+            const text = selection.current
+            afterMenuClose.current = () => requestReaderFind(articleID, text)
+          }}><ReaderFindPresentation /></DropdownMenuItem>
         </DropdownMenuGroup>
         {onShare && <DropdownMenuItem onSelect={() => {
           afterMenuClose.current = () => { if (moreTrigger.current) onShare(moreTrigger.current) }
         }}><AnimatedGlyph meaning="send" />发送到…</DropdownMenuItem>}
-        {(overflowOptions.length > 0 || onShare) && <DropdownMenuSeparator />}
+        <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem onSelect={() => { afterMenuClose.current = () => showSettings('reader') }}>
             <AnimatedGlyph meaning="settings" />工具栏设置…

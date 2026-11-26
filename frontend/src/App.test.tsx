@@ -19,7 +19,7 @@ import type { Message, SendInput, UpdateEvent } from '../bindings/github.com/coo
 
 import type { Task } from '../bindings/github.com/coolerks/Fealdhord/internal/notification/models'
 
-const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),isWindows:vi.fn(()=>false),isLinux:vi.fn(()=>false),isMaximized:vi.fn(async()=>false),onMaximizeChange:vi.fn<(_listener: (value: boolean) => void) => () => void>(()=>()=>{}),onCommand:vi.fn(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(async()=>{}),minimize:vi.fn(async()=>{}),maximize:vi.fn(async()=>{}),fullscreen:vi.fn(),openURL:vi.fn(async()=>{}),openDevTools:vi.fn(async()=>{}),quit:vi.fn()}))
+const host = vi.hoisted(()=>({isMac:vi.fn(()=>false),isWindows:vi.fn(()=>false),isLinux:vi.fn(()=>false),isMaximized:vi.fn(async()=>false),onMaximizeChange:vi.fn<(_listener: (value: boolean) => void) => () => void>(()=>()=>{}),onCommand:vi.fn<(_listener: (id: string) => void) => () => void>(()=>()=>{}),copy:vi.fn(async()=>{}),paste:vi.fn(async()=>'粘贴文本'),close:vi.fn(async()=>{}),minimize:vi.fn(async()=>{}),maximize:vi.fn(async()=>{}),fullscreen:vi.fn(),openURL:vi.fn(async()=>{}),openDevTools:vi.fn(async()=>{}),quit:vi.fn()}))
 vi.mock('@/lib/native',()=>({native:host}))
 const authorize = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 vi.mock('../bindings/github.com/coolerks/Fealdhord/internal/desktop/notifier', () => ({ Authorize: authorize, Send: vi.fn() }))
@@ -134,7 +134,7 @@ beforeEach(() => {
   host.isWindows.mockReturnValue(false)
   host.isLinux.mockReturnValue(false)
   geometry = installGeometry()
-  useWorkspace.setState({ preferences: null, revision: 0, version: 0, savedVersion: 0, saveError: null, saveStatus: 'saved', search: '', sort: 'newest',readFilter:'all',favoriteFilter:'all', settingsOpen: false, settingsTab: 'appearance', paletteOpen: false, searchOpen: false, aiOpen: false, helpOpen:false,diagnosticsOpen:false,commandError:null })
+  useWorkspace.setState({ preferences: null, revision: 0, version: 0, savedVersion: 0, saveError: null, saveStatus: 'saved', search: '', sort: 'newest',readFilter:'all',favoriteFilter:'all', readerFindRequest: null, settingsOpen: false, settingsTab: 'appearance', paletteOpen: false, searchOpen: false, aiOpen: false, helpOpen:false,diagnosticsOpen:false,commandError:null })
   reader.get.mockResolvedValue({article_id:'a-0',html:'',text:'',mode:'feed',has_cached:false,has_original:false})
   api.get.mockResolvedValue({ preferences: preferencesFixture(), revision: 0 })
   api.update.mockImplementation(async (preferences, revision) => ({ preferences, revision: revision + 1 }))
@@ -2151,6 +2151,88 @@ describe('Phase 1 阅读 Shell', () => {
       else Reflect.deleteProperty(Range.prototype, 'getClientRects')
       if (previousHitTest) Object.defineProperty(document, 'elementFromPoint', previousHitTest)
       else Reflect.deleteProperty(document, 'elementFromPoint')
+    }
+  })
+
+  it.each([
+    { mac: true, shortcut: 'Meta+F', keys: '{Meta>}f{/Meta}' },
+    { mac: false, shortcut: 'Control+F', keys: '{Control>}f{/Control}' },
+  ])('文章查找共用选区和焦点，支持 $shortcut', async ({ mac, shortcut, keys }) => {
+    const user = userEvent.setup()
+    host.isMac.mockReturnValue(mac)
+    api.get.mockResolvedValue({ preferences: preferencesFixture({ animation: 'off' }), revision: 0 })
+    setup(true)
+    await user.click(await screen.findByRole('button', { name: '打开文章：测试文章 0' }))
+    const paragraph = await screen.findByText('这是一段用于组件测试的正文。')
+    const otherParagraph = screen.getByText('第二段保留段落顺序。')
+    const selection = window.getSelection()!
+    const previousRect = Object.getOwnPropertyDescriptor(Range.prototype, 'getBoundingClientRect')
+    const previousRects = Object.getOwnPropertyDescriptor(Range.prototype, 'getClientRects')
+    Object.defineProperty(Range.prototype, 'getBoundingClientRect', { configurable: true, value: () => new DOMRect() })
+    Object.defineProperty(Range.prototype, 'getClientRects', { configurable: true, value: () => [] })
+    try {
+      selection.setBaseAndExtent(paragraph.firstChild!, 6, paragraph.firstChild!, 10)
+      fireEvent.contextMenu(paragraph)
+      selection.removeAllRanges()
+      const menu = await screen.findByRole('menu', { name: '阅读上下文菜单' })
+      const find = within(menu).getByRole('menuitem', { name: '查找' })
+      expect(find).toHaveAttribute('aria-keyshortcuts', shortcut)
+      expect(find.lastElementChild).toHaveTextContent(mac ? '⌘+F' : 'Ctrl+F')
+      expect(within(menu).queryByRole('menuitem', { name: '搜索文章' })).not.toBeInTheDocument()
+      await user.click(find)
+      const input = await screen.findByRole('searchbox', { name: '查找文章内容' })
+      expect(input).toHaveFocus()
+      expect(input).toHaveValue('组件测试')
+      expect(within(screen.getByRole('search', { name: '在文章内查找' })).getByRole('status')).toHaveTextContent('1 / 1')
+
+      await user.keyboard('{Escape}')
+      expect(input).not.toBeInTheDocument()
+      selection.setBaseAndExtent(otherParagraph.firstChild!, 3, otherParagraph.firstChild!, 5)
+      const more = within(screen.getByRole('complementary', { name: '阅读面板' })).getByRole('button', { name: '更多' })
+      await user.click(more)
+      selection.removeAllRanges()
+      const menuFind = await screen.findByRole('menuitem', { name: '查找' })
+      expect(menuFind).toHaveAttribute('aria-keyshortcuts', shortcut)
+      menuFind.focus()
+      await user.keyboard('{Enter}')
+      const reopened = await screen.findByRole('searchbox', { name: '查找文章内容' })
+      expect(reopened).toHaveFocus()
+      expect(reopened).toHaveValue('保留')
+
+      screen.getByRole('heading', { name: '测试文章 0' }).focus()
+      selection.setBaseAndExtent(paragraph.firstChild!, 11, paragraph.firstChild!, 14)
+      await user.keyboard(keys)
+      expect(reopened).toHaveFocus()
+      expect(reopened).toHaveValue('正文。')
+      expect(screen.queryByRole('textbox', { name: '搜索全部文章' })).not.toBeInTheDocument()
+
+      if (mac) {
+        screen.getByRole('heading', { name: '测试文章 0' }).focus()
+        selection.setBaseAndExtent(otherParagraph.firstChild!, 0, otherParagraph.firstChild!, 3)
+        act(() => host.onCommand.mock.lastCall![0]('search'))
+        expect(reopened).toHaveValue('第二段')
+        expect(reopened).toHaveFocus()
+      }
+
+      selection.removeAllRanges()
+      await user.click(more)
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('menuitem', { name: '查找' })).not.toBeInTheDocument()
+      expect(reopened).toBeInTheDocument()
+
+      selection.removeAllRanges()
+      fireEvent.contextMenu(screen.getByRole('heading', { name: '全部文章' }))
+      const libraryMenu = await screen.findByRole('menu', { name: '阅读上下文菜单' })
+      const search = within(libraryMenu).getByRole('menuitem', { name: '搜索文章' })
+      expect(search).toHaveAttribute('aria-keyshortcuts', '/')
+      await user.click(search)
+      expect(await screen.findByRole('textbox', { name: '搜索全部文章' })).toBeInTheDocument()
+    } finally {
+      selection.removeAllRanges()
+      if (previousRect) Object.defineProperty(Range.prototype, 'getBoundingClientRect', previousRect)
+      else Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect')
+      if (previousRects) Object.defineProperty(Range.prototype, 'getClientRects', previousRects)
+      else Reflect.deleteProperty(Range.prototype, 'getClientRects')
     }
   })
 

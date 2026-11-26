@@ -14,12 +14,13 @@ export const textActions = {
 export type TextAction = keyof typeof textActions
 export type Shortcut = {label:string;keys:string}
 const modified=(key:string,mac:boolean,shift=false):Shortcut=>({label:mac?`${shift?'⇧':''}⌘${key}`:`Ctrl+${shift?'Shift+':''}${key}`,keys:`${mac?'Meta':'Control'}+${shift?'Shift+':''}${key}`})
+export const readerFindShortcut = (mac: boolean) => modified('F', mac)
 /** 只展示已在 Shell 或 macOS 系统菜单注册的绑定。 */
 export function commandShortcut(id:CommandID,mac:boolean,articleTargetMatches=true):Shortcut|undefined {
   switch(id) {
     case 'refresh':return modified('R',mac)
     case 'settings':return modified(',',mac)
-    case 'search':return modified('F',mac)
+    case 'search':return {label:'/',keys:'/'}
     case 'palette':return modified('K',mac)
     case 'all':return modified('1',mac)
     case 'unread':return modified('2',mac)

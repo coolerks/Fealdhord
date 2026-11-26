@@ -80,14 +80,14 @@ function scrollRangeIntoView(range: Range, viewport: HTMLElement | null) {
 
 export function ReaderFindBar({
   open,
-  focusTrigger,
+  request,
   containerRef,
   viewportRef,
   contentKey,
   onClose,
 }: {
   open: boolean
-  focusTrigger: number
+  request: { query: string } | null
   containerRef: RefObject<HTMLElement | null>
   viewportRef: RefObject<HTMLElement | null>
   contentKey: string
@@ -96,6 +96,11 @@ export function ReaderFindBar({
   const inputRef = useRef<HTMLInputElement>(null)
   const rangesRef = useRef<Range[]>([])
   const [query, setQuery] = useState('')
+  const [previousRequest, setPreviousRequest] = useState(request)
+  if (request !== previousRequest) {
+    setPreviousRequest(request)
+    if (request?.query) setQuery(request.query)
+  }
   const [matchCount, setMatchCount] = useState(0)
   const [activeIndex, setActiveIndex] = useState(0)
 
@@ -124,7 +129,7 @@ export function ReaderFindBar({
       input.focus({ preventScroll: true })
       input.select()
     }
-  }, [open, focusTrigger])
+  }, [open, request])
 
   useEffect(() => {
     if (!open) return
@@ -167,6 +172,7 @@ export function ReaderFindBar({
     if (!open) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (event.target instanceof Element && event.target.closest('[role=menu], [role=dialog]')) return
         event.preventDefault()
         event.stopPropagation()
         onClose()

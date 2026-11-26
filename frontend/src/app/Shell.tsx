@@ -2,7 +2,7 @@ import { notify } from '@/lib/notifications'
 import { useScheduledNotices } from './use-scheduled-notices'
 import { ShortcutKeys } from '@/components/shortcut-keys'
 import { useChatTarget } from '@/features/chat/chat-scope'
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, MotionConfig, motion, useIsPresent } from 'motion/react'
@@ -12,6 +12,7 @@ import { ApplicationMenu } from './ApplicationMenu'
 import { native } from '@/lib/native'
 import { captureTextTarget, editText } from '@/lib/text-actions'
 import { isCommand,runCommand } from '@/lib/commands'
+import { readReaderSelection, requestReaderFind } from '@/lib/reader-find'
 import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog'
 import { SemanticButton } from '@/components/semantic-button'
 import { Button } from '@/components/ui/button'
@@ -179,6 +180,19 @@ export function Shell() {
     })
   }, [patch])
 
+  const findOrSearch = useEffectEvent(() => {
+    const settings = useWorkspace.getState()
+    if (settings.settingsOpen || settings.paletteOpen || chatKind || sharing || helpOpen || diagnosticsOpen) return
+    if (!readerVisible || !selected) {
+      runCommand('search', client)
+      return
+    }
+    const reader = workspace.current?.querySelector<HTMLElement>('.reader-pane[data-article-id]:not([inert] *)')
+    const content = reader?.querySelector('.reader-content:not([inert] *)')
+    if (reader?.dataset.articleId !== selected.id || !content) return
+    requestReaderFind(selected.id, readReaderSelection(content))
+  })
+
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
       if (event.isComposing || event.defaultPrevented) return
@@ -212,13 +226,14 @@ export function Shell() {
         }
         return
       }
-      if (native.isMac() && event.metaKey && !event.ctrlKey && !event.altKey && event.key.toLowerCase() === 'f' && readerVisible) {
+      const findModifier = native.isMac() ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey
+      if (findModifier && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
         event.preventDefault()
-        useWorkspace.setState(current => ({ readerFindTrigger: current.readerFindTrigger + 1 }))
+        findOrSearch()
         return
       }
       if ((event.metaKey||event.ctrlKey) && !native.isMac()) {
-        const id=event.key===','?'settings':event.key.toLowerCase()==='f'?'search':event.key==='1'?'all':event.key==='2'?'unread':event.key==='3'?'favorites':null
+        const id=event.key===','?'settings':event.key==='1'?'all':event.key==='2'?'unread':event.key==='3'?'favorites':null
         if(id){event.preventDefault();runCommand(id,client);return}
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
@@ -244,7 +259,10 @@ export function Shell() {
     return () => window.removeEventListener('keydown', keyboard)
   }, [articles, preferences.selected_article_id, open, selected, favorite, read, readerVisible, closeReader, overlay, patch, client, globalChat, showSettings])
 
-  useEffect(()=>native.onCommand(id=>{if(isCommand(id))runCommand(id,client)}),[client])
+  useEffect(()=>native.onCommand(id=>{
+    if(id==='search')findOrSearch()
+    else if(isCommand(id))runCommand(id,client)
+  }),[client])
 
   useEffect(() => {
     if (!commandError) return

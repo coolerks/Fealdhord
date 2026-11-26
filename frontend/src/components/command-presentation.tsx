@@ -2,13 +2,16 @@ import { ShortcutKeys } from './shortcut-keys'
 import { AnimatedGlyph } from './animated-glyph'
 import { commandLabels } from '@/lib/commands'
 import type { CommandID } from '@/lib/commands'
-import { commandIcons, commandShortcut, textActions, textShortcut } from '@/lib/command-presentation'
+import { commandIcons, commandShortcut, readerFindShortcut, textActions, textShortcut } from '@/lib/command-presentation'
 import type { TextAction } from '@/lib/command-presentation'
 import { native } from '@/lib/native'
 
 export function CommandPresentation({id,label,articleTargetMatches=true}:{id:CommandID;label?:string;articleTargetMatches?:boolean}) {
  const shortcut=commandShortcut(id,native.isMac(),articleTargetMatches)
  return <><AnimatedGlyph meaning={commandIcons[id]}/><span>{label??commandLabels[id]}</span>{shortcut&&<ShortcutKeys keys={shortcut.keys} menu />}</>
+}
+export function ReaderFindPresentation() {
+ return <><AnimatedGlyph meaning="search"/><span>查找</span><ShortcutKeys keys={readerFindShortcut(native.isMac()).keys} menu /></>
 }
 export function TextActionPresentation({action}:{action:TextAction}) {
  const item=textActions[action],shortcut=textShortcut(action,native.isMac())

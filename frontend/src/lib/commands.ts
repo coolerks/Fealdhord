@@ -34,10 +34,6 @@ export function runCommand(id: CommandID, client: QueryClient, articleID?: strin
  case 'ai':state.showSettings('ai');break
  case 'palette':useWorkspace.setState({ paletteOpen:true });break
  case 'search':
-  if (prefs.reader_open && prefs.selected_article_id && !state.settingsOpen && !document.querySelector('.chat-workspace:not([inert])')) {
-   useWorkspace.setState(current => ({ readerFindTrigger: current.readerFindTrigger + 1 }))
-   break
-  }
   patch({reader_open:false});useWorkspace.setState({searchOpen:true});requestAnimationFrame(()=>document.getElementById('article-search')?.focus());break
  case 'all':case 'unread':case 'favorites':case 'featured':state.selectScope(id);break
  case 'list':case 'masonry':patch({article_view_mode:id});break

@@ -19,7 +19,7 @@ type Workspace = {
   favoriteFilter:'all'|'favorites'|'unstarred'
   transferIntent:'import'|'export'|null
   readerModeRequestID:string|null
-  readerFindTrigger: number
+  readerFindRequest: { articleID: string; query: string } | null
   activeArticleQueryKey:readonly unknown[]|null
   settingsTab: SettingsTab
   settingsOpen: boolean
@@ -50,7 +50,7 @@ export function restoreSettingsFocus() {
 
 export const useWorkspace = create<Workspace>((set, get) => ({
   preferences: null, revision: 0, version: 0, savedVersion: 0, saveError: null, saveStatus: 'saved',
-  search: '', sort: 'relevance', activeArticleQueryKey:null,readerModeRequestID:null,readerFindTrigger:0,transferIntent:null,readFilter:'all',favoriteFilter:'all', settingsTab: 'appearance', settingsOpen: false, settingsPresentation: 'full', paletteOpen: false, searchOpen: false, aiOpen: false, helpOpen: false, diagnosticsOpen: false, commandError: null,
+  search: '', sort: 'relevance', activeArticleQueryKey:null,readerModeRequestID:null,readerFindRequest:null,transferIntent:null,readFilter:'all',favoriteFilter:'all', settingsTab: 'appearance', settingsOpen: false, settingsPresentation: 'full', paletteOpen: false, searchOpen: false, aiOpen: false, helpOpen: false, diagnosticsOpen: false, commandError: null,
   initialize(snapshot) {
     writer = new PreferenceWriter(snapshot.revision, preferencesAPI.update,
       (saved, version) => set(state => ({ revision: saved.revision, savedVersion: version, saveStatus: state.version > version ? 'saving' : 'saved' })),

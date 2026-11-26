@@ -11,6 +11,7 @@ import type { Article } from '@/lib/library'
 import type { Preferences } from '@/lib/preferences'
 import { readerAPI } from '@/lib/reader-api'
 import { readerImageID } from '@/lib/reader-image'
+import { readReaderSelection } from '@/lib/reader-find'
 import { SemanticButton } from '@/components/semantic-button'
 import { Empty,EmptyHeader,EmptyMedia,EmptyTitle } from '@/components/ui/empty'
 import { useWorkspace } from '@/stores/workspace'
@@ -47,9 +48,9 @@ export function ReaderEmpty() {
 function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiveOpenMode,overlay,onClose,onFavorite,onRead,onShare,onAnchor,markedRef}:ReaderProps&{effectiveOpenMode:'feed'|'full';markedRef:RefObject<string>}){
  const content=useRef<HTMLDivElement>(null),articleEl=useRef<HTMLElement>(null),timer=useRef<ReturnType<typeof setTimeout>|null>(null),pending=useRef<number|null>(null),save=useRef(onAnchor),title=useRef<HTMLHeadingElement>(null)
  const showSettings = useWorkspace(state => state.showSettings)
- const findTrigger = useWorkspace(state => state.readerFindTrigger)
- const [dismissedFindTrigger, setDismissedFindTrigger] = useState(findTrigger)
- const findOpen = findTrigger > dismissedFindTrigger
+ const findRequest = useWorkspace(state => state.readerFindRequest?.articleID === article?.id ? state.readerFindRequest : null)
+ const [dismissedFindRequest, setDismissedFindRequest] = useState(findRequest)
+ const activeFindRequest = findRequest !== dismissedFindRequest ? findRequest : null
  const articleID=article?.id
  const publicationDate=article?.publishedAt.slice(0,10)
  const body=useReaderContent(article,preferences)
@@ -156,12 +157,6 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
  function openLink(resourceID=''){
   if(articleID)void readerAPI.open(articleID,resourceID).catch(error=>useWorkspace.setState({commandError:error instanceof Error?error.message:'无法打开链接。'}))
  }
- function readSelection() {
-  const selection = window.getSelection()
-  const root = content.current
-  if (!selection?.anchorNode || !selection.focusNode || !root?.contains(selection.anchorNode) || !root.contains(selection.focusNode)) return ''
-  return Array.from(selection.toString()).slice(0, 6000).join('')
- }
  function viewImage(target: HTMLImageElement) {
   if (!imagesAllowed || !readerImageID(target) || target.hidden) return false
   const images = Array.from(prose.current?.querySelectorAll<HTMLImageElement>('img:not([hidden])') ?? []).flatMap(element => {
@@ -208,20 +203,21 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
      onRefresh={() => { setGallery(undefined); started.current = true; setView('reader'); void body.extract() }}
      onFavorite={() => onFavorite(article.id)} onRead={() => onRead(article.id)} onOriginal={() => openLink()}
      onShare={onShare && (trigger => onShare(article, trigger))}
-     readSelection={readSelection} onAI={selection => openChat({ kind: 'article', id: article.id, label: article.title, selection })} />
+     readSelection={() => readReaderSelection(content.current)}
+     onAI={selection => openChat({ kind: 'article', id: article.id, label: article.title, selection: Array.from(selection).slice(0, 6000).join('') })} />
   </header>}
   {article?<Tabs.Content value={view} asChild {...(!preferences.reader_toolbar_pinned.includes('view') && {
    'aria-labelledby': undefined, 'aria-label': readerViews.find(mode => mode.value === view)?.label,
   })}><div className="reader-stage" inert={Boolean(viewing)} aria-hidden={viewing ? true : undefined}>
    {!loading && <ReaderOutline mode={preferences.reader_outline} html={body.html} translationKey={`${translation.effectiveDisplayMode}:${translation.targetLang}:${translation.record?.updatedAt ?? 0}`} prose={prose} viewport={content} inert={Boolean(viewing)} />}
    <ReaderFindBar
-    open={findOpen && !viewing}
-    focusTrigger={findTrigger}
+    open={Boolean(activeFindRequest) && !viewing}
+    request={activeFindRequest}
     containerRef={articleEl}
     viewportRef={content}
     contentKey={`${articleID}:${view}:${body.html.length}:${translation.effectiveDisplayMode}:${translation.record?.updatedAt ?? 0}:${summary.result?.text?.length ?? 0}`}
     onClose={() => {
-     setDismissedFindTrigger(findTrigger)
+     setDismissedFindRequest(findRequest)
      title.current?.focus({ preventScroll: true })
     }}
    />
