@@ -13,6 +13,7 @@ export type {
     ContextStatus,
     Conversation,
     Group,
+    GroupInput,
     Message,
     MessageAttachment,
     ReplyDetails,

@@ -171,6 +171,18 @@ func (q *Queries) ChatCategoryContext(ctx context.Context, categoryID string) ([
 	return items, nil
 }
 
+const chatGroupHasActiveRun = `-- name: ChatGroupHasActiveRun :one
+SELECT EXISTS (SELECT 1 FROM conversations c JOIN messages m ON m.conversation_id=c.id
+WHERE c.group_id=? AND m.status='running')
+`
+
+func (q *Queries) ChatGroupHasActiveRun(ctx context.Context, groupID sql.NullString) (int64, error) {
+	row := q.db.QueryRowContext(ctx, chatGroupHasActiveRun, groupID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const checkpointChatMessage = `-- name: CheckpointChatMessage :exec
 UPDATE messages SET content=? WHERE id=? AND status='running'
 `
@@ -182,6 +194,15 @@ type CheckpointChatMessageParams struct {
 
 func (q *Queries) CheckpointChatMessage(ctx context.Context, arg CheckpointChatMessageParams) error {
 	_, err := q.db.ExecContext(ctx, checkpointChatMessage, arg.Content, arg.ID)
+	return err
+}
+
+const clearChatGroupFolders = `-- name: ClearChatGroupFolders :exec
+DELETE FROM chat_group_folders WHERE group_id=?
+`
+
+func (q *Queries) ClearChatGroupFolders(ctx context.Context, groupID string) error {
+	_, err := q.db.ExecContext(ctx, clearChatGroupFolders, groupID)
 	return err
 }
 
@@ -212,6 +233,7 @@ SELECT ?1, c.scope_type, c.scope_id, c.title, ?2, ?2,
  c.group_id, ?3
 FROM conversations c JOIN messages m ON m.conversation_id=c.id
 WHERE c.id=?4 AND c.archived_at IS NULL AND m.id=?5 AND m.role='assistant' AND m.status<>'running'
+AND (c.group_id IS NULL OR EXISTS (SELECT 1 FROM chat_groups g WHERE g.id=c.group_id AND g.archived_at IS NULL))
 RETURNING id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at, group_id, workspace_day
 `
 
@@ -314,6 +336,23 @@ func (q *Queries) DeleteArchivedGlobalConversation(ctx context.Context, id strin
 	return result.RowsAffected()
 }
 
+const deleteChatGroup = `-- name: DeleteChatGroup :execrows
+DELETE FROM chat_groups WHERE id=?1 AND (archived_at IS NOT NULL)=?2
+`
+
+type DeleteChatGroupParams struct {
+	ID       string        `json:"id"`
+	Archived sql.NullInt64 `json:"archived"`
+}
+
+func (q *Queries) DeleteChatGroup(ctx context.Context, arg DeleteChatGroupParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteChatGroup, arg.ID, arg.Archived)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteGlobalConversation = `-- name: DeleteGlobalConversation :execrows
 DELETE FROM conversations WHERE id=? AND scope_type='global' AND archived_at IS NULL
 `
@@ -377,13 +416,20 @@ func (q *Queries) FinishChatToolAudit(ctx context.Context, arg FinishChatToolAud
 }
 
 const getChatGroup = `-- name: GetChatGroup :one
-SELECT id, name, created_at FROM chat_groups WHERE id=?
+SELECT id, name, created_at, icon, color, archived_at FROM chat_groups WHERE id=?
 `
 
 func (q *Queries) GetChatGroup(ctx context.Context, id string) (ChatGroup, error) {
 	row := q.db.QueryRowContext(ctx, getChatGroup, id)
 	var i ChatGroup
-	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.Icon,
+		&i.Color,
+		&i.ArchivedAt,
+	)
 	return i, err
 }
 
@@ -416,17 +462,25 @@ func (q *Queries) GetConversation(ctx context.Context, id string) (Conversation,
 }
 
 const insertChatGroup = `-- name: InsertChatGroup :exec
-INSERT INTO chat_groups (id,name,created_at) VALUES (?,?,?)
+INSERT INTO chat_groups (id,name,created_at,icon,color) VALUES (?,?,?,?,?)
 `
 
 type InsertChatGroupParams struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	CreatedAt int64  `json:"created_at"`
+	Icon      string `json:"icon"`
+	Color     string `json:"color"`
 }
 
 func (q *Queries) InsertChatGroup(ctx context.Context, arg InsertChatGroupParams) error {
-	_, err := q.db.ExecContext(ctx, insertChatGroup, arg.ID, arg.Name, arg.CreatedAt)
+	_, err := q.db.ExecContext(ctx, insertChatGroup,
+		arg.ID,
+		arg.Name,
+		arg.CreatedAt,
+		arg.Icon,
+		arg.Color,
+	)
 	return err
 }
 
@@ -474,6 +528,40 @@ func (q *Queries) LatestGlobalBranchPoint(ctx context.Context, id string) (strin
 	row := q.db.QueryRowContext(ctx, latestGlobalBranchPoint, id)
 	err := row.Scan(&id)
 	return id, err
+}
+
+const listArchivedChatGroups = `-- name: ListArchivedChatGroups :many
+SELECT id, name, created_at, icon, color, archived_at FROM chat_groups WHERE archived_at IS NOT NULL ORDER BY archived_at DESC,id
+`
+
+func (q *Queries) ListArchivedChatGroups(ctx context.Context) ([]ChatGroup, error) {
+	rows, err := q.db.QueryContext(ctx, listArchivedChatGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatGroup
+	for rows.Next() {
+		var i ChatGroup
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.Icon,
+			&i.Color,
+			&i.ArchivedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listArchivedConversations = `-- name: ListArchivedConversations :many
@@ -549,7 +637,7 @@ func (q *Queries) ListChatGroupFolders(ctx context.Context, groupID string) ([]s
 }
 
 const listChatGroups = `-- name: ListChatGroups :many
-SELECT id, name, created_at FROM chat_groups ORDER BY created_at DESC,id
+SELECT id, name, created_at, icon, color, archived_at FROM chat_groups WHERE archived_at IS NULL ORDER BY created_at DESC,id
 `
 
 func (q *Queries) ListChatGroups(ctx context.Context) ([]ChatGroup, error) {
@@ -561,7 +649,14 @@ func (q *Queries) ListChatGroups(ctx context.Context) ([]ChatGroup, error) {
 	var items []ChatGroup
 	for rows.Next() {
 		var i ChatGroup
-		if err := rows.Scan(&i.ID, &i.Name, &i.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.Icon,
+			&i.Color,
+			&i.ArchivedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -750,6 +845,7 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 
 const listGroupConversations = `-- name: ListGroupConversations :many
 SELECT id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at, group_id, workspace_day FROM conversations WHERE scope_type='global' AND group_id=? AND archived_at IS NULL
+AND EXISTS (SELECT 1 FROM chat_groups g WHERE g.id=conversations.group_id AND g.archived_at IS NULL)
 ORDER BY pinned_at DESC,updated_at DESC,id LIMIT 100
 `
 
@@ -924,6 +1020,23 @@ func (q *Queries) SetAutomaticCompaction(ctx context.Context, arg SetAutomaticCo
 	return result.RowsAffected()
 }
 
+const setChatGroupArchive = `-- name: SetChatGroupArchive :execrows
+UPDATE chat_groups SET archived_at=?1 WHERE id=?2
+`
+
+type SetChatGroupArchiveParams struct {
+	ArchivedAt sql.NullInt64 `json:"archived_at"`
+	ID         string        `json:"id"`
+}
+
+func (q *Queries) SetChatGroupArchive(ctx context.Context, arg SetChatGroupArchiveParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setChatGroupArchive, arg.ArchivedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const setGlobalConversationPin = `-- name: SetGlobalConversationPin :one
 UPDATE conversations SET pinned_at=?1
 WHERE id=?2 AND scope_type='global' AND archived_at IS NULL RETURNING id, scope_type, scope_id, title, created_at, updated_at, context_after, context_summary, context_pins, last_input_tokens, last_usage_model, auto_compact, pinned_at, archived_at, group_id, workspace_day
@@ -992,4 +1105,34 @@ type TouchConversationParams struct {
 func (q *Queries) TouchConversation(ctx context.Context, arg TouchConversationParams) error {
 	_, err := q.db.ExecContext(ctx, touchConversation, arg.UpdatedAt, arg.ID)
 	return err
+}
+
+const updateChatGroup = `-- name: UpdateChatGroup :one
+UPDATE chat_groups SET name=?,icon=?,color=? WHERE id=? AND archived_at IS NULL RETURNING id, name, created_at, icon, color, archived_at
+`
+
+type UpdateChatGroupParams struct {
+	Name  string `json:"name"`
+	Icon  string `json:"icon"`
+	Color string `json:"color"`
+	ID    string `json:"id"`
+}
+
+func (q *Queries) UpdateChatGroup(ctx context.Context, arg UpdateChatGroupParams) (ChatGroup, error) {
+	row := q.db.QueryRowContext(ctx, updateChatGroup,
+		arg.Name,
+		arg.Icon,
+		arg.Color,
+		arg.ID,
+	)
+	var i ChatGroup
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.Icon,
+		&i.Color,
+		&i.ArchivedAt,
+	)
+	return i, err
 }

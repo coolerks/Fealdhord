@@ -215,9 +215,12 @@ type Category struct {
 }
 
 type ChatGroup struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	CreatedAt int64  `json:"created_at"`
+	ID         string        `json:"id"`
+	Name       string        `json:"name"`
+	CreatedAt  int64         `json:"created_at"`
+	Icon       string        `json:"icon"`
+	Color      string        `json:"color"`
+	ArchivedAt sql.NullInt64 `json:"archived_at"`
 }
 
 type ChatGroupFolder struct {

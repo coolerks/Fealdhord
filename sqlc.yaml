@@ -31,6 +31,7 @@ sql:
       - migrations/00030_chat_messages_meta.sql
       - migrations/00031_article_summary_language.sql
       - migrations/00032_article_ai_open_defaults.sql
+      - migrations/00033_chat_group_metadata.sql
     queries: internal/database/queries
     gen:
       go:

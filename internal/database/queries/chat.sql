@@ -7,16 +7,36 @@ SELECT * FROM conversations WHERE scope_type=? AND scope_id=? AND group_id IS NU
 
 -- name: ListGroupConversations :many
 SELECT * FROM conversations WHERE scope_type='global' AND group_id=? AND archived_at IS NULL
+AND EXISTS (SELECT 1 FROM chat_groups g WHERE g.id=conversations.group_id AND g.archived_at IS NULL)
 ORDER BY pinned_at DESC,updated_at DESC,id LIMIT 100;
 
 -- name: InsertChatGroup :exec
-INSERT INTO chat_groups (id,name,created_at) VALUES (?,?,?);
+INSERT INTO chat_groups (id,name,created_at,icon,color) VALUES (?,?,?,?,?);
 
 -- name: InsertChatGroupFolder :exec
 INSERT INTO chat_group_folders (group_id,position,path) VALUES (?,?,?);
 
 -- name: ListChatGroups :many
-SELECT * FROM chat_groups ORDER BY created_at DESC,id;
+SELECT * FROM chat_groups WHERE archived_at IS NULL ORDER BY created_at DESC,id;
+
+-- name: ListArchivedChatGroups :many
+SELECT * FROM chat_groups WHERE archived_at IS NOT NULL ORDER BY archived_at DESC,id;
+
+-- name: UpdateChatGroup :one
+UPDATE chat_groups SET name=?,icon=?,color=? WHERE id=? AND archived_at IS NULL RETURNING *;
+
+-- name: ClearChatGroupFolders :exec
+DELETE FROM chat_group_folders WHERE group_id=?;
+
+-- name: SetChatGroupArchive :execrows
+UPDATE chat_groups SET archived_at=sqlc.narg(archived_at) WHERE id=sqlc.arg(id);
+
+-- name: DeleteChatGroup :execrows
+DELETE FROM chat_groups WHERE id=sqlc.arg(id) AND (archived_at IS NOT NULL)=sqlc.arg(archived);
+
+-- name: ChatGroupHasActiveRun :one
+SELECT EXISTS (SELECT 1 FROM conversations c JOIN messages m ON m.conversation_id=c.id
+WHERE c.group_id=? AND m.status='running');
 
 -- name: ListChatGroupFolders :many
 SELECT path FROM chat_group_folders WHERE group_id=? ORDER BY position;
@@ -141,6 +161,7 @@ SELECT sqlc.arg(new_id), c.scope_type, c.scope_id, c.title, sqlc.arg(now), sqlc.
  c.group_id, sqlc.arg(workspace_day)
 FROM conversations c JOIN messages m ON m.conversation_id=c.id
 WHERE c.id=sqlc.arg(source_id) AND c.archived_at IS NULL AND m.id=sqlc.arg(message_id) AND m.role='assistant' AND m.status<>'running'
+AND (c.group_id IS NULL OR EXISTS (SELECT 1 FROM chat_groups g WHERE g.id=c.group_id AND g.archived_at IS NULL))
 RETURNING *;
 
 -- name: CopyChatBranchMessages :exec

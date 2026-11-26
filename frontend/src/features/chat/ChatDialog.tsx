@@ -45,10 +45,12 @@ import { formatMessageTime, formatMessageTimeTitle } from './format-time'
 import { approvalModes } from './approval-options'
 import { ConversationConfirmation, ConversationMenu, RenameConversationDialog, archivedConversationsKey, conversationActionError } from './ConversationMenu'
 import type { ConversationAction } from './ConversationMenu'
-import { GroupDisclosure, NewConversationGroup, groupHistoryKey, groupKey, useConversationFolds } from './ConversationGroups'
+import { archivedGroupsKey, ConversationGroupDialog, GroupDisclosure, GroupIcon, GroupMenu, groupActionError, groupHistoryKey, groupKey, useConversationFolds } from './ConversationGroups'
+import type { GroupAction } from './ConversationGroups'
+import { ConfirmDialog } from '@/features/settings/settings-primitives'
 import { notify } from '@/lib/notifications'
 import * as api from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/api'
-import type { Conversation, SendAttachment } from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
+import type { Conversation, Group, SendAttachment } from '../../../bindings/github.com/coolerks/Fealdhord/internal/chat/models'
 import { List as listAIConfiguration } from '../../../bindings/github.com/coolerks/Fealdhord/internal/aiconfig/api'
 import './chat-workspace.css'
 
@@ -89,6 +91,7 @@ const errorLabels: Record<string, string> = {
   AuthenticationError: '服务拒绝了当前密钥。',
   RateLimitError: '服务限流，请稍后重试。',
   Conflict: '当前对话还有一条回复正在进行。',
+  ChatGroupUnavailable: '分组已不可用，可取消分组后发送。',
   StorageError: '无法保存对话。',
   Timeout: '模型回复超时。',
   ArticleReadIncomplete: '正文尚未读完。可在工具记录中查看已读范围，或要求继续读取。',
@@ -179,7 +182,8 @@ function ChatSession({ target, close, workspace }: {
   const [following, setFollowing] = useState(true)
   const [conversationsScrolled, setConversationsScrolled] = useState(false)
   const [draftGroup, setDraftGroup] = useState('')
-  const [creatingGroup, setCreatingGroup] = useState(false)
+  const [groupEditor, setGroupEditor] = useState<{ id?: string } | null>(null)
+  const [removingGroup, setRemovingGroup] = useState<Group | null>(null)
   const { closed, toggle } = useConversationFolds()
   const [conversationDialog, setConversationDialog] = useState<{ action: 'rename' | 'archive' | 'delete'; item: Conversation } | null>(null)
   const [conversationTitle, setConversationTitle] = useState('')
@@ -231,6 +235,24 @@ function ChatSession({ target, close, workspace }: {
   const selectedEffortLabel = effortLevels.find(level => level.value === reasoningEffort)?.label
   const invalidEffort = Boolean(reasoningEffort && !effortLevels.some(option => option.value === reasoningEffort))
   const conversationId = chosen ?? history.data?.[0]?.id ?? ''
+  const selectedGroup = groupItems.find(group => group.id === draftGroup)
+  const groupChange = useMutation({
+    mutationFn: ({ group, archive }: { group: Group; archive: boolean }) => archive
+      ? api.SetGroupArchived(group.id, true) : api.DeleteGroup(group.id, false),
+    onSuccess: async (_result, { group, archive }) => {
+      if (draftGroup === group.id) {
+        if (archive && conversationId) choose('')
+        else if (!archive) setDraftGroup('')
+      }
+      setRemovingGroup(null)
+      cache.setQueryData<Group[]>(groupKey, current => (current ?? []).filter(item => item.id !== group.id))
+      await Promise.all([
+        cache.invalidateQueries({ queryKey: groupKey }), cache.invalidateQueries({ queryKey: groupHistoryKey }),
+        cache.invalidateQueries({ queryKey: archivedGroupsKey }), cache.invalidateQueries({ queryKey: listKey }),
+      ])
+    },
+    onError: (error, { archive }) => { if (archive) void notify(groupActionError(error), undefined, true) },
+  })
   const currentQueue = queues[conversationId] ?? []
   const activeConversation = (draftGroup ? groupedLists[groupItems.findIndex(group => group.id === draftGroup)]?.data : history.data)
     ?.find(item => item.id === conversationId)
@@ -429,9 +451,18 @@ function ChatSession({ target, close, workspace }: {
     if (!id) setGreeting(pickGreeting())
     if (workspace && !id) composer.current?.focus({ preventScroll: true })
   }
-  const openNewConversation = useEffectEvent(() => {
-    if (!send.isPending) choose('')
-  })
+  function newConversation() {
+    if (!send.isPending) choose('', workspace ? selectedGroup?.id : undefined)
+  }
+  function manageGroup(group: Group, action: GroupAction) {
+    if (action === 'edit') setGroupEditor({ id: group.id })
+    if (action === 'archive') groupChange.mutate({ group, archive: true })
+    if (action === 'remove') {
+      groupChange.reset()
+      setRemovingGroup(group)
+    }
+  }
+  const openNewConversation = useEffectEvent(newConversation)
   const pendingPrompt = useChatTarget(state => state.pendingPrompt)
   const submitPendingPrompt = useEffectEvent((text: string) => {
     choose('')
@@ -513,7 +544,7 @@ function ChatSession({ target, close, workspace }: {
     setDraft('')
     setSlashPage('actions')
     switch (item.action) {
-      case 'new': choose(''); break
+      case 'new': newConversation(); break
       case 'plan': setPlanMode(current => !current); break
       case 'context': setContextOpen(true); break
       case 'settings': showSettings(item.key === 'manage-skills' ? 'skills' : 'ai'); break
@@ -672,7 +703,7 @@ function ChatSession({ target, close, workspace }: {
         aria-hidden={workspace.collapsed || !workspace.present || undefined} {...chatTransition(workspace.motionMode)}>
         <div className="sidebar-titlebar" />
         <div className="system-nav">
-          <SidebarAction label="新对话" meaning="add" shortcut={newConversationShortcut} disabled={send.isPending} onClick={() => choose('')} />
+          <SidebarAction label="新对话" meaning="add" shortcut={newConversationShortcut} disabled={send.isPending} onClick={newConversation} />
           <Button variant={tasksOpen ? 'secondary' : 'ghost'} className={cn('nav-item', tasksOpen && 'is-current')}
             aria-current={tasksOpen ? 'page' : undefined} onClick={openTasks}>
             {tasksOpen && <span className="nav-selected-surface" />}
@@ -685,15 +716,17 @@ function ChatSession({ target, close, workspace }: {
           <div className="chat-sidebar-row">
             <GroupDisclosure label="分组" open={!closed.groups} controls="chat-groups" onToggle={() => toggle('groups')} />
             <Button type="button" variant="ghost" size="icon-sm" aria-label="新建分组" title="新建分组"
-              onClick={() => setCreatingGroup(true)}><Plus aria-hidden="true" /></Button>
+              onClick={() => setGroupEditor({})}><Plus aria-hidden="true" /></Button>
           </div>
           <ul id="chat-groups" hidden={closed.groups} inert={closed.groups}>
             {!closed.groups && groupItems.map((group, index) => <li key={group.id}>
-              <div className="chat-sidebar-row">
-                <GroupDisclosure label={group.name} folder open={!closed[group.id]} controls={`chat-group-${group.id}`} onToggle={() => toggle(group.id)} />
-                <Button type="button" variant="ghost" size="icon-sm" aria-label={`在${group.name}中新建对话`} disabled={send.isPending}
-                  onClick={() => choose('', group.id)}><Plus aria-hidden="true" /></Button>
-              </div>
+              <GroupMenu onAction={action => { if (!groupChange.isPending && !send.isPending) manageGroup(group, action) }}>
+                <div className="chat-sidebar-row">
+                  <GroupDisclosure label={group.name} group={group} open={!closed[group.id]} controls={`chat-group-${group.id}`} onToggle={() => toggle(group.id)} />
+                  <Button type="button" variant="ghost" size="icon-sm" aria-label={`在${group.name}中新建对话`} disabled={send.isPending}
+                    onClick={() => choose('', group.id)}><Plus aria-hidden="true" /></Button>
+                </div>
+              </GroupMenu>
               <ul id={`chat-group-${group.id}`} className="feed-nav chat-group-conversations" hidden={closed[group.id]} inert={closed[group.id]}>
                 {!closed[group.id] && conversationRows(groupedLists[index]?.data)}
               </ul>
@@ -712,12 +745,20 @@ function ChatSession({ target, close, workspace }: {
           <SemanticButton id="open-ai-settings" icon={Settings} meaning="settings" label="AI 设置" onClick={() => showSettings('ai')} />
         </div></footer>
       </motion.aside>, workspace.sidebar)}
-    {workspace && creatingGroup && <NewConversationGroup onClose={() => setCreatingGroup(false)} onCreated={group => {
-      setCreatingGroup(false)
+    {workspace && groupEditor && <ConversationGroupDialog groupID={groupEditor.id} onClose={() => setGroupEditor(null)} onSaved={group => {
+      setGroupEditor(null)
       if (closed.groups) toggle('groups')
-      cache.setQueryData(groupKey, (current: typeof groupItems | undefined) => [group, ...(current ?? [])])
-      void cache.invalidateQueries({ queryKey: groupKey })
+      const { folders, ...item } = group
+      cache.setQueryData([...groupKey, group.id], { ...item, folders })
+      cache.setQueryData<Group[]>(groupKey, current => groupEditor.id
+        ? (current ?? []).map(existing => existing.id === item.id ? item : existing)
+        : [item, ...(current ?? [])])
     }} />}
+    {workspace && removingGroup && <ConfirmDialog open title={`移除“${removingGroup.name}”？`}
+      description="磁盘目录和会话记录将保留。组内未归档的会话将移到普通会话列表。" confirmLabel="移除分组"
+      busy={groupChange.isPending} error={groupChange.isError ? groupActionError(groupChange.error) : undefined}
+      onOpenChange={open => { if (!open) setRemovingGroup(null) }}
+      onConfirm={() => groupChange.mutate({ group: removingGroup, archive: false })} />}
     {workspace && conversationDialog && (conversationDialog.action === 'rename'
       ? <RenameConversationDialog item={conversationDialog.item} title={conversationTitle} onChange={setConversationTitle}
         busy={manageConversation.isPending} error={manageConversation.isError ? conversationActionError(manageConversation.error) : undefined}
@@ -732,7 +773,7 @@ function ChatSession({ target, close, workspace }: {
       <h1>{activeConversation?.title ?? (conversationId ? 'AI 助手' : draftGroup ? (groupItems.find(group => group.id === draftGroup)?.name ?? '新对话') : '新对话')}</h1>
       {workspace.collapsed && <Button type="button" variant="ghost" size="icon" aria-label="定时任务" title="定时任务" onClick={openTasks}><CalendarClock /></Button>}
       {workspace.collapsed && <SemanticButton icon={Plus} meaning="add" label="新对话" aria-keyshortcuts={newConversationShortcut}
-        disabled={send.isPending} onClick={() => choose('')} />}
+        disabled={send.isPending} onClick={newConversation} />}
     </header> : <div className="flex flex-wrap items-center gap-3">
       <span className="min-w-0 truncate" title={target.label}>{target.label}</span>
       {model.data ? <span className="text-muted-foreground">{model.data.displayName}</span> : model.isError &&
@@ -1006,6 +1047,12 @@ function ChatSession({ target, close, workspace }: {
           </div>
         </div>
       </form>}
+      {workspace && !conversationId && draftGroup && <div className="chat-group-context" role="group" aria-label="新对话分组">
+        {selectedGroup && <GroupIcon group={selectedGroup} />}
+        <span className="min-w-0 flex-1 truncate" title={selectedGroup?.name}>{selectedGroup?.name ?? '分组已不可用'}</span>
+        <Button type="button" variant="ghost" size="icon-xs" aria-label="取消新对话的分组" disabled={send.isPending}
+          onClick={() => { setDraftGroup(''); composer.current?.focus({ preventScroll: true }) }}><X /></Button>
+      </div>}
       {workspace && imageBlocked && <p role="alert">{errorLabels.ModelImageUnsupported}</p>}
       {workspace && invalidEffort && !send.isError && <p role="alert">{errorLabels.ChatReasoningUnavailable}</p>}
       {(send.isError || cancel.isError) && <p role="alert">{errorText(send.error ?? cancel.error)}</p>}

@@ -263,6 +263,11 @@ func (s *Service) Send(ctx context.Context, input SendInput) error {
 	if conversation.ArchivedAt.Valid {
 		return modelError("ChatConversationUnavailable")
 	}
+	if conversation.GroupID.Valid {
+		if err := s.requireActiveGroup(ctx, conversation.GroupID.String); err != nil {
+			return err
+		}
+	}
 	if (input.Selection != "" && conversation.ScopeType != "article") || (input.IncludeContext && conversation.ScopeType == "global") ||
 		((len(input.ArticleIDs) > 0 || input.ModelID != "" || input.ReasoningEffort != "") && conversation.ScopeType != "global") {
 		return modelError("ValidationError")

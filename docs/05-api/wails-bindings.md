@@ -14,7 +14,7 @@
 
 `API.MCPClientLogs(id, attempt)` 返回 STDIO 的近期日志，条目含 `time`、`source`、`level?` 和 `message`。查询失败启动时使用实际提交过的临时 `attemptId` 且令 `attempt=true`，其他情况使用稳定连接 ID。日志保留在内存中。
 
-`Chat.Groups()` 返回分组 ID 和名称。`Chat.PickGroupFolders()` 打开原生目录选择器。`Chat.CreateGroup(name, folders)` 保存文件夹的顺序与分组，接受空列表；无法取得文件夹时返回 `ChatFolderUnavailable`。`Chat.CreateInGroup(id, title)` 和 `Chat.GroupConversations(id)` 使用分组 ID。会话 DTO 可带 `groupId`。普通 `Chat.List` 只返回对应 scope 下的未分组会话。
+`Chat.Groups()` 返回未归档分组。`Chat.ArchivedGroups()` 返回已归档分组及 `archivedAt`。分组 DTO 含 `id`、`name`、可选的 `icon` 和 `color`。`Chat.GroupDetails(id)` 附带 `folders`。`Chat.PickGroupFolders()` 打开原生目录选择器。`Chat.SaveGroup(input)` 新建或编辑活跃分组，输入含可选 `id` 以及 `name`、`folders`、`icon`、`color`。现有 `Chat.CreateGroup(name, folders)` 仍可创建默认外观分组。目录接受空列表，无效路径返回 `ChatFolderUnavailable`。`Chat.SetGroupArchived(id, archived)` 归档或恢复分组。`Chat.DeleteGroup(id, archived)` 要求当前归档状态一致，解除会话关联并保留磁盘目录与消息。组内仍有运行时，归档或删除返回 `Conflict`。`Chat.CreateInGroup(id, title)` 和 `Chat.GroupConversations(id)` 使用可用分组，普通 `Chat.List` 只列出未分组会话。
 
 `API.ImportSkill()` 通过本地文件选择器返回预览。ZIP 预览携带 `importId` 和不含文件正文的资源清单。确认时 `API.SaveSkillPackage(input)` 使用预览标识、编辑后的声明和启用状态。`API.CancelSkillImport(id)` 取消暂存。`API.Skills()` 返回元数据，`API.SkillDetails(name)` 加载说明及清单，`API.SetSkillEnabled(name, enabled)` 更新启用状态。支持 UTF-8 BOM 和 CRLF。压缩包、解包总量、单文件和条目超限分别返回 `SkillArchiveTooLarge`、`SkillArchiveExpandedTooLarge`、`SkillArchiveFileTooLarge`、`SkillArchiveEntriesExceeded`。预览失效返回 `SkillImportExpired`。旧版本变化返回 `SkillChanged`。ZIP 路径或结构异常返回 `InvalidSkillPackage`。声明错误沿用 `SkillEncodingInvalid`、`SkillFrontMatterInvalid`、`SkillNameInvalid`、`SkillDescriptionInvalid`、`SkillBodyRequired` 和 `SkillTextTooLarge`。
 

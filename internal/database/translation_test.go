@@ -187,7 +187,7 @@ func TestArticleTranslationStoreAndUpgrade(t *testing.T) {
 		"DROP TABLE chat_groups",
 		"ALTER TABLE messages DROP COLUMN attachments",
 		"ALTER TABLE messages DROP COLUMN created_at",
-		"DELETE FROM goose_db_version WHERE version_id IN (26,27,29,30)",
+		"DELETE FROM goose_db_version WHERE version_id IN (26,27,29,30,33)",
 	}...)
 	for _, stmt := range stmts {
 		if _, err := rawDB.ExecContext(ctx, stmt); err != nil {
@@ -260,7 +260,7 @@ func TestTranslationCheckpointMigrationPreservesV26Cache(t *testing.T) {
 		"DROP TABLE chat_groups",
 		"ALTER TABLE messages DROP COLUMN attachments",
 		"ALTER TABLE messages DROP COLUMN created_at",
-		"DELETE FROM goose_db_version WHERE version_id IN (27,29,30)",
+		"DELETE FROM goose_db_version WHERE version_id IN (27,29,30,33)",
 	}...) {
 		if _, err := store.db.ExecContext(ctx, statement); err != nil {
 			t.Fatal(err)

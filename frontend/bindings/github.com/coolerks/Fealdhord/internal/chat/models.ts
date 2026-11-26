@@ -49,6 +49,18 @@ export interface Conversation {
 export interface Group {
     "id": string;
     "name": string;
+    "icon"?: string;
+    "color"?: string;
+    "folders"?: string[] | null;
+    "archivedAt"?: number;
+}
+
+export interface GroupInput {
+    "id"?: string;
+    "name": string;
+    "icon": string;
+    "color": string;
+    "folders": string[] | null;
 }
 
 export interface Message {

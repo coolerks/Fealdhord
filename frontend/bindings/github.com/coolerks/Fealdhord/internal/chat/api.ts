@@ -17,6 +17,10 @@ export function Archived(offset: number): $CancellablePromise<$models.ArchivedPa
     return $Call.ByID(88282241, offset);
 }
 
+export function ArchivedGroups(): $CancellablePromise<$models.Group[] | null> {
+    return $Call.ByID(1670670481);
+}
+
 export function Branch(id: string, messageID: string): $CancellablePromise<$models.Conversation> {
     return $Call.ByID(1911365695, id, messageID);
 }
@@ -45,12 +49,20 @@ export function Delete(id: string, archived: boolean): $CancellablePromise<void>
     return $Call.ByID(1405195532, id, archived);
 }
 
+export function DeleteGroup(id: string, archived: boolean): $CancellablePromise<void> {
+    return $Call.ByID(2794249151, id, archived);
+}
+
 export function GenerateContextSummary(id: string, modelID: string): $CancellablePromise<string> {
     return $Call.ByID(1158139173, id, modelID);
 }
 
 export function GroupConversations(id: string): $CancellablePromise<$models.Conversation[] | null> {
     return $Call.ByID(2260579370, id);
+}
+
+export function GroupDetails(id: string): $CancellablePromise<$models.Group> {
+    return $Call.ByID(3315213868, id);
 }
 
 export function Groups(): $CancellablePromise<$models.Group[] | null> {
@@ -93,6 +105,10 @@ export function SaveContext(id: string, summary: string, restore: boolean): $Can
     return $Call.ByID(700997893, id, summary, restore);
 }
 
+export function SaveGroup(input: $models.GroupInput): $CancellablePromise<$models.Group> {
+    return $Call.ByID(2067845005, input);
+}
+
 export function SaveMermaidImage(defaultName: string, format: string, data: string): $CancellablePromise<boolean> {
     return $Call.ByID(4079209426, defaultName, format, data);
 }
@@ -107,6 +123,10 @@ export function SetArchived(id: string, archived: boolean): $CancellablePromise<
 
 export function SetAutomaticCompaction(id: string, enabled: boolean): $CancellablePromise<void> {
     return $Call.ByID(3747636393, id, enabled);
+}
+
+export function SetGroupArchived(id: string, archived: boolean): $CancellablePromise<void> {
+    return $Call.ByID(1631423698, id, archived);
 }
 
 export function SetPinned(id: string, pinned: boolean): $CancellablePromise<$models.Conversation> {

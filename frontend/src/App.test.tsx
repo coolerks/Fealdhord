@@ -34,7 +34,7 @@ const reader=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
 vi.mock('@/lib/reader-api',()=>({readerAPI:reader}))
 const chat = vi.hoisted(() => ({
   List: vi.fn(), Create: vi.fn(), Branch: vi.fn(), Messages: vi.fn(), Send: vi.fn(), Cancel: vi.fn(), Model: vi.fn(),
-  Groups: vi.fn(), GroupConversations: vi.fn(), CreateInGroup: vi.fn(), CreateGroup: vi.fn(), PickGroupFolders: vi.fn(),
+  Groups: vi.fn(), GroupConversations: vi.fn(), CreateInGroup: vi.fn(), SaveGroup: vi.fn(), PickGroupFolders: vi.fn(), SetGroupArchived: vi.fn(),
   PickAttachments: vi.fn(), InspectClipboardFiles: vi.fn(), SaveMermaidImage: vi.fn(), Steer: vi.fn(),
   ContextStatus: vi.fn(), GenerateContextSummary: vi.fn(), SaveContext: vi.fn(), Rename: vi.fn(), SetPinned: vi.fn(), SetArchived: vi.fn(), Archived: vi.fn(), Delete: vi.fn(),
 }))
@@ -621,7 +621,7 @@ describe('Phase 1 阅读 Shell', () => {
     const user = userEvent.setup()
     setup()
     chat.PickGroupFolders.mockResolvedValue(['/work/one', '/work/two'])
-    chat.CreateGroup.mockImplementation(async () => {
+    chat.SaveGroup.mockImplementation(async () => {
       const group = { id: 'work', name: '工作' }
       chat.Groups.mockResolvedValue([group])
       return group
@@ -636,7 +636,7 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(dialog.getByRole('button', { name: '添加文件夹' }))
     expect(await dialog.findByText('/work/two')).toBeVisible()
     await user.click(dialog.getByRole('button', { name: '创建分组' }))
-    expect(chat.CreateGroup).toHaveBeenCalledWith('工作', ['/work/one', '/work/two'])
+    expect(chat.SaveGroup).toHaveBeenCalledWith(expect.objectContaining({ name: '工作', folders: ['/work/one', '/work/two'] }))
     const group = await screen.findByRole('button', { name: '工作' })
     expect(group.querySelectorAll('svg')).toHaveLength(1)
     expect(group.querySelector('svg')).toHaveClass('lucide-folder')
@@ -661,6 +661,21 @@ describe('Phase 1 阅读 Shell', () => {
     await user.click(history)
     await user.click(groups)
     await user.click(screen.getByRole('button', { name: '工作' }))
+    await user.click(await screen.findByRole('button', { name: '组内会话' }))
+    await user.click(screen.getByRole('button', { name: '新对话' }))
+    const groupContext = screen.getByRole('group', { name: '新对话分组' })
+    expect(groupContext).toHaveTextContent('工作')
+    const composer = screen.getByRole('textbox', { name: '消息' })
+    await user.type(composer, '保留草稿')
+    await user.click(within(groupContext).getByRole('button', { name: '取消新对话的分组' }))
+    expect(groupContext).not.toBeInTheDocument()
+    expect(composer).toHaveValue('保留草稿')
+    expect(composer).toHaveFocus()
+    chat.SetGroupArchived.mockImplementation(async () => { chat.Groups.mockResolvedValue([]) })
+    fireEvent.contextMenu(screen.getByRole('button', { name: '工作' }))
+    await user.click(await screen.findByRole('menuitem', { name: '归档分组' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: '工作' })).not.toBeInTheDocument())
+    expect(chat.SetGroupArchived).toHaveBeenCalledWith('work', true)
   })
 
   it('会话列表读取失败时不添加提示或触发再次读取', async () => {

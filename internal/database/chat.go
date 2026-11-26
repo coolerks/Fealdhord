@@ -13,15 +13,34 @@ func (s *Store) CreateChatGroup(ctx context.Context, group sqlc.InsertChatGroupP
 		if err := q.InsertChatGroup(ctx, group); err != nil {
 			return err
 		}
-		for position, folder := range folders {
-			if err := q.InsertChatGroupFolder(ctx, sqlc.InsertChatGroupFolderParams{
-				GroupID: group.ID, Position: int64(position), Path: folder,
-			}); err != nil {
-				return err
-			}
-		}
-		return nil
+		return insertChatGroupFolders(ctx, q, group.ID, folders)
 	})
+}
+
+func (s *Store) UpdateChatGroup(ctx context.Context, input sqlc.UpdateChatGroupParams, folders []string) (sqlc.ChatGroup, error) {
+	var group sqlc.ChatGroup
+	err := s.transaction(ctx, func(q *sqlc.Queries) error {
+		var err error
+		if group, err = q.UpdateChatGroup(ctx, input); err != nil {
+			return err
+		}
+		if err := q.ClearChatGroupFolders(ctx, group.ID); err != nil {
+			return err
+		}
+		return insertChatGroupFolders(ctx, q, group.ID, folders)
+	})
+	return group, err
+}
+
+func insertChatGroupFolders(ctx context.Context, q *sqlc.Queries, id string, folders []string) error {
+	for position, folder := range folders {
+		if err := q.InsertChatGroupFolder(ctx, sqlc.InsertChatGroupFolderParams{
+			GroupID: id, Position: int64(position), Path: folder,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) BranchChat(ctx context.Context, input sqlc.CreateChatBranchParams) (sqlc.Conversation, error) {

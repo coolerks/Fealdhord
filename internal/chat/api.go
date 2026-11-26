@@ -121,6 +121,41 @@ func (a *API) Groups(ctx context.Context) ([]Group, error) {
 	return a.service.Groups(ctx)
 }
 
+func (a *API) SaveGroup(ctx context.Context, input GroupInput) (Group, error) {
+	if a.service == nil {
+		return Group{}, modelError("StorageError")
+	}
+	return a.service.SaveGroup(ctx, input)
+}
+
+func (a *API) GroupDetails(ctx context.Context, id string) (Group, error) {
+	if a.service == nil {
+		return Group{}, modelError("StorageError")
+	}
+	return a.service.GroupDetails(ctx, id)
+}
+
+func (a *API) ArchivedGroups(ctx context.Context) ([]Group, error) {
+	if a.service == nil {
+		return nil, modelError("StorageError")
+	}
+	return a.service.ArchivedGroups(ctx)
+}
+
+func (a *API) SetGroupArchived(ctx context.Context, id string, archived bool) error {
+	if a.service == nil {
+		return modelError("StorageError")
+	}
+	return a.service.SetGroupArchived(ctx, id, archived)
+}
+
+func (a *API) DeleteGroup(ctx context.Context, id string, archived bool) error {
+	if a.service == nil {
+		return modelError("StorageError")
+	}
+	return a.service.DeleteGroup(ctx, id, archived)
+}
+
 func (a *API) GroupConversations(ctx context.Context, id string) ([]Conversation, error) {
 	if a.service == nil {
 		return nil, modelError("StorageError")

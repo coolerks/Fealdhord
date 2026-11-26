@@ -32,6 +32,7 @@ import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { AISettings } from './AISettings'
 import { ArchivedConversations } from './ArchivedConversations'
+import { ArchivedGroups } from './ArchivedGroups'
 import { approvalModes, approvalPresentations } from '@/features/chat/approval-options'
 import { MCPSettings, SkillsSettings } from './AIPlatformSettings'
 import { ToolPermissionsSettings } from './ToolPermissionsSettings'
@@ -102,6 +103,7 @@ const sectionGroups: SectionGroup[] = [
     items: [
       { id: 'ai', title: '服务与模型', icon: Sparkles, meaning: 'ai' },
       { id: 'archived-chat', title: '已归档会话', icon: Archive, meaning: 'box' },
+      { id: 'archived-groups', title: '已归档分组', icon: FolderTree, meaning: 'folder-tree' },
       { id: 'article-ai', title: '文章 AI', icon: Bot, meaning: 'bot' },
       { id: 'tool-permissions', title: '工具权限', icon: SlidersHorizontal, meaning: 'sliders-horizontal' },
       { id: 'mcp', title: 'MCP', icon: Plug, meaning: 'webhook' },
@@ -389,6 +391,7 @@ export function SettingsDialog({ sidebar, motionMode }: {
       {tab === 'tool-permissions' && <ToolPermissionsSettings />}
       {tab === 'mcp' && <MCPSettings />}
       {tab === 'archived-chat' && <ArchivedConversations />}
+      {tab === 'archived-groups' && <ArchivedGroups />}
       {tab === 'skills' && <SkillsSettings />}
       {tab === 'about' && <AboutPanel developerMode={preferences.developer_mode}
         onDeveloperModeChange={enabled => set('developer_mode', enabled)} />}

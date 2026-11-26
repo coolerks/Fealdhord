@@ -1,0 +1,30 @@
+{
+  "id": "chat-workspace-tool-experience",
+  "name": "chat-workspace-tool-experience",
+  "title": "全局 AI 会话组织与工具体验",
+  "description": "完善会话分组、技能与输入框，支持按需连接 MCP 并配置工具调用上限",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "moyok",
+  "assignee": "moyok",
+  "createdAt": "2026-11-26",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "11-26-chat-group-management",
+    "11-26-skill-composer-experience",
+    "11-26-chat-mcp-tool-budget"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
