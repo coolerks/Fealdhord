@@ -171,12 +171,13 @@ func TestManagedSkillZipPreservesBinaryAndDisclosesOnlyRequestedFiles(t *testing
 	}
 }
 
-func TestLocalShellRequiresExactApprovalEvenInBypass(t *testing.T) {
+func TestLocalShellUsesChatApprovalModes(t *testing.T) {
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := agentrun.WithWorkspace(agentrun.WithApprovalMode(t.Context(), agentrun.ApprovalBypass), agentrun.Workspace{Roots: []string{dir}})
+	ctx, cancel := context.WithTimeout(agentrun.WithWorkspace(t.Context(), agentrun.Workspace{Roots: []string{dir}}), 8*time.Second)
+	defer cancel()
 	platform := NewPlatform(NewRegistry(), t.TempDir())
 	tools, _, err := platform.RunTools("id", nil, false)
 	if err != nil {
@@ -192,7 +193,21 @@ func TestLocalShellRequiresExactApprovalEvenInBypass(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		command = "Write-Output shell-result"
 	}
-	action, done := waitForShellApproval(t, platform, ctx, shell, command)
+	input := localShellInput{Command: command, TimeoutMS: 4000}
+	for _, mode := range []string{agentrun.ApprovalBypass, agentrun.ApprovalDeny} {
+		for _, custom := range []bool{false, true} {
+			callCtx := agentrun.WithApprovalMode(ctx, mode)
+			if custom {
+				callCtx = agentrun.WithToolPermissions(agentrun.WithApprovalMode(ctx, agentrun.ApprovalCustom), map[string]string{"builtin:shell": mode})
+			}
+			result := invokeLocal(t, callCtx, tools, "shell", input)
+			if mode == agentrun.ApprovalBypass && (!strings.Contains(result, `"exitCode":0`) || !strings.Contains(result, "shell-result")) ||
+				mode == agentrun.ApprovalDeny && result != `{"error":"PermissionDenied"}` {
+				t.Fatalf("mode=%s custom=%v result=%s", mode, custom, result)
+			}
+		}
+	}
+	action, done := waitForShellApproval(t, platform, agentrun.WithApprovalMode(ctx, agentrun.ApprovalAsk), shell, command)
 	var approved localShellApproval
 	shellOption, err := platform.resolveLocalShell()
 	if err != nil {

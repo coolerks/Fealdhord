@@ -26,7 +26,7 @@ Permission 表示静态风险声明；动态目标和数量由 Executor 在执�
 
 `ToolResult={content:[{type:text|json,text?,data?}],is_error:boolean,error?:{code,message,retryable},affected_ids?:string[]}`；大结果以分页形式返回，保留本机审计引用。Execute 的基础设施 error 由 Executor 转为安全结果，禁止把 panic 或 secret 直接送模型。
 
-`PendingAction={id,run_id,tool_call_id,tool_name,targets:[{id,title,revision}],args_hash,policy_revision,expires_at,status}`。确认使用 action_id，不重新接受前端自定参数；后端重读目标与 revision，单次 CAS 从 pending 到 executing。审批默认 5 分钟过期且不超过运行许可等待上限。取消／过期／重启后不执行。
+`PendingAction` 以动作 ID 绑定原始参数，确认只消费一次。聊天待审批调用持续等待，直到明确决定、调用取消或应用关闭。外部 MCP 服务端请求的审批有两分钟时限。
 
 同一 run + call_id 只执行一次。只读并行有界；写串行。批量工具显式反馈每项，事务边界内保证原子性，跨系统操作不假装全局事务。
 
@@ -37,7 +37,7 @@ Permission 表示静态风险声明；动态目标和数量由 Executor 在执�
 | JSON 无效／未知属性／ID 空／数量超限 | ValidationError，无副作用 |
 | Skill 不允许该工具 | PermissionError |
 | 审批前目标 revision 改变 | ActionStale，重新预览确认 |
-| 审批已消费／过期 | 返回既有结果／ActionExpired |
+| 审批已消费／已取消／外部审批超时 | 动作 ID 已失效 |
 | 外部写超时 | OutcomeUnknown，禁止自动重试 |
 | context 取消 | Cancelled；已提交副作用保留记录 |
 
@@ -47,7 +47,7 @@ Permission 表示静态风险声明；动态目标和数量由 Executor 在执�
 
 ## 6. 必需测试
 
-直接后端调用不能绕权限、参数篡改、审批过期／双击／重启、变更 revision、deny 覆盖 auto、MCP 风险声明欺骗、同 call_id 去重、取消后不启动下一工具、外部未知结果不重放。
+直接后端调用不能绕权限、参数篡改、延迟审批／双击／重启、变更 revision、deny 覆盖 auto、MCP 风险声明欺骗、同 call_id 去重、取消后不启动下一工具、外部未知结果不重放。
 
 ## 7. 错误与正确做法
 

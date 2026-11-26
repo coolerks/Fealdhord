@@ -117,6 +117,12 @@ func (r *Registry) Decide(id string, allow bool) bool {
 }
 
 func (r *Registry) requestApproval(ctx context.Context, principal, conversationID, name string, args json.RawMessage) error {
+	if conversationID == "" {
+		// Keep external MCP approvals within the HTTP request's response window.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 2*time.Minute)
+		defer cancel()
+	}
 	id := rand.Text()
 	action := PendingAction{ID: id, Principal: principal, ConversationID: conversationID, Tool: name, Arguments: string(args)}
 	r.mu.Lock()
@@ -128,19 +134,17 @@ func (r *Registry) requestApproval(ctx context.Context, principal, conversationI
 	r.pending[id] = approval{action: action, decision: decision}
 	r.mu.Unlock()
 	defer func() { r.mu.Lock(); delete(r.pending, id); r.mu.Unlock() }()
-	wait, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
 	select {
 	case allow := <-decision:
-		if err := wait.Err(); err != nil {
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		if !allow {
 			return errors.New("PermissionDenied")
 		}
+		return nil
+	case <-ctx.Done():
 		return ctx.Err()
-	case <-wait.Done():
-		return wait.Err()
 	}
 }
 

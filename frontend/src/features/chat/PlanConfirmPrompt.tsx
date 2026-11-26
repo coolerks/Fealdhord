@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { PendingPlans, ResolvePlan } from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/api'
 import type { PendingPlan } from '../../../bindings/github.com/coolerks/Fealdhord/internal/appagent/models'
 
-const pendingPlansKey = ['chat', 'pending-plans'] as const
+export const pendingPlansKey = ['chat', 'pending-plans'] as const
 
 export function useInlinePlan(conversationId: string, enabled: boolean, active: boolean) {
   const query = useQuery({

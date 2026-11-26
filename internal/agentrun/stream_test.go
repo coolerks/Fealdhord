@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/coolerks/Fealdhord/internal/ai"
@@ -174,6 +175,58 @@ func TestStreamWithOptionsRetriesTransientErrorsAndPreservesPriorTools(t *testin
 	if len(retries) != 2 || retries[0] != 1 || retries[1] != 2 {
 		t.Fatalf("unexpected retry attempts: %v", retries)
 	}
+}
+
+func TestStreamRetriesActiveTurnAfterLongRun(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		call := ai.ToolCall{ID: "call", Name: "read", ArgumentsJSON: "{}"}
+		var requests, calls int
+		model := streamModel(func(ctx context.Context, request *ai.ModelRequest) (<-chan ai.ModelEvent, error) {
+			requests++
+			if requests == 1 {
+				return modelEvents(ai.ModelEvent{Type: "tool_call_end", ToolCall: &call},
+					ai.ModelEvent{Type: "message_end", FinishReason: "tool_calls"}), nil
+			}
+			if result := request.Messages[len(request.Messages)-1]; result.Role != "tool" || result.Content[0].Text != "saved result" {
+				t.Errorf("request lost tool result: %+v", result)
+			}
+			out := make(chan ai.ModelEvent)
+			go func() {
+				defer close(out)
+				for range 3 {
+					if !emit(ctx, out, ai.ModelEvent{Type: "text_delta", Text: "仍在输出"}) {
+						return
+					}
+					time.Sleep(time.Minute)
+				}
+				emit(ctx, out, ai.ModelEvent{Type: "error", Error: failure("Timeout")})
+			}()
+			return out, nil
+		})
+		tool := ReadTool{Definition: ai.ToolDefinition{Name: "read"}, Read: func(ctx context.Context, _ ai.ToolCall) (string, error) {
+			calls++
+			time.Sleep(time.Hour)
+			return "saved result", ctx.Err()
+		}}
+		var started, scheduled int
+		var terminal error
+		for event := range StreamWithOptions(t.Context(), model, ai.ModelRequest{}, []ReadTool{tool}, StreamOptions{MaxRetries: 5}) {
+			switch event.Type {
+			case "retry_scheduled":
+				scheduled++
+				if event.RetryAttempt != scheduled || event.RetryMax != 5 {
+					t.Errorf("wrong retry progress: %+v", event)
+				}
+			case "retry_started":
+				started++
+			case "error":
+				terminal = event.Error
+			}
+		}
+		if requests != 7 || calls != 1 || scheduled != 5 || started != 5 || terminal == nil || terminal.Error() != "Timeout" {
+			t.Fatalf("requests=%d calls=%d scheduled=%d started=%d error=%v", requests, calls, scheduled, started, terminal)
+		}
+	})
 }
 
 func TestStreamWithOptionsDoesNotRetryAuthErrors(t *testing.T) {

@@ -26,7 +26,7 @@
 
 `API.ShellSettings()`、`API.SaveDefaultShell(id)` 与 `API.SaveCustomShell(path)` 返回 `defaultShell` 和平台选项 `options`。每项包含 `id`、`label` 及检测到时的可执行文件 `path`。`auto` 恢复应用默认解释器。保存自定义路径后 `defaultShell` 为 `custom`，并返回 `customPath`。已记住的路径可用时还返回 `customAvailable: true`。Windows 自定义路径使用 `.exe` 或 `.com` 文件。未知预设返回 `ValidationError`，自定义路径格式无效返回 `InvalidShellPath`，解释器不可用返回 `ShellUnavailable`，读写偏好失败返回 `StorageError`。
 
-本机 `shell` 的 `PendingAction.arguments` 提供完整 `command`、解析后的 `workdir` 和应用选定的解释器路径 `shell`。审批类型沿用现有会话匹配，`builtin:shell` 支持审批和拒绝规则。
+本机 `shell` 的 `PendingAction.arguments` 提供完整 `command`、解析后的 `workdir` 和应用选定的解释器路径 `shell`。`builtin:shell` 支持 `ask`、`bypass` 和 `deny`。审批、提问和计划确认以调用上下文控制生命周期。用户决定后消费对应 ID，`Chat.Cancel(id)` 取消该会话的等待。
 
 ## 1. 范围与触发条件
 

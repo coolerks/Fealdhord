@@ -423,7 +423,7 @@ func modelStreamWithIdleTimeout(ctx context.Context, open func(context.Context) 
 			if cause := context.Cause(streamContext); cause != nil {
 				err = modelIOError(cause, "ProviderProtocolError")
 			}
-			send(deadline, ModelEvent{Type: "error", Error: err})
+			send(ctx, ModelEvent{Type: "error", Error: err})
 		}
 	}()
 	return events, nil

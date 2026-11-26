@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -134,6 +135,35 @@ func TestChatStreamIdleTimeout(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestModelStreamReportsTimeoutBehindBufferedDelta(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var requestCtx context.Context
+		events, err := modelStreamWithIdleTimeout(t.Context(), func(ctx context.Context) (*http.Response, error) {
+			requestCtx = ctx
+			return &http.Response{
+				Header: http.Header{"Content-Type": {"text/event-stream"}},
+				Body:   io.NopCloser(strings.NewReader("")),
+			}, nil
+		}, func(_ io.Reader, send func(ModelEvent) bool) error {
+			send(ModelEvent{Type: "text_delta", Text: "部分正文"})
+			<-requestCtx.Done()
+			return requestCtx.Err()
+		}, modelStreamLimit+time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(modelStreamLimit + time.Second)
+		if event := <-events; event.Type != "text_delta" {
+			t.Fatalf("missing buffered delta: %+v", event)
+		}
+		event := <-events
+		var modelErr *ModelError
+		if event.Type != "error" || !errors.As(event.Error, &modelErr) || modelErr.Code != "Timeout" {
+			t.Fatalf("missing timeout: %+v", event)
+		}
+	})
 }
 
 func TestChatStreamRepeatedFinishInUsageFrame(t *testing.T) {

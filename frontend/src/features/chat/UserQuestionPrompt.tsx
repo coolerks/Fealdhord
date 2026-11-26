@@ -11,12 +11,12 @@ import type { PendingQuestion, UserQuestionAnswer } from '../../../bindings/gith
 
 export const pendingQuestionsKey = ['ai-platform', 'questions'] as const
 
-export function useInlineQuestion(conversationId: string, enabled: boolean, polling: boolean) {
+export function useInlineQuestion(conversationId: string, enabled: boolean) {
   const query = useQuery({
     queryKey: pendingQuestionsKey,
     queryFn: () => PendingQuestions(),
     enabled: enabled && Boolean(conversationId),
-    refetchInterval: enabled && polling ? 1000 : false,
+    refetchInterval: enabled ? 1000 : false,
     retry: false,
   })
   return enabled && conversationId

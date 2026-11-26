@@ -20,7 +20,7 @@ var localTools = []Tool{
 	{Name: "read", Description: "读取文本文件和原始行号。支持工作区路径和 skill:// 路径，自动跳过二进制。"},
 	{Name: "write", Description: "创建或覆盖工作区文件，并补齐缺失的父目录。", RequiresApproval: true},
 	{Name: "edit", Description: "精确替换现有文件文本；默认要求唯一匹配，replaceAll 可替换全部。", RequiresApproval: true},
-	{Name: "shell", Description: "经单次桌面审批运行命令。返回退出码和输出，用于列目录、搜索和运行脚本。", RequiresApproval: true},
+	{Name: "shell", Description: "运行命令并返回退出码和输出，用于列目录、搜索和运行脚本。", RequiresApproval: true},
 }
 
 type localWriteInput struct {
@@ -224,13 +224,6 @@ func buildLocalTool[I any](a *Platform, conversationID string, tool Tool, invoke
 				}
 				if override == nil {
 					override = raw
-				}
-				if tool.Name == "shell" {
-					mode := agentrun.ApprovalMode(ctx)
-					if mode == agentrun.ApprovalDeny || (mode == agentrun.ApprovalCustom && agentrun.ToolPermission(ctx, toolPermissionID(tool)) == agentrun.ApprovalDeny) {
-						return errors.New("PermissionDenied")
-					}
-					return a.registry.requestApproval(ctx, principal, conversationID, tool.Name, override)
 				}
 				return a.registry.authorizeTool(ctx, principal, conversationID, tool, override)
 			}

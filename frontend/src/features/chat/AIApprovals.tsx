@@ -11,11 +11,11 @@ import { create } from 'zustand'
 import { AnimatedGlyph } from '@/components/animated-glyph'
 import { getToolMeta } from './tool-meta'
 
-const key = ['ai-platform', 'pending']
+export const pendingActionsKey = ['ai-platform', 'pending'] as const
 const useApprovalSurface = create<{ id: string }>(() => ({ id: '' }))
 
 export function useInlineApproval(id: string, enabled: boolean) {
-  const pending = useQuery({ queryKey: key, queryFn: () => PendingActions(), enabled: false })
+  const pending = useQuery({ queryKey: pendingActionsKey, queryFn: () => PendingActions(), enabled: false })
   useLayoutEffect(() => {
     if (!enabled || !id) return
     useApprovalSurface.setState({ id })
@@ -80,7 +80,7 @@ function ShellApproval({ args }: { args: string }) {
 
 export function AIApprovals() {
   const inline = useApprovalSurface(state => state.id)
-  const pending = useQuery({ queryKey: key, queryFn: () => PendingActions(), refetchInterval: 1000, retry: false })
+  const pending = useQuery({ queryKey: pendingActionsKey, queryFn: () => PendingActions(), refetchInterval: 1000, retry: false })
   const action = pending.data?.find(item => !inline || item.conversationId !== inline)
   return <Dialog open={Boolean(action)}>
     {action && <DialogContent showCloseButton={false} onEscapeKeyDown={event => event.preventDefault()} onPointerDownOutside={event => event.preventDefault()}>
@@ -95,9 +95,9 @@ export function ToolApproval({ action, inline = false, onStop, stopping }: {
   const cache = useQueryClient()
   const decision = useMutation({
     mutationFn: ({ id, allow }: { id: string; allow: boolean }) => Promise.resolve(DecideAction(id, allow)),
-    onSettled: () => cache.invalidateQueries({ queryKey: key }),
+    onSettled: () => cache.invalidateQueries({ queryKey: pendingActionsKey }),
     onSuccess: (accepted, { allow, id }) => {
-      cache.setQueryData<PendingAction[]>(key, current => current?.filter(item => item.id !== id))
+      cache.setQueryData<PendingAction[]>(pendingActionsKey, current => current?.filter(item => item.id !== id))
       if (accepted && allow) window.setTimeout(() => { void cache.invalidateQueries() }, 1000)
     },
   })

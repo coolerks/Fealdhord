@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/coolerks/Fealdhord/internal/agentrun"
@@ -110,6 +111,58 @@ func TestChatApprovalModes(t *testing.T) {
 	if result := <-done; result != `{"id":"item"}` {
 		t.Fatalf("approved result = %s", result)
 	}
+}
+
+func TestChatInteractionsWaitUntilDecisionOrCancellation(t *testing.T) {
+	for _, shouldCancel := range []bool{false, true} {
+		synctest.Test(t, func(t *testing.T) {
+			r := NewRegistry()
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			done := make(chan error, 3)
+			go func() { done <- r.requestApproval(ctx, "chat", "approval", "shell", json.RawMessage(`{}`)) }()
+			go func() {
+				_, err := r.askUser(ctx, "question", AskUserQuestionInput{Questions: []UserQuestionItem{
+					{Question: "继续？", Options: []UserQuestionOption{{Label: "继续"}}},
+				}})
+				done <- err
+			}()
+			go func() {
+				_, err := r.confirmPlan(ctx, "plan", ConfirmPlanInput{Title: "执行计划", Steps: []string{"第一步"}})
+				done <- err
+			}()
+			time.Sleep(time.Hour)
+			actions, questions, plans := r.Pending(), r.PendingQuestions(), r.PendingPlans()
+			if len(actions) != 1 || len(questions) != 1 || len(plans) != 1 {
+				t.Fatalf("requests expired: %v %v %v", actions, questions, plans)
+			}
+			var want error
+			if shouldCancel {
+				cancel()
+				want = context.Canceled
+			} else if !r.Decide(actions[0].ID, true) || !r.AnswerQuestion(questions[0].ID, nil, true) || !r.ResolvePlan(plans[0].ID, "approve", "") {
+				t.Fatal("could not resolve pending requests")
+			}
+			for range 3 {
+				if err := <-done; !errors.Is(err, want) {
+					t.Errorf("wait ended with %v, want %v", err, want)
+				}
+			}
+			if len(r.Pending())+len(r.PendingQuestions())+len(r.PendingPlans()) != 0 {
+				t.Fatal("finished requests remained pending")
+			}
+		})
+	}
+}
+
+func TestExternalMCPApprovalExpiresWithinRequestWindow(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := NewRegistry()
+		err := r.requestApproval(t.Context(), "MCP client", "", "item.write", json.RawMessage(`{}`))
+		if !errors.Is(err, context.DeadlineExceeded) || len(r.Pending()) != 0 {
+			t.Fatalf("approval did not expire: error=%v pending=%v", err, r.Pending())
+		}
+	})
 }
 
 func TestMCPHTTP(t *testing.T) {

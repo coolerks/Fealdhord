@@ -4,6 +4,7 @@ package agentrun
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -60,20 +61,11 @@ func StreamWithOptions(ctx context.Context, model ai.Model, request ai.ModelRequ
 	events := make(chan ai.ModelEvent, 1)
 	go func() {
 		defer close(events)
-		timeout := 180 * time.Second
-		if opts.MaxRetries > 0 {
-			timeout = 300 * time.Second
-		}
-		runCtx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-		runCtx = context.WithValue(runCtx, resultStoreKey{}, &ResultStore{})
+		runCtx := context.WithValue(ctx, resultStoreKey{}, &ResultStore{})
 		err := run(runCtx, model, request, tools, opts, func(event ai.ModelEvent) bool {
 			return emit(runCtx, events, event)
 		})
 		if err != nil && ctx.Err() == nil {
-			if runCtx.Err() == context.DeadlineExceeded {
-				err = failure("Timeout")
-			}
 			emit(ctx, events, ai.ModelEvent{Type: "error", Error: err})
 		}
 	}()
@@ -237,6 +229,9 @@ func run(ctx context.Context, model ai.Model, request ai.ModelRequest, tools []R
 }
 
 func toolWorkStatus(output string, err error) string {
+	if errors.Is(err, context.Canceled) {
+		return "cancelled"
+	}
 	if err != nil {
 		return "failed"
 	}

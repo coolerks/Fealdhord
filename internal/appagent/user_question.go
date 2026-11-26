@@ -6,7 +6,6 @@ import (
 	"errors"
 	"slices"
 	"strings"
-	"time"
 )
 
 type UserQuestionOption struct {
@@ -145,8 +144,6 @@ func (r *Registry) askUser(ctx context.Context, conversationID string, input Ask
 		r.mu.Unlock()
 	}()
 
-	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
 	select {
 	case response := <-reply:
 		if err := ctx.Err(); err != nil {
@@ -156,8 +153,8 @@ func (r *Registry) askUser(ctx context.Context, conversationID string, input Ask
 			return AskUserQuestionOutput{Skipped: true}, nil
 		}
 		return AskUserQuestionOutput{Answers: response.answers}, nil
-	case <-waitCtx.Done():
-		return AskUserQuestionOutput{}, waitCtx.Err()
+	case <-ctx.Done():
+		return AskUserQuestionOutput{}, ctx.Err()
 	}
 }
 

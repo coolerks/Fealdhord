@@ -37,9 +37,9 @@ import { useReaderCodeTheme } from '@/features/reader/code-themes'
 import { chatMessagesKey, useChatMessages } from './useChatMessages'
 import { ReplyActions } from './ReplyActions'
 import { ReplyBody } from './ReplyProgress'
-import { ToolApproval, useInlineApproval } from './AIApprovals'
-import { UserQuestionPrompt, useInlineQuestion } from './UserQuestionPrompt'
-import { PlanConfirmPrompt, useInlinePlan } from './PlanConfirmPrompt'
+import { pendingActionsKey, ToolApproval, useInlineApproval } from './AIApprovals'
+import { pendingQuestionsKey, UserQuestionPrompt, useInlineQuestion } from './UserQuestionPrompt'
+import { pendingPlansKey, PlanConfirmPrompt, useInlinePlan } from './PlanConfirmPrompt'
 import { ChatQueueBar } from './ChatQueueBar'
 import type { QueuedChatMessage } from './ChatQueueBar'
 import { formatMessageTime, formatMessageTimeTitle } from './format-time'
@@ -263,7 +263,7 @@ function ChatSession({ target, close, workspace }: {
     approvalPresentation === 'composer' && !tasksOpen && (!workspace || workspace.present))
   const messages = useChatMessages(conversationId)
   const active = messages.data?.some(message => message.status === 'running') ?? false
-  const inlineQuestion = useInlineQuestion(conversationId, !tasksOpen && (!workspace || workspace.present), active)
+  const inlineQuestion = useInlineQuestion(conversationId, active && !tasksOpen && (!workspace || workspace.present))
   const inlinePlan = useInlinePlan(conversationId, !tasksOpen && (!workspace || workspace.present), active)
   const theme = useReaderCodeTheme(workspace?.theme ?? 'app', Boolean(workspace && messages.data?.some(message => message.role === 'assistant')))
   const send = useMutation({
@@ -349,7 +349,14 @@ function ChatSession({ target, close, workspace }: {
   })
   const cancel = useMutation({
     mutationFn: (id: string) => api.Cancel(id),
-    onSuccess: (_result, id) => cache.invalidateQueries({ queryKey: chatMessagesKey(id) }),
+    onSuccess: async (_result, id) => {
+      const pendingKeys = [pendingActionsKey, pendingQuestionsKey, pendingPlansKey]
+      await Promise.all(pendingKeys.map(queryKey => cache.cancelQueries({ queryKey })))
+      for (const queryKey of pendingKeys) {
+        cache.setQueryData<{ conversationId?: string }[]>(queryKey, current => current?.filter(item => item.conversationId !== id))
+      }
+      await cache.invalidateQueries({ queryKey: chatMessagesKey(id) })
+    },
   })
   const branch = useMutation({
     mutationFn: ({ id, messageId }: { id: string; messageId: string }) => api.Branch(id, messageId),

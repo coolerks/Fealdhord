@@ -1153,6 +1153,35 @@ describe('Phase 1 阅读 Shell', () => {
     expect(await screen.findByRole('textbox', { name: '消息' })).toHaveValue('保留这份草稿')
   })
 
+  it('停止回复收起待答问题并恢复草稿，无需跳过问题', async () => {
+    const user = userEvent.setup()
+    chat.List.mockResolvedValue([{ id: 'asking', title: '正在提问的会话' }])
+    const reply = { id: 'reply', role: 'assistant', text: '', modelName: '模型', status: 'running' }
+    chat.Messages.mockResolvedValue([reply])
+    chat.Cancel.mockResolvedValue(undefined)
+    const { client } = setup()
+    await user.click(await screen.findByRole('button', { name: 'AI 助手' }))
+    await user.type(await screen.findByRole('textbox', { name: '消息' }), '原草稿')
+    await screen.findByRole('button', { name: '停止回复' })
+    const key = ['ai-platform', 'questions']
+    const questions = [{ header: '范围', question: '想看什么？', options: [{ label: '全部' }] }]
+    const elsewhere = { id: 'question-elsewhere', conversationId: 'elsewhere', questions }
+    act(() => client.setQueryData(key, [{ id: 'question', conversationId: 'asking', questions }, elsewhere]))
+    const prompt = await screen.findByRole('region', { name: 'AI 提问' })
+    await user.click(within(prompt).getByRole('button', { name: '停止回复' }))
+    expect(chat.Cancel).toHaveBeenCalledExactlyOnceWith('asking')
+    expect(await screen.findByRole('textbox', { name: '消息' })).toHaveValue('原草稿')
+    expect(screen.queryByRole('region', { name: 'AI 提问' })).not.toBeInTheDocument()
+    expect(client.getQueryData(key)).toEqual([elsewhere])
+
+    act(() => {
+      client.setQueryData(['chat', 'messages', 'asking'], [{ ...reply, status: 'cancelled' }])
+      client.setQueryData(key, [{ id: 'stale', conversationId: 'asking', questions }])
+    })
+    expect(await screen.findByText('已取消')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'AI 提问' })).not.toBeInTheDocument()
+  })
+
   it('点击新对话会清空上一个会话的文字选区', async () => {
     const user = userEvent.setup()
     chat.List.mockResolvedValue([{ id: 'history', title: '历史会话' }])

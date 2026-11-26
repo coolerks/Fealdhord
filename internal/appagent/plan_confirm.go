@@ -6,7 +6,6 @@ import (
 	"errors"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/coolerks/Fealdhord/internal/agentrun"
 )
@@ -113,8 +112,6 @@ func (r *Registry) confirmPlan(ctx context.Context, conversationID string, input
 		r.mu.Unlock()
 	}()
 
-	waitCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-	defer cancel()
 	select {
 	case response := <-reply:
 		if err := ctx.Err(); err != nil {
@@ -129,8 +126,8 @@ func (r *Registry) confirmPlan(ctx context.Context, conversationID string, input
 		default:
 			return ConfirmPlanOutput{Approved: false, Rejected: true, Feedback: response.feedback}, nil
 		}
-	case <-waitCtx.Done():
-		return ConfirmPlanOutput{}, waitCtx.Err()
+	case <-ctx.Done():
+		return ConfirmPlanOutput{}, ctx.Err()
 	}
 }
 
