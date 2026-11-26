@@ -400,7 +400,7 @@ it('摘要与目标语言一致时打开正文不启动翻译，仍可手动翻�
 it('长文优先发送阅读位置，旧版和乱序进度不会覆盖，已读位置随布局变化保持', async () => {
  const user = userEvent.setup()
  api.get.mockResolvedValue({ ...feed, source_version: 'current-source',
-  html: '<p data-tr-block="b0">第一段原文</p><p data-tr-block="b1">当前阅读段落</p>' })
+  html: '<p data-tr-block="b0">第一段原文</p><p data-tr-block="b1">当前阅读段落</p><p data-tr-block="b2">第三段原文</p>' })
  const initial: TranslationRecord = { articleId: 'a-0', targetLang: 'zh-CN', sourceMode: 'feed',
   contentHash: 'article', sourceVersion: 'current-source', detectedLang: '', status: 'none',
   translatedTitle: '', translatedSummary: '', blocks: [], translatedBlocks: 0, totalBlocks: 66,
@@ -436,9 +436,15 @@ it('长文优先发送阅读位置，旧版和乱序进度不会覆盖，已读�
  expect(viewport.scrollTop).toBe(140)
  await publish({ ...initial, status: 'translating', updatedAt: 4 })
  expect(screen.getByText('第一段译文')).toBe(existingTranslation)
- await act(async () => finish({ ...progress, status: 'partial', errorCode: 'InvalidModelOutput', updatedAt: 6 }))
+ expect(screen.queryByText('第三段译文')).toBeNull()
+ const nextProgress: TranslationRecord = { ...progress, translatedBlocks: 2, updatedAt: 6,
+  blocks: [...(progress.blocks ?? []), { id: 'b2', sourceHash: 'third-block', translatedHtml: '第三段译文' }] }
+ await publish(nextProgress)
+ expect(await screen.findByText('已翻译 2/66 段')).toBeVisible()
+ expect(screen.getByText('第三段译文')).toBeVisible()
  expect(screen.getByText('第一段译文')).toBe(existingTranslation)
- expect(screen.getByRole('alert')).toHaveTextContent('已译 1/66 段。仍有内容待译')
+ await act(async () => finish({ ...nextProgress, status: 'partial', errorCode: 'InvalidModelOutput', updatedAt: 7 }))
+ expect(screen.getByRole('alert')).toHaveTextContent('已译 2/66 段。仍有内容待译')
  const pane = container.querySelector<HTMLElement>('.reader-pane')!
  Object.defineProperties(viewport, { clientHeight: { value: 200 }, scrollHeight: { value: 1200 } })
  vi.mocked(viewport.getBoundingClientRect).mockReturnValue(new DOMRect(0, 50, 480, 200))

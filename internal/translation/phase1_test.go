@@ -94,7 +94,7 @@ func TestLongArticleThatFitsUsesOneStream(t *testing.T) {
 		}
 	}, nil)
 	out, err := svc.Translate(context.Background(), TranslateRequest{ArticleID: id, SourceMode: "feed", StartBlockID: "b30"})
-	if err != nil || out.Status != "completed" || out.TranslatedBlocks != 429 || first != 429 {
+	if err != nil || out.Status != "completed" || out.TranslatedBlocks != 429 || first != 1 {
 		t.Fatalf("translation status=%s, blocks=%d, first=%d, err=%v", out.Status, out.TranslatedBlocks, first, err)
 	}
 	if len(batches) != 1 || len(batches[0]) != 429 || batches[0][0] != "b0" || batches[0][428] != "b428" {

@@ -12,17 +12,14 @@ import (
 	"github.com/coolerks/Fealdhord/internal/database"
 )
 
-const (
-	translationFlushInterval = 120 * time.Millisecond
-	maxTranslationLine       = 4 << 20
-)
+const maxTranslationLine = 4 << 20
 
 type translationLines struct {
 	line    strings.Builder
 	discard bool
 }
 
-func (l *translationLines) feed(data string, accept func(string)) {
+func (l *translationLines) feed(data string, accept func(string) error) error {
 	for data != "" {
 		line, rest, complete := strings.Cut(data, "\n")
 		if len(line) > maxTranslationLine-l.line.Len() {
@@ -32,16 +29,20 @@ func (l *translationLines) feed(data string, accept func(string)) {
 		if !l.discard {
 			l.line.WriteString(line)
 		}
-		if !complete {
-			return
+		// Providers can finish a JSON object before sending the newline or stream terminator.
+		if !complete && (l.discard || !strings.HasSuffix(strings.TrimRight(line, " \t\r"), "}") || !json.Valid([]byte(l.line.String()))) {
+			return nil
 		}
 		if !l.discard {
-			accept(l.line.String())
+			if err := accept(l.line.String()); err != nil {
+				return err
+			}
 		}
 		l.line.Reset()
 		l.discard = false
 		data = rest
 	}
+	return nil
 }
 
 func (s *Service) runBodyBatch(ctx context.Context, work *bodyWork, adapter ai.Model, planner batchPlanner,
@@ -84,65 +85,52 @@ func (s *Service) runBodyBatch(ctx context.Context, work *bodyWork, adapter ai.M
 	for _, unit := range batch {
 		expected[unit.ID] = unit
 	}
-	changed := false
 	titleMissing := title
-	firstRecord := true
 	rejected := make(map[string]string)
 	malformedRecords := 0
-	flush := func() error {
-		if !changed {
-			return nil
-		}
-		if err := s.persistBody(ctx, work, "translating", ""); err != nil {
-			return err
-		}
-		changed = false
-		return nil
-	}
 	target := work.record.TargetLang
-	accept := func(line string) {
+	accept := func(line string) error {
 		if strings.TrimSpace(line) == "" {
-			return
+			return nil
 		}
 		var item translationItem
 		if json.Unmarshal([]byte(line), &item) != nil {
 			malformedRecords++
-			return
+			return nil
 		}
 		if titleMissing && item.ID == "title" {
 			if titleText := strings.TrimSpace(item.Text); titleText != "" {
 				work.record.TranslatedTitle = titleText
-				titleMissing, changed = false, true
+				titleMissing = false
+				return s.persistBody(ctx, work, "translating", "")
 			}
-			return
+			return nil
 		}
 		unit, ok := expected[item.ID]
 		if !ok {
-			return
+			return nil
 		}
 		text := strings.TrimSpace(item.Text)
 		if text == "" {
 			rejected[item.ID] = "empty_text"
-			return
+			return nil
 		}
 		if text == strings.TrimSpace(unit.wireText()) {
 			if language, confident := DetectLocal(item.Text); confident && !MatchesTarget(language, true, target) {
 				rejected[item.ID] = "unchanged_source"
-				return
+				return nil
 			}
 		}
 		result, ok := validateUnit(unit, item.Text)
 		if !ok {
 			rejected[item.ID] = "inline_format"
-			return
+			return nil
 		}
 		work.accept(unit, result)
 		delete(expected, item.ID)
-		changed = true
+		return s.persistBody(ctx, work, "translating", "")
 	}
 
-	ticker := time.NewTicker(translationFlushInterval)
-	defer ticker.Stop()
 	var lines translationLines
 	var usage *ai.Usage
 	var finishReason string
@@ -152,10 +140,6 @@ readStream:
 		select {
 		case <-ctx.Done():
 			return batch, title, &ai.ModelError{Code: modelErrorCode(ctx.Err())}
-		case <-ticker.C:
-			if err := flush(); err != nil {
-				return batch, title, err
-			}
 		case event, open := <-events:
 			if !open {
 				if finishReason == "" {
@@ -168,12 +152,8 @@ readStream:
 				if firstText == 0 && event.Text != "" {
 					firstText = time.Since(start)
 				}
-				lines.feed(event.Text, accept)
-				if firstRecord && changed {
-					if err := flush(); err != nil {
-						return batch, title, err
-					}
-					firstRecord = false
+				if err := lines.feed(event.Text, accept); err != nil {
+					return batch, title, err
 				}
 			case "usage":
 				usage = event.Usage
@@ -196,9 +176,11 @@ readStream:
 			}
 		}
 	}
-	// A complete JSON object can arrive just before a disconnect, without its line ending.
+	// Diagnose any residual malformed or truncated line at stream termination.
 	if ctx.Err() == nil && !lines.discard && (finishReason == "stop" || finishReason == "length" || canSkipFailedBatch(err)) {
-		accept(lines.line.String())
+		if err := accept(lines.line.String()); err != nil {
+			return batch, title, err
+		}
 	}
 	if usage != nil && usage.InputTokens != nil {
 		work.input += int64(*usage.InputTokens)
@@ -209,9 +191,6 @@ readStream:
 		work.output += int64(*usage.OutputTokens)
 	} else {
 		work.outputKnown = false
-	}
-	if err := flush(); err != nil {
-		return batch, title, err
 	}
 	var missing []translationUnit
 	for _, unit := range batch {
@@ -237,7 +216,7 @@ readStream:
 		slog.WarnContext(ctx, "正文翻译批次未齐", "code", code, "finish", finishReason,
 			"repair", repair, "items", len(batch), "missing", len(missing), "title_missing", titleMissing,
 			"missing_details", missingDetails, "malformed_records", malformedRecords,
-			"duration_ms", time.Since(start).Milliseconds())
+			"first_text_ms", firstText.Milliseconds(), "output_limit", *request.MaxOutputTokens, "duration_ms", time.Since(start).Milliseconds())
 	}
 	return missing, titleMissing, err
 }

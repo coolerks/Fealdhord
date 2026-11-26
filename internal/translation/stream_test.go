@@ -10,10 +10,65 @@ import (
 	"unicode/utf8"
 
 	"github.com/coolerks/Fealdhord/internal/ai"
+	"github.com/coolerks/Fealdhord/internal/aiconfig"
 	"github.com/coolerks/Fealdhord/internal/database"
 	"github.com/coolerks/Fealdhord/internal/database/sqlc"
 	"github.com/coolerks/Fealdhord/internal/reader"
 )
+
+func TestTranslationUsesFirstPassHeadroomAndCommitsEveryRecordDuringStream(t *testing.T) {
+	_, store, id := phase1Article(t, "<p>Opening paragraph.</p><p>Middle paragraph.</p><p>Closing paragraph.</p>")
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+	lastVisible := make(chan struct{})
+	var limits, progress []int
+	model := &fakeModel{stream: func(ctx context.Context, req *ai.ModelRequest) (<-chan ai.ModelEvent, error) {
+		if req.ReasoningEffort != "low" {
+			t.Fatalf("translation should use the available low effort, got %q", req.ReasoningEffort)
+		}
+		limits = append(limits, *req.MaxOutputTokens)
+		events := make(chan ai.ModelEvent, 4)
+		// The real six-paragraph replay used 467 reasoning and 124 answer tokens.
+		if *req.MaxOutputTokens < 591 {
+			events <- ai.ModelEvent{Type: "message_end", FinishReason: "length"}
+			close(events)
+			return events, nil
+		}
+		events <- ai.ModelEvent{Type: "reasoning_text_delta", Text: "Planning the translation."}
+		events <- ai.ModelEvent{Type: "text_delta", Text: "{\"id\":\"title\",\"text\":\"标题\"}\n{\"id\":\"b0\",\"text\":\"第一段\"}\n{\"id\":\"b1\",\"text\":\"第二段\"}\n{\"id\":\"b2\",\"text\":\"第三段"}
+		events <- ai.ModelEvent{Type: "text_delta", Text: "\"}"}
+		go func() {
+			defer close(events)
+			select {
+			case <-ctx.Done():
+			case <-lastVisible:
+				events <- ai.ModelEvent{Type: "message_end", FinishReason: "stop"}
+			}
+		}()
+		return events, nil
+	}}
+	resolver := fakeResolver{model: model, reasoningLevels: []aiconfig.ReasoningLevel{{Value: "max"}, {Value: "low"}}}
+	svc := New(store, resolver, reader.NewService(store, nil, nil, nil), func(event ProgressEvent) {
+		record := event.Record
+		if record.Status != "translating" || record.TranslatedBlocks == 0 {
+			return
+		}
+		progress = append(progress, record.TranslatedBlocks)
+		saved, err := store.GetArticleTranslation(ctx, id, record.TargetLang, record.SourceMode)
+		if err != nil || int(saved.TranslatedBlocks) != record.TranslatedBlocks {
+			t.Fatalf("each progress event must follow its database commit: %+v %v", saved, err)
+		}
+		if slices.Equal(progress, []int{1, 2, 3}) {
+			close(lastVisible)
+		}
+	}, nil)
+	result, err := svc.Translate(ctx, TranslateRequest{ArticleID: id, SourceMode: "feed"})
+	if err != nil || result.Status != "completed" || result.TranslatedBlocks != 3 || len(limits) != 1 ||
+		!slices.Equal(progress, []int{1, 2, 3}) {
+		t.Fatalf("need one request and three commits before the stream ends: limits=%v progress=%v status=%s err=%v",
+			limits, progress, result.Status, err)
+	}
+}
 
 func TestTranslationCommitsBeforeStreamEndsAndResumesMissingIDs(t *testing.T) {
 	path, store, id := phase1Article(t, "<p>Opening paragraph.</p><p>Missing paragraph in the middle.</p><p>Last paragraph.</p>")

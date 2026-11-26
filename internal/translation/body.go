@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/coolerks/Fealdhord/internal/ai"
+	"github.com/coolerks/Fealdhord/internal/aiconfig"
 	"github.com/coolerks/Fealdhord/internal/database"
 	"github.com/coolerks/Fealdhord/internal/database/sqlc"
 	"github.com/coolerks/Fealdhord/internal/reader"
@@ -121,6 +122,15 @@ func (s *Service) persistBody(ctx context.Context, w *bodyWork, status, code str
 	return nil
 }
 
+func translationReasoningEffort(levels []aiconfig.ReasoningLevel) string {
+	for _, effort := range []string{"none", "minimal", "low"} {
+		if slices.ContainsFunc(levels, func(level aiconfig.ReasoningLevel) bool { return level.Value == effort }) {
+			return effort
+		}
+	}
+	return ""
+}
+
 func (s *Service) translateBody(ctx context.Context, article database.ArticleTranslationInput, req TranslateRequest,
 	customPrompt string, batchKiB int, existing sqlc.ArticleTranslation,
 ) (Record, error) {
@@ -226,7 +236,8 @@ func (s *Service) translateBody(ctx context.Context, article database.ArticleTra
 		system += "\n用户附加翻译要求（适用于译文文字）：\n" + customPrompt
 	}
 	planner := batchPlanner{model: modelCfg.Name, modelVersion: fmt.Sprintf("%s/%d", modelCfg.ID, modelCfg.Revision),
-		system: system, title: article.Title, budget: ai.ContextBudget(modelCfg.Metadata), batchBytes: batchKiB << 10}
+		system: system, title: article.Title, reasoningEffort: translationReasoningEffort(modelCfg.ReasoningLevels),
+		budget: ai.ContextBudget(modelCfg.Metadata), batchBytes: batchKiB << 10}
 	if needTitle {
 		if _, fits := planner.request(nil, true, ""); !fits {
 			return Record{}, errTranslationBudget

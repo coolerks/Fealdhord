@@ -140,12 +140,13 @@ func (f *fakeModel) Stream(ctx context.Context, request *ai.ModelRequest) (<-cha
 }
 
 type fakeResolver struct {
-	model    ai.Model
-	metadata ai.Metadata
+	model           ai.Model
+	metadata        ai.Metadata
+	reasoningLevels []aiconfig.ReasoningLevel
 }
 
 func (r fakeResolver) Resolve(context.Context, string) (aiconfig.Model, ai.Model, error) {
-	return aiconfig.Model{ID: "tr-model", Name: "gpt-test", Metadata: r.metadata}, r.model, nil
+	return aiconfig.Model{ID: "tr-model", Name: "gpt-test", Metadata: r.metadata, ReasoningLevels: r.reasoningLevels}, r.model, nil
 }
 
 func TestDetectLocal(t *testing.T) {

@@ -17,9 +17,7 @@ import (
 	xhtml "golang.org/x/net/html"
 )
 
-const (
-	defaultBatchKiB = 50
-)
+const defaultBatchKiB = 50
 
 var errTranslationBudget = &ai.ModelError{Code: "ContextWindowExceeded"}
 
@@ -52,6 +50,7 @@ type translationPayload struct {
 
 type batchPlanner struct {
 	model, modelVersion, system, title string
+	reasoningEffort                    string
 	budget                             ai.Budget
 	batchBytes                         int
 }
@@ -63,6 +62,15 @@ func (p batchPlanner) byteLimit() int {
 	return defaultBatchKiB << 10
 }
 
+func (p batchPlanner) outputLimit(translationTokens int) int {
+	const minimumTranslationTokens = 256
+	// Reasoning can share the completion limit even when the task only requests translation.
+	// Bound the allowance so small windows stay usable and large windows can still carry long batches.
+	maxHeadroom := min(3072, max(0, p.budget.OutputReserve-minimumTranslationTokens)/3)
+	headroom := min(maxHeadroom, max(1024, translationTokens/2))
+	return max(min(minimumTranslationTokens, p.budget.OutputReserve), translationTokens+headroom)
+}
+
 func (p batchPlanner) request(units []translationUnit, title bool, section string) (*ai.ModelRequest, bool) {
 	payload := translationPayload{ArticleTitle: truncateRunes(p.title, 256), Context: section, Items: make([]translationItem, 0, len(units))}
 	output := 32
@@ -72,7 +80,7 @@ func (p batchPlanner) request(units []translationUnit, title bool, section strin
 		payload.Items = append(payload.Items, translationItem{ID: unit.ID, Text: text})
 		bytes += len(text)
 		output += (ai.EstimateTokens(text)*3+1)/2 + 14
-		if bytes > p.byteLimit() || output > p.budget.OutputReserve {
+		if bytes > p.byteLimit() || p.outputLimit(output) > p.budget.OutputReserve {
 			return nil, false
 		}
 	}
@@ -81,13 +89,15 @@ func (p batchPlanner) request(units []translationUnit, title bool, section strin
 		bytes += len(payload.Title)
 		output += (ai.EstimateTokens(payload.Title)*3+1)/2 + 14
 	}
-	if bytes > p.byteLimit() || output > p.budget.OutputReserve {
+	plannedOutput := p.outputLimit(output)
+	if bytes > p.byteLimit() || plannedOutput > p.budget.OutputReserve {
 		return nil, false
 	}
 	body, _ := json.Marshal(payload)
-	output = max(min(256, p.budget.OutputReserve), output)
+	// Use spare output capacity without making it a prerequisite for fitting the batch.
+	outputLimit := min(p.budget.OutputReserve, max(plannedOutput, output*2))
 	req := &ai.ModelRequest{
-		Model: p.model, System: p.system, Budget: p.budget, MaxOutputTokens: &output,
+		Model: p.model, ReasoningEffort: p.reasoningEffort, System: p.system, Budget: p.budget, MaxOutputTokens: &outputLimit,
 		Messages: []ai.Message{{Role: "user", Content: []ai.ContentBlock{{Type: "text", Text: string(body)}}}},
 	}
 	return req, ai.EstimateRequest(*req) <= p.budget.InputLimit
