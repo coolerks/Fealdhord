@@ -258,9 +258,15 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
        </>}
        {translation.bodyStatus === 'partial' && translation.record && translation.record.translatedBlocks < translation.record.totalBlocks &&
         <Button variant="ghost" size="sm" onClick={() => {
-         const untranslated = Array.from(content.current?.querySelectorAll<HTMLElement>('[data-tr-block]') ?? [])
+         const viewport = content.current
+         const untranslated = Array.from(prose.current?.querySelectorAll<HTMLElement>('[data-tr-block]') ?? [])
           .find(block => block.dataset.trBlock && !translation.blocksMap[block.dataset.trBlock])
-         untranslated?.scrollIntoView({ block: 'center' })
+         if (!viewport || !untranslated) return
+         const rect = untranslated.getBoundingClientRect()
+         const inset = Math.max(0, (viewport.clientHeight - rect.height) / 2)
+         const top = viewport.scrollTop + rect.top - viewport.getBoundingClientRect().top - viewport.clientTop - inset
+         const maxTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+         viewport.scrollTop = Math.max(0, Math.min(top, maxTop))
         }}>定位未译段落</Button>}
        <Button variant="ghost" size="sm" onClick={() => { void translation.translate(false) }}>{translation.bodyStatus === 'partial' ? '继续翻译' : '重试'}</Button>
       </div>

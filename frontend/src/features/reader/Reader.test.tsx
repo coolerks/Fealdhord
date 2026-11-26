@@ -436,10 +436,14 @@ it('长文优先发送阅读位置，旧版和乱序进度不会覆盖，已读�
  await act(async () => finish({ ...progress, status: 'partial', errorCode: 'InvalidModelOutput', updatedAt: 6 }))
  expect(screen.getByText('第一段译文')).toBe(existingTranslation)
  expect(screen.getByRole('alert')).toHaveTextContent('已译 1/66 段。仍有内容待译')
- const scrollToMissing = vi.fn()
- Object.defineProperty(current, 'scrollIntoView', { value: scrollToMissing })
+ const pane = container.querySelector<HTMLElement>('.reader-pane')!
+ Object.defineProperties(viewport, { clientHeight: { value: 200 }, scrollHeight: { value: 1200 } })
+ vi.mocked(viewport.getBoundingClientRect).mockReturnValue(new DOMRect(0, 50, 480, 200))
+ vi.mocked(current.getBoundingClientRect).mockReturnValue(new DOMRect(0, 420, 480, 20))
+ Object.defineProperty(current, 'scrollIntoView', { value: () => { pane.scrollTop = 50 } })
  await user.click(screen.getByRole('button', { name: '定位未译段落' }))
- expect(scrollToMissing).toHaveBeenCalledWith({ block: 'center' })
+ expect(viewport.scrollTop).toBe(420)
+ expect(pane.scrollTop).toBe(0)
  expect(screen.getByRole('button', { name: '继续翻译' })).toBeVisible()
 })
 
