@@ -9,6 +9,10 @@ export {
 export type {
     BlockTranslation,
     LanguageOption,
+    ProviderConfig,
+    ProviderMeta,
     Record,
+    SaveProviderInput,
+    TestResult,
     TranslateRequest
 } from "./models.js";

@@ -19,6 +19,36 @@ export interface LanguageOption {
     "promptName": string;
 }
 
+/**
+ * ProviderConfig 是面向前端展示的非敏感配置（绝不返回明文密钥）。
+ */
+export interface ProviderConfig {
+    "id": string;
+    "appId": string;
+    "region": string;
+    "endpoint": string;
+    "edition": string;
+    "hasSecret": boolean;
+    "secretMasked": string;
+}
+
+/**
+ * ProviderMeta 描述一个翻译方式的展示元信息与能力。
+ */
+export interface ProviderMeta {
+    "id": string;
+    "label": string;
+
+    /**
+     * "ai" | "free" | "byok"
+     */
+    "group": string;
+    "aliases": string[] | null;
+    "requiresCredentials": boolean;
+    "unofficialFree": boolean;
+    "supportedLanguages": string[] | null;
+}
+
 export interface Record {
     "articleId": string;
     "targetLang": string;
@@ -35,6 +65,30 @@ export interface Record {
     "modelId": string;
     "errorCode": string;
     "updatedAt": number;
+}
+
+/**
+ * SaveProviderInput 是保存某个 BYOK 翻译引擎配置时的入参。
+ */
+export interface SaveProviderInput {
+    "id": string;
+    "appId": string;
+    "secret": string;
+    "clearSecret": boolean;
+    "region": string;
+    "endpoint": string;
+    "edition": string;
+}
+
+/**
+ * TestResult 表示翻译方式连通性测试结果。
+ */
+export interface TestResult {
+    "ok": boolean;
+    "sampleOut"?: string;
+    "latencyMs": number;
+    "errorCode"?: string;
+    "errorDetail"?: string;
 }
 
 export interface TranslateRequest {

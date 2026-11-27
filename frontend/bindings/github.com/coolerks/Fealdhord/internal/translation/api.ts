@@ -26,8 +26,24 @@ export function Get(articleID: string, targetLang: string, sourceMode: string): 
     return $Call.ByID(4056392106, articleID, targetLang, sourceMode);
 }
 
+export function GetProviderConfig(id: string): $CancellablePromise<$models.ProviderConfig> {
+    return $Call.ByID(1479310597, id);
+}
+
 export function Languages(): $CancellablePromise<$models.LanguageOption[] | null> {
     return $Call.ByID(1781592381);
+}
+
+export function Providers(): $CancellablePromise<$models.ProviderMeta[] | null> {
+    return $Call.ByID(60968280);
+}
+
+export function SaveProviderConfig(input: $models.SaveProviderInput): $CancellablePromise<$models.ProviderConfig> {
+    return $Call.ByID(1193609540, input);
+}
+
+export function TestProvider(id: string, draft: $models.SaveProviderInput | null): $CancellablePromise<$models.TestResult> {
+    return $Call.ByID(3318049091, id, draft);
 }
 
 export function Translate(input: $models.TranslateRequest): $CancellablePromise<$models.Record> {

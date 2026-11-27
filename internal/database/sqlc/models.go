@@ -114,6 +114,7 @@ type ArticleAiSetting struct {
 	SummaryHanLimit       int64   `json:"summary_han_limit"`
 	SummaryEnglishLimit   int64   `json:"summary_english_limit"`
 	TranslationBatchKib   int64   `json:"translation_batch_kib"`
+	TranslationEngine     string  `json:"translation_engine"`
 }
 
 type ArticleCategory struct {
@@ -446,4 +447,14 @@ type ScheduledTask struct {
 type SearchState struct {
 	ID         int64 `json:"id"`
 	Generation int64 `json:"generation"`
+}
+
+type TranslationProvider struct {
+	ID            string `json:"id"`
+	AppID         string `json:"app_id"`
+	Region        string `json:"region"`
+	Endpoint      string `json:"endpoint"`
+	Edition       string `json:"edition"`
+	CredentialRef string `json:"credential_ref"`
+	UpdatedAt     int64  `json:"updated_at"`
 }

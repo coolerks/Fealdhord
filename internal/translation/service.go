@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -62,11 +63,15 @@ type ProgressEvent struct {
 }
 
 type Service struct {
-	store     *database.Store
-	resolver  ModelResolver
-	reader    ReaderProvider
-	emit      func(ProgressEvent)
-	onChanged func()
+	store         *database.Store
+	resolver      ModelResolver
+	reader        ReaderProvider
+	credentials   aiconfig.CredentialStore
+	httpClient    *http.Client
+	limiter       *rateLimiter
+	engineFactory func(context.Context, EngineID) (Engine, error)
+	emit          func(ProgressEvent)
+	onChanged     func()
 
 	mu     sync.Mutex
 	active map[string]context.CancelFunc
@@ -74,12 +79,14 @@ type Service struct {
 
 func New(store *database.Store, resolver ModelResolver, readerSvc ReaderProvider, emit func(ProgressEvent), onChanged func()) *Service {
 	return &Service{
-		store:     store,
-		resolver:  resolver,
-		reader:    readerSvc,
-		emit:      emit,
-		onChanged: onChanged,
-		active:    make(map[string]context.CancelFunc),
+		store:      store,
+		resolver:   resolver,
+		reader:     readerSvc,
+		httpClient: defaultHTTPClient(),
+		limiter:    newRateLimiter(),
+		emit:       emit,
+		onChanged:  onChanged,
+		active:     make(map[string]context.CancelFunc),
 	}
 }
 
@@ -439,12 +446,19 @@ func (s *Service) Translate(ctx context.Context, req TranslateRequest) (Record, 
 		return rec, nil
 	}
 
+	engineID := NormalizeEngineID(settings.TranslationEngine)
 	if req.SourceMode == "summary" {
+		if engineID != EngineAI {
+			return s.translateSummaryWithAPI(runCtx, article, req, detectedLang, engineID)
+		}
 		modelCfg, adapter, err := s.resolveModel(runCtx)
 		if err != nil {
 			return Record{}, err
 		}
 		return s.translateSummary(runCtx, article, req, detectedLang, customPrompt, modelCfg, adapter)
+	}
+	if engineID != EngineAI {
+		return s.translateBodyWithAPI(runCtx, article, req, engineID, existing)
 	}
 	return s.translateBody(runCtx, article, req, customPrompt, int(settings.TranslationBatchKib), existing)
 }

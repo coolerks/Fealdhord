@@ -32,6 +32,7 @@ export interface Settings {
     "translationTargetLang": string;
     "translationPrompt": string;
     "translationBatchKiB"?: number | null;
+    "translationEngine"?: string;
     "summary"?: SummarySettings | null;
 }
 

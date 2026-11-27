@@ -34,6 +34,7 @@ sql:
       - migrations/00033_chat_group_metadata.sql
       - migrations/00034_chat_message_skills.sql
       - migrations/00035_translation_batch_size.sql
+      - migrations/00036_translation_providers.sql
     queries: internal/database/queries
     gen:
       go:

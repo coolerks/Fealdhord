@@ -46,6 +46,7 @@ type Settings struct {
 	TranslationTargetLang string           `json:"translationTargetLang"`
 	TranslationPrompt     string           `json:"translationPrompt"`
 	TranslationBatchKiB   *int64           `json:"translationBatchKiB,omitempty"`
+	TranslationEngine     string           `json:"translationEngine,omitempty"`
 	Summary               *SummarySettings `json:"summary,omitempty"`
 }
 
@@ -76,13 +77,18 @@ func publicSettings(row sqlc.ArticleAiSetting) Settings {
 	if targetLang == "" {
 		targetLang = "zh-CN"
 	}
+	engine := strings.TrimSpace(row.TranslationEngine)
+	if engine == "" {
+		engine = "ai"
+	}
 	return Settings{Classification: row.Classification == 1, Featured: row.Featured == 1, Prompt: row.Prompt, Revision: row.Revision,
 		RequestsPerHour: row.RequestsPerHour, TokensPerHour: row.TokensPerHour,
 		MinimumImportance: row.MinimumImportance, MinimumRelevance: row.MinimumRelevance,
 		AutoTranslate: row.AutoTranslate == 1, AutoTranslateScope: scope,
 		TranslateOnOpen: row.TranslateOnOpen == 1, TranslationTargetLang: targetLang,
 		TranslationPrompt: row.TranslationPrompt, TranslationBatchKiB: &row.TranslationBatchKib,
-		Summary: &SummarySettings{OnOpen: row.SummarizeOnOpen == 1, HanLimit: row.SummaryHanLimit, EnglishLimit: row.SummaryEnglishLimit}}
+		TranslationEngine: engine,
+		Summary:           &SummarySettings{OnOpen: row.SummarizeOnOpen == 1, HanLimit: row.SummaryHanLimit, EnglishLimit: row.SummaryEnglishLimit}}
 }
 
 func (s *Service) Settings(ctx context.Context) (Settings, error) {
@@ -114,6 +120,14 @@ func (s *Service) Save(ctx context.Context, input Settings) (Settings, error) {
 			return Settings{}, code("ValidationError")
 		}
 		p.TranslationBatchKib = sql.NullInt64{Int64: *size, Valid: true}
+	}
+	if engine := strings.TrimSpace(input.TranslationEngine); engine != "" {
+		switch engine {
+		case "ai", "google_free", "google_byok", "microsoft_edge", "microsoft_azure", "alibaba", "caiyun", "baidu", "youdao":
+			p.TranslationEngine = sql.NullString{String: engine, Valid: true}
+		default:
+			return Settings{}, code("ValidationError")
+		}
 	}
 	if summary := input.Summary; summary != nil {
 		const maxSafeInteger = 1<<53 - 1

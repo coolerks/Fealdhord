@@ -49,3 +49,20 @@ SELECT a.id,a.feed_id,a.title,a.summary,a.content_html,a.content_text,a.url,a.co
  f.url AS feed_url,f.auto_translate_mode
 FROM articles a JOIN feeds f ON f.id=a.feed_id
 WHERE a.id=? AND f.archived_at IS NULL;
+
+-- name: GetTranslationProvider :one
+SELECT * FROM translation_providers WHERE id=?;
+
+-- name: ListTranslationProviders :many
+SELECT * FROM translation_providers ORDER BY id;
+
+-- name: SaveTranslationProvider :exec
+INSERT INTO translation_providers(id,app_id,region,endpoint,edition,credential_ref,updated_at)
+VALUES(?,?,?,?,?,?,?)
+ON CONFLICT(id) DO UPDATE SET
+ app_id=excluded.app_id,
+ region=excluded.region,
+ endpoint=excluded.endpoint,
+ edition=excluded.edition,
+ credential_ref=excluded.credential_ref,
+ updated_at=excluded.updated_at;

@@ -14,10 +14,11 @@ import { ToggleGroupItem } from '@/components/ui/toggle-group'
 import { SettingCard, SettingEmpty, SettingRow, SettingSection, StatusBadge } from '@/features/settings/settings-primitives'
 import { libraryAPI } from '@/lib/library-api'
 import { invalidateRSS } from '@/lib/refresh'
-import { defaultTranslationLanguages } from '@/lib/translation-api'
+import { defaultTranslationLanguages, defaultTranslationProviders } from '@/lib/translation-api'
 import { Evaluate, Save } from '../../../bindings/github.com/coolerks/Fealdhord/internal/articleai/api'
 import type { Result, Settings } from '../../../bindings/github.com/coolerks/Fealdhord/internal/articleai/models'
 import { articleAISettingsKey, useArticleAISettings } from './settings-query'
+import { TranslationProviderRow } from './TranslationProviderConfig'
 
 const messages: Record<string, string> = {
   Busy: '文章 AI 正在运行，请稍后重试。',
@@ -122,6 +123,15 @@ export function ArticleAISettings() {
   const validSummaryThresholds = [summary.hanLimit, summary.englishLimit].every(limit => Number.isSafeInteger(limit) && limit > 0)
   const translationBatchKiB = value.translationBatchKiB ?? 0
   const validBatchSize = Number.isSafeInteger(translationBatchKiB) && translationBatchKiB >= 0 && translationBatchKiB <= 1024
+  const translationEngine = value.translationEngine || 'ai'
+  const selectedProvider = defaultTranslationProviders.find(item => item.id === translationEngine) ?? defaultTranslationProviders[0]
+  const currentTargetLang = value.translationTargetLang || 'zh-CN'
+  const targetLangSupported = !selectedProvider.supportedLanguages || selectedProvider.supportedLanguages.includes(currentTargetLang)
+  const providerOptions = defaultTranslationProviders.map(item => ({
+    value: item.id,
+    label: item.label,
+    keywords: [item.id, ...(item.aliases ?? [])],
+  }))
   const enabled = task === 'classification' ? settings.data?.classification : settings.data?.featured
   const showRules = value.classification || value.featured || value.autoTranslate || value.translateOnOpen || Boolean(draft)
   const targetLangOptions = defaultTranslationLanguages.map(item => ({
@@ -181,21 +191,39 @@ export function ArticleAISettings() {
       <SettingSection title="文章翻译">
         <SettingCard>
           <SettingRow>
+            <FieldLabel htmlFor="translation-engine" className="font-normal">翻译方式</FieldLabel>
+            <SearchableSelect
+              id="translation-engine"
+              label="翻译方式"
+              className="min-w-52"
+              disabled={busy}
+              value={translationEngine}
+              options={providerOptions}
+              onValueChange={next => setDraft({ ...value, translationEngine: next })}
+            />
+          </SettingRow>
+          {translationEngine !== 'ai' && (
+            <TranslationProviderRow engineId={translationEngine} disabled={busy} />
+          )}
+          <SettingRow>
             <FieldLabel htmlFor="automatic-translate" className="font-normal">新文章自动翻译</FieldLabel>
             <Switch id="automatic-translate" disabled={busy} checked={value.autoTranslate}
               onCheckedChange={autoTranslate => setDraft({ ...value, autoTranslate })} />
           </SettingRow>
           <SettingRow>
-            <div>
+            <div className="min-w-0">
               <FieldLabel htmlFor="translation-target-lang" className="font-normal">目标语言</FieldLabel>
               <p className="text-xs text-muted-foreground">同时用于文章摘要和翻译。</p>
+              {!targetLangSupported && (
+                <FieldError>当前翻译方式暂不支持译为该目标语言，请切换语言或翻译方式。</FieldError>
+              )}
             </div>
             <SearchableSelect
               id="translation-target-lang"
               label="目标语言"
               className="min-w-44"
               disabled={busy}
-              value={value.translationTargetLang || 'zh-CN'}
+              value={currentTargetLang}
               options={targetLangOptions}
               onValueChange={translationTargetLang => setDraft({ ...value, translationTargetLang })}
             />
@@ -218,30 +246,34 @@ export function ArticleAISettings() {
             <Switch id="translate-on-open" disabled={busy} checked={value.translateOnOpen}
               onCheckedChange={translateOnOpen => setDraft({ ...value, translateOnOpen })} />
           </SettingRow>
-          <SettingRow>
-            <div>
-              <FieldLabel htmlFor="translation-batch-kib" className="font-normal">单批正文上限（KiB）</FieldLabel>
-              <p id="translation-batch-hint" className="text-xs text-muted-foreground">留空使用自动上限 50 KiB，实际大小随模型预算调整。</p>
-            </div>
-            <Input id="translation-batch-kib" type="number" min={1} max={1024} step={1} className="w-28"
-              disabled={busy} aria-invalid={!validBatchSize || undefined} aria-describedby="translation-batch-hint"
-              placeholder="自动" value={translationBatchKiB === 0 || Number.isNaN(translationBatchKiB) ? '' : translationBatchKiB}
-              onChange={event => setDraft({ ...value, translationBatchKiB: event.target.value === '' ? 0 : event.target.valueAsNumber })} />
-          </SettingRow>
-          <div className="p-3.5">
-            <Field>
-              <FieldLabel htmlFor="translation-prompt">翻译提示词</FieldLabel>
-              <Textarea
-                id="translation-prompt"
-                rows={2}
-                disabled={busy}
-                placeholder="可选：术语表、语气或专有名词保留要求"
-                value={value.translationPrompt ?? ''}
-                maxLength={4096}
-                onChange={event => setDraft({ ...value, translationPrompt: event.target.value })}
-              />
-            </Field>
-          </div>
+          {translationEngine === 'ai' && (
+            <>
+              <SettingRow>
+                <div>
+                  <FieldLabel htmlFor="translation-batch-kib" className="font-normal">单批正文上限（KiB）</FieldLabel>
+                  <p id="translation-batch-hint" className="text-xs text-muted-foreground">留空使用自动上限 50 KiB，实际大小随模型预算调整。</p>
+                </div>
+                <Input id="translation-batch-kib" type="number" min={1} max={1024} step={1} className="w-28"
+                  disabled={busy} aria-invalid={!validBatchSize || undefined} aria-describedby="translation-batch-hint"
+                  placeholder="自动" value={translationBatchKiB === 0 || Number.isNaN(translationBatchKiB) ? '' : translationBatchKiB}
+                  onChange={event => setDraft({ ...value, translationBatchKiB: event.target.value === '' ? 0 : event.target.valueAsNumber })} />
+              </SettingRow>
+              <div className="p-3.5">
+                <Field>
+                  <FieldLabel htmlFor="translation-prompt">翻译提示词</FieldLabel>
+                  <Textarea
+                    id="translation-prompt"
+                    rows={2}
+                    disabled={busy}
+                    placeholder="可选：术语表、语气或专有名词保留要求"
+                    value={value.translationPrompt ?? ''}
+                    maxLength={4096}
+                    onChange={event => setDraft({ ...value, translationPrompt: event.target.value })}
+                  />
+                </Field>
+              </div>
+            </>
+          )}
         </SettingCard>
       </SettingSection>
 

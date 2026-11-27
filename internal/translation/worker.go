@@ -51,7 +51,7 @@ func (s *Service) Start(ctx context.Context) func() {
 				backoff = time.Now().Add(max(time.Minute, failure.RetryAfter))
 			case "BudgetExceeded":
 				backoff = time.Now().Add(time.Minute)
-			case "AuthenticationError", "CredentialError", "ConfigurationError":
+			case "AuthenticationError", "CredentialError", "ConfigurationError", "UnsupportedLanguage":
 				backoff = time.Now().Add(5 * time.Minute)
 			case "Busy", "Cancelled":
 			default:
@@ -102,4 +102,29 @@ func (a *API) Clear(ctx context.Context, articleID, targetLang string) error {
 		return &ai.ModelError{Code: "StorageError"}
 	}
 	return a.service.Clear(ctx, articleID, targetLang)
+}
+
+func (a *API) Providers() []ProviderMeta {
+	return SupportedProviders()
+}
+
+func (a *API) GetProviderConfig(ctx context.Context, id string) (ProviderConfig, error) {
+	if a.service == nil {
+		return ProviderConfig{}, &ai.ModelError{Code: "StorageError"}
+	}
+	return a.service.GetProviderConfig(ctx, id)
+}
+
+func (a *API) SaveProviderConfig(ctx context.Context, input SaveProviderInput) (ProviderConfig, error) {
+	if a.service == nil {
+		return ProviderConfig{}, &ai.ModelError{Code: "StorageError"}
+	}
+	return a.service.SaveProviderConfig(ctx, input)
+}
+
+func (a *API) TestProvider(ctx context.Context, id string, draft *SaveProviderInput) TestResult {
+	if a.service == nil {
+		return TestResult{OK: false, ErrorCode: "StorageError"}
+	}
+	return a.service.TestProvider(ctx, id, draft)
 }

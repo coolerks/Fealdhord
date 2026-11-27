@@ -5,9 +5,21 @@ import { expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ArticleAISettings } from './ArticleAISettings'
 
-const api = vi.hoisted(() => ({ settings: vi.fn(), save: vi.fn() }))
+const api = vi.hoisted(() => ({
+  settings: vi.fn(),
+  save: vi.fn(),
+  getProviderConfig: vi.fn(),
+  saveProviderConfig: vi.fn(),
+  testProvider: vi.fn(),
+}))
 vi.mock('../../../bindings/github.com/coolerks/Fealdhord/internal/articleai/api', () => ({
   Evaluate: vi.fn(), Settings: api.settings, Save: api.save,
+}))
+vi.mock('../../../bindings/github.com/coolerks/Fealdhord/internal/translation/api', () => ({
+  Get: vi.fn(), Translate: vi.fn(), Cancel: vi.fn(), Clear: vi.fn(), Languages: vi.fn(), Providers: vi.fn(),
+  GetProviderConfig: api.getProviderConfig,
+  SaveProviderConfig: api.saveProviderConfig,
+  TestProvider: api.testProvider,
 }))
 
 it('文章摘要设置可独立修改两个阈值，拒绝空值', async () => {
@@ -49,4 +61,31 @@ it('文章摘要设置可独立修改两个阈值，拒绝空值', async () => {
   await userEvent.clear(batch)
   await userEvent.click(screen.getAllByRole('button', { name: '保存文章 AI 设置' })[0])
   await waitFor(() => expect(api.save).toHaveBeenLastCalledWith(expect.objectContaining({ translationBatchKiB: 0, revision: 2 })))
+})
+
+it('切换翻译方式为百度翻译时隐藏 AI 提示词并可打开带操作步骤的配置弹窗', async () => {
+  const initial = {
+    classification: false, featured: false, prompt: '', revision: 1,
+    requestsPerHour: 100, tokensPerHour: 200000, minimumImportance: 0.7, minimumRelevance: 0.6,
+    autoTranslate: false, autoTranslateScope: 'summary', translateOnOpen: false, translationTargetLang: 'zh-CN',
+    translationPrompt: '', translationEngine: 'baidu',
+    summary: { onOpen: false, hanLimit: 600, englishLimit: 350 },
+  }
+  api.settings.mockResolvedValue(initial)
+  api.getProviderConfig.mockResolvedValue({
+    id: 'baidu', appId: '', region: '', endpoint: '', edition: 'standard', hasSecret: false, secretMasked: '',
+  })
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(<QueryClientProvider client={client}><TooltipProvider><ArticleAISettings /></TooltipProvider></QueryClientProvider>)
+
+  const configButton = await screen.findByRole('button', { name: '配置凭据' })
+  expect(screen.queryByLabelText('翻译提示词')).toBeNull()
+  expect(screen.queryByLabelText('单批正文上限（KiB）')).toBeNull()
+
+  await userEvent.click(configButton)
+  expect(await screen.findByText('配置 百度翻译开放平台')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '操作步骤' })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: '查看官方文档' })).toBeInTheDocument()
+  expect(screen.getByLabelText('APP ID')).toBeInTheDocument()
+  expect(screen.getByLabelText('密钥（Secret Key）')).toBeInTheDocument()
 })

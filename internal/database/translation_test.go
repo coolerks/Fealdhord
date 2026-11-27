@@ -181,6 +181,8 @@ func TestArticleTranslationStoreAndUpgrade(t *testing.T) {
 		`ALTER TABLE article_ai_settings DROP COLUMN translation_target_lang`,
 		`ALTER TABLE article_ai_settings DROP COLUMN translation_prompt`,
 		`ALTER TABLE article_ai_settings DROP COLUMN translation_batch_kib`,
+		`ALTER TABLE article_ai_settings DROP COLUMN translation_engine`,
+		`DROP TABLE translation_providers`,
 		"DROP INDEX conversations_group",
 		"ALTER TABLE conversations DROP COLUMN workspace_day",
 		"ALTER TABLE conversations DROP COLUMN group_id",
@@ -189,7 +191,7 @@ func TestArticleTranslationStoreAndUpgrade(t *testing.T) {
 		"ALTER TABLE messages DROP COLUMN attachments",
 		"ALTER TABLE messages DROP COLUMN created_at",
 		"ALTER TABLE messages DROP COLUMN selected_skills",
-		"DELETE FROM goose_db_version WHERE version_id IN (26,27,29,30,33,34,35)",
+		"DELETE FROM goose_db_version WHERE version_id IN (26,27,29,30,33,34,35,36)",
 	}...)
 	for _, stmt := range stmts {
 		if _, err := rawDB.ExecContext(ctx, stmt); err != nil {
@@ -256,6 +258,8 @@ func TestTranslationCheckpointMigrationPreservesV26Cache(t *testing.T) {
 		"ALTER TABLE article_translations DROP COLUMN checkpoint_json",
 		"ALTER TABLE reader_contents DROP COLUMN source_version",
 		"ALTER TABLE article_ai_settings DROP COLUMN translation_batch_kib",
+		"ALTER TABLE article_ai_settings DROP COLUMN translation_engine",
+		"DROP TABLE translation_providers",
 		"DROP INDEX conversations_group",
 		"ALTER TABLE conversations DROP COLUMN workspace_day",
 		"ALTER TABLE conversations DROP COLUMN group_id",
@@ -264,7 +268,7 @@ func TestTranslationCheckpointMigrationPreservesV26Cache(t *testing.T) {
 		"ALTER TABLE messages DROP COLUMN attachments",
 		"ALTER TABLE messages DROP COLUMN created_at",
 		"ALTER TABLE messages DROP COLUMN selected_skills",
-		"DELETE FROM goose_db_version WHERE version_id IN (27,29,30,33,34,35)",
+		"DELETE FROM goose_db_version WHERE version_id IN (27,29,30,33,34,35,36)",
 	}...) {
 		if _, err := store.db.ExecContext(ctx, statement); err != nil {
 			t.Fatal(err)

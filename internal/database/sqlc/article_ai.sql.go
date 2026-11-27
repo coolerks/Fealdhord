@@ -140,7 +140,7 @@ func (q *Queries) GetArticleAIResult(ctx context.Context, arg GetArticleAIResult
 }
 
 const getArticleAISettings = `-- name: GetArticleAISettings :one
-SELECT id, classification, featured, prompt, revision, requests_per_hour, tokens_per_hour, minimum_importance, minimum_relevance, profile_revision, auto_translate, auto_translate_scope, translate_on_open, translation_target_lang, translation_prompt, summarize_on_open, summary_han_limit, summary_english_limit, translation_batch_kib FROM article_ai_settings WHERE id=1
+SELECT id, classification, featured, prompt, revision, requests_per_hour, tokens_per_hour, minimum_importance, minimum_relevance, profile_revision, auto_translate, auto_translate_scope, translate_on_open, translation_target_lang, translation_prompt, summarize_on_open, summary_han_limit, summary_english_limit, translation_batch_kib, translation_engine FROM article_ai_settings WHERE id=1
 `
 
 func (q *Queries) GetArticleAISettings(ctx context.Context) (ArticleAiSetting, error) {
@@ -166,6 +166,7 @@ func (q *Queries) GetArticleAISettings(ctx context.Context) (ArticleAiSetting, e
 		&i.SummaryHanLimit,
 		&i.SummaryEnglishLimit,
 		&i.TranslationBatchKib,
+		&i.TranslationEngine,
 	)
 	return i, err
 }
@@ -284,31 +285,33 @@ UPDATE article_ai_settings SET
  translate_on_open=?10,translation_target_lang=?11,
  translation_prompt=?12,
  translation_batch_kib=COALESCE(?13,translation_batch_kib),
- summarize_on_open=COALESCE(?14,summarize_on_open),
- summary_han_limit=COALESCE(?15,summary_han_limit),
- summary_english_limit=COALESCE(?16,summary_english_limit),
+ translation_engine=COALESCE(?14,translation_engine),
+ summarize_on_open=COALESCE(?15,summarize_on_open),
+ summary_han_limit=COALESCE(?16,summary_han_limit),
+ summary_english_limit=COALESCE(?17,summary_english_limit),
  revision=revision+1
-WHERE id=1 AND revision=?17 RETURNING id, classification, featured, prompt, revision, requests_per_hour, tokens_per_hour, minimum_importance, minimum_relevance, profile_revision, auto_translate, auto_translate_scope, translate_on_open, translation_target_lang, translation_prompt, summarize_on_open, summary_han_limit, summary_english_limit, translation_batch_kib
+WHERE id=1 AND revision=?18 RETURNING id, classification, featured, prompt, revision, requests_per_hour, tokens_per_hour, minimum_importance, minimum_relevance, profile_revision, auto_translate, auto_translate_scope, translate_on_open, translation_target_lang, translation_prompt, summarize_on_open, summary_han_limit, summary_english_limit, translation_batch_kib, translation_engine
 `
 
 type SaveArticleAISettingsParams struct {
-	Classification        int64         `json:"classification"`
-	Featured              int64         `json:"featured"`
-	Prompt                string        `json:"prompt"`
-	RequestsPerHour       int64         `json:"requests_per_hour"`
-	TokensPerHour         int64         `json:"tokens_per_hour"`
-	MinimumImportance     float64       `json:"minimum_importance"`
-	MinimumRelevance      float64       `json:"minimum_relevance"`
-	AutoTranslate         int64         `json:"auto_translate"`
-	AutoTranslateScope    string        `json:"auto_translate_scope"`
-	TranslateOnOpen       int64         `json:"translate_on_open"`
-	TranslationTargetLang string        `json:"translation_target_lang"`
-	TranslationPrompt     string        `json:"translation_prompt"`
-	TranslationBatchKib   sql.NullInt64 `json:"translation_batch_kib"`
-	SummarizeOnOpen       sql.NullInt64 `json:"summarize_on_open"`
-	SummaryHanLimit       sql.NullInt64 `json:"summary_han_limit"`
-	SummaryEnglishLimit   sql.NullInt64 `json:"summary_english_limit"`
-	Revision              int64         `json:"revision"`
+	Classification        int64          `json:"classification"`
+	Featured              int64          `json:"featured"`
+	Prompt                string         `json:"prompt"`
+	RequestsPerHour       int64          `json:"requests_per_hour"`
+	TokensPerHour         int64          `json:"tokens_per_hour"`
+	MinimumImportance     float64        `json:"minimum_importance"`
+	MinimumRelevance      float64        `json:"minimum_relevance"`
+	AutoTranslate         int64          `json:"auto_translate"`
+	AutoTranslateScope    string         `json:"auto_translate_scope"`
+	TranslateOnOpen       int64          `json:"translate_on_open"`
+	TranslationTargetLang string         `json:"translation_target_lang"`
+	TranslationPrompt     string         `json:"translation_prompt"`
+	TranslationBatchKib   sql.NullInt64  `json:"translation_batch_kib"`
+	TranslationEngine     sql.NullString `json:"translation_engine"`
+	SummarizeOnOpen       sql.NullInt64  `json:"summarize_on_open"`
+	SummaryHanLimit       sql.NullInt64  `json:"summary_han_limit"`
+	SummaryEnglishLimit   sql.NullInt64  `json:"summary_english_limit"`
+	Revision              int64          `json:"revision"`
 }
 
 func (q *Queries) SaveArticleAISettings(ctx context.Context, arg SaveArticleAISettingsParams) (ArticleAiSetting, error) {
@@ -326,6 +329,7 @@ func (q *Queries) SaveArticleAISettings(ctx context.Context, arg SaveArticleAISe
 		arg.TranslationTargetLang,
 		arg.TranslationPrompt,
 		arg.TranslationBatchKib,
+		arg.TranslationEngine,
 		arg.SummarizeOnOpen,
 		arg.SummaryHanLimit,
 		arg.SummaryEnglishLimit,
@@ -352,6 +356,7 @@ func (q *Queries) SaveArticleAISettings(ctx context.Context, arg SaveArticleAISe
 		&i.SummaryHanLimit,
 		&i.SummaryEnglishLimit,
 		&i.TranslationBatchKib,
+		&i.TranslationEngine,
 	)
 	return i, err
 }

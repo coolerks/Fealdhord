@@ -12,6 +12,7 @@ UPDATE article_ai_settings SET
  translate_on_open=sqlc.arg(translate_on_open),translation_target_lang=sqlc.arg(translation_target_lang),
  translation_prompt=sqlc.arg(translation_prompt),
  translation_batch_kib=COALESCE(sqlc.narg(translation_batch_kib),translation_batch_kib),
+ translation_engine=COALESCE(sqlc.narg(translation_engine),translation_engine),
  summarize_on_open=COALESCE(sqlc.narg(summarize_on_open),summarize_on_open),
  summary_han_limit=COALESCE(sqlc.narg(summary_han_limit),summary_han_limit),
  summary_english_limit=COALESCE(sqlc.narg(summary_english_limit),summary_english_limit),

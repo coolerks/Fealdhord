@@ -244,3 +244,19 @@ func (s *Store) ReserveTranslationAttempt(ctx context.Context, estimate int64, n
 func randomID() string {
 	return "tr-" + rand.Text()
 }
+
+func (s *Store) GetTranslationProvider(ctx context.Context, id string) (sqlc.TranslationProvider, error) {
+	row, err := s.queries.GetTranslationProvider(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return sqlc.TranslationProvider{}, ErrNotFound
+	}
+	return row, err
+}
+
+func (s *Store) ListTranslationProviders(ctx context.Context) ([]sqlc.TranslationProvider, error) {
+	return s.queries.ListTranslationProviders(ctx)
+}
+
+func (s *Store) SaveTranslationProvider(ctx context.Context, params sqlc.SaveTranslationProviderParams) error {
+	return s.queries.SaveTranslationProvider(ctx, params)
+}

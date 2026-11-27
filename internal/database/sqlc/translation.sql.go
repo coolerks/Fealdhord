@@ -149,6 +149,60 @@ func (q *Queries) GetTranslationBodyText(ctx context.Context, arg GetTranslation
 	return column_1, err
 }
 
+const getTranslationProvider = `-- name: GetTranslationProvider :one
+SELECT id, app_id, region, endpoint, edition, credential_ref, updated_at FROM translation_providers WHERE id=?
+`
+
+func (q *Queries) GetTranslationProvider(ctx context.Context, id string) (TranslationProvider, error) {
+	row := q.db.QueryRowContext(ctx, getTranslationProvider, id)
+	var i TranslationProvider
+	err := row.Scan(
+		&i.ID,
+		&i.AppID,
+		&i.Region,
+		&i.Endpoint,
+		&i.Edition,
+		&i.CredentialRef,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listTranslationProviders = `-- name: ListTranslationProviders :many
+SELECT id, app_id, region, endpoint, edition, credential_ref, updated_at FROM translation_providers ORDER BY id
+`
+
+func (q *Queries) ListTranslationProviders(ctx context.Context) ([]TranslationProvider, error) {
+	rows, err := q.db.QueryContext(ctx, listTranslationProviders)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TranslationProvider
+	for rows.Next() {
+		var i TranslationProvider
+		if err := rows.Scan(
+			&i.ID,
+			&i.AppID,
+			&i.Region,
+			&i.Endpoint,
+			&i.Edition,
+			&i.CredentialRef,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const saveArticleTranslation = `-- name: SaveArticleTranslation :exec
 INSERT INTO article_translations(
  article_id,target_lang,source_mode,content_hash,detected_lang,status,
@@ -214,6 +268,41 @@ func (q *Queries) SaveArticleTranslation(ctx context.Context, arg SaveArticleTra
 		arg.UpdatedAt,
 		arg.SourceVersion,
 		arg.CheckpointJson,
+	)
+	return err
+}
+
+const saveTranslationProvider = `-- name: SaveTranslationProvider :exec
+INSERT INTO translation_providers(id,app_id,region,endpoint,edition,credential_ref,updated_at)
+VALUES(?,?,?,?,?,?,?)
+ON CONFLICT(id) DO UPDATE SET
+ app_id=excluded.app_id,
+ region=excluded.region,
+ endpoint=excluded.endpoint,
+ edition=excluded.edition,
+ credential_ref=excluded.credential_ref,
+ updated_at=excluded.updated_at
+`
+
+type SaveTranslationProviderParams struct {
+	ID            string `json:"id"`
+	AppID         string `json:"app_id"`
+	Region        string `json:"region"`
+	Endpoint      string `json:"endpoint"`
+	Edition       string `json:"edition"`
+	CredentialRef string `json:"credential_ref"`
+	UpdatedAt     int64  `json:"updated_at"`
+}
+
+func (q *Queries) SaveTranslationProvider(ctx context.Context, arg SaveTranslationProviderParams) error {
+	_, err := q.db.ExecContext(ctx, saveTranslationProvider,
+		arg.ID,
+		arg.AppID,
+		arg.Region,
+		arg.Endpoint,
+		arg.Edition,
+		arg.CredentialRef,
+		arg.UpdatedAt,
 	)
 	return err
 }
