@@ -57,3 +57,34 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 80: 修复多引擎文章翻译
+<!-- trellis-session: v=2 fp=f9e2abd6030e3d3e -->
+
+**Date**: 2026-11-27
+**Task**: 修复多引擎文章翻译
+**Branch**: `codex/interface-clarity`
+
+### Summary
+
+修复阿里云协议、凭据来源、标题和摘要完成状态、正文续译和取消、百度限流、后台队列及设置入口。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3439e50` | fix(translation): 修复多引擎翻译与续译可靠性 |
+
+### Testing
+
+- [OK] Go 全量、相关包竞态与 vet 通过。
+- [OK] 前端专项 45 项通过。首次全量有两项失败，单独复跑通过，限制并发并允许一次重试后全量 235 项通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 真实厂商凭据和桌面实机待验证。

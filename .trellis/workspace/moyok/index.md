@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 79
-- **Last Active**: 2026-11-26
+- **Total Sessions**: 80
+- **Last Active**: 2026-11-27
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~59 | Active |
+| `journal-2.md` | ~90 | Active |
 | `journal-1.md` | ~1986 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 80 | 2026-11-27 | 修复多引擎文章翻译 | `3439e50` | `codex/interface-clarity` |
 | 79 | 2026-11-26 | 修复正文翻译首轮预算和逐段回填 | `07b09e3` | `codex/interface-clarity` |
 | 78 | 2026-11-26 | 文章正文流式翻译 | `e448eac` | `codex/interface-clarity` |
 | 77 | 2026-11-26 | 修复聊天交互可靠性 | `53475ad` | `codex/interface-clarity` |
