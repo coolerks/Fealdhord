@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/coolerks/Fealdhord/internal/ai"
 )
@@ -161,6 +162,11 @@ func (e *baiduEngine) TranslateBatch(ctx context.Context, req BatchRequest) (Bat
 			continue
 		}
 		// 仅对无法确认对应关系的单段单独重试一次
+		if req.waitForRetry != nil {
+			if err := req.waitForRetry(ctx, utf8.RuneCountInString(prepared[i])); err != nil {
+				return BatchResult{}, networkError(err)
+			}
+		}
 		singlePairs, singleDet, singleErr := e.callAPI(ctx, prepared[i], source, target)
 		if singleErr != nil || len(singlePairs) == 0 {
 			if singleErr == nil {

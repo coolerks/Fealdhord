@@ -161,7 +161,11 @@ transfer.API 的 Choose 返回 token／name／cancelled；Preview 返回 preview
 
 `articleai.API.Settings` 返回 `summary: { onOpen, hanLimit, englishLimit }`。保存时按同一 revision 核验，两个阈值接受 JavaScript 安全范围内的正整数。旧调用方省略 `summary` 时保留已保存的摘要设置。
 
-文章 AI 设置的 `translationBatchKiB` 表示单批可翻文字字节上限，单位 KiB。零为自动（50 KiB），显式输入为 1–1024。保存沿用 revision 校验，省略此字段时保留已保存值。正文翻译的 `translation:progress` 在每个完整译段独立保存后发送当前正文版本的快照。同一个模型增量完成多段时，每段依次发布。超长段在全部片段到齐时计为一段。
+文章 AI 设置的 `translationBatchKiB` 表示 AI 模型单批可翻文字字节上限，单位 KiB。零为自动（50 KiB），显式输入为 1–1024。保存沿用 revision 校验，省略此字段时保留已保存值。AI 模型正文翻译的 `translation:progress` 在每个完整译段独立保存后发送当前正文版本的快照。同一个模型增量完成多段时，每段依次发布。超长段在全部片段到齐时计为一段。
+
+`translation.API` 的 `GetProviderConfig(id)` 返回脱敏凭据信息。`SaveProviderConfig(input)` 和 `TestProvider(id, draft)` 接收可选的 HTTPS `endpoint`，空值使用厂商默认地址。已有密钥仅在相同 HTTPS 主机和有效端口下复用。改用其他来源时，需重新提供 `secret` 或选择 `clearSecret`。非法地址或旧 HTTP 自定义地址返回 `InvalidEndpoint`，更换来源但未重新提供或清除密钥时返回 `CredentialRequired`。连接测试通过 `errorCode` 返回错误。
+
+机器翻译的正文进度按批次发布，已校验的长段片段先保存，完整合并后才增加完成段数。标题或摘录缺少有效译文时，`Translate` 返回对应的厂商错误或 `InvalidModelOutput`。取消沿用 `Cancelled`，清除后旧请求不能重建译文。
 
 `articlesummary.Service.Get({ articleId, mode, version })` 读取当前正文版本及目标语言对应的摘要结果。`Generate({ source, automatic })` 可显式生成，或在 `automatic` 为 true 时读取自动开关。服务从同一份文章 AI 设置读取 `translationTargetLang`。两者返回 `{ status: "none" | "generated" | "skipped", text }`。正文未就绪、版本或目标语言变化、输出无效和处理超限分别返回 `BodyUnavailable`、`Conflict`、`InvalidModelOutput`、`ContextWindowExceeded`。关闭阅读器、切换正文或目标语言时取消当前调用。最终等待方取消时停止生成。
 

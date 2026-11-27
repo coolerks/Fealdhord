@@ -2,6 +2,7 @@ package translation
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -51,10 +52,11 @@ type EngineCapabilities struct {
 
 // BatchRequest 表示发送给机器翻译引擎的一批文本。
 type BatchRequest struct {
-	Texts      []string
-	SourceLang string // "" 表示自动检测
-	TargetLang string // 内部标准码（zh-CN / zh-TW / en / ja / ko / fr / de / es / ru）
-	IsHTML     bool
+	Texts        []string
+	SourceLang   string // "" 表示自动检测
+	TargetLang   string // 内部标准码（zh-CN / zh-TW / en / ja / ko / fr / de / es / ru）
+	IsHTML       bool
+	waitForRetry func(context.Context, int) error
 }
 
 // BatchResult 表示机器翻译引擎返回的批量结果。
@@ -146,6 +148,12 @@ func defaultHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: transport,
 		Timeout:   45 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 || req.URL.Scheme != "https" || httpsOrigin(req.URL) != httpsOrigin(via[0].URL) {
+				return http.ErrUseLastResponse
+			}
+			return nil
+		},
 	}
 }
 
@@ -208,10 +216,10 @@ func networkError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if err == context.Canceled {
+	if errors.Is(err, context.Canceled) {
 		return &ai.ModelError{Code: "Cancelled"}
 	}
-	if err == context.DeadlineExceeded {
+	if errors.Is(err, context.DeadlineExceeded) {
 		return &ai.ModelError{Code: "Timeout"}
 	}
 	return mtError("ProviderConnectionError", err.Error())

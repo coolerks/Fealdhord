@@ -93,6 +93,29 @@ func TestMTTextBridgeToleratesSpacesAndFullWidthBrackets(t *testing.T) {
 	}
 }
 
+func TestMTInlineMarkersRejectDuplicatesAndReordering(t *testing.T) {
+	source := `Run <code>go test</code> and read <strong>the docs</strong>.`
+	unit := mtUnit{translationUnit: translationUnit{HTML: source}, textBridge: encodeTextForMT(source)}
+	for _, raw := range []string{
+		"运行 ⟦C0⟧ 后阅读⟦T1⟧文档",
+		"运行 ⟦C0⟧ 后阅读⟦T1⟧文档⟦T1⟧",
+		"运行 ⟦C0⟧ 后阅读⟦T2⟧文档⟦T1⟧",
+	} {
+		if _, ok := unit.restore(raw); ok {
+			t.Fatalf("accepted invalid plain-text placeholders: %q", raw)
+		}
+	}
+	unit.htmlBridge = encodeHTMLForMT(source)
+	for _, raw := range []string{
+		`运行 <span>C0</span> 和 <span>C0</span> 后阅读<strong>文档</strong>`,
+		`阅读<strong>文档</strong>后运行 <span>C0</span>`,
+	} {
+		if _, ok := unit.restore(raw); ok {
+			t.Fatalf("accepted invalid HTML placeholders: %q", raw)
+		}
+	}
+}
+
 func TestGoogleFreeAndBYOKProviders(t *testing.T) {
 	ctx := context.Background()
 

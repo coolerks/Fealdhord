@@ -59,6 +59,7 @@ func (h *mtHTML) restore(translated string) (string, bool) {
 	if strings.TrimSpace(translated) == "" {
 		return "", false
 	}
+	valid := true
 	atomSeen := make([]bool, len(h.atoms))
 	out := mtCodeSpanPattern.ReplaceAllStringFunc(translated, func(match string) string {
 		sub := mtCodeSpanPattern.FindStringSubmatch(match)
@@ -66,7 +67,8 @@ func (h *mtHTML) restore(translated string) (string, bool) {
 			return match
 		}
 		idx, err := strconv.Atoi(sub[1])
-		if err != nil || idx < 0 || idx >= len(h.atoms) {
+		if err != nil || idx >= len(h.atoms) || atomSeen[idx] {
+			valid = false
 			return match
 		}
 		atomSeen[idx] = true
@@ -79,38 +81,37 @@ func (h *mtHTML) restore(translated string) (string, bool) {
 			return match
 		}
 		idx, err := strconv.Atoi(sub[2])
-		if err != nil || idx < 0 || idx >= len(h.tags) {
+		if err != nil || idx >= len(h.tags) || tagSeen[idx] {
+			valid = false
 			return match
 		}
 		tagSeen[idx] = true
 		return h.tags[idx]
 	})
-	allMatched := true
 	for _, seen := range atomSeen {
 		if !seen {
-			allMatched = false
-			break
+			return "", false
 		}
 	}
-	if allMatched {
-		for _, seen := range tagSeen {
-			if !seen {
-				allMatched = false
-				break
-			}
+	for _, seen := range tagSeen {
+		if !seen {
+			return "", false
 		}
 	}
 	cleaned := SanitizeTranslatedHTML(out)
-	return cleaned, allMatched && cleaned != ""
+	return cleaned, valid && cleaned != ""
 }
 
 // mtText 实现模式 B（抗干扰占位符纯文本桥接）：
 // 适用于纯文本接口（Edge 免费、彩云、百度、有道文本批量）及模式 A 降级。
 type mtText struct {
 	encoded string
-	markers []string
-	// hasTags 表示原文是否包含行内 HTML 标签或代码原子。
-	hasTags bool
+	markers []mtMarker
+}
+
+type mtMarker struct {
+	kind string
+	html string
 }
 
 // 宽松匹配机翻可能产生的空格或全角括号变形，例如 "⟦ C0 ⟧" / "【C0】" / "[[C0]]"。
@@ -127,16 +128,15 @@ func encodeTextForMT(raw string) *mtText {
 			}
 			continue
 		}
-		m.hasTags = true
 		rawTok := string(tokens.Raw())
 		tok := tokens.Token()
 		idx := len(m.markers)
 		if kind == xhtml.StartTagToken && (tok.Data == "code" || tok.Data == "kbd") {
 			atom := takeInlineAtom(tokens, rawTok, tok.Data)
-			m.markers = append(m.markers, atom)
+			m.markers = append(m.markers, mtMarker{kind: "C", html: atom})
 			fmt.Fprintf(&out, "⟦C%d⟧", idx)
 		} else {
-			m.markers = append(m.markers, rawTok)
+			m.markers = append(m.markers, mtMarker{kind: "T", html: rawTok})
 			fmt.Fprintf(&out, "⟦T%d⟧", idx)
 		}
 	}
@@ -144,52 +144,38 @@ func encodeTextForMT(raw string) *mtText {
 	return m
 }
 
-// restore 尝试完整还原所有行内标记；当 exact=false 时仍返回尽最大努力清洗后的安全译文。
-func (m *mtText) restore(translated string) (htmlOut string, exact bool) {
+func (m *mtText) restore(translated string) (string, bool) {
 	if strings.TrimSpace(translated) == "" {
 		return "", false
 	}
-	if !m.hasTags {
+	if len(m.markers) == 0 {
 		cleaned := SanitizeTranslatedHTML(stdhtml.EscapeString(translated))
 		return cleaned, cleaned != ""
 	}
 	matches := mtPlaceholderPattern.FindAllStringSubmatchIndex(translated, -1)
+	if len(matches) != len(m.markers) {
+		return "", false
+	}
 	seen := make([]bool, len(m.markers))
 	var out strings.Builder
-	cursor := 0
-	allValid := len(matches) == len(m.markers)
+	cursor, lastTag := 0, -1
 	for _, loc := range matches {
 		idx, err := strconv.Atoi(translated[loc[4]:loc[5]])
-		if err != nil || idx < 0 || idx >= len(m.markers) || seen[idx] {
-			allValid = false
-			continue
+		if err != nil || idx >= len(m.markers) || seen[idx] || m.markers[idx].kind != translated[loc[2]:loc[3]] {
+			return "", false
+		}
+		if m.markers[idx].kind == "T" {
+			if idx <= lastTag {
+				return "", false
+			}
+			lastTag = idx
 		}
 		seen[idx] = true
 		out.WriteString(stdhtml.EscapeString(translated[cursor:loc[0]]))
-		out.WriteString(m.markers[idx])
+		out.WriteString(m.markers[idx].html)
 		cursor = loc[1]
 	}
 	out.WriteString(stdhtml.EscapeString(translated[cursor:]))
-	for _, ok := range seen {
-		if !ok {
-			allValid = false
-			break
-		}
-	}
-	if allValid {
-		cleaned := SanitizeTranslatedHTML(out.String())
-		return cleaned, cleaned != ""
-	}
-	// 降级：保留成功还原的代码原子并剥离残余占位符，确保译文可读且安全。
-	fallback := mtPlaceholderPattern.ReplaceAllStringFunc(translated, func(s string) string {
-		sub := mtPlaceholderPattern.FindStringSubmatch(s)
-		if len(sub) >= 3 && sub[1] == "C" {
-			if idx, err := strconv.Atoi(sub[2]); err == nil && idx >= 0 && idx < len(m.markers) {
-				return m.markers[idx]
-			}
-		}
-		return ""
-	})
-	cleaned := SanitizeTranslatedHTML(fallback)
-	return cleaned, false
+	cleaned := SanitizeTranslatedHTML(out.String())
+	return cleaned, cleaned != ""
 }

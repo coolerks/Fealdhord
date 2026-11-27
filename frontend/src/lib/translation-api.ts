@@ -87,6 +87,8 @@ const errorMessages: Record<string, string> = {
   Busy: '该文章正在翻译中，请稍候。',
   BudgetExceeded: '已达到每小时文章 AI 预算上限。',
   ConfigurationError: '请先在「设置 → 文章 AI」完成当前翻译方式的凭据配置（使用 AI 模型时需在「服务与模型」分配翻译模型）。',
+  CredentialRequired: '接口地址的来源已变化，请重新输入密钥。',
+  InvalidEndpoint: '请输入有效的 HTTPS 接口地址。',
   UnsupportedLanguage: '当前翻译方式不支持该源语言与目标语言组合，请切换目标语言或翻译方式。',
   InvalidModelOutput: '仍有内容待译，可继续翻译。',
   TranslationRefused: '翻译服务未返回这部分译文。',
@@ -105,9 +107,17 @@ const errorMessages: Record<string, string> = {
   Cancelled: '翻译已取消，已翻段落已保留。',
 }
 
-export function translationErrorMessage(error: unknown): string {
+export function translationErrorCode(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error ?? '')
-  return Object.entries(errorMessages).find(([code]) => raw.includes(code))?.[1] ?? '翻译失败，请检查翻译设置后重试。'
+  return Object.keys(errorMessages).find(code => raw.includes(code)) ?? 'TranslationError'
+}
+
+export function translationErrorMessage(error: unknown, usingAIModel = false): string {
+  const code = translationErrorCode(error)
+  if (usingAIModel && code === 'ConfigurationError') {
+    return '请先在「设置 → 服务与模型」的用途分配中为「翻译」选择已启用的模型；若不想看到此提示，可在「设置 → 文章 AI」关闭「打开文章时自动翻译正文」。'
+  }
+  return errorMessages[code] ?? '翻译失败，请检查翻译设置后重试。'
 }
 
 export const translationAPI = {

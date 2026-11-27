@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -73,8 +74,14 @@ type Service struct {
 	emit          func(ProgressEvent)
 	onChanged     func()
 
-	mu     sync.Mutex
-	active map[string]context.CancelFunc
+	credentialMu sync.RWMutex
+	mu           sync.Mutex
+	active       map[string]*translationRun
+}
+
+type translationRun struct {
+	cancel  context.CancelFunc
+	cleared bool
 }
 
 func New(store *database.Store, resolver ModelResolver, readerSvc ReaderProvider, emit func(ProgressEvent), onChanged func()) *Service {
@@ -86,7 +93,7 @@ func New(store *database.Store, resolver ModelResolver, readerSvc ReaderProvider
 		limiter:    newRateLimiter(),
 		emit:       emit,
 		onChanged:  onChanged,
-		active:     make(map[string]context.CancelFunc),
+		active:     make(map[string]*translationRun),
 	}
 }
 
@@ -168,6 +175,9 @@ func (s *Service) Get(ctx context.Context, articleID, targetLang, sourceMode str
 	if err == nil && sourceErr == nil {
 		if row.ContentHash == source.ContentHash && (sourceMode == "summary" || row.SourceVersion == rec.SourceVersion && rec.SourceVersion != "") {
 			rec = decodeRecord(row)
+			if incompleteMTSummary(row, source.Title, source.Summary) {
+				rec.Status, rec.ErrorCode = "partial", "InvalidModelOutput"
+			}
 		} else if sourceMode != "summary" && s.reader != nil && (row.Status != "skipped_same_lang" && (row.BlocksJson != "[]" || row.TranslatedTitle != "")) {
 			detail := s.reader.Get(ctx, reader.Request{ArticleID: articleID, Mode: sourceMode})
 			// Only match a cached result against the actual blocks of the currently displayed source.
@@ -251,30 +261,38 @@ func (s *Service) normalizeCachedBody(ctx context.Context, rec Record) Record {
 	if rec.SourceMode == "summary" || rec.SourceVersion == "" || s.reader == nil {
 		return rec
 	}
-	for _, block := range rec.Blocks {
-		if !hasEscapedNumericText(block.TranslatedHTML) {
-			continue
+	machine := strings.HasPrefix(rec.ModelID, "mt:") && (rec.Status == "completed" || rec.Status == "partial")
+	if !machine && !slices.ContainsFunc(rec.Blocks, func(block BlockTranslation) bool {
+		return hasEscapedNumericText(block.TranslatedHTML)
+	}) {
+		return rec
+	}
+	detail := s.reader.Get(ctx, reader.Request{ArticleID: rec.ArticleID, Mode: rec.SourceMode})
+	if !detail.OK || detail.Data == nil || detail.Data.SourceVersion != rec.SourceVersion {
+		return rec
+	}
+	blocks, err := ExtractBlocks(detail.Data.HTML)
+	if err != nil {
+		return rec
+	}
+	if machine {
+		rec.Blocks = matchingMTTranslations(blocks, rec.Blocks)
+		rec.TranslatedBlocks, rec.TotalBlocks = len(rec.Blocks), len(blocks)
+		if rec.Status == "completed" && rec.TranslatedBlocks < rec.TotalBlocks {
+			rec.Status, rec.ErrorCode = "partial", "InvalidModelOutput"
 		}
-		detail := s.reader.Get(ctx, reader.Request{ArticleID: rec.ArticleID, Mode: rec.SourceMode})
-		if !detail.OK || detail.Data == nil || detail.Data.SourceVersion != rec.SourceVersion {
-			return rec
-		}
-		blocks, err := ExtractBlocks(detail.Data.HTML)
-		if err != nil {
-			return rec
-		}
-		original := make(map[string]SourceBlock, len(blocks))
-		for _, source := range blocks {
-			original[source.ID] = source
-		}
-		for i, stored := range rec.Blocks {
-			if source := original[stored.ID]; source.SourceHash == stored.SourceHash && hasEscapedNumericText(stored.TranslatedHTML) {
-				if cleaned, matches := restoreInline(SanitizeTranslatedHTML(source.InnerHTML), SanitizeTranslatedHTML(stored.TranslatedHTML)); matches {
-					rec.Blocks[i].TranslatedHTML = cleaned
-				}
+		return rec
+	}
+	original := make(map[string]SourceBlock, len(blocks))
+	for _, source := range blocks {
+		original[source.ID] = source
+	}
+	for i, stored := range rec.Blocks {
+		if source := original[stored.ID]; source.SourceHash == stored.SourceHash && hasEscapedNumericText(stored.TranslatedHTML) {
+			if cleaned, matches := restoreInline(SanitizeTranslatedHTML(source.InnerHTML), SanitizeTranslatedHTML(stored.TranslatedHTML)); matches {
+				rec.Blocks[i].TranslatedHTML = cleaned
 			}
 		}
-		break
 	}
 	return rec
 }
@@ -291,15 +309,15 @@ func (s *Service) Cancel(articleID, targetLang, sourceMode string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if sourceMode != "" {
-		if cancel, ok := s.active[taskKey(articleID, targetLang, sourceMode)]; ok {
-			cancel()
+		if run := s.active[taskKey(articleID, targetLang, sourceMode)]; run != nil {
+			run.cancel()
 		}
 		return
 	}
 	prefix := articleID + "\x00" + targetLang + "\x00"
-	for k, cancel := range s.active {
+	for k, run := range s.active {
 		if strings.HasPrefix(k, prefix) {
-			cancel()
+			run.cancel()
 		}
 	}
 }
@@ -311,8 +329,26 @@ func (s *Service) Clear(ctx context.Context, articleID, targetLang string) error
 	if targetLang != "" {
 		targetLang = NormalizeTargetLang(targetLang)
 	}
-	s.Cancel(articleID, targetLang, "")
-	if err := s.store.DeleteArticleTranslations(ctx, articleID, targetLang); err != nil {
+	prefix := articleID + "\x00"
+	if targetLang != "" {
+		prefix += targetLang + "\x00"
+	}
+	s.mu.Lock()
+	for key, run := range s.active {
+		if strings.HasPrefix(key, prefix) {
+			run.cancel()
+		}
+	}
+	err := s.store.DeleteArticleTranslations(ctx, articleID, targetLang)
+	if err == nil {
+		for key, run := range s.active {
+			if strings.HasPrefix(key, prefix) {
+				run.cleared = true
+			}
+		}
+	}
+	s.mu.Unlock()
+	if err != nil {
 		return &ai.ModelError{Code: "StorageError"}
 	}
 	if s.onChanged != nil {
@@ -348,7 +384,7 @@ func (s *Service) Translate(ctx context.Context, req TranslateRequest) (Record, 
 		cancel()
 		return Record{}, &ai.ModelError{Code: "Busy"}
 	}
-	s.active[key] = cancel
+	s.active[key] = &translationRun{cancel: cancel}
 	s.mu.Unlock()
 	defer func() {
 		cancel()
@@ -374,7 +410,8 @@ func (s *Service) Translate(ctx context.Context, req TranslateRequest) (Record, 
 	if existingErr != nil && !errors.Is(existingErr, database.ErrNotFound) {
 		return Record{}, &ai.ModelError{Code: "StorageError"}
 	}
-	if req.SourceMode == "summary" && !req.Force && hasExisting && existing.ContentHash == article.ContentHash {
+	if req.SourceMode == "summary" && !req.Force && hasExisting && existing.ContentHash == article.ContentHash &&
+		!incompleteMTSummary(existing, article.Title, article.Summary) {
 		cached := decodeRecord(existing)
 		if cached.Status == "completed" || cached.Status == "skipped_same_lang" {
 			return cached, nil
@@ -389,9 +426,9 @@ func (s *Service) Translate(ctx context.Context, req TranslateRequest) (Record, 
 				version = source.ReaderSourceVersion
 			}
 			if version == existing.SourceVersion && (req.SourceVersion == "" || req.SourceVersion == version) {
-				cached := decodeRecord(existing)
+				cached := s.normalizeCachedBody(runCtx, decodeRecord(existing))
 				if cached.Status == "completed" {
-					return s.normalizeCachedBody(runCtx, cached), nil
+					return cached, nil
 				}
 			}
 		}
@@ -611,6 +648,11 @@ func (s *Service) saveCheckpoint(ctx context.Context, rec Record, checkpoint str
 }
 
 func (s *Service) notify(rec Record) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if run := s.active[taskKey(rec.ArticleID, rec.TargetLang, rec.SourceMode)]; run != nil && run.cleared {
+		return
+	}
 	if s.emit != nil {
 		s.emit(ProgressEvent{Record: rec})
 	}

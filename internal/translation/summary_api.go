@@ -8,7 +8,14 @@ import (
 
 	"github.com/coolerks/Fealdhord/internal/ai"
 	"github.com/coolerks/Fealdhord/internal/database"
+	"github.com/coolerks/Fealdhord/internal/database/sqlc"
 )
+
+func incompleteMTSummary(row sqlc.ArticleTranslation, title, summary string) bool {
+	return row.SourceMode == "summary" && row.Status == "completed" && strings.HasPrefix(row.ModelID, "mt:") &&
+		((strings.TrimSpace(title) != "" && strings.TrimSpace(row.TranslatedTitle) == "") ||
+			(strings.TrimSpace(summary) != "" && strings.TrimSpace(row.TranslatedSummary) == ""))
+}
 
 func (s *Service) translateSummaryWithAPI(
 	ctx context.Context,
@@ -58,17 +65,29 @@ func (s *Service) translateSummaryWithAPI(
 	if err != nil {
 		return Record{}, err
 	}
+	for i := range texts {
+		if failure := res.FailedIndices[i]; failure != nil {
+			return Record{}, failure
+		}
+		if i >= len(res.Translations) || strings.TrimSpace(res.Translations[i]) == "" {
+			return Record{}, &ai.ModelError{Code: "InvalidModelOutput"}
+		}
+	}
+	if len(res.Translations) != len(texts) {
+		return Record{}, &ai.ModelError{Code: "InvalidModelOutput"}
+	}
 
-	lang := strings.TrimSpace(res.DetectedLang)
-	if lang == "" {
-		lang = detectedLang
+	lang := detectedLang
+	// A batch's detected language can describe its first input, the title.
+	if len(texts) == 1 && strings.TrimSpace(res.DetectedLang) != "" {
+		lang = strings.TrimSpace(res.DetectedLang)
 	}
 
 	var outTitle, outSummary string
-	if titleIdx >= 0 && titleIdx < len(res.Translations) {
+	if titleIdx >= 0 {
 		outTitle = strings.TrimSpace(res.Translations[titleIdx])
 	}
-	if summaryIdx >= 0 && summaryIdx < len(res.Translations) {
+	if summaryIdx >= 0 {
 		outSummary = strings.TrimSpace(res.Translations[summaryIdx])
 	}
 

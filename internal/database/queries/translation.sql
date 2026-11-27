@@ -2,7 +2,7 @@
 SELECT * FROM article_translations WHERE article_id=? AND target_lang=? AND source_mode=?;
 
 -- name: GetCurrentTranslationSource :one
-SELECT a.content_hash, a.summary, COALESCE(r.source_version,'') AS reader_source_version
+SELECT a.content_hash, a.title, a.summary, COALESCE(r.source_version,'') AS reader_source_version
 FROM articles a JOIN feeds f ON f.id=a.feed_id
 LEFT JOIN reader_contents r ON r.article_id=a.id AND r.content_hash=a.content_hash
 WHERE a.id=? AND f.archived_at IS NULL;

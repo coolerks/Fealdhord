@@ -108,7 +108,7 @@ func (q *Queries) GetArticleTranslation(ctx context.Context, arg GetArticleTrans
 }
 
 const getCurrentTranslationSource = `-- name: GetCurrentTranslationSource :one
-SELECT a.content_hash, a.summary, COALESCE(r.source_version,'') AS reader_source_version
+SELECT a.content_hash, a.title, a.summary, COALESCE(r.source_version,'') AS reader_source_version
 FROM articles a JOIN feeds f ON f.id=a.feed_id
 LEFT JOIN reader_contents r ON r.article_id=a.id AND r.content_hash=a.content_hash
 WHERE a.id=? AND f.archived_at IS NULL
@@ -116,6 +116,7 @@ WHERE a.id=? AND f.archived_at IS NULL
 
 type GetCurrentTranslationSourceRow struct {
 	ContentHash         string `json:"content_hash"`
+	Title               string `json:"title"`
 	Summary             string `json:"summary"`
 	ReaderSourceVersion string `json:"reader_source_version"`
 }
@@ -123,7 +124,12 @@ type GetCurrentTranslationSourceRow struct {
 func (q *Queries) GetCurrentTranslationSource(ctx context.Context, id string) (GetCurrentTranslationSourceRow, error) {
 	row := q.db.QueryRowContext(ctx, getCurrentTranslationSource, id)
 	var i GetCurrentTranslationSourceRow
-	err := row.Scan(&i.ContentHash, &i.Summary, &i.ReaderSourceVersion)
+	err := row.Scan(
+		&i.ContentHash,
+		&i.Title,
+		&i.Summary,
+		&i.ReaderSourceVersion,
+	)
 	return i, err
 }
 

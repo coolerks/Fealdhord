@@ -14,7 +14,7 @@ import type { Detail } from '@/lib/reader-api'
 import type { TranslationRecord } from '@/lib/translation-api'
 const api=vi.hoisted(()=>({get:vi.fn(),extract:vi.fn(),open:vi.fn()}))
 const translationMock = vi.hoisted(() => ({ get: vi.fn(), translate: vi.fn(), cancel: vi.fn(), clear: vi.fn(), languages: vi.fn() }))
-const translationPreferences = vi.hoisted(() => ({ translateOnOpen: false }))
+const translationPreferences = vi.hoisted(() => ({ translateOnOpen: false, engine: 'ai' }))
 const summaryMock = vi.hoisted(() => ({ get: vi.fn(), generate: vi.fn(), settings: { onOpen: false, hanLimit: 600, englishLimit: 350 } }))
 vi.mock('../../../bindings/github.com/coolerks/Fealdhord/internal/articlesummary/service', () => ({
   Get: summaryMock.get, Generate: summaryMock.generate,
@@ -33,7 +33,7 @@ vi.mock('@wailsio/runtime', async importOriginal => {
 })
 vi.mock('../../../bindings/github.com/coolerks/Fealdhord/internal/media/api', () => ({ CopyInlineImage: copyImage }))
 vi.mock('../../../bindings/github.com/coolerks/Fealdhord/internal/articleai/api', () => ({
-  Settings: vi.fn(async () => ({ classification: false, featured: false, prompt: '', revision: 1, requestsPerHour: 100, tokensPerHour: 200000, minimumImportance: 0.7, minimumRelevance: 0.6, autoTranslate: false, autoTranslateScope: 'summary', translateOnOpen: translationPreferences.translateOnOpen, translationTargetLang: 'zh-CN', translationPrompt: '', summary: { ...summaryMock.settings } })),
+  Settings: vi.fn(async () => ({ classification: false, featured: false, prompt: '', revision: 1, requestsPerHour: 100, tokensPerHour: 200000, minimumImportance: 0.7, minimumRelevance: 0.6, autoTranslate: false, autoTranslateScope: 'summary', translateOnOpen: translationPreferences.translateOnOpen, translationTargetLang: 'zh-CN', translationPrompt: '', translationEngine: translationPreferences.engine, summary: { ...summaryMock.settings } })),
 }))
 vi.mock('@/lib/translation-api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/translation-api')>('@/lib/translation-api')
@@ -360,6 +360,23 @@ it('未配置翻译模型时提示可关闭打开时自动翻译并提供对应�
   await user.click(screen.getByRole('button', { name: '文章 AI 设置' }))
   expect(useWorkspace.getState().settingsTab).toBe('article-ai')
  } finally {
+  translationPreferences.translateOnOpen = false
+ }
+})
+
+it('机器翻译缺少凭据时直接打开文章 AI 设置', async () => {
+ const user = userEvent.setup()
+ translationMock.translate.mockRejectedValueOnce(new Error('ConfigurationError'))
+ translationPreferences.engine = 'baidu'
+ translationPreferences.translateOnOpen = true
+ try {
+  setup()
+  expect(await screen.findByRole('alert')).toHaveTextContent('凭据配置')
+  expect(screen.queryByRole('button', { name: '配置模型' })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '文章 AI 设置' }))
+  expect(useWorkspace.getState().settingsTab).toBe('article-ai')
+ } finally {
+  translationPreferences.engine = 'ai'
   translationPreferences.translateOnOpen = false
  }
 })

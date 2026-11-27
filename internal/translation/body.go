@@ -85,6 +85,21 @@ func (w *bodyWork) accept(unit translationUnit, translated string) {
 	w.results[id] = BlockTranslation{ID: id, SourceHash: parent.source.SourceHash, TranslatedHTML: translated}
 }
 
+func (w *bodyWork) restoreFragments(parent plannedBlock, prior fragmentCheckpoint) {
+	if len(parent.units) < 2 || prior.Key != parent.key {
+		return
+	}
+	checkpoint := fragmentCheckpoint{Key: parent.key, Pieces: make(map[string]string)}
+	for _, unit := range parent.units {
+		if piece := prior.Pieces[unit.ID]; piece != "" {
+			checkpoint.Pieces[unit.ID] = piece
+		}
+	}
+	if len(checkpoint.Pieces) > 0 {
+		w.checkpoints[parent.source.ID] = checkpoint
+	}
+}
+
 func (w *bodyWork) snapshot(status, code string) Record {
 	rec := w.record
 	rec.Status, rec.ErrorCode = status, code
@@ -264,20 +279,7 @@ func (s *Service) translateBody(ctx context.Context, article database.ArticleTra
 			planningErr = errTranslationBudget
 			continue
 		}
-		if len(parent.units) > 1 {
-			checkpoint := fragmentCheckpoint{Key: parent.key, Pieces: make(map[string]string)}
-			prior := priorCheckpoints[block.ID]
-			if prior.Key == checkpoint.Key {
-				for _, unit := range parent.units {
-					if piece := prior.Pieces[unit.ID]; piece != "" {
-						checkpoint.Pieces[unit.ID] = piece
-					}
-				}
-			}
-			if len(checkpoint.Pieces) > 0 {
-				w.checkpoints[block.ID] = checkpoint
-			}
-		}
+		w.restoreFragments(parent, priorCheckpoints[block.ID])
 		for _, unit := range parent.units {
 			w.parents[unit.ID] = parent
 			if w.checkpoints[block.ID].Pieces[unit.ID] == "" {
@@ -372,16 +374,8 @@ func (s *Service) translateBody(ctx context.Context, article database.ArticleTra
 		}
 	}
 
-	// Cancellation leaves the last committed checkpoint available. A late reply is never committed.
 	if ctx.Err() != nil {
-		status := "failed"
-		if len(w.record.Blocks) > 0 || w.savedPieces {
-			status = "partial"
-		}
-		rec := w.record
-		rec.Status, rec.ErrorCode = status, modelErrorCode(ctx.Err())
-		s.notify(rec)
-		return rec, &ai.ModelError{Code: rec.ErrorCode}
+		return s.cancelledBody(ctx, &w)
 	}
 	if modelErrorCode(lastFailure) == "Conflict" || modelErrorCode(lastFailure) == "StorageError" {
 		return w.record, lastFailure
@@ -400,12 +394,23 @@ func (s *Service) translateBody(ctx context.Context, article database.ArticleTra
 		return w.record, err
 	}
 	if w.record.TranslatedTitle != "" {
-		s.cacheBodyTitle(ctx, w.record)
+		s.cacheBodyTitle(ctx, w.record, false)
 	}
 	if status != "completed" {
 		return w.record, lastFailure
 	}
 	return w.record, nil
+}
+
+// A cancelled request may report only the last committed checkpoint.
+func (s *Service) cancelledBody(ctx context.Context, w *bodyWork) (Record, error) {
+	rec := w.record
+	rec.Status, rec.ErrorCode = "failed", modelErrorCode(ctx.Err())
+	if len(rec.Blocks) > 0 || w.savedPieces {
+		rec.Status = "partial"
+	}
+	s.notify(rec)
+	return rec, &ai.ModelError{Code: rec.ErrorCode}
 }
 
 func hasSavedFragments(checkpoints map[string]fragmentCheckpoint) bool {
@@ -422,13 +427,18 @@ func canSkipFailedBatch(err error) bool {
 	return retryable && modelErrorCode(err) != "RateLimitError"
 }
 
-func (s *Service) cacheBodyTitle(ctx context.Context, rec Record) {
-	if _, err := s.store.GetArticleTranslation(ctx, rec.ArticleID, rec.TargetLang, "summary"); !errors.Is(err, database.ErrNotFound) {
-		return
+func (s *Service) cacheBodyTitle(ctx context.Context, rec Record, needsSummary bool) {
+	status := "completed"
+	if needsSummary {
+		status = "pending"
 	}
-	rec.SourceMode, rec.SourceVersion, rec.Status, rec.ErrorCode = "summary", "", "completed", ""
-	rec.Blocks, rec.TranslatedBlocks, rec.TotalBlocks = []BlockTranslation{}, 0, 0
-	if err := s.saveRecord(ctx, rec, sql.NullInt64{}, sql.NullInt64{}); err == nil && s.onChanged != nil {
+	err := s.store.SaveArticleTitleTranslation(ctx, sqlc.SaveArticleTranslationParams{
+		ArticleID: rec.ArticleID, TargetLang: rec.TargetLang, SourceMode: "summary",
+		ContentHash: rec.ContentHash, DetectedLang: rec.DetectedLang, Status: status,
+		TranslatedTitle: rec.TranslatedTitle, TranslatedSummary: rec.TranslatedSummary, ModelID: rec.ModelID,
+		UpdatedAt: rec.UpdatedAt, BlocksJson: "[]", CheckpointJson: "{}",
+	})
+	if err == nil && s.onChanged != nil {
 		s.onChanged()
 	}
 }

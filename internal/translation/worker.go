@@ -26,40 +26,46 @@ func (s *Service) Start(ctx context.Context) func() {
 			if time.Now().Before(backoff) || s.store == nil {
 				continue
 			}
-			articleID, scope, targetLang, err := s.store.NextArticleForTranslation(ctx, time.Now().Add(-7*24*time.Hour))
-			if err != nil || articleID == "" {
-				continue
-			}
-			sourceMode := "summary"
-			deferTask := "translation"
-			if scope == "full" {
-				sourceMode = "reader"
-				deferTask = "translation_full"
-			}
-			_, err = s.Translate(ctx, TranslateRequest{
-				ArticleID:  articleID,
-				TargetLang: targetLang,
-				SourceMode: sourceMode,
-				Background: true,
-			})
-			var failure *ai.ModelError
-			if !errors.As(err, &failure) {
-				continue
-			}
-			switch failure.Code {
-			case "RateLimitError":
-				backoff = time.Now().Add(max(time.Minute, failure.RetryAfter))
-			case "BudgetExceeded":
-				backoff = time.Now().Add(time.Minute)
-			case "AuthenticationError", "CredentialError", "ConfigurationError", "UnsupportedLanguage":
-				backoff = time.Now().Add(5 * time.Minute)
-			case "Busy", "Cancelled":
-			default:
-				_ = s.store.DeferArticleAI(ctx, articleID, deferTask, time.Now().Add(30*time.Minute))
+			if delay := s.translateNext(ctx); delay > 0 {
+				backoff = time.Now().Add(delay)
 			}
 		}
 	}()
 	return func() { cancel(); <-done }
+}
+
+func (s *Service) translateNext(ctx context.Context) time.Duration {
+	articleID, scope, targetLang, err := s.store.NextArticleForTranslation(ctx, time.Now().Add(-7*24*time.Hour))
+	if err != nil || articleID == "" {
+		return 0
+	}
+	sourceMode, deferTask := "summary", "translation"
+	if scope == "full" {
+		sourceMode, deferTask = "reader", "translation_full"
+	}
+	_, err = s.Translate(ctx, TranslateRequest{
+		ArticleID: articleID, TargetLang: targetLang, SourceMode: sourceMode, Background: true,
+	})
+	var failure *ai.ModelError
+	if !errors.As(err, &failure) {
+		return 0
+	}
+	switch failure.Code {
+	case "RateLimitError":
+		return max(time.Minute, failure.RetryAfter)
+	case "BudgetExceeded":
+		return time.Minute
+	case "AuthenticationError", "CredentialError", "ConfigurationError", "CredentialRequired", "InvalidEndpoint":
+		return 5 * time.Minute
+	case "Busy", "Cancelled":
+		return 0
+	default:
+		// Unsupported source languages are specific to the article.
+		if err := s.store.DeferArticleAI(ctx, articleID, deferTask, time.Now().Add(30*time.Minute)); err != nil {
+			return time.Minute
+		}
+		return 0
+	}
 }
 
 // API 暴露给 Wails 前端的翻译服务绑定接口。

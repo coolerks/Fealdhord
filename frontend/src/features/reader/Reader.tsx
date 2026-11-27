@@ -252,10 +252,12 @@ function ReaderPane({feedIcon,feedAutoTranslateMode,article,preferences,effectiv
        {translation.error}
       </p>
       <div className="flex shrink-0 items-center gap-1.5">
-       {translation.error.includes('用途分配') && <>
-        <Button variant="outline" size="sm" onClick={() => showSettings('ai')}>配置模型</Button>
+       {translation.errorCode === 'ConfigurationError' && translation.usingAIModel &&
+        <Button variant="outline" size="sm" onClick={() => showSettings('ai')}>配置模型</Button>}
+       {(translation.errorCode === 'ConfigurationError' || (!translation.usingAIModel &&
+         ['AuthenticationError', 'CredentialError', 'CredentialRequired', 'InvalidEndpoint'].includes(translation.errorCode))) &&
         <Button variant="ghost" size="sm" onClick={() => showSettings('article-ai')}>文章 AI 设置</Button>
-       </>}
+       }
        {translation.bodyStatus === 'partial' && translation.record && translation.record.translatedBlocks < translation.record.totalBlocks &&
         <Button variant="ghost" size="sm" onClick={() => {
          const viewport = content.current

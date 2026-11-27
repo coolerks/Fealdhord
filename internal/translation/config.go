@@ -2,7 +2,9 @@ package translation
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
+	"net/url"
 	"strings"
 	"time"
 
@@ -53,8 +55,58 @@ type resolvedProviderConfig struct {
 	Edition  string
 }
 
-func providerCredentialRef(id EngineID) string {
-	return "translation:" + string(id)
+func parseProviderEndpoint(raw string) (*url.URL, error) {
+	u, err := url.Parse(raw)
+	if err != nil || len(raw) > 512 || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
+		return nil, mtError("InvalidEndpoint", "翻译接口地址须为 HTTPS")
+	}
+	return u, nil
+}
+
+func providerOrigin(id EngineID, endpoint string) (string, error) {
+	if endpoint == "" {
+		switch id {
+		case EngineGoogleBYOK:
+			endpoint = defaultGoogleCloudV2URL
+		case EngineMicrosoftAzure:
+			endpoint = defaultMicrosoftAzureURL
+		case EngineAlibaba:
+			endpoint = defaultAlibabaEndpoint
+		case EngineCaiyun:
+			endpoint = defaultCaiyunEndpoint
+		case EngineBaidu:
+			endpoint = defaultBaiduEndpoint
+		case EngineYoudao:
+			endpoint = defaultYoudaoBatchEndpoint
+		}
+	}
+	u, err := parseProviderEndpoint(endpoint)
+	if err != nil {
+		return "", err
+	}
+	return httpsOrigin(u), nil
+}
+
+func httpsOrigin(u *url.URL) string {
+	port := u.Port()
+	if port == "" {
+		port = "443"
+	}
+	return strings.ToLower(u.Hostname()) + ":" + port
+}
+
+func validateProviderEndpointChange(id EngineID, previous sqlc.TranslationProvider, endpoint, secret string, clear bool) error {
+	origin, err := providerOrigin(id, endpoint)
+	if err != nil {
+		return err
+	}
+	if previous.CredentialRef != "" && secret == "" && !clear {
+		oldOrigin, err := providerOrigin(id, previous.Endpoint)
+		if err != nil || oldOrigin != origin {
+			return &ai.ModelError{Code: "CredentialRequired"}
+		}
+	}
+	return nil
 }
 
 func maskSecret(secret string) string {
@@ -77,6 +129,12 @@ func (s *Service) credentialStore() aiconfig.CredentialStore {
 }
 
 func (s *Service) GetProviderConfig(ctx context.Context, id string) (ProviderConfig, error) {
+	s.credentialMu.RLock()
+	defer s.credentialMu.RUnlock()
+	return s.getProviderConfig(ctx, id)
+}
+
+func (s *Service) getProviderConfig(ctx context.Context, id string) (ProviderConfig, error) {
 	if s.store == nil {
 		return ProviderConfig{}, &ai.ModelError{Code: "StorageError"}
 	}
@@ -154,32 +212,27 @@ func (s *Service) SaveProviderConfig(ctx context.Context, input SaveProviderInpu
 	endpoint := strings.TrimSpace(input.Endpoint)
 	secret := strings.TrimSpace(input.Secret)
 	edition, ok := validateProviderEdition(eid, input.Edition)
-	if !ok || len(appID) > 256 || len(region) > 64 || len(endpoint) > 512 || len(secret) > 512 {
-		return ProviderConfig{}, &ai.ModelError{Code: "ValidationError"}
-	}
-	if endpoint != "" && !strings.HasPrefix(endpoint, "https://") && !strings.HasPrefix(endpoint, "http://") {
+	if !ok || len(appID) > 256 || len(region) > 64 || len(secret) > 512 {
 		return ProviderConfig{}, &ai.ModelError{Code: "ValidationError"}
 	}
 
+	s.credentialMu.Lock()
+	defer s.credentialMu.Unlock()
 	existing, err := s.store.GetTranslationProvider(ctx, string(eid))
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return ProviderConfig{}, &ai.ModelError{Code: "StorageError"}
+	}
+	if err := validateProviderEndpointChange(eid, existing, endpoint, secret, input.ClearSecret); err != nil {
+		return ProviderConfig{}, err
 	}
 	credRef := existing.CredentialRef
 	creds := s.credentialStore()
 
 	switch {
 	case input.ClearSecret:
-		if credRef != "" {
-			if delErr := creds.Delete(credRef); delErr != nil && !errors.Is(delErr, keyring.ErrNotFound) {
-				return ProviderConfig{}, &ai.ModelError{Code: "CredentialError"}
-			}
-		}
 		credRef = ""
 	case secret != "":
-		if credRef == "" {
-			credRef = providerCredentialRef(eid)
-		}
+		credRef = "translation:" + string(eid) + ":" + rand.Text()
 		if setErr := creds.Set(credRef, secret); setErr != nil {
 			return ProviderConfig{}, &ai.ModelError{Code: "CredentialError"}
 		}
@@ -195,9 +248,15 @@ func (s *Service) SaveProviderConfig(ctx context.Context, input SaveProviderInpu
 		UpdatedAt:     time.Now().UTC().UnixMilli(),
 	})
 	if err != nil {
+		if credRef != "" && credRef != existing.CredentialRef {
+			_ = creds.Delete(credRef)
+		}
 		return ProviderConfig{}, &ai.ModelError{Code: "StorageError"}
 	}
-	return s.GetProviderConfig(ctx, string(eid))
+	if existing.CredentialRef != "" && existing.CredentialRef != credRef {
+		_ = creds.Delete(existing.CredentialRef)
+	}
+	return s.getProviderConfig(ctx, string(eid))
 }
 
 func (s *Service) loadResolvedConfig(ctx context.Context, id EngineID, draft *SaveProviderInput) (resolvedProviderConfig, error) {
@@ -205,6 +264,8 @@ func (s *Service) loadResolvedConfig(ctx context.Context, id EngineID, draft *Sa
 	if !IsBYOKProvider(id) {
 		return cfg, nil
 	}
+	s.credentialMu.RLock()
+	defer s.credentialMu.RUnlock()
 	var existing sqlc.TranslationProvider
 	if s.store != nil {
 		row, err := s.store.GetTranslationProvider(ctx, string(id))
@@ -225,6 +286,10 @@ func (s *Service) loadResolvedConfig(ctx context.Context, id EngineID, draft *Sa
 		cfg.AppID = strings.TrimSpace(draft.AppID)
 		cfg.Region = strings.TrimSpace(draft.Region)
 		cfg.Endpoint = strings.TrimSpace(draft.Endpoint)
+		secret := strings.TrimSpace(draft.Secret)
+		if err := validateProviderEndpointChange(id, existing, cfg.Endpoint, secret, draft.ClearSecret); err != nil {
+			return cfg, err
+		}
 		if ed := strings.TrimSpace(draft.Edition); ed != "" {
 			cfg.Edition = ed
 		}
@@ -232,10 +297,13 @@ func (s *Service) loadResolvedConfig(ctx context.Context, id EngineID, draft *Sa
 			cfg.Secret = ""
 			return cfg, nil
 		}
-		if sec := strings.TrimSpace(draft.Secret); sec != "" {
-			cfg.Secret = sec
+		if secret != "" {
+			cfg.Secret = secret
 			return cfg, nil
 		}
+	}
+	if _, err := providerOrigin(id, cfg.Endpoint); err != nil {
+		return cfg, err
 	}
 	if existing.CredentialRef != "" {
 		secret, err := s.credentialStore().Get(existing.CredentialRef)
@@ -285,11 +353,11 @@ func (s *Service) TestProvider(ctx context.Context, id string, draft *SaveProvid
 
 	testCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	res, err := engine.TranslateBatch(testCtx, BatchRequest{
+	res, err := s.callEngineWithLimit(testCtx, engine, BatchRequest{
 		Texts:      []string{sample},
 		TargetLang: targetLang,
 		IsHTML:     false,
-	})
+	}, false)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
 		return TestResult{OK: false, LatencyMs: latency, ErrorCode: modelErrorCode(err), ErrorDetail: err.Error()}

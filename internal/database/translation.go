@@ -83,6 +83,15 @@ func (s *Store) TranslationBodyText(ctx context.Context, articleID, mode, versio
 
 // SaveCurrentArticleTranslation prevents an in-flight result from replacing a newer source.
 func (s *Store) SaveCurrentArticleTranslation(ctx context.Context, params sqlc.SaveArticleTranslationParams) error {
+	return s.saveCurrentArticleTranslation(ctx, params, false)
+}
+
+// SaveArticleTitleTranslation caches a body title without overwriting a summary.
+func (s *Store) SaveArticleTitleTranslation(ctx context.Context, params sqlc.SaveArticleTranslationParams) error {
+	return s.saveCurrentArticleTranslation(ctx, params, true)
+}
+
+func (s *Store) saveCurrentArticleTranslation(ctx context.Context, params sqlc.SaveArticleTranslationParams, onlyIfMissing bool) error {
 	return s.transaction(ctx, func(q *sqlc.Queries) error {
 		source, err := q.GetCurrentTranslationSource(ctx, params.ArticleID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -94,6 +103,17 @@ func (s *Store) SaveCurrentArticleTranslation(ctx context.Context, params sqlc.S
 		if source.ContentHash != params.ContentHash ||
 			(params.SourceMode == "reader" && (params.SourceVersion == "" || source.ReaderSourceVersion != params.SourceVersion)) {
 			return ErrConflict
+		}
+		if onlyIfMissing {
+			_, err := q.GetArticleTranslation(ctx, sqlc.GetArticleTranslationParams{
+				ArticleID: params.ArticleID, TargetLang: params.TargetLang, SourceMode: params.SourceMode,
+			})
+			if err == nil {
+				return ErrConflict
+			}
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
 		}
 		return q.SaveArticleTranslation(ctx, params)
 	})
@@ -136,7 +156,10 @@ WHERE f.archived_at IS NULL
  AND a.sort_at>=?
  AND (f.auto_translate_mode='on' OR (f.auto_translate_mode='global' AND ?=1))
  AND d.article_id IS NULL
- AND (t.article_id IS NULL OR t.status IN ('pending','partial','failed'))
+ AND (t.article_id IS NULL OR t.status IN ('pending','partial','failed')
+      OR (t.status='completed' AND t.model_id LIKE 'mt:%'
+          AND ((trim(a.title, char(9,10,13,32))<>'' AND trim(t.translated_title, char(9,10,13,32))='')
+               OR (trim(a.summary, char(9,10,13,32))<>'' AND trim(t.translated_summary, char(9,10,13,32))=''))))
 ORDER BY a.sort_at DESC, a.id DESC LIMIT 1`
 	err = s.db.QueryRowContext(ctx, querySummary, targetLang, nowMs, sinceMs, settings.AutoTranslate).Scan(&articleID)
 	if err == nil && articleID != "" {
@@ -174,7 +197,7 @@ ORDER BY a.sort_at DESC, a.id DESC LIMIT 1`
 	return articleID, "full", targetLang, nil
 }
 
-// ArticleTranslationSummaries 批量读取指定文章在当前目标语言下已完成的标题与摘要译文。
+// ArticleTranslationSummaries 批量读取指定文章的标题与摘要译文，也可显示待翻摘要的已有标题。
 func (s *Store) ArticleTranslationSummaries(ctx context.Context, articleIDs []string) (map[string]ArticleTranslationSummary, error) {
 	if len(articleIDs) == 0 {
 		return nil, nil
@@ -197,7 +220,8 @@ func (s *Store) ArticleTranslationSummaries(ctx context.Context, articleIDs []st
 	query := `SELECT t.article_id, t.translated_title, t.translated_summary
 FROM article_translations t
 JOIN articles a ON a.id=t.article_id AND a.content_hash=t.content_hash
-WHERE t.target_lang=? AND t.source_mode='summary' AND t.status='completed'
+WHERE t.target_lang=? AND t.source_mode='summary'
+ AND (t.status='completed' OR (t.status='pending' AND t.translated_title<>''))
  AND t.article_id IN (` + strings.Join(placeholders, ",") + `)`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {

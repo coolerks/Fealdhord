@@ -32,7 +32,7 @@ func TestAlibabaACS3SignAndBatchGeneralRouting(t *testing.T) {
 				t.Errorf("unexpected alibaba batch params: %v", vals)
 			}
 			return jsonResponse(http.StatusOK, map[string]any{
-				"Code": "200",
+				"Code": 200,
 				"TranslatedList": []map[string]string{
 					{"code": "200", "index": "1", "translated": "短段二", "detectedLanguage": "en"},
 					{"code": "200", "index": "0", "translated": "短段一", "detectedLanguage": "en"},
@@ -43,7 +43,7 @@ func TestAlibabaACS3SignAndBatchGeneralRouting(t *testing.T) {
 				t.Errorf("unexpected alibaba general params: %v", vals)
 			}
 			return jsonResponse(http.StatusOK, map[string]any{
-				"Code": "200",
+				"Code": 200,
 				"Data": map[string]string{"Translated": "超长段落译文", "DetectedLanguage": "en"},
 			}), nil
 		default:

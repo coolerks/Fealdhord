@@ -58,6 +58,10 @@ func (l *rateLimiter) Wait(ctx context.Context, id EngineID, caps EngineCapabili
 	st := l.state(id)
 	for {
 		st.mu.Lock()
+		if err := ctx.Err(); err != nil {
+			st.mu.Unlock()
+			return err
+		}
 		now := time.Now()
 		var wait time.Duration
 

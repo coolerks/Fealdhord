@@ -442,12 +442,13 @@ function ProviderConfigDialog({
               <FieldLabel htmlFor="tp-endpoint">自定义接口地址（可选）</FieldLabel>
               <Input
                 id="tp-endpoint"
+                type="url"
                 disabled={busy}
                 value={endpoint}
                 placeholder="留空使用官方默认地址"
                 onChange={event => setEndpoint(event.target.value)}
               />
-              <p className="text-xs text-muted-foreground">{guide.endpointHint}</p>
+              <p className="text-xs text-muted-foreground">{guide.endpointHint} 仅支持 HTTPS。更换域名或端口时请重新输入密钥。</p>
             </Field>
           )}
 

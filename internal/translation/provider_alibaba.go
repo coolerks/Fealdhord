@@ -187,7 +187,7 @@ func (e *alibabaEngine) callTranslateGeneral(ctx context.Context, text, source, 
 		return "", "", err
 	}
 	var resp struct {
-		Code    string `json:"Code"`
+		Code    int    `json:"Code"`
 		Message string `json:"Message"`
 		Data    struct {
 			Translated       string `json:"Translated"`
@@ -197,8 +197,8 @@ func (e *alibabaEngine) callTranslateGeneral(ctx context.Context, text, source, 
 	if err := json.Unmarshal(raw, &resp); err != nil {
 		return "", "", &ai.ModelError{Code: "ProviderProtocolError"}
 	}
-	if resp.Code != "" && resp.Code != "200" {
-		return "", "", classifyAlibabaError(resp.Code, resp.Message)
+	if resp.Code != 200 {
+		return "", "", classifyAlibabaError(strconv.Itoa(resp.Code), resp.Message)
 	}
 	return resp.Data.Translated, resp.Data.DetectedLanguage, nil
 }
@@ -225,7 +225,7 @@ func (e *alibabaEngine) callGetBatchTranslate(ctx context.Context, texts []strin
 		return BatchResult{}, err
 	}
 	var resp struct {
-		Code           string `json:"Code"`
+		Code           int    `json:"Code"`
 		Message        string `json:"Message"`
 		TranslatedList []struct {
 			Code             string `json:"code"`
@@ -238,8 +238,8 @@ func (e *alibabaEngine) callGetBatchTranslate(ctx context.Context, texts []strin
 	if err := json.Unmarshal(raw, &resp); err != nil {
 		return BatchResult{}, &ai.ModelError{Code: "ProviderProtocolError"}
 	}
-	if resp.Code != "" && resp.Code != "200" {
-		return BatchResult{}, classifyAlibabaError(resp.Code, resp.Message)
+	if resp.Code != 200 {
+		return BatchResult{}, classifyAlibabaError(strconv.Itoa(resp.Code), resp.Message)
 	}
 	out := make([]string, len(texts))
 	failed := make(map[int]error)

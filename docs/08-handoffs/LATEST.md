@@ -1,5 +1,7 @@
 # 最近交接
 
+2026-11-27 修复多引擎文章翻译审查发现的八项问题。重点覆盖官方阿里云响应、凭据来源和保存回滚、旧摘要缺译缓存、长段检查点及行内结构、百度补译限流、清除与取消竞态、后台单篇延后及阅读器配置入口。Go 全量与相关竞态、前端翻译组件回归、lint 和生产构建通过。旧 HTTP 自定义地址需改成 HTTPS 并重新输入密钥。真实厂商及桌面实机待验证。[任务验收](../../.trellis/tasks/archive/2026-11/11-27-article-translation-provider-fixes/validation.md)
+
 2026-11-27 完成文章多引擎翻译（阶段 1 + 阶段 2）：保留 AI 翻译，新增迁移 00036（`article_ai_settings.translation_engine` 与 `translation_providers`），接入 Google（免费 + Cloud v2 BYOK）、Microsoft（Edge 免费新版 `translatetext` + Azure v3 BYOK 含 F0 CPM 限流）、阿里云（通用版 ACS3 签名 + 批量/通用分流）、彩云小译（星型语种校验）、百度翻译（字节上限 + `src` 校验单段重试 + 三档 QPS）和有道智云（v3 批量统一截断签名 + 可选网页 HTML 模式）。前端在「设置 → 文章 AI」新增翻译方式选择、条件披露配置与参照通知渠道的「操作步骤」「查看官方文档」引导及实时连接测试。Go 竞态测试、旧库升级、`go vet`、前端 lint、类型检查、组件回归与生产构建通过；真实公网免费通道与各家 BYOK 实机联调待复测。
 
 2026-11-26 修复正文翻译首轮输出预算不足和译文集中回填。六段短文和 89 段长文均使用用户本地网关一次完成，完整段依次提交。Go 全量、相关竞态、vet 及阅读器组件回归通过。[修改和验证记录](history/2026-11-26-translation-first-pass-budget.md)

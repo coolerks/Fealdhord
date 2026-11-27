@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Events } from '@wailsio/runtime'
 import { useArticleAISettings } from '@/features/article-ai/settings-query'
-import { translationAPI, translationErrorMessage, translationProgressEvent } from '@/lib/translation-api'
+import { translationAPI, translationErrorCode, translationErrorMessage, translationProgressEvent } from '@/lib/translation-api'
 import type { TranslationDisplayMode, TranslationRecord } from '@/lib/translation-api'
 
 function normalizeDisplayMode(value?: string): TranslationDisplayMode {
@@ -42,10 +42,11 @@ export function useArticleTranslation({
   const aiSettings = useArticleAISettings(Boolean(articleID))
   const defaultTargetLang = aiSettings.data?.translationTargetLang || 'zh-CN'
   const translateOnOpen = aiSettings.data?.translateOnOpen ?? false
+  const usingAIModel = (aiSettings.data?.translationEngine || 'ai') === 'ai'
 
   const [overrideLang, setOverrideLang] = useState<string>()
   const [displayOverride, setDisplayMode] = useState<TranslationDisplayMode>()
-  const [requests, setRequests] = useState<Record<string, { running: boolean; error: string }>>({})
+  const [requests, setRequests] = useState<Record<string, { running: boolean; errorCode: string }>>({})
   const running = useRef(new Set<string>())
   const autoTriggered = useRef(new Set<string>())
 
@@ -101,8 +102,8 @@ export function useArticleTranslation({
   const translate = useCallback(async (force = false) => {
     if (!articleID || !canTranslate || running.current.has(requestKey)) return
     running.current.add(requestKey)
-    setRequests(previous => ({ ...previous, [requestKey]: { running: true, error: '' } }))
-    let error = ''
+    setRequests(previous => ({ ...previous, [requestKey]: { running: true, errorCode: '' } }))
+    let errorCode = ''
     try {
       const startBlockId = readStartBlock()
       const result = await translationAPI.translate({
@@ -117,12 +118,12 @@ export function useArticleTranslation({
         client.setQueryData<TranslationRecord | null>(queryKey, current => latestTranslation(current ?? undefined, result))
       }
     } catch (cause) {
-      error = translationErrorMessage(cause)
+      errorCode = translationErrorCode(cause)
       // Wails can reject the RPC even if the backend saved a partial result.
       void client.invalidateQueries({ queryKey, exact: true })
     } finally {
       running.current.delete(requestKey)
-      setRequests(previous => ({ ...previous, [requestKey]: { running: false, error } }))
+      setRequests(previous => ({ ...previous, [requestKey]: { running: false, errorCode } }))
     }
   }, [articleID, canTranslate, client, queryKey, readStartBlock, requestKey, sourceMode, sourceVersion, targetLang])
 
@@ -155,6 +156,7 @@ export function useArticleTranslation({
   const request = requests[requestKey]
   const translating = Boolean(request?.running || record?.status === 'translating')
   const recordError = (record?.status === 'partial' || record?.status === 'failed') && record.errorCode
+  const errorCode = request?.errorCode || recordError || ''
 
   return {
     record,
@@ -166,7 +168,9 @@ export function useArticleTranslation({
     bodyStatus: record?.status,
     canTranslate,
     translating,
-    error: request?.error || (recordError ? translationErrorMessage(recordError) : ''),
+    errorCode,
+    error: errorCode ? translationErrorMessage(errorCode, usingAIModel) : '',
+    usingAIModel,
     translate,
     cancel,
     setDisplayMode,
